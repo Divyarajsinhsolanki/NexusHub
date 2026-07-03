@@ -285,18 +285,18 @@ const Notifications = () => {
 
         <section className="shell-panel shell-panel-strong overflow-hidden rounded-[32px]">
           <div className="space-y-5 p-5 sm:p-6">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-              <div>
+            <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+              <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Filter deck</p>
                 <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em] text-slate-950">Shape the feed by urgency and type.</h2>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:items-center">
                 {STATUS_OPTIONS.map((option) => (
                   <button
                     key={option.value}
                     type="button"
                     onClick={() => setStatusFilter(option.value)}
-                    className={`rounded-full border px-4 py-2.5 text-sm font-semibold transition ${
+                    className={`rounded-full border px-3 py-2.5 text-center text-sm font-semibold transition sm:px-4 ${
                       statusFilter === option.value
                         ? "border-slate-950 bg-slate-950 text-white shadow-[0_18px_34px_rgb(15_23_42_/_0.16)]"
                         : "border-white/70 bg-white/72 text-slate-600 hover:bg-white hover:text-slate-950"
@@ -308,18 +308,29 @@ const Notifications = () => {
               </div>
             </div>
 
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,_1fr)_auto]">
-              <div className="relative">
+            <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,_1fr)_auto]">
+              <div className="relative min-w-0">
                 <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
                 <input
+                  type="search"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Search messages or signal type..."
-                  className="w-full rounded-[22px] border border-white/70 bg-white/80 py-3 pl-12 pr-4 text-sm text-slate-700 outline-none transition focus:border-sky-200 focus:bg-white focus:shadow-[0_18px_34px_rgb(15_23_42_/_0.08)]"
+                  className="w-full rounded-[22px] border border-white/70 bg-white/80 py-3 pl-12 pr-12 text-sm text-slate-700 outline-none transition focus:border-sky-200 focus:bg-white focus:shadow-[0_18px_34px_rgb(15_23_42_/_0.08)]"
                 />
+                {query ? (
+                  <button
+                    type="button"
+                    onClick={() => setQuery("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full px-2 py-1 text-xs font-semibold text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                    aria-label="Clear notification search"
+                  >
+                    Clear
+                  </button>
+                ) : null}
               </div>
 
-              <div className="scrollbar-hide flex gap-2 overflow-x-auto">
+              <div className="scrollbar-hide -mx-1 flex min-w-0 gap-2 overflow-x-auto px-1 pb-1 xl:mx-0 xl:px-0">
                 {ACTION_OPTIONS.map((option) => {
                   const isActive = actionFilter === option.value;
                   const meta = getActionMeta(option.value);

@@ -78,14 +78,14 @@ const Modal = ({ children, isOpen, onClose }) => (
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onClick={onClose}
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-6 backdrop-blur-sm sm:items-center sm:pt-4"
       >
         <motion.div
           initial={{ scale: 0.9, y: 20 }}
           animate={{ scale: 1, y: 0 }}
           exit={{ scale: 0.9, y: 20 }}
           onClick={(e) => e.stopPropagation()}
-          className="shell-panel shell-panel-strong w-full max-w-2xl overflow-y-auto rounded-[30px] shadow-[0_34px_90px_rgb(15_23_42_/_0.22)]"
+          className="shell-panel shell-panel-strong max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-[30px] shadow-[0_34px_90px_rgb(15_23_42_/_0.22)]"
         >
           {children}
         </motion.div>

@@ -110,7 +110,7 @@ const Modal = ({ isOpen, onClose, title, children, footer, size = 'md' }) => {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                    className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 pt-6 sm:items-center sm:pt-4"
                 >
                     <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
                     <motion.div
@@ -118,7 +118,7 @@ const Modal = ({ isOpen, onClose, title, children, footer, size = 'md' }) => {
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 20 }}
                         transition={{ type: "spring", duration: 0.4 }}
-                        className={`relative bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full ${sizeClasses[size]} overflow-hidden`}
+                        className={`relative flex max-h-[calc(100vh-2rem)] w-full ${sizeClasses[size]} flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-zinc-900`}
                     >
                         <div className="flex items-center justify-between p-5 border-b border-zinc-100 dark:border-zinc-800">
                             <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">{title}</h3>
@@ -129,9 +129,9 @@ const Modal = ({ isOpen, onClose, title, children, footer, size = 'md' }) => {
                                 <FiX className="w-5 h-5" />
                             </button>
                         </div>
-                        <div className="p-5 max-h-[60vh] overflow-y-auto">{children}</div>
+                        <div className="min-h-0 flex-1 overflow-y-auto p-5">{children}</div>
                         {footer && (
-                            <div className="flex items-center justify-end gap-3 p-5 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
+                            <div className="flex shrink-0 items-center justify-end gap-3 border-t border-zinc-100 bg-zinc-50 p-5 dark:border-zinc-800 dark:bg-zinc-800/50">
                                 {footer}
                             </div>
                         )}

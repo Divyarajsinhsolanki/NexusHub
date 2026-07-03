@@ -229,7 +229,7 @@ const AppRoutes = () => {
             <Route
               path="/admin"
               element={
-                <PrivateRoute siteAdminOnly>
+                <PrivateRoute allowedRoles={["owner", "admin"]}>
                   <Admin />
                 </PrivateRoute>
               }
