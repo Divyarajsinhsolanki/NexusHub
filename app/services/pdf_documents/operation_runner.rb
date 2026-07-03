@@ -161,6 +161,7 @@ module PdfDocuments
       @document.current_version.file.open do |source|
         parts = split_pdf(source.path, max_bytes)
         PdfDocument.transaction do
+          @user.workspace&.lock!
           @user.lock!
           Manager.ensure_document_slot!(@user, additional: parts.length)
           Manager.ensure_storage!(@user, parts.sum { |file| File.size(file.path) })

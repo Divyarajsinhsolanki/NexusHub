@@ -162,6 +162,21 @@ class PdfDocumentTest < ActiveSupport::TestCase
     end
   end
 
+  test "uses workspace SaaS plan limits for PDF quotas" do
+    @workspace.update!(plan_key: "growth")
+    PdfDocument::MAX_DOCUMENTS_PER_USER.times do |index|
+      @user.pdf_documents.create!(
+        workspace: @workspace,
+        title: "Growth document #{index}",
+        original_filename: "growth-document-#{index}.pdf"
+      )
+    end
+
+    assert_equal 500, PdfDocument.document_limit_for(@user)
+    assert_equal 25.gigabytes, PdfDocument.storage_limit_for(@user)
+    assert_nothing_raised { PdfDocuments::Manager.ensure_document_slot!(@user) }
+  end
+
   test "rejects non PDF version attachments" do
     document = @user.pdf_documents.create!(
       workspace: @workspace,

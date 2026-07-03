@@ -16,6 +16,7 @@ import {
 import { motion } from "framer-motion";
 import api, { fetchDailyMomentum } from "../components/api";
 import { AuthContext } from "../context/AuthContext";
+import nexusProductPoster from "../images/nexus/nexus-product-poster.webp";
 
 const statusColors = {
   blocked: "bg-rose-100 text-rose-700 border border-rose-200",
@@ -278,6 +279,15 @@ const DailyMomentumHub = () => {
             </div>
 
             <div className="rounded-[30px] border border-white/12 bg-white/[0.08] p-5 shadow-inner shadow-white/5 backdrop-blur-md">
+              <div className="mb-5 overflow-hidden rounded-[22px] border border-white/12 bg-slate-950/60">
+                <img
+                  src={nexusProductPoster}
+                  alt=""
+                  aria-hidden="true"
+                  loading="lazy"
+                  className="aspect-video w-full object-cover opacity-90"
+                />
+              </div>
               <p className="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-slate-300">Snapshot</p>
               <p className="mt-3 flex items-center gap-3 text-3xl font-semibold tracking-[-0.04em] text-white">
                 <FiTarget className="h-7 w-7 text-cyan-300" />

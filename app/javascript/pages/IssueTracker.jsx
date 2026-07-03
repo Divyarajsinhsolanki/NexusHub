@@ -5,6 +5,7 @@ import { Toaster, toast } from "react-hot-toast";
 import { SparklesIcon, ClipboardDocumentListIcon, LinkIcon, ShieldExclamationIcon, ExclamationTriangleIcon, CheckCircleIcon, ListBulletIcon, Squares2X2Icon, VideoCameraIcon, BellIcon, ClockIcon, BoltIcon, FireIcon, TrashIcon, UserGroupIcon, FunnelIcon } from "@heroicons/react/24/outline";
 import { motion, AnimatePresence } from "framer-motion";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
+import issuesEmptyIllustration from "../images/nexus/issues-empty.webp";
 
 
 const DEFAULT_STATUSES = ["New", "In Progress", "Blocked", "Resolved", "Not Reproducible", "Need to discuss", "Retest", "Not an issue"];
@@ -138,7 +139,13 @@ const BulkActionsToolbar = ({ selectedCount, onClear, onBulkUpdate, onBulkDelete
 
 const EmptyState = ({ onAdd }) => (
   <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-gradient-to-br from-white via-slate-50 to-white p-10 text-center">
-    <SparklesIcon className="h-10 w-10 text-[var(--theme-color)]" />
+    <img
+      src={issuesEmptyIllustration}
+      alt=""
+      aria-hidden="true"
+      loading="lazy"
+      className="h-40 w-40 rounded-2xl object-cover shadow-sm"
+    />
     <h3 className="mt-3 text-xl font-semibold text-slate-900">No issues logged yet</h3>
     <p className="mt-2 max-w-md text-sm text-slate-500">
       Capture issues with repro steps, expected vs actual, and optionally link them to a task.

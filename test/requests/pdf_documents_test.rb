@@ -231,6 +231,28 @@ class PdfDocumentsTest < ActionDispatch::IntegrationTest
     source&.close!
   end
 
+  test "indexes PDF text for library and global search" do
+    source = create_test_pdf(text: "Apollo searchable contract", pages: 1)
+    upload = Rack::Test::UploadedFile.new(source.path, "application/pdf", original_filename: "apollo.pdf")
+
+    post "/api/pdf_documents", params: { file: upload, title: "Apollo Contract" }
+    assert_response :created, response.body
+    document_id = JSON.parse(response.body).fetch("id")
+    document = PdfDocument.unscoped.find(document_id)
+    assert_includes document.searchable_text, "Apollo searchable contract"
+
+    get "/api/pdf_documents", params: { q: "searchable contract" }
+    assert_response :success
+    assert_equal [document_id], JSON.parse(response.body).fetch("documents").map { |item| item.fetch("id") }
+
+    get "/api/search", params: { q: "searchable contract" }
+    assert_response :success
+    result = JSON.parse(response.body).fetch("results").find { |item| item.fetch("type") == "pdf_document" }
+    assert_equal document_id, result.fetch("id")
+  ensure
+    source&.close!
+  end
+
   private
 
   def login_as(user)

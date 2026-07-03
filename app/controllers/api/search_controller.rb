@@ -1,5 +1,5 @@
 class Api::SearchController < Api::BaseController
-  DEFAULT_TYPES = %w[projects tasks issues users posts knowledge].freeze
+  DEFAULT_TYPES = %w[projects tasks issues users posts knowledge pdf_documents].freeze
   MAX_PER_TYPE = 6
 
   def index
@@ -84,6 +84,16 @@ class Api::SearchController < Api::BaseController
       .map do |bookmark|
         title = bookmark.payload["title"] || bookmark.payload["headline"] || bookmark.card_type.humanize
         result("knowledge", bookmark.id, title, bookmark.collection_name, "/knowledge?bookmark_id=#{bookmark.id}", bookmark.updated_at)
+      end
+  end
+
+  def search_pdf_documents(pattern)
+    current_user.pdf_documents
+      .where("title ILIKE :pattern OR original_filename ILIKE :pattern OR searchable_text ILIKE :pattern", pattern:)
+      .order(updated_at: :desc)
+      .limit(MAX_PER_TYPE)
+      .map do |document|
+        result("pdf_document", document.id, document.title, document.original_filename, "/pdf-master?document_id=#{document.id}", document.updated_at)
       end
   end
 

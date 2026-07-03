@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { fetchProjects, createProject, updateProject, deleteProject, addProjectUser, updateProjectUser, deleteProjectUser, leaveProject, SchedulerAPI } from "../components/api";
 import UserMultiSelect from "../components/UserMultiSelect";
 import { AuthContext } from "../context/AuthContext";
+import projectsEmptyIllustration from "../images/nexus/projects-empty.webp";
 import {
     FiPlus, FiEdit2, FiTrash2, FiUsers, FiSearch, FiUserPlus,
     FiChevronRight, FiX, FiCheck, FiInfo, FiLoader, FiCalendar,
@@ -306,7 +307,14 @@ const ProjectHealthCard = ({ stats, loading, error }) => {
                     </div>
                 ) : stats.total === 0 ? (
                     <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
-                        No tasks found for this project yet. Start by creating a task to visualise the project health.
+                        <img
+                            src={projectsEmptyIllustration}
+                            alt=""
+                            aria-hidden="true"
+                            loading="lazy"
+                            className="mx-auto mb-4 h-32 w-32 rounded-2xl object-cover shadow-sm"
+                        />
+                        <p>No tasks found for this project yet. Start by creating a task to visualise the project health.</p>
                     </div>
                 ) : (
                     <div className="space-y-6">
@@ -1004,7 +1012,13 @@ const Projects = () => {
                         ))
                     ) : (
                         <div className="text-center py-12">
-                            <FiFolder className="w-12 h-12 text-zinc-300 dark:text-zinc-600 mx-auto mb-3" />
+                            <img
+                                src={projectsEmptyIllustration}
+                                alt=""
+                                aria-hidden="true"
+                                loading="lazy"
+                                className="mx-auto mb-4 h-28 w-28 rounded-2xl object-cover shadow-sm"
+                            />
                             <p className="font-medium text-zinc-600 dark:text-zinc-400">No projects found</p>
                             <p className="text-sm text-zinc-500">Try a different search</p>
                         </div>

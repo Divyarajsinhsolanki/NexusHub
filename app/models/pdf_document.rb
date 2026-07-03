@@ -1,8 +1,10 @@
 class PdfDocument < ApplicationRecord
   include WorkspaceScoped
 
-  MAX_DOCUMENTS_PER_USER = 25
-  MAX_STORAGE_PER_USER = 1.gigabyte
+  DEFAULT_DOCUMENT_LIMIT = 25
+  DEFAULT_STORAGE_LIMIT = 1.gigabyte
+  MAX_DOCUMENTS_PER_USER = DEFAULT_DOCUMENT_LIMIT
+  MAX_STORAGE_PER_USER = DEFAULT_STORAGE_LIMIT
   MAX_UPLOAD_SIZE = 50.megabytes
   MAX_EDIT_VERSIONS = 20
 
@@ -50,11 +52,31 @@ class PdfDocument < ApplicationRecord
     versions.sum(:byte_size)
   end
 
+  def self.document_limit_for(user)
+    user&.workspace&.saas_plan&.dig(:limits, :pdf_documents) || DEFAULT_DOCUMENT_LIMIT
+  end
+
+  def self.storage_limit_for(user)
+    user&.workspace&.saas_plan&.dig(:limits, :storage_bytes) || DEFAULT_STORAGE_LIMIT
+  end
+
   def self.storage_bytes_for(user)
     PdfDocumentVersion
       .unscoped
       .joins(:pdf_document)
       .where(pdf_documents: { user_id: user.id })
       .sum(:byte_size)
+  end
+
+  def self.document_count_for_workspace(workspace)
+    return 0 unless workspace
+
+    PdfDocument.unscoped.where(workspace_id: workspace.id).count
+  end
+
+  def self.storage_bytes_for_workspace(workspace)
+    return 0 unless workspace
+
+    PdfDocumentVersion.unscoped.where(workspace_id: workspace.id).sum(:byte_size)
   end
 end

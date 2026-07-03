@@ -90,8 +90,8 @@ const Signup = ({ switchToLogin }) => {
           />
         </div>
 
-        <div className="flex justify-center lg:justify-end">
-          <div className="w-full max-w-md rounded-2xl border border-shell-border bg-surface-elevated p-6 shadow-shell-lg transition-transform duration-200 hover:-translate-y-1 sm:p-7">
+        <div className="flex justify-start sm:justify-center lg:justify-end">
+          <div className="w-full max-w-xs rounded-2xl border border-shell-border bg-surface-elevated p-6 shadow-shell-lg transition-transform duration-200 hover:-translate-y-1 sm:max-w-md sm:p-7">
             <h2 className="mb-1 text-center text-2xl font-bold text-shell-text-strong">Create account</h2>
             <p className="mb-6 text-center text-sm text-shell-muted">Join the workspace and start your command deck.</p>
 

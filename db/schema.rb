@@ -470,6 +470,9 @@ ActiveRecord::Schema[8.1].define(version: 2027_06_29_000000) do
     t.integer "lock_version", default: 0, null: false
     t.string "original_filename", null: false
     t.integer "page_count"
+    t.text "searchable_text"
+    t.text "text_index_error"
+    t.datetime "text_indexed_at"
     t.string "title", null: false
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false

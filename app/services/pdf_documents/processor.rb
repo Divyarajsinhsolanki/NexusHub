@@ -13,6 +13,9 @@ module PdfDocuments
     MAX_REDACTIONS = 100
     MAX_TEXT_LENGTH = 5_000
     MAX_PAGES = 2_000
+    MAX_TEXT_EXTRACTION_PAGES = 500
+    MAX_IMAGE_EXPORT_PAGES = 100
+    MAX_ARTIFACT_BYTES = 100.megabytes
     ANNOTATION_TYPES = %w[text watermark highlight rectangle arrow pen].freeze
 
     def initialize(document:, user:)
@@ -91,23 +94,25 @@ module PdfDocuments
     end
 
     def extract_text!
-      with_source do |source_path|
-        stdout, stderr, status = run_command(
-          ["pdftotext", "-layout", "-enc", "UTF-8", source_path, "-"],
-          timeout: 90
-        )
-        raise ArgumentError, "Text extraction failed." unless status.success?
+      validate_page_count!(@document.page_count, MAX_TEXT_EXTRACTION_PAGES, "Text extraction")
 
+      with_source do |source_path|
         create_artifact!(
           kind: "text",
           filename: "#{File.basename(@document.original_filename, ".pdf")}.txt",
           content_type: "text/plain",
-          content: stdout.encode("UTF-8", invalid: :replace, undef: :replace, replace: "")
+          content: TextExtractor.call(
+            source_path,
+            max_bytes: TextExtractor::MAX_ARTIFACT_BYTES,
+            truncate: false
+          )
         )
       end
     end
 
     def export_images!
+      validate_page_count!(@document.page_count, MAX_IMAGE_EXPORT_PAGES, "Image export")
+
       with_source do |source_path|
         Dir.mktmpdir("pdf-images") do |directory|
           prefix = File.join(directory, "page")
@@ -117,15 +122,17 @@ module PdfDocuments
           )
           raise ArgumentError, "Image export failed." unless status.success?
 
-          image_paths = Dir.glob("#{prefix}-*.png").sort
+          image_paths = self.class.sorted_page_image_paths(Dir.glob("#{prefix}-*.png"))
           raise ArgumentError, "Image export produced no files." if image_paths.empty?
 
           zip_path = File.join(directory, "images.zip")
           Zip::File.open(zip_path, create: true) do |zip|
-            image_paths.each_with_index do |path, index|
-              zip.add("page-#{index + 1}.png", path)
+            image_paths.each do |path|
+              page_number = self.class.page_number_from_image_path(path)
+              zip.add("page-#{page_number}.png", path)
             end
           end
+          validate_artifact_size!(zip_path)
           create_artifact_from_path!(
             kind: "images",
             path: zip_path,
@@ -134,6 +141,14 @@ module PdfDocuments
           )
         end
       end
+    end
+
+    def self.sorted_page_image_paths(paths)
+      paths.sort_by { |path| page_number_from_image_path(path) || Float::INFINITY }
+    end
+
+    def self.page_number_from_image_path(path)
+      File.basename(path).match(/-(\d+)\.png\z/)&.[](1)&.to_i
     end
 
     def redact!(regions:, base_version_id:)
@@ -423,10 +438,30 @@ module PdfDocuments
         x: params.fetch(:x), y: params.fetch(:y),
         width: params.fetch(:width), height: params.fetch(:height)
       )
-      PdfMaster::Editor.add_image(
-        source_path, asset.path, mapped[:x], mapped[:y], page_number, nil,
-        prefix: "image", width: mapped[:width]
-      ).tap { |generated| FileUtils.mv(generated, output_path) }
+      add_image_overlay!(source_path, output_path, asset.path, page_number, mapped)
+    end
+
+    def add_image_overlay!(source_path, output_path, image_path, page_number, rectangle)
+      source_pdf = CombinePDF.load(source_path)
+      target_page = source_pdf.pages[page_number - 1]
+      raise ArgumentError, "Invalid page number." unless target_page
+
+      width = target_page.mediabox[2] - target_page.mediabox[0]
+      height = target_page.mediabox[3] - target_page.mediabox[1]
+
+      Dir.mktmpdir("pdf-image") do |directory|
+        overlay_path = File.join(directory, "page-#{page_number}.pdf")
+        Prawn::Document.generate(overlay_path, page_size: [width, height], margin: 0) do |pdf|
+          pdf.image(
+            image_path,
+            at: [rectangle[:x].to_f, rectangle[:y].to_f],
+            fit: [rectangle[:width].to_f, rectangle[:height].to_f]
+          )
+        end
+
+        target_page << CombinePDF.load(overlay_path).pages.first
+        source_pdf.save(output_path)
+      end
     end
 
     def page_dimensions(path, page_number)
@@ -492,6 +527,7 @@ module PdfDocuments
     end
 
     def create_artifact_from_path!(kind:, path:, filename:, content_type:)
+      validate_artifact_size!(path)
       artifact = @user.pdf_document_artifacts.create!(
         workspace: @user.workspace,
         pdf_document: @document,
@@ -506,6 +542,18 @@ module PdfDocuments
       )
       PurgePdfDocumentArtifactsJob.set(wait: 24.hours).perform_later
       artifact
+    end
+
+    def validate_page_count!(page_count, limit, label)
+      return if page_count.to_i <= limit
+
+      raise ArgumentError, "#{label} is limited to #{limit} pages."
+    end
+
+    def validate_artifact_size!(path)
+      return if File.size(path) <= MAX_ARTIFACT_BYTES
+
+      raise ArgumentError, "Generated file is too large."
     end
 
     def validate_password!(password)

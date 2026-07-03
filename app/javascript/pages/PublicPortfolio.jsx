@@ -19,12 +19,16 @@ import {
 } from "react-icons/fi";
 import { AuthContext } from "../context/AuthContext";
 import { fetchPortfolio, sendContact } from "../components/api";
+import LoopingVideo from "../components/ui/LoopingVideo";
 import { runtimeOrBuildValue } from "../config/runtime";
+import nexusProductPoster from "../images/nexus/nexus-product-poster.webp";
 
 const RECAPTCHA_SITE_KEY = runtimeOrBuildValue(
   "nexus-recaptcha-site-key",
   import.meta.env.VITE_RECAPTCHA_SITE_KEY
 );
+const NEXUS_PRODUCT_LOOP_WEBM = "/media/nexus/nexus-product-loop.webm";
+const NEXUS_PRODUCT_LOOP_MP4 = "/media/nexus/nexus-product-loop.mp4";
 
 const fallbackProfile = {
   full_name: "Divyarajsinh Solanki",
@@ -367,17 +371,28 @@ const PublicPortfolio = () => {
                 {(project?.stack || profile.skills || []).map((item) => <span key={item} className="rounded-full bg-cyan-300/10 px-3 py-1.5 text-sm text-cyan-200">{item}</span>)}
               </div>
             </div>
-            <div className="rounded-[34px] border border-white/10 bg-gradient-to-br from-white/10 to-white/[0.03] p-7 sm:p-9">
-              <p className="text-base leading-8 text-slate-200 sm:text-lg">{project?.summary || "Nexus Hub brings planning, delivery, communication, knowledge, and document tools into one Rails and React product."}</p>
-              <p className="mt-5 leading-7 text-slate-400">{project?.description}</p>
-              <div className="mt-8 grid gap-3 sm:grid-cols-2">
-                {(project?.engineering_highlights || profile.engineering_highlights || []).map((item) => (
-                  <div key={item} className="flex gap-3 rounded-2xl bg-slate-950/50 p-4 text-sm leading-6 text-slate-300"><FiShield className="mt-1 shrink-0 text-cyan-300" /> {item}</div>
-                ))}
+            <div className="space-y-5">
+              <div className="rounded-[34px] border border-white/10 bg-gradient-to-br from-white/10 to-white/[0.03] p-7 sm:p-9">
+                <p className="text-base leading-8 text-slate-200 sm:text-lg">{project?.summary || "Nexus Hub brings planning, delivery, communication, knowledge, and document tools into one Rails and React product."}</p>
+                <p className="mt-5 leading-7 text-slate-400">{project?.description}</p>
+                <div className="mt-8 grid gap-3 sm:grid-cols-2">
+                  {(project?.engineering_highlights || profile.engineering_highlights || []).map((item) => (
+                    <div key={item} className="flex gap-3 rounded-2xl bg-slate-950/50 p-4 text-sm leading-6 text-slate-300"><FiShield className="mt-1 shrink-0 text-cyan-300" /> {item}</div>
+                  ))}
+                </div>
+                <div className="mt-8 flex flex-wrap gap-3">
+                  <button onClick={() => openDemo("/demo")} className="rounded-full bg-white px-5 py-3 font-semibold text-slate-950">Start guided demo</button>
+                  {project?.repository_url ? <a href={project.repository_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border border-white/15 px-5 py-3 font-semibold"><FiGithub /> View code</a> : null}
+                </div>
               </div>
-              <div className="mt-8 flex flex-wrap gap-3">
-                <button onClick={() => openDemo("/demo")} className="rounded-full bg-white px-5 py-3 font-semibold text-slate-950">Start guided demo</button>
-                {project?.repository_url ? <a href={project.repository_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border border-white/15 px-5 py-3 font-semibold"><FiGithub /> View code</a> : null}
+              <div className="overflow-hidden rounded-[30px] border border-cyan-300/12 bg-slate-950 shadow-2xl shadow-cyan-950/30">
+                <LoopingVideo
+                  srcWebm={NEXUS_PRODUCT_LOOP_WEBM}
+                  srcMp4={NEXUS_PRODUCT_LOOP_MP4}
+                  poster={nexusProductPoster}
+                  ariaLabel="Animated Nexus Hub workspace product overview"
+                  className="aspect-video w-full object-cover"
+                />
               </div>
             </div>
           </div>

@@ -27,6 +27,7 @@ import SkillDirectory from "../components/teams/SkillDirectory";
 import SkillEndorsementsPanel from "../components/teams/SkillEndorsementsPanel";
 import LearningGoalsPanel from "../components/teams/LearningGoalsPanel";
 import { AuthContext } from "../context/AuthContext";
+import teamsEmptyIllustration from "../images/nexus/teams-empty.webp";
 import {
     FiPlus, FiEdit2, FiTrash2, FiUsers, FiSearch, FiUserPlus,
     FiChevronRight, FiX, FiCheck, FiInfo, FiLoader, FiTarget,
@@ -834,7 +835,13 @@ const Teams = () => {
                         ))
                     ) : (
                         <div className="text-center py-12">
-                            <FiUsers className="w-12 h-12 text-zinc-300 dark:text-zinc-600 mx-auto mb-3" />
+                            <img
+                                src={teamsEmptyIllustration}
+                                alt=""
+                                aria-hidden="true"
+                                loading="lazy"
+                                className="mx-auto mb-4 h-28 w-28 rounded-2xl object-cover shadow-sm"
+                            />
                             <p className="font-medium text-zinc-600 dark:text-zinc-400">No teams found</p>
                             <p className="text-sm text-zinc-500">Try a different search</p>
                         </div>
@@ -1019,7 +1026,16 @@ const Teams = () => {
                                             />
                                         ))
                                     ) : (
-                                        <p className="text-center text-zinc-500 py-8">No members yet.</p>
+                                        <div className="flex flex-col items-center py-8 text-center text-zinc-500">
+                                            <img
+                                                src={teamsEmptyIllustration}
+                                                alt=""
+                                                aria-hidden="true"
+                                                loading="lazy"
+                                                className="mb-4 h-32 w-32 rounded-2xl object-cover shadow-sm"
+                                            />
+                                            <p>No members yet.</p>
+                                        </div>
                                     )}
                                 </div>
 

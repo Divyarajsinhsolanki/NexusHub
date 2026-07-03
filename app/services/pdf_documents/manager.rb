@@ -22,9 +22,10 @@ module PdfDocuments
     def self.create_from_path!(user:, path:, filename:, title: nil, operation: "upload")
       inspection = Inspector.call(path)
       filename = sanitize_filename(filename)
+      document = nil
 
       PdfDocument.transaction do
-        user.lock!
+        lock_quota_scope!(user)
         ensure_document_slot!(user)
         ensure_storage!(user, inspection.byte_size)
 
@@ -45,16 +46,17 @@ module PdfDocuments
           inspection:
         )
         document.update!(current_version: version)
-        refresh_thumbnail!(document)
-        document
       end
+      refresh_document_derivatives!(document)
+      document
     end
 
     def self.append_version!(document:, created_by:, path:, operation:, base_version_id:, metadata: {})
       inspection = Inspector.call(path)
+      version = nil
 
       PdfDocument.transaction do
-        created_by.lock!
+        lock_quota_scope!(created_by)
         document.lock!
         raise StaleVersion, "Document changed in another request. Reload and try again." unless document.current_version_id == base_version_id.to_i
 
@@ -87,9 +89,9 @@ module PdfDocuments
           encrypted: inspection.encrypted
         )
         prune_old_versions!(document)
-        refresh_thumbnail!(document)
-        version
       end
+      refresh_document_derivatives!(document)
+      version
     end
 
     def self.move_history!(document:, target_version:)
@@ -101,17 +103,18 @@ module PdfDocuments
           page_count: target_version.page_count,
           encrypted: target_version.encrypted
         )
-        refresh_thumbnail!(document)
       end
+      refresh_document_derivatives!(document)
       target_version
     end
 
     def self.user_usage(user)
+      workspace = user.workspace
       {
-        document_count: user.pdf_documents.count,
-        document_limit: PdfDocument::MAX_DOCUMENTS_PER_USER,
-        storage_bytes: PdfDocument.storage_bytes_for(user),
-        storage_limit_bytes: PdfDocument::MAX_STORAGE_PER_USER
+        document_count: PdfDocument.document_count_for_workspace(workspace),
+        document_limit: PdfDocument.document_limit_for(user),
+        storage_bytes: PdfDocument.storage_bytes_for_workspace(workspace),
+        storage_limit_bytes: PdfDocument.storage_limit_for(user)
       }
     end
 
@@ -138,17 +141,47 @@ module PdfDocuments
       Rails.logger.warn("[PDF] Thumbnail generation failed for document #{document.id}: #{e.class}")
     end
 
-    def self.ensure_document_slot!(user, additional: 1)
-      return if user.pdf_documents.count + additional <= PdfDocument::MAX_DOCUMENTS_PER_USER
+    def self.refresh_searchable_text!(document)
+      if document.encrypted? || document.current_version.blank?
+        document.update_columns(searchable_text: nil, text_indexed_at: nil, text_index_error: "encrypted")
+        return
+      end
 
-      raise QuotaExceeded, "Personal PDF library is limited to #{PdfDocument::MAX_DOCUMENTS_PER_USER} documents."
+      document.current_version.file.open do |source|
+        text = TextExtractor.call(
+          source.path,
+          max_bytes: TextExtractor::MAX_INDEX_BYTES,
+          truncate: true
+        )
+        document.update_columns(searchable_text: text, text_indexed_at: Time.current, text_index_error: nil)
+      end
+    rescue StandardError => e
+      document.update_columns(searchable_text: nil, text_indexed_at: Time.current, text_index_error: e.message.to_s.first(500))
+      Rails.logger.warn("[PDF] Text indexing failed for document #{document.id}: #{e.class}")
+    end
+
+    def self.refresh_document_derivatives!(document)
+      document.reload
+      refresh_thumbnail!(document)
+      refresh_searchable_text!(document)
+    end
+
+    def self.ensure_document_slot!(user, additional: 1)
+      limit = PdfDocument.document_limit_for(user)
+      return if limit.blank?
+      return if PdfDocument.document_count_for_workspace(user.workspace) + additional <= limit
+
+      raise QuotaExceeded, "Workspace PDF library is limited to #{limit} documents."
     end
 
     def self.ensure_storage!(user, additional_bytes, reclaim_bytes: 0)
-      projected = PdfDocument.storage_bytes_for(user) - reclaim_bytes.to_i + additional_bytes.to_i
-      return if projected <= PdfDocument::MAX_STORAGE_PER_USER
+      limit = PdfDocument.storage_limit_for(user)
+      return if limit.blank?
 
-      raise QuotaExceeded, "Personal PDF storage is limited to 1GB."
+      projected = PdfDocument.storage_bytes_for_workspace(user.workspace) - reclaim_bytes.to_i + additional_bytes.to_i
+      return if projected <= limit
+
+      raise QuotaExceeded, "Workspace PDF storage is limited to #{ActiveSupport::NumberHelper.number_to_human_size(limit)}."
     end
 
     def self.sanitize_filename(filename)
@@ -202,6 +235,11 @@ module PdfDocuments
         .destroy_all
     end
 
-    private_class_method :with_uploaded_pdf, :attach_version!, :prune_old_versions!
+    def self.lock_quota_scope!(user)
+      user.workspace&.lock!
+      user.lock!
+    end
+
+    private_class_method :with_uploaded_pdf, :attach_version!, :prune_old_versions!, :lock_quota_scope!, :refresh_document_derivatives!
   end
 end

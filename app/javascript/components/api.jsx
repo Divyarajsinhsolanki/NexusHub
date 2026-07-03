@@ -256,7 +256,7 @@ export const deleteProjectVaultItem = (projectId, id) => api.delete(`/projects/$
 export const fetchDailyMomentum = () => api.get('/daily_momentum');
 
 // PDF DOCUMENTS
-export const fetchPdfDocuments = () => api.get('/pdf_documents');
+export const fetchPdfDocuments = (params = {}) => api.get('/pdf_documents', { params });
 export const fetchPdfDocument = (id) => api.get(`/pdf_documents/${id}`);
 export const uploadPdfDocument = (file, title, onUploadProgress) => {
   const data = new FormData();

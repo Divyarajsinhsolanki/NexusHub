@@ -255,15 +255,18 @@ const PdfMaster = () => {
   const selectedDocument = documents.find((document) => String(document.id) === String(selectedId)) || null;
   const selectedShape = shapes.find((shape) => shape.id === selectedShapeId) || null;
   const filteredDocuments = useMemo(
-    () => documents.filter((document) =>
-      `${document.title} ${document.original_filename}`.toLowerCase().includes(search.toLowerCase())
-    ),
-    [documents, search]
+    () => isDemo
+      ? documents.filter((document) =>
+        `${document.title} ${document.original_filename}`.toLowerCase().includes(search.toLowerCase())
+      )
+      : documents,
+    [documents, isDemo, search]
   );
 
-  const loadDocuments = useCallback(async (preferredId) => {
+  const loadDocuments = useCallback(async (preferredId, query = "") => {
     if (isDemo) return;
-    const { data } = await fetchPdfDocuments();
+    const trimmedQuery = query.trim();
+    const { data } = await fetchPdfDocuments(trimmedQuery ? { q: trimmedQuery } : {});
     setDocuments(data.documents || []);
     setUsage(data.usage || {});
     setSelectedId((current) => {
@@ -286,6 +289,16 @@ const PdfMaster = () => {
       .finally(() => setLoading(false));
     return () => window.clearTimeout(pollTimer.current);
   }, [isDemo, loadDocuments]);
+
+  useEffect(() => {
+    if (isDemo || loading) return undefined;
+
+    const timer = window.setTimeout(() => {
+      loadDocuments(undefined, search)
+        .catch((error) => toast.error(errorMessage(error, "Could not search PDF library.")));
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [isDemo, loadDocuments, loading, search]);
 
   useEffect(() => {
     const count = selectedDocument?.page_count || 0;
@@ -333,7 +346,7 @@ const PdfMaster = () => {
 
     if (nextOperation.document) updateSelectedDocument(nextOperation.document);
     const preferredId = nextOperation.result?.document_id || nextOperation.result?.document_ids?.[0] || selectedId;
-    await loadDocuments(preferredId);
+    await loadDocuments(preferredId, search);
     toast.success("PDF operation completed.");
     return true;
   };
@@ -431,7 +444,7 @@ const PdfMaster = () => {
         });
         lastId = data.id;
       }
-      await loadDocuments(lastId);
+      await loadDocuments(lastId, search);
       toast.success(`${accepted.length} PDF${accepted.length === 1 ? "" : "s"} saved.`);
     } catch (error) {
       toast.error(errorMessage(error, "Upload failed."));

@@ -6,6 +6,14 @@ class Api::PdfDocumentsController < Api::BaseController
   def index
     documents = current_user.pdf_documents.includes(:current_version, thumbnail_attachment: :blob)
       .order(updated_at: :desc)
+    if params[:q].present?
+      pattern = "%#{ActiveRecord::Base.sanitize_sql_like(params[:q].to_s.strip)}%"
+      documents = documents.where(
+        "title ILIKE :pattern OR original_filename ILIKE :pattern OR searchable_text ILIKE :pattern",
+        pattern:
+      )
+    end
+
     render json: {
       documents: documents.map { |document| serialize(document) },
       usage: PdfDocuments::Manager.user_usage(current_user)
