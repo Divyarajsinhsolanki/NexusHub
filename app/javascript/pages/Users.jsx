@@ -591,7 +591,7 @@ const Users = () => {
       </div>
 
       {createModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 pt-6 backdrop-blur-sm sm:items-center sm:pt-4">
           <form
             onSubmit={handleCreateUser}
             className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl p-6 relative max-h-[90vh] overflow-y-auto"
@@ -788,7 +788,7 @@ const Users = () => {
 
       {/* Photo Update Modal */}
       {photoModalOpen && photoModalUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 pt-6 backdrop-blur-sm sm:items-center sm:pt-4">
           <form
             onSubmit={handlePhotoUpdate}
             encType="multipart/form-data"
@@ -867,7 +867,7 @@ const Users = () => {
 
       {/* Custom Modal for Deletion */}
       {editingId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 pt-6 backdrop-blur-sm sm:items-center sm:pt-4">
           <form onSubmit={handleUpdate} className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl p-6 relative max-h-[90vh] overflow-y-auto">
             <button type="button" onClick={closeEditModal} className="absolute right-3 top-3 text-gray-400 hover:text-gray-600">
               <X size={18} />
@@ -901,7 +901,7 @@ const Users = () => {
       )}
 
       {deleteModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm transition-opacity">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 pt-6 backdrop-blur-sm transition-opacity sm:items-center sm:pt-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 transform transition-all scale-100">
             <div className="flex flex-col items-center text-center">
               <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-4 text-red-600">

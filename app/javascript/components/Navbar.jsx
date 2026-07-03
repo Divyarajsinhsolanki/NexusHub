@@ -482,7 +482,7 @@ const Navbar = () => {
   const isOwner = user?.roles?.some((role) => role.name === "owner");
   const profileLinks = [
     user?.site_admin && portfolioEnabled ? { to: "/admin/portfolio", label: "Portfolio Editor", icon: FiBriefcase } : null,
-    user?.site_admin ? { to: "/admin", label: "System Admin", icon: FiGrid } : null,
+    hasAdminRole ? { to: "/admin", label: "System Admin", icon: FiGrid } : null,
     { to: "/profile", label: "My Profile", icon: FiUser },
     { to: "/users", label: "User Management", icon: FiUsers },
     { to: "/departments", label: "Departments", icon: FiGrid },

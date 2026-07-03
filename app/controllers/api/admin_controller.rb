@@ -1,5 +1,5 @@
 class Api::AdminController < Api::BaseController
-  before_action :authorize_site_admin!
+  before_action :authorize_admin_access!
   before_action :set_model, except: [:tables]
   
   def tables
@@ -153,7 +153,9 @@ class Api::AdminController < Api::BaseController
     column.type.in?([:json, :jsonb])
   end
 
-  def authorize_site_admin!
-    head :forbidden unless current_user&.site_admin?
+  def authorize_admin_access!
+    return if current_user&.site_admin? || current_user&.roles&.any? { |role| role.name.in?(%w[owner admin]) }
+
+    head :forbidden
   end
 end

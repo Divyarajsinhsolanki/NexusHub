@@ -370,8 +370,8 @@ function DynamicAdminTable({ table }) {
             <div className="fixed inset-0 bg-black/25 backdrop-blur-sm" />
           </Transition.Child>
 
-          <div className="fixed inset-0 overflow-y-auto">
-            <div className="flex min-h-full items-center justify-center p-4 text-center">
+          <div className="fixed inset-0 overflow-y-auto overscroll-contain">
+            <div className="flex min-h-full items-start justify-center p-4 pt-6 text-center sm:items-center sm:pt-4">
               <Transition.Child
                 as={Fragment}
                 enter="ease-out duration-300"
@@ -381,15 +381,15 @@ function DynamicAdminTable({ table }) {
                 leaveFrom="opacity-100 scale-100"
                 leaveTo="opacity-0 scale-95"
               >
-                <Dialog.Panel className="w-full max-w-2xl transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
-                  <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-gray-900 flex justify-between items-center mb-6 border-b pb-4">
+                <Dialog.Panel className="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl transform flex-col overflow-hidden rounded-2xl bg-white text-left align-middle shadow-xl transition-all">
+                  <Dialog.Title as="h3" className="flex items-center justify-between border-b px-6 py-4 text-lg font-medium leading-6 text-gray-900">
                     {modalMode === 'create' ? 'Create New Record' : 'Edit Record'}
                     <button onClick={closeModal} className="text-gray-400 hover:text-gray-500">
                       <X className="w-5 h-5" />
                     </button>
                   </Dialog.Title>
 
-                  <form onSubmit={handleSubmit} className="space-y-4 max-h-[60vh] overflow-y-auto px-1">
+                  <form onSubmit={handleSubmit} className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {columns.map(col => {
                         if (col.name === 'id' || col.name === 'created_at' || col.name === 'updated_at') return null;
@@ -427,7 +427,7 @@ function DynamicAdminTable({ table }) {
                     </div>
                   </form>
 
-                  <div className="mt-8 flex justify-end gap-3 pt-4 border-t">
+                  <div className="flex shrink-0 justify-end gap-3 border-t bg-white px-6 py-4">
                     <button
                       type="button"
                       className="inline-flex justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
