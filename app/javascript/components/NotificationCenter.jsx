@@ -26,7 +26,7 @@ const NotificationCenter = () => {
         if (payload.notification?.message) {
           toast(payload.notification.message, {
             id: `notification-${payload.notification.id}`,
-            icon: payload.notification.action?.startsWith("chat")
+            icon: payload.notification.action?.startsWith("chat") || payload.notification.action === "missed_call"
               ? <MessageSquare className="h-4 w-4 text-sky-200" />
               : <Bell className="h-4 w-4 text-sky-200" />,
           });
@@ -106,6 +106,7 @@ const NotificationCenter = () => {
       case 'commented': return <MessageSquare className="w-4 h-4 text-info" />;
       case 'chat_message': return <MessageSquare className="w-4 h-4 text-theme" />;
       case 'chat_ping': return <MessageSquare className="w-4 h-4 text-theme-secondary" />;
+      case 'missed_call': return <Bell className="w-4 h-4 text-warning" />;
       case 'assigned': return <Briefcase className="w-4 h-4 text-success" />;
       case 'update': return <FileText className="w-4 h-4 text-warning" />;
       default: return <Bell className="w-4 h-4 text-muted" />;

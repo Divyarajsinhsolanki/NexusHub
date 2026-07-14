@@ -1,5 +1,30 @@
 class Api::MessagesController < Api::BaseController
+  DEFAULT_PAGE_SIZE = 50
+  MAX_PAGE_SIZE = 100
+
   before_action :set_conversation
+
+  def index
+    limit = requested_limit
+    scope = @conversation.messages
+      .includes(:message_reactions, user: { profile_picture_attachment: :blob })
+      .with_attached_attachments
+      .order(id: :desc)
+    scope = scope.where("messages.id < ?", params[:before_id].to_i) if params[:before_id].present?
+
+    messages = scope.limit(limit + 1).to_a
+    has_more = messages.length > limit
+    messages = messages.first(limit)
+
+    render json: {
+      data: messages.reverse.map { |message| serialize_message(message) },
+      meta: {
+        has_more: has_more,
+        next_before_id: has_more ? messages.last&.id : nil,
+        per_page: limit
+      }
+    }
+  end
 
   def create
     message = @conversation.messages.new(message_params)
@@ -27,6 +52,12 @@ class Api::MessagesController < Api::BaseController
 
   def message_params
     params.require(:message).permit(:body, attachments: [])
+  end
+
+  def requested_limit
+    limit = params[:limit].to_i
+    limit = DEFAULT_PAGE_SIZE unless limit.positive?
+    [limit, MAX_PAGE_SIZE].min
   end
 
   def serialize_message(message)

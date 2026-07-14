@@ -74,6 +74,10 @@ class Api::NotificationsController < Api::BaseController
     when 'chat_ping'
       conversation_name = notification.metadata&.dig('conversation_name') || 'a conversation'
       "#{notification.actor.full_name} mentioned you in #{conversation_name}"
+    when 'missed_call'
+      conversation_name = notification.metadata&.dig('conversation_name') || 'a conversation'
+      call_type = notification.metadata&.dig('call_type') || 'call'
+      "Missed #{call_type} call from #{notification.actor.full_name} in #{conversation_name}"
     when 'reacted'
       emoji = notification.metadata&.dig('emoji')
       emoji.present? ? "#{notification.actor.full_name} reacted #{emoji} to your message" : "#{notification.actor.full_name} reacted to your message"

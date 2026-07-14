@@ -66,7 +66,7 @@ Rails.application.configure do
   # Use a different cache store in production.
   # config.cache_store = :mem_cache_store
 
-  config.active_job.queue_adapter = :async
+  config.active_job.queue_adapter = :sidekiq
   config.active_job.queue_name_prefix = "nexus_hub_production"
 
   config.action_mailer.perform_caching = false

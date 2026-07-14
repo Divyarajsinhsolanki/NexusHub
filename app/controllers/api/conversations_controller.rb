@@ -2,12 +2,12 @@ class Api::ConversationsController < Api::BaseController
   CONVERSATION_PAGE_SIZE = 30
   MAX_CONVERSATION_PAGE_SIZE = 100
 
-  before_action :set_conversation, only: [:show, :summary, :destroy, :for_everyone]
+  before_action :set_conversation, only: [:show, :summary, :destroy, :for_everyone, :mute, :unmute]
 
   def index
     base_scope = Conversation.for_user(current_user)
     scope = base_scope
-      .includes(:conversation_participants, participants: { profile_picture_attachment: :blob })
+      .includes(:last_message, :conversation_participants, participants: { profile_picture_attachment: :blob })
       .order(updated_at: :desc)
 
     if paginated_conversations_request?
@@ -106,6 +106,7 @@ class Api::ConversationsController < Api::BaseController
     participant_ids = @conversation.participant_ids
 
     Conversation.transaction do
+      @conversation.update_columns(last_message_id: nil, last_message_at: nil)
       delete_chat_notifications(@conversation)
       @conversation.messages.destroy_all
       @conversation.conversation_participants.delete_all
@@ -117,11 +118,27 @@ class Api::ConversationsController < Api::BaseController
     render json: { success: true, conversation_id: conversation_id }
   end
 
+  def mute
+    membership = @conversation.conversation_participants.find_by!(user_id: current_user.id)
+    membership.mute!(mute_until_from_params)
+    Chat::Broadcaster.broadcast_conversation_refresh(@conversation)
+
+    render json: serialize_conversation(@conversation.reload)
+  end
+
+  def unmute
+    membership = @conversation.conversation_participants.find_by!(user_id: current_user.id)
+    membership.unmute!
+    Chat::Broadcaster.broadcast_conversation_refresh(@conversation)
+
+    render json: serialize_conversation(@conversation.reload)
+  end
+
   private
 
   def set_conversation
     @conversation = Conversation.for_user(current_user)
-      .includes(:conversation_participants, participants: { profile_picture_attachment: :blob })
+      .includes(:last_message, :conversation_participants, participants: { profile_picture_attachment: :blob })
       .find(params[:id])
   end
 
@@ -167,16 +184,14 @@ class Api::ConversationsController < Api::BaseController
 
   def serialize_conversation_collection(conversations)
     conversation_ids = conversations.map(&:id)
-    last_message_at_by_conversation = latest_message_times_for(conversation_ids)
-    last_messages_by_conversation = latest_messages_for(conversation_ids, last_message_at_by_conversation)
     unread_counts = unread_counts_for(conversation_ids)
 
     conversations.map do |conversation|
       serialize_conversation(
         conversation,
         unread_count: unread_counts[conversation.id] || 0,
-        last_message: last_messages_by_conversation[conversation.id],
-        last_message_at: last_message_at_by_conversation[conversation.id],
+        last_message: conversation.last_message,
+        last_message_at: conversation.last_message_at,
         last_message_loaded: true
       )
     end
@@ -252,9 +267,33 @@ class Api::ConversationsController < Api::BaseController
     other_participant&.full_name || 'Direct chat'
   end
 
+  def mute_until_from_params
+    value = params[:muted_until].presence || params.dig(:conversation, :muted_until).presence
+    return Time.zone.parse(value) if value.present?
+
+    duration = (params[:duration].presence || params.dig(:conversation, :duration).presence || "forever").to_s
+    case duration
+    when "1h", "hour", "one_hour"
+      1.hour.from_now
+    when "8h", "workday", "eight_hours"
+      8.hours.from_now
+    when "1w", "week", "one_week"
+      1.week.from_now
+    else
+      nil
+    end
+  rescue ArgumentError
+    nil
+  end
+
   def serialize_conversation(conversation, include_messages: false, unread_count: nil, last_message: nil, last_message_at: nil, last_message_loaded: false)
     membership = conversation.conversation_participants.find { |cp| cp.user_id == current_user.id } || conversation.conversation_participants.find_by(user_id: current_user.id)
     unread_count = conversation.messages.where("messages.created_at > ?", membership&.last_read_at || Time.at(0)).where.not(user_id: current_user.id).count if unread_count.nil?
+    active_call = CallSession.live
+      .includes(:initiator, call_participants: :user)
+      .where(conversation_id: conversation.id)
+      .recent
+      .first
     payload = {
       id: conversation.id,
       title: conversation_display_name(conversation),
@@ -262,6 +301,10 @@ class Api::ConversationsController < Api::BaseController
       creator_id: conversation.creator_id,
       can_delete_for_everyone: can_delete_for_everyone?(conversation),
       hidden_at: membership&.hidden_at,
+      muted_at: membership&.muted_at,
+      muted_until: membership&.muted_until,
+      muted: membership&.muted? || false,
+      active_call: active_call ? Chat::CallSerializer.call(active_call, current_user: current_user) : nil,
       participants: conversation.participants.map do |user|
         participant = conversation.conversation_participants.find { |cp| cp.user_id == user.id } || conversation.conversation_participants.find_by(user_id: user.id)
         {
@@ -274,21 +317,28 @@ class Api::ConversationsController < Api::BaseController
         }
       end,
       unread_count: unread_count,
-      last_message_at: last_message_at || conversation.messages.maximum(:created_at),
+      last_message_at: last_message_at || conversation.last_message_at || conversation.messages.maximum(:created_at),
       updated_at: conversation.updated_at
     }
 
     if include_messages
-      payload[:messages] = conversation.messages
+      message_page = conversation.messages
         .includes(:message_reactions, user: { profile_picture_attachment: :blob })
         .with_attached_attachments
-        .order(created_at: :asc)
-        .map do |message|
-          serialize_message(message)
-      end
+        .order(id: :desc)
+        .limit(Api::MessagesController::DEFAULT_PAGE_SIZE + 1)
+        .to_a
+      has_more_messages = message_page.length > Api::MessagesController::DEFAULT_PAGE_SIZE
+      message_page = message_page.first(Api::MessagesController::DEFAULT_PAGE_SIZE)
+      payload[:messages] = message_page.reverse.map { |message| serialize_message(message) }
+      payload[:messages_meta] = {
+        has_more: has_more_messages,
+        next_before_id: has_more_messages ? message_page.last&.id : nil,
+        per_page: Api::MessagesController::DEFAULT_PAGE_SIZE
+      }
     end
 
-    last_message = conversation.messages.with_attached_attachments.order(created_at: :desc).first unless last_message_loaded
+    last_message = conversation.last_message || conversation.messages.order(created_at: :desc, id: :desc).first unless last_message_loaded
     payload[:last_message] = last_message&.body.presence || (last_message&.attachments&.attached? ? "Sent an attachment" : nil)
 
     payload

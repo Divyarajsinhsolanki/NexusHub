@@ -21,6 +21,7 @@ class User < ApplicationRecord
     "chat_message" => true,
     "chat_ping" => true,
     "reacted" => true,
+    "missed_call" => true,
     "calendar_reminder" => true,
     "digest" => false
   }.freeze
@@ -79,6 +80,9 @@ class User < ApplicationRecord
   has_many :conversations, through: :conversation_participants
   has_many :messages, dependent: :destroy
   has_many :message_reactions, dependent: :destroy
+  has_many :initiated_call_sessions, class_name: "CallSession", foreign_key: :initiator_id, dependent: :destroy, inverse_of: :initiator
+  has_many :call_participants, dependent: :destroy
+  has_many :call_sessions, through: :call_participants
   has_many :calendar_events, dependent: :destroy
   belongs_to :department, optional: true
 

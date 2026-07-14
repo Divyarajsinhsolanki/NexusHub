@@ -1,0 +1,10 @@
+<h1>Missed <%= @call_session.call_type %> call</h1>
+
+<p>
+  <%= @caller.full_name %> called you in
+  <strong><%= @conversation_name %></strong>.
+</p>
+
+<p>
+  <a href="<%= @chat_url %>">Open the conversation</a>
+</p>

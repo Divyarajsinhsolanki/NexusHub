@@ -4,6 +4,7 @@ import { format, formatDistanceToNow, isSameDay, isThisYear, isToday, isYesterda
 import { motion, AnimatePresence } from "framer-motion";
 import {
   FiArrowLeft,
+  FiBellOff,
   FiCheck,
   FiClock,
   FiDownload,
@@ -16,6 +17,9 @@ import {
   FiMessageSquare,
   FiMoreVertical,
   FiPaperclip,
+  FiPhone,
+  FiPhoneCall,
+  FiPhoneOff,
   FiSearch,
   FiSend,
   FiTrash2,
@@ -29,18 +33,28 @@ import {
 import {
   SchedulerAPI,
   addMessageReaction,
+  acknowledgeCallRing,
   createConversation,
+  createCall,
+  declineCall,
   deleteConversation,
   deleteConversationForEveryone,
+  endCall as endCallSession,
   fetchConversation,
+  fetchConversationMessages,
   fetchConversationSummary,
   fetchConversations,
   getUsers,
+  joinCall,
+  leaveCall,
+  muteConversation,
   removeMessageReaction,
   sendMessage,
-  startDirectConversation
+  startDirectConversation,
+  unmuteConversation
 } from "../components/api";
 import { AuthContext } from "../context/AuthContext";
+import CallRoom from "../components/chat/CallRoom";
 import { sendToConversation, subscribeToCableStatus, subscribeToConversationChat, subscribeToUserChat } from "../lib/chatCable";
 import {
   applyComposerEntity,
@@ -51,6 +65,7 @@ import {
   resolveChatMessageText,
   tokenizeChatMessage
 } from "../utils/chatMentions";
+import { isLiveCall, mergeCallIntoConversationGroups } from "../utils/chatCalls";
 
 const REACTION_EMOJIS = ["👍", "❤️", "🎉"];
 const CONVERSATION_FILTERS = [
@@ -63,14 +78,13 @@ const NEW_CHAT_MODES = [
   { id: "direct", label: "Direct" },
   { id: "group", label: "Group" }
 ];
-const CONVERSATIONS_PAGE_SIZE = 30;
-const RIGHT_SIDE_FEATURE_IDEAS = [
-  "Pinned messages for decisions and blockers",
-  "Action items detected from this chat",
-  "Shared links and docs grouped by type",
-  "Quick meeting notes or follow-up reminders"
+const MUTE_OPTIONS = [
+  { id: "1h", label: "Mute 1 hour" },
+  { id: "8h", label: "Mute 8 hours" },
+  { id: "1w", label: "Mute 1 week" },
+  { id: "forever", label: "Mute forever" }
 ];
-
+const CONVERSATIONS_PAGE_SIZE = 30;
 const escapeRegExp = (value = "") => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const splitConversationList = (items = []) => {
@@ -437,7 +451,7 @@ const StatCard = ({ icon, label, value, accentClass }) => (
   </div>
 );
 
-const ConversationItem = ({ conversation, currentUserId, isActive, searchQuery, previewText, onSelect, onHide, onDeleteForEveryone }) => {
+const ConversationItem = ({ conversation, currentUserId, isActive, searchQuery, previewText, onSelect, onHide, onDeleteForEveryone, onMute, onUnmute }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const isUnread = conversation.unread_count > 0;
   const isDirect = conversation.conversation_type === "direct";
@@ -482,6 +496,7 @@ const ConversationItem = ({ conversation, currentUserId, isActive, searchQuery, 
               <HighlightText text={displayName} query={searchQuery} />
             </p>
             {isUnread && !isActive && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />}
+            {conversation.muted && !isActive && <FiBellOff className="h-3 w-3 shrink-0 text-slate-400" title="Muted" />}
             <span className={`shrink-0 text-[10px] ${isActive ? "opacity-70" : "text-slate-400 dark:text-slate-500"}`}>
               {formatConversationTime(conversation.updated_at)}
             </span>
@@ -521,6 +536,38 @@ const ConversationItem = ({ conversation, currentUserId, isActive, searchQuery, 
 
       {isMenuOpen && (
         <div className="absolute right-2 top-9 z-30 w-44 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 text-slate-700 shadow-xl dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-100">
+          {conversation.muted ? (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setIsMenuOpen(false);
+                onUnmute?.(conversation);
+              }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium hover:bg-slate-50 dark:hover:bg-zinc-800"
+            >
+              <FiBellOff className="h-3.5 w-3.5" />
+              Unmute
+            </button>
+          ) : (
+            MUTE_OPTIONS.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setIsMenuOpen(false);
+                  onMute?.(conversation, option.id);
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium hover:bg-slate-50 dark:hover:bg-zinc-800"
+              >
+                <FiBellOff className="h-3.5 w-3.5" />
+                {option.label}
+              </button>
+            ))
+          )}
           <button
             type="button"
             onClick={(event) => {
@@ -821,6 +868,10 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   const conversationLoadTokenRef = useRef(0);
   const conversationCacheRef = useRef({});
   const allConversationsRef = useRef([]);
+  const skipNextMessageAutoScrollRef = useRef(false);
+  const callLeaveInFlightRef = useRef(false);
+  const ringtoneTimerRef = useRef(null);
+  const ringtoneAudioContextRef = useRef(null);
 
   const [conversations, setConversations] = useState({ direct: [], group: [] });
   const [conversationListMeta, setConversationListMeta] = useState(null);
@@ -828,6 +879,8 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   const [isConversationListLoadingMore, setIsConversationListLoadingMore] = useState(false);
   const [activeConversation, setActiveConversation] = useState(null);
   const [isConversationLoading, setIsConversationLoading] = useState(false);
+  const [messagePageMeta, setMessagePageMeta] = useState(null);
+  const [isLoadingOlderMessages, setIsLoadingOlderMessages] = useState(false);
   const [users, setUsers] = useState([]);
   const [tasks, setTasks] = useState([]);
 
@@ -853,6 +906,11 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedUserIds, setSelectedUserIds] = useState([]);
   const [newGroupTitle, setNewGroupTitle] = useState("");
+  const [incomingCall, setIncomingCall] = useState(null);
+  const [activeCall, setActiveCall] = useState(null);
+  const [callCredentials, setCallCredentials] = useState(null);
+  const [isCallConnecting, setIsCallConnecting] = useState(false);
+  const [callError, setCallError] = useState("");
 
   useEffect(() => {
     if (embedded) setEmbeddedConversationId(initialConversationId);
@@ -979,6 +1037,13 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
         };
         return nextConversation;
       });
+      if (isLiveCall(data.active_call)) {
+        setActiveCall(data.active_call);
+      } else {
+        setActiveCall((currentCall) => (
+          Number(currentCall?.conversation_id) === Number(targetConversationId) ? null : currentCall
+        ));
+      }
     } catch (error) {
       if (error?.response?.status === 404) {
         removeConversationLocally(targetConversationId);
@@ -1003,6 +1068,14 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     try {
       const { data } = await fetchConversation(id);
       setActiveConversation(data);
+      setMessagePageMeta(data.messages_meta || null);
+      if (isLiveCall(data.active_call)) {
+        setActiveCall(data.active_call);
+      } else {
+        setActiveCall((previous) => (
+          Number(previous?.conversation_id) === Number(id) ? null : previous
+        ));
+      }
       conversationCacheRef.current = {
         ...conversationCacheRef.current,
         [String(id)]: data
@@ -1016,10 +1089,54 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
 
       console.error("Failed to load conversation details", error);
       setActiveConversation(null);
+      setMessagePageMeta(null);
     } finally {
       setIsConversationLoading(false);
     }
   }, [removeConversationLocally]);
+
+  const loadOlderMessages = useCallback(async () => {
+    if (!conversationId || !messagePageMeta?.has_more || isLoadingOlderMessages) return;
+
+    const container = messageListRef.current;
+    const previousScrollHeight = container?.scrollHeight || 0;
+
+    try {
+      setIsLoadingOlderMessages(true);
+      const { data } = await fetchConversationMessages(conversationId, {
+        before_id: messagePageMeta.next_before_id,
+        limit: messagePageMeta.per_page || 50
+      });
+      const olderMessages = Array.isArray(data?.data) ? data.data : [];
+      skipNextMessageAutoScrollRef.current = true;
+
+      setActiveConversation((previous) => {
+        if (!previous || Number(previous.id) !== Number(conversationId)) return previous;
+
+        const existingIds = new Set((previous.messages || []).map((message) => Number(message.id)));
+        const nextMessages = [
+          ...olderMessages.filter((message) => !existingIds.has(Number(message.id))),
+          ...(previous.messages || [])
+        ];
+        const nextConversation = { ...previous, messages: nextMessages };
+        conversationCacheRef.current = {
+          ...conversationCacheRef.current,
+          [String(conversationId)]: nextConversation
+        };
+        return nextConversation;
+      });
+      setMessagePageMeta(data?.meta || null);
+
+      window.requestAnimationFrame(() => {
+        if (!container) return;
+        container.scrollTop = container.scrollHeight - previousScrollHeight + container.scrollTop;
+      });
+    } catch (error) {
+      console.error("Failed to load older messages", error);
+    } finally {
+      setIsLoadingOlderMessages(false);
+    }
+  }, [conversationId, isLoadingOlderMessages, messagePageMeta]);
 
   const resetNewChatModal = useCallback((mode = "direct") => {
     setNewChatMode(mode);
@@ -1067,6 +1184,44 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   }, []);
 
   useEffect(() => {
+    if (!incomingCall) return undefined;
+
+    const playTone = () => {
+      try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+
+        const audioContext = ringtoneAudioContextRef.current || new AudioContext();
+        ringtoneAudioContextRef.current = audioContext;
+
+        const oscillator = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        oscillator.type = "sine";
+        oscillator.frequency.setValueAtTime(880, audioContext.currentTime);
+        gain.gain.setValueAtTime(0.0001, audioContext.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.12, audioContext.currentTime + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.38);
+        oscillator.connect(gain);
+        gain.connect(audioContext.destination);
+        oscillator.start();
+        oscillator.stop(audioContext.currentTime + 0.4);
+      } catch (error) {
+        // Browsers may block audio until the user interacts with the page.
+      }
+    };
+
+    playTone();
+    ringtoneTimerRef.current = window.setInterval(playTone, 1800);
+
+    return () => {
+      if (ringtoneTimerRef.current) {
+        window.clearInterval(ringtoneTimerRef.current);
+        ringtoneTimerRef.current = null;
+      }
+    };
+  }, [incomingCall]);
+
+  useEffect(() => {
     if (conversationId) {
       loadConversation(conversationId);
       setThreadSearchQuery("");
@@ -1074,6 +1229,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       setIsThreadActionsOpen(false);
     } else {
       setActiveConversation(null);
+      setMessagePageMeta(null);
       setIsConversationLoading(false);
       setIsThreadActionsOpen(false);
     }
@@ -1081,6 +1237,10 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
 
   useEffect(() => {
     if (deferredThreadSearchQuery.trim()) return;
+    if (skipNextMessageAutoScrollRef.current) {
+      skipNextMessageAutoScrollRef.current = false;
+      return;
+    }
 
     const container = messageListRef.current;
     if (!container) return;
@@ -1138,6 +1298,179 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     });
   }, [user?.id]);
 
+  const mergeCallIntoConversationState = useCallback((callSession) => {
+    if (!callSession) return;
+    const nextActiveCall = isLiveCall(callSession) ? callSession : null;
+
+    setConversations((previous) => mergeCallIntoConversationGroups(previous, callSession));
+
+    setActiveConversation((previous) => {
+      if (!previous || Number(previous.id) !== Number(callSession.conversation_id)) return previous;
+
+      const nextConversation = { ...previous, active_call: nextActiveCall };
+      conversationCacheRef.current = {
+        ...conversationCacheRef.current,
+        [String(previous.id)]: nextConversation
+      };
+      return nextConversation;
+    });
+  }, []);
+
+  const applyCallSessionUpdate = useCallback((callSession) => {
+    if (!callSession) return;
+
+    mergeCallIntoConversationState(callSession);
+
+    if (isLiveCall(callSession)) {
+      setActiveCall(callSession);
+      return;
+    }
+
+    setActiveCall((previous) => (
+      Number(previous?.id) === Number(callSession.id) ? null : previous
+    ));
+    setIncomingCall((previous) => (
+      Number(previous?.id) === Number(callSession.id) ? null : previous
+    ));
+    setCallCredentials(null);
+  }, [mergeCallIntoConversationState]);
+
+  const handleIncomingCall = useCallback((callSession) => {
+    if (!callSession || Number(callSession.initiator_id) === Number(user?.id)) return;
+
+    setIncomingCall(callSession);
+    applyCallSessionUpdate(callSession);
+    acknowledgeCallRing(callSession.id).catch((error) => {
+      console.error("Failed to acknowledge incoming call", error);
+    });
+  }, [applyCallSessionUpdate, user?.id]);
+
+  const handleJoinCall = useCallback(async (callSession = incomingCall || activeCall) => {
+    if (!callSession || isCallConnecting) return;
+
+    try {
+      setIsCallConnecting(true);
+      setCallError("");
+      const { data } = await joinCall(callSession.id);
+      setCallCredentials({
+        server_url: data.server_url,
+        participant_token: data.participant_token
+      });
+      setIncomingCall(null);
+      applyCallSessionUpdate(data.call_session);
+      if (data.call_session?.conversation_id) openConversation(data.call_session.conversation_id);
+    } catch (error) {
+      console.error("Failed to join call", error);
+      setCallError(error?.response?.data?.message || "Unable to join the call.");
+    } finally {
+      setIsCallConnecting(false);
+    }
+  }, [activeCall, applyCallSessionUpdate, incomingCall, isCallConnecting, openConversation]);
+
+  const handleCallConnectionError = useCallback((message, error) => {
+    console.error("LiveKit call connection failed", error || message);
+    setCallError(message || "Could not connect to the call media server.");
+  }, []);
+
+  const handleCallConnected = useCallback(() => {
+    setCallError("");
+  }, []);
+
+  const handleRetryCallConnection = useCallback(() => {
+    if (!activeCall || isCallConnecting) return;
+    handleJoinCall(activeCall);
+  }, [activeCall, handleJoinCall, isCallConnecting]);
+
+  const handleStartCall = useCallback(async (callType) => {
+    if (!conversationId || isCallConnecting) return;
+
+    try {
+      setIsCallConnecting(true);
+      setCallError("");
+      const { data } = await createCall(conversationId, callType);
+      const callSession = data.call_session;
+      applyCallSessionUpdate(callSession);
+      await handleJoinCall(callSession);
+    } catch (error) {
+      console.error("Failed to start call", error);
+      setCallError(error?.response?.data?.message || "Unable to start the call.");
+    } finally {
+      setIsCallConnecting(false);
+    }
+  }, [applyCallSessionUpdate, conversationId, handleJoinCall, isCallConnecting]);
+
+  const handleDeclineCall = useCallback(async (callSession = incomingCall) => {
+    if (!callSession) return;
+
+    try {
+      const { data } = await declineCall(callSession.id);
+      setIncomingCall(null);
+      applyCallSessionUpdate(data.call_session);
+    } catch (error) {
+      console.error("Failed to decline call", error);
+      setIncomingCall(null);
+    }
+  }, [applyCallSessionUpdate, incomingCall]);
+
+  const handleLeaveCall = useCallback(async () => {
+    if (!activeCall || callLeaveInFlightRef.current) return;
+
+    callLeaveInFlightRef.current = true;
+    const leavingCallId = activeCall.id;
+
+    try {
+      await leaveCall(leavingCallId);
+    } catch (error) {
+      console.error("Failed to leave call", error);
+    } finally {
+      setCallCredentials(null);
+      setActiveCall((previous) => (
+        Number(previous?.id) === Number(leavingCallId) ? null : previous
+      ));
+      callLeaveInFlightRef.current = false;
+    }
+  }, [activeCall]);
+
+  const handleEndActiveCall = useCallback(async () => {
+    if (!activeCall) return;
+
+    try {
+      const { data } = await endCallSession(activeCall.id, "ended");
+      setCallCredentials(null);
+      applyCallSessionUpdate(data.call_session);
+    } catch (error) {
+      console.error("Failed to end call", error);
+    }
+  }, [activeCall, applyCallSessionUpdate]);
+
+  const handleMuteConversation = useCallback(async (conversation, duration = "forever") => {
+    if (!conversation) return;
+
+    try {
+      const { data } = await muteConversation(conversation.id, duration);
+      setConversations((previous) => mergeConversationGroups(previous, [data], false));
+      setActiveConversation((previous) => (
+        Number(previous?.id) === Number(conversation.id) ? mergeConversationSummary(previous, data) : previous
+      ));
+    } catch (error) {
+      console.error("Failed to mute conversation", error);
+    }
+  }, []);
+
+  const handleUnmuteConversation = useCallback(async (conversation) => {
+    if (!conversation) return;
+
+    try {
+      const { data } = await unmuteConversation(conversation.id);
+      setConversations((previous) => mergeConversationGroups(previous, [data], false));
+      setActiveConversation((previous) => (
+        Number(previous?.id) === Number(conversation.id) ? mergeConversationSummary(previous, data) : previous
+      ));
+    } catch (error) {
+      console.error("Failed to unmute conversation", error);
+    }
+  }, []);
+
   useEffect(() => {
     const userSub = subscribeToUserChat((payload) => {
       if (payload?.type === "conversation_refresh") {
@@ -1147,10 +1480,18 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       if (payload?.type === "conversation_hidden" || payload?.type === "conversation_deleted") {
         removeConversationLocally(payload.conversation_id);
       }
+
+      if (payload?.type === "call_ringing") {
+        handleIncomingCall(payload.call_session);
+      }
+
+      if (["call_started", "call_participant_joined", "call_participant_left", "call_missed", "call_ended"].includes(payload?.type)) {
+        applyCallSessionUpdate(payload.call_session);
+      }
     });
 
     return () => userSub.unsubscribe();
-  }, [refreshConversationSummary, removeConversationLocally]);
+  }, [applyCallSessionUpdate, handleIncomingCall, refreshConversationSummary, removeConversationLocally]);
 
   useEffect(() => {
     if (!conversationId) return undefined;
@@ -1227,13 +1568,19 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
           };
         });
       }
+
+      if (["call_started", "call_participant_joined", "call_participant_left", "call_missed", "call_ended"].includes(payload?.type) && Number(payload.conversation_id) === Number(conversationId)) {
+        applyCallSessionUpdate(payload.call_session);
+      }
     });
 
     return () => convSub.unsubscribe();
-  }, [applyReactionUpdate, conversationId, markConversationAsRead, refreshConversationSummary, removeConversationLocally, user?.id]);
+  }, [applyCallSessionUpdate, applyReactionUpdate, conversationId, markConversationAsRead, refreshConversationSummary, removeConversationLocally, user?.id]);
 
   useEffect(() => () => {
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    if (ringtoneTimerRef.current) window.clearInterval(ringtoneTimerRef.current);
+    ringtoneAudioContextRef.current?.close?.();
   }, []);
 
   const activeConversationMessages = useMemo(() => {
@@ -1268,6 +1615,12 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     () => getConversationOtherParticipant(activeConversation, user?.id),
     [activeConversation, user?.id]
   );
+
+  const visibleCall = useMemo(() => {
+    if (isLiveCall(activeConversation?.active_call)) return activeConversation.active_call;
+    if (isLiveCall(activeCall) && Number(activeCall.conversation_id) === Number(activeConversation?.id)) return activeCall;
+    return null;
+  }, [activeCall, activeConversation?.active_call, activeConversation?.id]);
 
   const typingNames = useMemo(
     () => Object.values(typingUsers).map((entry) => entry.name),
@@ -1851,6 +2204,8 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                           onSelect={embedded ? openConversation : undefined}
                           onHide={handleHideConversation}
                           onDeleteForEveryone={handleDeleteConversationForEveryone}
+                          onMute={handleMuteConversation}
+                          onUnmute={handleUnmuteConversation}
                         />
                       ))}
                     </div>
@@ -1882,6 +2237,8 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                           onSelect={embedded ? openConversation : undefined}
                           onHide={handleHideConversation}
                           onDeleteForEveryone={handleDeleteConversationForEveryone}
+                          onMute={handleMuteConversation}
+                          onUnmute={handleUnmuteConversation}
                         />
                       ))}
                     </div>
@@ -2009,6 +2366,26 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
+                      onClick={() => handleStartCall("audio")}
+                      disabled={isCallConnecting || Boolean(visibleCall)}
+                      className="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 disabled:opacity-40 dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-300 dark:hover:bg-zinc-800"
+                      title="Start voice call"
+                    >
+                      <FiPhone className="h-4.5 w-4.5" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleStartCall("video")}
+                      disabled={isCallConnecting || Boolean(visibleCall)}
+                      className="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 disabled:opacity-40 dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-300 dark:hover:bg-zinc-800"
+                      title="Start video call"
+                    >
+                      <FiVideo className="h-4.5 w-4.5" />
+                    </button>
+
+                    <button
+                      type="button"
                       onClick={() => {
                         setIsThreadSearchOpen((previous) => !previous);
                         if (isThreadSearchOpen) setThreadSearchQuery("");
@@ -2112,6 +2489,53 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
 
               <div className="relative flex min-h-0 flex-1 overflow-hidden">
                 <div className="relative flex min-w-0 flex-1 flex-col">
+                  {visibleCall && (
+                    <div className="border-b border-sky-100 bg-sky-50/90 px-4 py-3 backdrop-blur dark:border-sky-950/60 dark:bg-sky-950/25 md:px-6">
+                      <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-sky-600 text-white">
+                            {visibleCall.call_type === "audio" ? <FiPhoneCall className="h-5 w-5" /> : <FiVideo className="h-5 w-5" />}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">
+                              {visibleCall.call_type === "audio" ? "Voice call" : "Video call"} {visibleCall.status === "ringing" ? "is ringing" : "is active"}
+                            </p>
+                            <p className="truncate text-xs text-slate-500 dark:text-slate-300">
+                              Started by {visibleCall.initiator_name} • {visibleCall.participants?.filter((participant) => participant.status === "joined").length || 0} joined
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {!callCredentials && (
+                            <button
+                              type="button"
+                              onClick={() => handleJoinCall(visibleCall)}
+                              disabled={isCallConnecting}
+                              className="rounded-xl bg-slate-950 px-4 py-2 text-xs font-semibold text-white transition hover:brightness-110 disabled:opacity-50 dark:bg-white dark:text-slate-950"
+                            >
+                              {isCallConnecting ? "Joining..." : "Join"}
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={handleEndActiveCall}
+                            className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 dark:border-red-900/60 dark:bg-zinc-950 dark:text-red-300 dark:hover:bg-red-950/30"
+                          >
+                            <FiPhoneOff className="h-3.5 w-3.5" />
+                            End
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {callError && (
+                    <div className="border-b border-red-100 bg-red-50 px-4 py-2 text-center text-xs font-semibold text-red-600 dark:border-red-950 dark:bg-red-950/30 dark:text-red-200">
+                      {callError}
+                    </div>
+                  )}
+
                   <div
                     ref={messageListRef}
                     className="scrollbar-hide relative flex-1 overflow-y-auto px-4 py-4 md:px-5 md:py-4"
@@ -2127,6 +2551,19 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                             : `${activeConversationName} • ${activeConversationMessages.length} messages`}
                         </span>
                       </div>
+
+                      {messagePageMeta?.has_more && !deferredThreadSearchQuery.trim() && (
+                        <div className="flex justify-center">
+                          <button
+                            type="button"
+                            onClick={loadOlderMessages}
+                            disabled={isLoadingOlderMessages}
+                            className="rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-xs font-semibold text-slate-500 shadow-sm transition hover:bg-white disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900/90 dark:text-slate-300"
+                          >
+                            {isLoadingOlderMessages ? "Loading..." : "Load older messages"}
+                          </button>
+                        </div>
+                      )}
 
                       {activeConversationMessages.length === 0 ? (
                         <div className="rounded-[28px] border border-dashed border-slate-200 bg-white/76 px-6 py-10 text-center shadow-[0_24px_60px_-40px_rgba(15,23,42,0.45)] backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-950/72">
@@ -2486,16 +2923,54 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                           <section className="mt-6">
                             <div className="mb-3 flex items-center gap-2">
                               <FiZap className="h-4 w-4 text-slate-400" />
-                              <p className="text-[11px] font-medium uppercase tracking-[0.28em] text-slate-400 dark:text-slate-500">Right-side ideas</p>
+                              <p className="text-[11px] font-medium uppercase tracking-[0.28em] text-slate-400 dark:text-slate-500">Conversation controls</p>
                             </div>
 
                             <div className="space-y-2 rounded-[24px] border border-sky-100 bg-sky-50/70 p-3 dark:border-sky-950/60 dark:bg-sky-950/20">
-                              {RIGHT_SIDE_FEATURE_IDEAS.map((idea) => (
-                                <div key={idea} className="flex items-start gap-2 rounded-2xl bg-white/76 px-3 py-2 text-xs font-medium text-slate-600 dark:bg-zinc-900/72 dark:text-slate-300">
-                                  <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500" />
-                                  <span>{idea}</span>
+                              <div className="grid grid-cols-2 gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartCall("audio")}
+                                  disabled={isCallConnecting || Boolean(visibleCall)}
+                                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-40 dark:bg-zinc-900 dark:text-slate-200 dark:hover:bg-zinc-800"
+                                >
+                                  <FiPhone className="h-4 w-4" />
+                                  Voice
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartCall("video")}
+                                  disabled={isCallConnecting || Boolean(visibleCall)}
+                                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-40 dark:bg-zinc-900 dark:text-slate-200 dark:hover:bg-zinc-800"
+                                >
+                                  <FiVideo className="h-4 w-4" />
+                                  Video
+                                </button>
+                              </div>
+
+                              {activeConversation.muted ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleUnmuteConversation(activeConversation)}
+                                  className="flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-200 dark:hover:bg-zinc-800"
+                                >
+                                  <FiBellOff className="h-4 w-4" />
+                                  Unmute conversation
+                                </button>
+                              ) : (
+                                <div className="grid grid-cols-2 gap-2">
+                                  {MUTE_OPTIONS.map((option) => (
+                                    <button
+                                      key={option.id}
+                                      type="button"
+                                      onClick={() => handleMuteConversation(activeConversation, option.id)}
+                                      className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-200 dark:hover:bg-zinc-800"
+                                    >
+                                      {option.label.replace("Mute ", "")}
+                                    </button>
+                                  ))}
                                 </div>
-                              ))}
+                              )}
                             </div>
                           </section>
 
@@ -2562,6 +3037,70 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
           )}
         </main>
       </div>
+
+      <AnimatePresence>
+        {incomingCall && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-950/55 backdrop-blur-sm"
+            />
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 10 }}
+              className="relative z-10 w-full max-w-md overflow-hidden rounded-[28px] border border-white/80 bg-white p-6 text-center shadow-[0_40px_90px_-45px_rgba(15,23,42,1)] dark:border-zinc-800 dark:bg-zinc-950"
+            >
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[24px] bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-200">
+                {incomingCall.call_type === "audio" ? <FiPhoneCall className="h-8 w-8" /> : <FiVideo className="h-8 w-8" />}
+              </div>
+              <p className="mt-5 text-xs font-semibold uppercase tracking-[0.28em] text-sky-500">
+                Incoming {incomingCall.call_type === "audio" ? "voice" : "video"} call
+              </p>
+              <h3 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">
+                {incomingCall.initiator_name}
+              </h3>
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                {incomingCall.participants?.length || 0} participant{incomingCall.participants?.length === 1 ? "" : "s"} invited
+              </p>
+
+              {callError && <p className="mt-4 rounded-2xl bg-red-50 px-3 py-2 text-sm font-medium text-red-600 dark:bg-red-950/30 dark:text-red-200">{callError}</p>}
+
+              <div className="mt-7 grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleDeclineCall(incomingCall)}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-red-200 bg-white px-4 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-50 dark:border-red-900/60 dark:bg-zinc-950 dark:text-red-300 dark:hover:bg-red-950/30"
+                >
+                  <FiPhoneOff className="h-4 w-4" />
+                  Decline
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleJoinCall(incomingCall)}
+                  disabled={isCallConnecting}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  <FiPhone className="h-4 w-4" />
+                  {isCallConnecting ? "Joining..." : "Accept"}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <CallRoom
+        callSession={activeCall}
+        credentials={callCredentials}
+        onLeave={handleLeaveCall}
+        onRetry={handleRetryCallConnection}
+        onConnectionError={handleCallConnectionError}
+        onConnected={handleCallConnected}
+      />
 
       <AnimatePresence>
         {isNewChatModalOpen && (

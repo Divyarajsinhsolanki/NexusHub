@@ -11,8 +11,10 @@ class Message < ApplicationRecord
   validate :body_or_attachment_present
 
   after_create :restore_hidden_participants
+  after_create_commit :update_conversation_last_message
   after_create_commit :broadcast_message
   after_create_commit :notify_participants
+  after_destroy_commit :refresh_conversation_last_message
 
   private
 
@@ -24,6 +26,20 @@ class Message < ApplicationRecord
 
   def broadcast_message
     Chat::Broadcaster.broadcast_message_created(self)
+  end
+
+  def update_conversation_last_message
+    conversation.update_columns(
+      last_message_id: id,
+      last_message_at: created_at,
+      updated_at: Time.current
+    )
+  end
+
+  def refresh_conversation_last_message
+    return unless Conversation.unscoped.exists?(conversation_id)
+
+    conversation.refresh_last_message!
   end
 
   def restore_hidden_participants
@@ -46,10 +62,13 @@ class Message < ApplicationRecord
   end
 
   def notify_participants
-    recipients = conversation.participants.where.not(id: user_id)
+    memberships_by_user_id = conversation.conversation_participants.index_by(&:user_id)
+    recipients = conversation.participants.where.not(id: user_id).reject do |recipient|
+      memberships_by_user_id[recipient.id]&.muted?
+    end
     mentioned_user_ids = extract_mentioned_user_ids(recipients)
 
-    recipients.find_each do |recipient|
+    recipients.each do |recipient|
       mentioned = mentioned_user_ids.include?(recipient.id)
 
       Notification.create(

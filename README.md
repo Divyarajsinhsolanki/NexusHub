@@ -41,6 +41,7 @@ The Rails app serves both the JSON API and the React entrypoint. Vite handles th
 - Poppler utilities for PDF image export (`pdftoppm`)
 - Ghostscript and qpdf for advanced PDF operations
 - Docker with the modern Compose plugin if you plan to use the container setup
+- Docker if you plan to use local chat voice/video calls through LiveKit
 
 On Ubuntu/Debian, the system packages are typically:
 
@@ -71,10 +72,12 @@ bin/dev
 ```
 
 `bin/dev` starts Rails, the JavaScript build watcher, and the Vite dev server via
-`Procfile.dev`. Open `http://localhost:3000`.
+`Procfile.dev`. It also starts a local LiveKit media server when Docker is
+available. Open `http://localhost:3000`.
 
 Use `PORT=3001 bin/dev` to run on another port. Set `SEED_DEMO=false bin/setup`
-when a local demo workspace is not wanted.
+when a local demo workspace is not wanted. Use `START_LIVEKIT=false bin/dev` if
+you do not need voice/video calls during that run.
 
 ## Environment Variables
 
@@ -85,6 +88,7 @@ Environment variables are documented in `.env.example`. The most important group
 - Mail links and SMTP: `BASE_URL`, `FRONTEND_URL`, `SMTP_ADDRESS`, `SMTP_PORT`, `SMTP_DOMAIN`, `SMTP_USERNAME`, `SMTP_PASSWORD`
 - CORS: `CORS_ALLOWED_ORIGINS`, `CORS_ALLOWED_PATH`
 - Action Cable: `REDIS_URL`
+- Calls: `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`
 - Rate limits: `RACK_ATTACK_LOGIN_PER_MINUTE`, `RACK_ATTACK_REQUESTS_PER_MINUTE`, `RACK_ATTACK_SIGNUP_PER_HOUR`
 - Portfolio/demo: `PORTFOLIO_ENABLED`, `PORTFOLIO_ADMIN_EMAIL`, `DEMO_MODE_ENABLED`, `RACK_ATTACK_DEMO_PER_MINUTE`
 - Contact form reCAPTCHA: `VITE_RECAPTCHA_SITE_KEY`, `RECAPTCHA_SECRET_KEY`, `RECAPTCHA_MIN_SCORE`
@@ -171,6 +175,9 @@ To enable them:
 ```bash
 bin/setup                         # install dependencies and prepare DB
 bin/dev                           # run Rails, JS watcher, and Vite
+bin/livekit status                # verify the local LiveKit media server
+bin/livekit logs                  # inspect local LiveKit connection logs
+bin/livekit stop                  # stop the local LiveKit container
 bin/release                       # migrate and run required idempotent seeds
 bin/deploy                        # build and deploy the complete Compose stack
 bin/rails app:bootstrap           # database + all configured seed data
@@ -231,3 +238,4 @@ commands can be retried safely.
 - Image processing fails in PDF flows: install ImageMagick and confirm `convert` or `magick` is available.
 - Google Sheets errors: confirm `config/google_service_account.json` exists, the spreadsheet is shared with the service account, and the project has the correct sheet ID.
 - Firebase token errors: verify both browser `VITE_FIREBASE_*` values and server-side `FIREBASE_PROJECT_ID`.
+- Chat call error `Could not connect to the call media server`: run `bin/livekit status`. If it is not reachable, run `bin/livekit start` and confirm `.env` has `LIVEKIT_URL=ws://localhost:7880`, `LIVEKIT_API_KEY=devkey`, and the matching `LIVEKIT_API_SECRET`.

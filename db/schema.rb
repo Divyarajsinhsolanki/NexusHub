@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2027_06_29_000000) do
+ActiveRecord::Schema[8.1].define(version: 2027_07_13_000000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -76,6 +76,45 @@ ActiveRecord::Schema[8.1].define(version: 2027_06_29_000000) do
     t.index ["workspace_id"], name: "index_calendar_events_on_workspace_id"
   end
 
+  create_table "call_participants", force: :cascade do |t|
+    t.bigint "call_session_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "joined_at"
+    t.datetime "left_at"
+    t.datetime "ring_acknowledged_at"
+    t.string "status", default: "ringing", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.bigint "workspace_id", null: false
+    t.index ["call_session_id", "user_id"], name: "idx_unique_call_participant", unique: true
+    t.index ["call_session_id"], name: "index_call_participants_on_call_session_id"
+    t.index ["user_id"], name: "index_call_participants_on_user_id"
+    t.index ["workspace_id", "user_id", "status"], name: "idx_call_participants_user_status"
+    t.index ["workspace_id"], name: "index_call_participants_on_workspace_id"
+  end
+
+  create_table "call_sessions", force: :cascade do |t|
+    t.string "call_type", null: false
+    t.bigint "conversation_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "ended_at"
+    t.string "ended_reason"
+    t.bigint "initiator_id", null: false
+    t.string "livekit_room_name", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "started_at"
+    t.string "status", default: "ringing", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "workspace_id", null: false
+    t.index ["conversation_id"], name: "idx_one_live_call_per_conversation", unique: true, where: "((status)::text = ANY ((ARRAY['ringing'::character varying, 'active'::character varying])::text[]))"
+    t.index ["conversation_id"], name: "index_call_sessions_on_conversation_id"
+    t.index ["initiator_id"], name: "index_call_sessions_on_initiator_id"
+    t.index ["livekit_room_name"], name: "index_call_sessions_on_livekit_room_name", unique: true
+    t.index ["status", "created_at"], name: "idx_call_sessions_status_created"
+    t.index ["workspace_id", "conversation_id", "created_at"], name: "idx_call_sessions_conversation_history"
+    t.index ["workspace_id"], name: "index_call_sessions_on_workspace_id"
+  end
+
   create_table "comments", force: :cascade do |t|
     t.text "body", null: false
     t.datetime "created_at", null: false
@@ -102,13 +141,17 @@ ActiveRecord::Schema[8.1].define(version: 2027_06_29_000000) do
     t.datetime "created_at", null: false
     t.datetime "hidden_at"
     t.datetime "last_read_at"
+    t.datetime "muted_at"
+    t.datetime "muted_until"
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.bigint "workspace_id", null: false
+    t.index ["conversation_id", "muted_until"], name: "idx_on_conversation_id_muted_until_3907826291"
     t.index ["conversation_id", "user_id"], name: "idx_unique_conversation_participant", unique: true
     t.index ["conversation_id"], name: "index_conversation_participants_on_conversation_id"
     t.index ["user_id", "hidden_at"], name: "index_conversation_participants_on_user_id_and_hidden_at"
     t.index ["user_id"], name: "index_conversation_participants_on_user_id"
+    t.index ["workspace_id", "user_id", "hidden_at"], name: "idx_conversation_participants_visible_inbox"
     t.index ["workspace_id"], name: "index_conversation_participants_on_workspace_id"
   end
 
@@ -116,11 +159,16 @@ ActiveRecord::Schema[8.1].define(version: 2027_06_29_000000) do
     t.string "conversation_type", default: "direct", null: false
     t.datetime "created_at", null: false
     t.bigint "creator_id", null: false
+    t.datetime "last_message_at"
+    t.bigint "last_message_id"
     t.string "title"
     t.datetime "updated_at", null: false
     t.bigint "workspace_id", null: false
     t.index ["conversation_type"], name: "index_conversations_on_conversation_type"
     t.index ["creator_id"], name: "index_conversations_on_creator_id"
+    t.index ["last_message_id"], name: "index_conversations_on_last_message_id"
+    t.index ["workspace_id", "last_message_at"], name: "index_conversations_on_workspace_id_and_last_message_at"
+    t.index ["workspace_id", "updated_at"], name: "index_conversations_on_workspace_id_and_updated_at"
     t.index ["workspace_id"], name: "index_conversations_on_workspace_id"
   end
 
@@ -384,6 +432,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_06_29_000000) do
     t.index ["conversation_id", "created_at"], name: "index_messages_on_conversation_id_and_created_at"
     t.index ["conversation_id"], name: "index_messages_on_conversation_id"
     t.index ["user_id"], name: "index_messages_on_user_id"
+    t.index ["workspace_id", "conversation_id", "id"], name: "idx_messages_workspace_conversation_cursor"
     t.index ["workspace_id"], name: "index_messages_on_workspace_id"
   end
 
@@ -400,6 +449,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_06_29_000000) do
     t.bigint "workspace_id", null: false
     t.index ["actor_id"], name: "index_notifications_on_actor_id"
     t.index ["notifiable_type", "notifiable_id"], name: "index_notifications_on_notifiable"
+    t.index ["recipient_id", "action", "created_at"], name: "index_notifications_on_recipient_id_and_action_and_created_at"
     t.index ["recipient_id", "read_at"], name: "index_notifications_on_recipient_id_and_read_at"
     t.index ["recipient_id"], name: "index_notifications_on_recipient_id"
     t.index ["workspace_id"], name: "index_notifications_on_workspace_id"
@@ -977,12 +1027,19 @@ ActiveRecord::Schema[8.1].define(version: 2027_06_29_000000) do
   add_foreign_key "calendar_events", "tasks"
   add_foreign_key "calendar_events", "users"
   add_foreign_key "calendar_events", "workspaces"
+  add_foreign_key "call_participants", "call_sessions"
+  add_foreign_key "call_participants", "users"
+  add_foreign_key "call_participants", "workspaces"
+  add_foreign_key "call_sessions", "conversations"
+  add_foreign_key "call_sessions", "users", column: "initiator_id"
+  add_foreign_key "call_sessions", "workspaces"
   add_foreign_key "comments", "posts"
   add_foreign_key "comments", "users"
   add_foreign_key "comments", "workspaces"
   add_foreign_key "conversation_participants", "conversations"
   add_foreign_key "conversation_participants", "users"
   add_foreign_key "conversation_participants", "workspaces"
+  add_foreign_key "conversations", "messages", column: "last_message_id"
   add_foreign_key "conversations", "users", column: "creator_id"
   add_foreign_key "conversations", "workspaces"
   add_foreign_key "departments", "users", column: "manager_id"

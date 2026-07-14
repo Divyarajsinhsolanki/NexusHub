@@ -5,6 +5,6 @@ test:
   adapter: test
 
 production:
-  # Use the in-process adapter for Redis-free, single-instance deployments.
-  # Switch this to redis when a shared Redis service and the redis gem are configured.
-  adapter: async
+  adapter: redis
+  url: <%= ENV.fetch("REDIS_URL", "redis://localhost:6379/1") %>
+  channel_prefix: rails_vite_production

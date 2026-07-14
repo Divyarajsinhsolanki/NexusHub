@@ -95,6 +95,9 @@ const errorMessage = (error, fallback = "PDF action failed.") =>
   error?.message ||
   fallback;
 
+const isFormFieldTarget = (target) =>
+  target instanceof Element && Boolean(target.closest("input, textarea, select, [contenteditable='true']"));
+
 const tools = [
   { id: "select", label: "Select", icon: MousePointer2 },
   { id: "text", label: "Text", icon: Type },
@@ -314,6 +317,7 @@ const PdfMaster = () => {
   useEffect(() => {
     const handler = (event) => {
       if (!selectedDocument || busy || isDemo) return;
+      if (isFormFieldTarget(event.target)) return;
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {
         event.preventDefault();
         event.shiftKey ? handleHistory("redo") : handleHistory("undo");

@@ -10,4 +10,8 @@ FOREMAN_BIN="$(ruby -e 'require "rubygems"; print Gem.bin_path("foreman", "forem
 # Default to port 3000 if not specified
 export PORT="${PORT:-3000}"
 
+if [ "${START_LIVEKIT:-true}" != "false" ] && [ -x ./bin/livekit ]; then
+  ./bin/livekit start || echo "LiveKit did not start; chat calls will be unavailable until bin/livekit start succeeds." >&2
+fi
+
 exec ruby "$FOREMAN_BIN" start -f Procfile.dev --env /dev/null "$@"

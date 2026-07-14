@@ -164,11 +164,24 @@ Rails.application.routes.draw do
       end
       member do
         get :summary
+        patch :mute
+        delete :mute, action: :unmute
         delete :for_everyone
       end
-      resources :messages, only: [:create] do
+      resources :calls, controller: "conversation_calls", only: [:create]
+      resources :messages, only: [:index, :create] do
         resources :reactions, controller: "message_reactions", only: [:create]
         delete "reactions", to: "message_reactions#destroy"
+      end
+    end
+
+    resources :calls, only: [] do
+      member do
+        post :ack_ring
+        post :join
+        post :decline
+        post :leave
+        post :end, action: :end_call
       end
     end
 

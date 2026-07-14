@@ -85,6 +85,35 @@ module Chat
         ActionCable.server.broadcast(conversation_stream(workspace_id, conversation_id), payload)
       end
 
+      def broadcast_call_ringing(call_session)
+        call_session.call_participants.includes(:user).where.not(user_id: call_session.initiator_id).find_each do |participant|
+          membership = call_session.conversation.conversation_participants.find_by(user_id: participant.user_id)
+          next if membership&.muted?
+
+          ActionCable.server.broadcast(user_stream(call_session.workspace_id, participant.user_id), {
+            type: "call_ringing",
+            call_session: serialize_call(call_session, current_user: participant.user)
+          })
+        end
+      end
+
+      def broadcast_call_event(call_session, event_type, extra_payload = {})
+        payload = {
+          type: event_type,
+          conversation_id: call_session.conversation_id,
+          call_session: serialize_call(call_session)
+        }.merge(extra_payload)
+
+        ActionCable.server.broadcast(
+          conversation_stream(call_session.workspace_id, call_session.conversation_id),
+          payload
+        )
+
+        call_session.call_participants.pluck(:user_id).each do |participant_id|
+          ActionCable.server.broadcast(user_stream(call_session.workspace_id, participant_id), payload)
+        end
+      end
+
       def broadcast_notification(notification)
         metadata = notification.metadata.respond_to?(:with_indifferent_access) ? notification.metadata.with_indifferent_access : {}
 
@@ -98,6 +127,10 @@ module Chat
           when "chat_message"
             conversation_name = metadata[:conversation_name].presence || "a conversation"
             "#{notification.actor.full_name} sent a message in #{conversation_name}"
+          when "missed_call"
+            conversation_name = metadata[:conversation_name].presence || "a conversation"
+            call_type = metadata[:call_type].presence || "call"
+            "Missed #{call_type} call from #{notification.actor.full_name} in #{conversation_name}"
           else
             "You have a new notification"
           end
@@ -154,6 +187,10 @@ module Chat
           reactions: message.reaction_counts,
           reacted_emojis: []
         }
+      end
+
+      def serialize_call(call_session, current_user: nil)
+        Chat::CallSerializer.call(call_session, current_user: current_user)
       end
     end
   end

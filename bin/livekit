@@ -1,0 +1,190 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+container_name="${LIVEKIT_CONTAINER_NAME:-rails_vite_livekit_dev}"
+image="${LIVEKIT_IMAGE:-livekit/livekit-server:latest}"
+
+env_value() {
+  local name="$1"
+  local value="${!name:-}"
+
+  if [ -n "$value" ]; then
+    printf '%s' "$value"
+    return
+  fi
+
+  if [ -f .env ]; then
+    value="$(sed -n "s/^${name}=//p" .env | tail -n 1)"
+    value="${value%$'\r'}"
+    value="${value%\"}"
+    value="${value#\"}"
+    value="${value%\'}"
+    value="${value#\'}"
+    printf '%s' "$value"
+  fi
+}
+
+livekit_url="$(env_value LIVEKIT_URL)"
+api_key="$(env_value LIVEKIT_API_KEY)"
+api_secret="$(env_value LIVEKIT_API_SECRET)"
+
+livekit_url="${livekit_url:-ws://localhost:7880}"
+api_key="${api_key:-devkey}"
+api_secret="${api_secret:-dev-secret-change-me-32-characters-min}"
+
+http_port="${LIVEKIT_PORT:-}"
+if [ -z "$http_port" ] && [[ "$livekit_url" =~ :([0-9]+)(/.*)?$ ]]; then
+  http_port="${BASH_REMATCH[1]}"
+fi
+http_port="${http_port:-7880}"
+
+tcp_port="${LIVEKIT_TCP_PORT:-7881}"
+udp_port="${LIVEKIT_UDP_PORT:-7882}"
+use_external_ip="${LIVEKIT_USE_EXTERNAL_IP:-false}"
+
+require_docker() {
+  command -v docker >/dev/null 2>&1 || {
+    echo "Docker is required to run the local LiveKit media server." >&2
+    exit 1
+  }
+
+  docker info >/dev/null 2>&1 || {
+    echo "Docker is installed, but the daemon is not reachable." >&2
+    exit 1
+  }
+}
+
+container_exists() {
+  docker container inspect "$container_name" >/dev/null 2>&1
+}
+
+container_running() {
+  [ "$(docker container inspect -f '{{.State.Running}}' "$container_name" 2>/dev/null || true)" = "true" ]
+}
+
+config_sha() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    livekit_config | sha256sum | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    livekit_config | shasum -a 256 | awk '{print $1}'
+  else
+    echo ""
+  fi
+}
+
+warn_if_insecure_secret() {
+  if [ "${#api_secret}" -lt 32 ]; then
+    echo "Warning: LIVEKIT_API_SECRET is shorter than 32 characters. Calls can work locally, but use a longer secret outside local development." >&2
+  fi
+}
+
+livekit_config() {
+  cat <<CONFIG
+port: 7880
+log_level: info
+rtc:
+  tcp_port: 7881
+  udp_port: 7882
+  use_external_ip: ${use_external_ip}
+keys:
+  "${api_key}": "${api_secret}"
+CONFIG
+}
+
+start() {
+  require_docker
+  desired_config_sha="$(config_sha)"
+  warn_if_insecure_secret
+
+  if container_running; then
+    current_config_sha="$(docker container inspect -f '{{ index .Config.Labels "com.rails_vite.livekit.config-sha" }}' "$container_name" 2>/dev/null || true)"
+    if [ -n "$desired_config_sha" ] && [ "$current_config_sha" = "$desired_config_sha" ]; then
+      echo "LiveKit is already running in container ${container_name}."
+      status
+      return
+    fi
+
+    echo "LiveKit config changed; recreating container ${container_name}."
+    docker rm -f "$container_name" >/dev/null
+  fi
+
+  if container_exists; then
+    docker rm "$container_name" >/dev/null
+  fi
+
+  docker run -d \
+    --name "$container_name" \
+    -p "${http_port}:7880" \
+    -p "${tcp_port}:7881" \
+    -p "${udp_port}:7882/udp" \
+    --label "com.rails_vite.livekit.config-sha=${desired_config_sha}" \
+    -e "LIVEKIT_CONFIG=$(livekit_config)" \
+    "$image" >/dev/null
+
+  echo "LiveKit started at ${livekit_url}."
+  status
+}
+
+stop() {
+  require_docker
+
+  if container_exists; then
+    docker rm -f "$container_name" >/dev/null
+    echo "LiveKit container ${container_name} stopped."
+  else
+    echo "LiveKit container ${container_name} is not present."
+  fi
+}
+
+status() {
+  require_docker
+
+  if ! container_exists; then
+    echo "LiveKit container ${container_name} is not present."
+    return 1
+  fi
+
+  docker ps --filter "name=^/${container_name}$" --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
+
+  if ! command -v curl >/dev/null 2>&1; then
+    echo "Health check: skipped because curl is not installed."
+    return
+  fi
+
+  if curl -fsS --max-time 2 "http://localhost:${http_port}/" >/dev/null 2>&1; then
+    echo "Health check: OK on http://localhost:${http_port}/"
+  else
+    echo "Health check: not reachable on http://localhost:${http_port}/" >&2
+    return 1
+  fi
+}
+
+logs() {
+  require_docker
+  docker logs -f "$container_name"
+}
+
+case "${1:-start}" in
+  start)
+    start
+    ;;
+  stop)
+    stop
+    ;;
+  restart)
+    stop
+    start
+    ;;
+  status)
+    status
+    ;;
+  logs)
+    logs
+    ;;
+  *)
+    echo "Usage: bin/livekit [start|stop|restart|status|logs]" >&2
+    exit 1
+    ;;
+esac

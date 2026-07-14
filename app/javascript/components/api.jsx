@@ -322,12 +322,24 @@ export const startDirectConversation = (userId) => api.post('/conversations/star
 export const deleteConversation = (id) => api.delete(`/conversations/${id}`);
 export const deleteConversationForEveryone = (id, confirmation) =>
   api.delete(`/conversations/${id}/for_everyone`, { data: { confirmation } });
+export const muteConversation = (id, duration = "forever") =>
+  api.patch(`/conversations/${id}/mute`, { duration });
+export const unmuteConversation = (id) => api.delete(`/conversations/${id}/mute`);
+export const fetchConversationMessages = (conversationId, params = {}) =>
+  api.get(`/conversations/${conversationId}/messages`, { params });
 export const sendMessage = (conversationId, formData) =>
   api.post(`/conversations/${conversationId}/messages`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
 export const addMessageReaction = (conversationId, messageId, emoji) =>
   api.post(`/conversations/${conversationId}/messages/${messageId}/reactions`, { message_reaction: { emoji } });
 export const removeMessageReaction = (conversationId, messageId, emoji) =>
   api.delete(`/conversations/${conversationId}/messages/${messageId}/reactions`, { params: { emoji } });
+export const createCall = (conversationId, callType) =>
+  api.post(`/conversations/${conversationId}/calls`, { call_type: callType });
+export const acknowledgeCallRing = (callId) => api.post(`/calls/${callId}/ack_ring`);
+export const joinCall = (callId) => api.post(`/calls/${callId}/join`);
+export const declineCall = (callId) => api.post(`/calls/${callId}/decline`);
+export const leaveCall = (callId) => api.post(`/calls/${callId}/leave`);
+export const endCall = (callId, reason = "ended") => api.post(`/calls/${callId}/end`, { reason });
 
 // NOTIFICATION ENDPOINTS
 export const fetchNotifications = (params = {}) => api.get('/notifications.json', { params });
