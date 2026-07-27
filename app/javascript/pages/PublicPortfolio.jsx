@@ -131,7 +131,7 @@ const ContactForm = () => {
   };
 
   return (
-    <form onSubmit={submit} className="rounded-[30px] border border-white/10 bg-white/5 p-5 sm:p-7">
+    <form onSubmit={submit} className="min-w-0 rounded-[24px] border border-white/10 bg-white/5 p-4 sm:rounded-[30px] sm:p-7">
       <div className="grid gap-4 sm:grid-cols-2">
         <input
           aria-label="Name"
@@ -139,7 +139,7 @@ const ContactForm = () => {
           placeholder="Your name"
           value={form.name}
           onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-          className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-cyan-300"
+          className="min-w-0 rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-cyan-300"
         />
         <input
           aria-label="Email"
@@ -148,7 +148,7 @@ const ContactForm = () => {
           placeholder="Email address"
           value={form.email}
           onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
-          className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-cyan-300"
+          className="min-w-0 rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-cyan-300"
         />
       </div>
       <textarea
@@ -158,7 +158,7 @@ const ContactForm = () => {
         placeholder="Tell me about the role or project"
         value={form.message}
         onChange={(event) => setForm((current) => ({ ...current, message: event.target.value }))}
-        className="mt-4 w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-cyan-300"
+        className="mt-4 min-w-0 w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-cyan-300"
       />
       <button
         type="submit"
@@ -241,7 +241,7 @@ const PublicPortfolio = () => {
   };
 
   return (
-    <div className="min-h-dvh overflow-hidden bg-[#07111f] text-white">
+    <div className="min-h-dvh overflow-x-hidden bg-[#07111f] text-white">
       <Helmet>
         <title>{seo.title || `${profile.full_name} | Full-stack Rails and React Engineer`}</title>
         <meta name="description" content={seo.description || profile.summary} />
@@ -261,11 +261,11 @@ const PublicPortfolio = () => {
       </div>
 
       <header className="sticky top-0 z-50 border-b border-white/10 bg-[#07111f]/85 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-3 sm:px-8">
-          <button onClick={() => scrollTo("top")} className="flex items-center gap-3 text-left">
-            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-300 font-black text-slate-950">{initials}</span>
-            <span>
-              <span className="block text-sm font-semibold">{profile.full_name}</span>
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-8">
+          <button onClick={() => scrollTo("top")} className="flex min-w-0 items-center gap-3 text-left">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-cyan-300 font-black text-slate-950">{initials}</span>
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-semibold">{profile.full_name}</span>
               <span className="block text-xs text-slate-400">Full-stack engineer</span>
             </span>
           </button>
@@ -292,31 +292,31 @@ const PublicPortfolio = () => {
       </header>
 
       <main id="top" className="relative">
-        <section className="mx-auto grid min-h-[calc(100dvh-4.25rem)] max-w-7xl items-center gap-10 px-5 py-12 sm:px-8 sm:py-14 lg:grid-cols-[1.25fr_0.75fr] lg:py-16">
-          <div>
-            <p className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-4 py-2 text-sm font-semibold text-cyan-200">
+        <section className="mx-auto grid min-h-[calc(100dvh-4.25rem)] max-w-7xl items-center gap-10 px-4 py-10 sm:px-8 sm:py-14 lg:grid-cols-[minmax(0,1.25fr)_minmax(20rem,0.75fr)] lg:py-16">
+          <div className="min-w-0">
+            <p className="inline-flex max-w-full items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 text-xs font-semibold text-cyan-200 sm:px-4 sm:text-sm">
               <FiCode /> Rails, React, PostgreSQL
             </p>
-            <h1 className="mt-6 max-w-5xl text-4xl font-semibold leading-[1.04] sm:text-5xl lg:text-[4.55rem] xl:text-[4.85rem]">
+            <h1 className="mt-6 max-w-5xl text-[clamp(2.35rem,12vw,4rem)] font-semibold leading-[1.04] tracking-[-0.04em] sm:text-5xl lg:text-[4.55rem] xl:text-[4.85rem]">
               I build full-stack products that solve real workflow problems.
             </h1>
             <p className="mt-6 max-w-3xl text-base leading-8 text-slate-300 sm:text-lg">{profile.summary}</p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <button onClick={() => openDemo("/demo")} className="inline-flex items-center gap-2 rounded-full bg-cyan-300 px-6 py-3.5 font-semibold text-slate-950">
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+              <button onClick={() => openDemo("/demo")} className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-cyan-300 px-6 py-3.5 font-semibold text-slate-950 sm:w-auto">
                 {demoLoading ? "Starting demo..." : "Explore Nexus Hub"} <FiArrowUpRight />
               </button>
-              <button onClick={() => scrollTo("case-study")} className="inline-flex items-center gap-2 rounded-full border border-white/15 px-6 py-3.5 font-semibold">
+              <button onClick={() => scrollTo("case-study")} className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/15 px-6 py-3.5 font-semibold sm:w-auto">
                 Read case study <FiArrowDown />
               </button>
               {profile.resume_url ? (
-                <a href={profile.resume_url} className="inline-flex items-center gap-2 rounded-full border border-white/15 px-6 py-3.5 font-semibold">
+                <a href={profile.resume_url} className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/15 px-6 py-3.5 font-semibold sm:w-auto">
                   Resume <FiDownload />
                 </a>
               ) : null}
             </div>
             {demoError ? <p className="mt-4 text-amber-300">{demoError}</p> : null}
           </div>
-          <div className="relative mx-auto w-full max-w-sm lg:max-w-md">
+          <div className="relative mx-auto w-full max-w-[20rem] sm:max-w-sm lg:max-w-md">
             <div className="absolute inset-0 rotate-6 rounded-[42px] bg-gradient-to-br from-cyan-300 to-blue-600 opacity-70 blur-sm" />
             <div className="relative rounded-[32px] border border-white/10 bg-slate-900/90 p-6 shadow-2xl sm:p-7">
               {profile.avatar_url ? (
@@ -324,7 +324,7 @@ const PublicPortfolio = () => {
               ) : (
                 <div className="flex aspect-square items-center justify-center rounded-[24px] bg-gradient-to-br from-slate-800 to-slate-950 text-6xl font-semibold text-cyan-300 sm:text-7xl">{initials}</div>
               )}
-              <div className="mt-6 flex items-center justify-between gap-4">
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                 <div>
                   <p className="font-semibold">{profile.full_name}</p>
                   <p className="mt-1 inline-flex items-center gap-2 text-sm text-slate-400"><FiMapPin /> {profile.location}</p>
@@ -336,10 +336,10 @@ const PublicPortfolio = () => {
         </section>
 
         <section id="about" className="border-y border-white/10 bg-white/[0.03]">
-          <div className="mx-auto grid max-w-7xl gap-10 px-5 py-14 sm:px-8 lg:grid-cols-[0.75fr_1.25fr] lg:py-16">
+          <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-8 sm:py-14 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,1.25fr)] lg:py-16">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">About</p>
-              <h2 className="mt-4 text-3xl font-semibold leading-tight sm:text-4xl">Product thinking with full-stack execution.</h2>
+              <h2 className="mt-4 text-3xl font-semibold leading-tight tracking-[-0.03em] sm:text-4xl">Product thinking with full-stack execution.</h2>
             </div>
             <div>
               <p className="text-base leading-8 text-slate-300 sm:text-lg">{profile.headline}. My work covers data modeling, API design, authorization, complex UI state, realtime behavior, background processing, integrations, and deployment.</p>
@@ -350,7 +350,7 @@ const PublicPortfolio = () => {
           </div>
         </section>
 
-        <section className="mx-auto max-w-7xl px-5 py-12 sm:px-8 lg:py-14">
+        <section className="mx-auto max-w-7xl px-4 py-12 sm:px-8 lg:py-14">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {(profile.metrics || []).map((metric) => (
               <div key={metric} className="rounded-[26px] border border-white/10 bg-white/5 p-6">
@@ -361,18 +361,18 @@ const PublicPortfolio = () => {
           </div>
         </section>
 
-        <section id="case-study" className="mx-auto max-w-7xl px-5 py-14 sm:px-8 lg:py-16">
-          <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr]">
+        <section id="case-study" className="mx-auto max-w-7xl px-4 py-12 sm:px-8 sm:py-14 lg:py-16">
+          <div className="grid min-w-0 gap-10 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">Flagship Case Study</p>
-              <h2 className="mt-4 text-4xl font-semibold leading-tight">{project?.title || "Nexus Hub"}</h2>
+              <h2 className="mt-4 text-3xl font-semibold leading-tight tracking-[-0.03em] sm:text-4xl">{project?.title || "Nexus Hub"}</h2>
               <p className="mt-5 text-lg leading-8 text-slate-300">{project?.tagline || "One connected workspace for product delivery and personal productivity."}</p>
               <div className="mt-7 flex flex-wrap gap-2">
                 {(project?.stack || profile.skills || []).map((item) => <span key={item} className="rounded-full bg-cyan-300/10 px-3 py-1.5 text-sm text-cyan-200">{item}</span>)}
               </div>
             </div>
-            <div className="space-y-5">
-              <div className="rounded-[34px] border border-white/10 bg-gradient-to-br from-white/10 to-white/[0.03] p-7 sm:p-9">
+            <div className="min-w-0 space-y-5">
+              <div className="rounded-[26px] border border-white/10 bg-gradient-to-br from-white/10 to-white/[0.03] p-5 sm:rounded-[34px] sm:p-9">
                 <p className="text-base leading-8 text-slate-200 sm:text-lg">{project?.summary || "Nexus Hub brings planning, delivery, communication, knowledge, and document tools into one Rails and React product."}</p>
                 <p className="mt-5 leading-7 text-slate-400">{project?.description}</p>
                 <div className="mt-8 grid gap-3 sm:grid-cols-2">
@@ -380,9 +380,9 @@ const PublicPortfolio = () => {
                     <div key={item} className="flex gap-3 rounded-2xl bg-slate-950/50 p-4 text-sm leading-6 text-slate-300"><FiShield className="mt-1 shrink-0 text-cyan-300" /> {item}</div>
                   ))}
                 </div>
-                <div className="mt-8 flex flex-wrap gap-3">
-                  <button onClick={() => openDemo("/demo")} className="rounded-full bg-white px-5 py-3 font-semibold text-slate-950">Start guided demo</button>
-                  {project?.repository_url ? <a href={project.repository_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border border-white/15 px-5 py-3 font-semibold"><FiGithub /> View code</a> : null}
+                <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                  <button onClick={() => openDemo("/demo")} className="w-full rounded-full bg-white px-5 py-3 font-semibold text-slate-950 sm:w-auto">Start guided demo</button>
+                  {project?.repository_url ? <a href={project.repository_url} target="_blank" rel="noreferrer" className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/15 px-5 py-3 font-semibold sm:w-auto"><FiGithub /> View code</a> : null}
                 </div>
               </div>
               <div className="overflow-hidden rounded-[30px] border border-cyan-300/12 bg-slate-950 shadow-2xl shadow-cyan-950/30">
@@ -399,17 +399,17 @@ const PublicPortfolio = () => {
         </section>
 
         <section id="decisions" className="border-y border-white/10 bg-white/[0.03]">
-          <div className="mx-auto max-w-7xl px-5 py-14 sm:px-8 lg:py-16">
+          <div className="mx-auto max-w-7xl px-4 py-12 sm:px-8 sm:py-14 lg:py-16">
             <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">Engineering Decisions</p>
             <h2 className="mt-4 max-w-4xl text-3xl font-semibold leading-tight sm:text-4xl">
               The reasoning behind the product, not only the feature list.
             </h2>
             <div className="mt-10 grid gap-5 lg:grid-cols-2">
-              <article className="rounded-[30px] border border-white/10 bg-slate-950/60 p-7">
+              <article className="rounded-[26px] border border-white/10 bg-slate-950/60 p-5 sm:rounded-[30px] sm:p-7">
                 <p className="text-xs font-bold uppercase tracking-[0.24em] text-cyan-300">Problem</p>
                 <p className="mt-4 text-lg leading-8 text-slate-200">{caseStudy.problem}</p>
               </article>
-              <article className="rounded-[30px] border border-white/10 bg-slate-950/60 p-7">
+              <article className="rounded-[26px] border border-white/10 bg-slate-950/60 p-5 sm:rounded-[30px] sm:p-7">
                 <p className="text-xs font-bold uppercase tracking-[0.24em] text-cyan-300">My Role</p>
                 <p className="mt-4 text-lg leading-8 text-slate-200">{caseStudy.role}</p>
               </article>
@@ -419,7 +419,7 @@ const PublicPortfolio = () => {
                 ["Trade-offs", caseStudy.trade_offs],
                 ["Outcomes", caseStudy.outcomes],
               ].map(([title, items]) => (
-                <article key={title} className="rounded-[30px] border border-white/10 bg-white/5 p-7">
+                <article key={title} className="rounded-[26px] border border-white/10 bg-white/5 p-5 sm:rounded-[30px] sm:p-7">
                   <p className="text-xs font-bold uppercase tracking-[0.24em] text-cyan-300">{title}</p>
                   <ul className="mt-5 space-y-3">
                     {(items || []).map((item) => (
@@ -436,12 +436,12 @@ const PublicPortfolio = () => {
         </section>
 
         <section id="features" className="border-y border-white/10 bg-white/[0.03]">
-          <div className="mx-auto max-w-7xl px-5 py-14 sm:px-8 lg:py-16">
+          <div className="mx-auto max-w-7xl px-4 py-12 sm:px-8 sm:py-14 lg:py-16">
             <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">Feature Map</p>
             <h2 className="mt-4 max-w-3xl text-3xl font-semibold leading-tight sm:text-4xl">A large product, organized for a fast technical review.</h2>
             <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
               {groupedFeatures.map((feature, index) => (
-                <button key={feature.id || feature.title} onClick={() => openDemo(feature.demo_path || "/demo")} className="group overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/60 text-left">
+                <button key={feature.id || feature.title} onClick={() => openDemo(feature.demo_path || "/demo")} className="group min-w-0 overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/60 text-left sm:rounded-[28px]">
                   {feature.screenshot_url ? (
                     <img src={feature.screenshot_url} alt={feature.alt_text || feature.title} loading="lazy" className="aspect-[16/10] w-full object-cover" />
                   ) : (
@@ -467,17 +467,17 @@ const PublicPortfolio = () => {
           </div>
         </section>
 
-        <section id="architecture" className="mx-auto max-w-7xl px-5 py-14 sm:px-8 lg:py-16">
+        <section id="architecture" className="mx-auto max-w-7xl px-4 py-12 sm:px-8 sm:py-14 lg:py-16">
           <div className="grid gap-10 lg:grid-cols-2">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">Architecture</p>
-              <h2 className="mt-4 text-3xl font-semibold leading-tight sm:text-4xl">Built across the complete application stack.</h2>
+              <h2 className="mt-4 text-3xl font-semibold leading-tight tracking-[-0.03em] sm:text-4xl">Built across the complete application stack.</h2>
             </div>
             <div className="space-y-3">
               {(profile.architecture || []).map((item, index) => (
-                <div key={item} className="flex items-center gap-5 rounded-2xl border border-white/10 bg-white/5 p-5">
+                <div key={item} className="flex min-w-0 items-start gap-4 rounded-2xl border border-white/10 bg-white/5 p-4 sm:items-center sm:gap-5 sm:p-5">
                   <span className="text-sm font-bold text-cyan-300">0{index + 1}</span>
-                  <span className="text-lg font-medium text-slate-200">{item}</span>
+                  <span className="min-w-0 text-base font-medium text-slate-200 sm:text-lg">{item}</span>
                 </div>
               ))}
             </div>
@@ -500,10 +500,10 @@ const PublicPortfolio = () => {
         </section>
 
         <section id="contact" className="border-t border-white/10 bg-slate-950">
-          <div className="mx-auto grid max-w-7xl gap-10 px-5 py-14 sm:px-8 lg:grid-cols-[0.8fr_1.2fr] lg:py-16">
+          <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-8 sm:py-14 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:py-16">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">Contact</p>
-              <h2 className="mt-4 text-3xl font-semibold leading-tight sm:text-4xl">Let’s discuss the role and the problems you need solved.</h2>
+              <h2 className="mt-4 text-3xl font-semibold leading-tight tracking-[-0.03em] sm:text-4xl">Let’s discuss the role and the problems you need solved.</h2>
               <div className="mt-7 flex flex-wrap gap-3">
                 {socialLinks.github ? <a href={socialLinks.github} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border border-white/15 px-4 py-2.5"><FiGithub /> GitHub</a> : null}
                 {socialLinks.linkedin ? <a href={socialLinks.linkedin} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border border-white/15 px-4 py-2.5"><FiLinkedin /> LinkedIn</a> : null}
