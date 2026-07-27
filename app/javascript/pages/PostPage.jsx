@@ -307,38 +307,38 @@ const PostPage = () => {
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50/70 font-sans">
         <Toaster position="top-right" />
       
-        <div className="mx-auto max-w-8xl px-4 py-8 sm:px-6 lg:px-8">
-          <section className="mb-8 overflow-hidden rounded-[2rem] border border-white/70 bg-slate-950 shadow-2xl shadow-slate-200">
-            <div className="relative px-6 py-8 sm:px-8 lg:px-10">
+        <div className="mx-auto w-full max-w-[1600px] px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
+          <section className="mb-6 overflow-hidden rounded-[1.5rem] border border-white/70 bg-slate-950 shadow-2xl shadow-slate-200 sm:mb-8 sm:rounded-[2rem]">
+            <div className="relative px-5 py-6 sm:px-8 sm:py-8 lg:px-10">
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.45),_transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(168,85,247,0.4),_transparent_35%)]" />
               <div className="relative grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
                 <div>
-                  <h1 className="max-w-3xl text-4xl font-black tracking-tight text-white sm:text-5xl">
+                  <h1 className="max-w-3xl text-[clamp(2rem,8vw,3rem)] font-black tracking-tight text-white sm:text-5xl">
                     Welcome back, {[user?.first_name, user?.last_name].filter(Boolean).join(' ') || 'User'} — run your day from Updates.
                   </h1>
                   <div className="mt-6 flex flex-wrap gap-3">
                     <button
                       type="button"
                       onClick={handleQuickPost}
-                      className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-bold text-slate-900 shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl"
+                      className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-bold text-slate-900 shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl sm:w-auto"
                     >
                       <FiPlus /> Write update
                     </button>
                     <Link
                       to="/notifications"
-                      className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-5 py-3 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-white/20"
+                      className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-white/20 bg-white/10 px-5 py-3 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-white/20 sm:w-auto"
                     >
                       <FiBell /> Check notifications
                     </Link>
                     <Link
                       to="/projects"
-                      className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-5 py-3 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-white/20"
+                      className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-white/20 bg-white/10 px-5 py-3 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-white/20 sm:w-auto"
                     >
                       <FiFolder /> Projects
                     </Link>
                   </div>
                 </div>
-                <div className="grid grid-cols-3 gap-3 rounded-3xl border border-white/10 bg-white/10 p-4 backdrop-blur">
+                <div className="grid grid-cols-1 gap-3 rounded-3xl border border-white/10 bg-white/10 p-4 backdrop-blur sm:grid-cols-3">
                   <div className="rounded-2xl bg-white/95 p-4 text-center">
                     <p className="text-3xl font-black text-slate-900">{stats.totalPosts}</p>
                     <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Posts</p>

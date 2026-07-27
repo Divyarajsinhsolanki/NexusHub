@@ -28,19 +28,28 @@ function Admin() {
     fetchTables();
   }, []);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const media = window.matchMedia('(max-width: 767px)');
+    const syncSidebar = () => setIsSidebarOpen(!media.matches);
+    syncSidebar();
+    media.addEventListener('change', syncSidebar);
+    return () => media.removeEventListener('change', syncSidebar);
+  }, []);
+
   const filteredTables = tables.filter(t =>
     t.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex h-screen overflow-hidden bg-gray-50">
       <Toaster position="top-right" />
 
       {/* Sidebar */}
       <motion.div
         initial={false}
         animate={{ width: isSidebarOpen ? 256 : 0 }}
-        className="bg-white border-r border-gray-200 flex-shrink-0 flex flex-col h-full overflow-hidden"
+        className="fixed inset-y-0 left-0 z-30 flex h-full flex-shrink-0 flex-col overflow-hidden border-r border-gray-200 bg-white shadow-2xl md:relative md:z-auto md:shadow-none"
       >
         <div className="p-4 border-b border-gray-100 flex items-center gap-3">
           <div className="bg-blue-600 p-2 rounded-lg">
@@ -112,16 +121,18 @@ function Admin() {
       </motion.div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden relative">
+      <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden">
         <header className="h-16 bg-white border-b border-gray-200 flex items-center px-4 md:px-6 justify-between flex-shrink-0 z-10">
-          <div className="flex items-center gap-4">
+          <div className="flex min-w-0 items-center gap-4">
             <button
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="p-2 hover:bg-gray-100 rounded-lg text-gray-500"
+              className="flex h-11 w-11 items-center justify-center rounded-lg p-2 text-gray-500 hover:bg-gray-100"
+              aria-label="Toggle admin sidebar"
+              aria-expanded={isSidebarOpen}
             >
               <Menu className="w-5 h-5" />
             </button>
-            <h2 className="text-lg font-semibold text-gray-800">
+            <h2 className="min-w-0 truncate text-lg font-semibold text-gray-800">
               {selectedTable ? (
                 <span className="flex items-center gap-2">
                   <span className="text-gray-400">Tables</span>

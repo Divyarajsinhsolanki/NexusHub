@@ -458,16 +458,16 @@ const Vault = () => {
       <Toaster position="top-right" />
 
       {/* Premium Hero Header */}
-      <div className="relative overflow-hidden bg-slate-900 pb-16">
+      <div className="relative overflow-hidden bg-slate-900 pb-12 sm:pb-16">
         <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-600 opacity-90" />
         <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20" />
 
-        <div className="relative max-w-[98%] mx-auto px-6 pt-6 pb-6">
+        <div className="relative mx-auto w-full max-w-7xl px-4 pb-6 pt-5 sm:px-6 lg:px-8">
 
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex justify-between items-start mb-8"
+            className="mb-8 flex flex-col items-stretch justify-between gap-5 sm:flex-row sm:items-start"
           >
             <div>
               <div className="flex items-center gap-3 mb-2">
@@ -475,18 +475,18 @@ const Vault = () => {
                   <FiShield className="h-8 w-8 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-3xl font-bold text-white tracking-tight">Secure Vault</h1>
+                  <h1 className="text-[clamp(1.75rem,7vw,2.25rem)] font-bold tracking-tight text-white">Secure Vault</h1>
                   <p className="text-indigo-100 text-sm font-medium">{currentDate}</p>
                 </div>
               </div>
-              <p className="text-indigo-100/80 max-w-xl text-lg">
+              <p className="max-w-xl text-base text-indigo-100/80 sm:text-lg">
                 Manage your credentials, API tokens, and sensitive notes in a secure, encrypted environment.
               </p>
             </div>
 
             <button
               onClick={() => openCreateModal()}
-              className="flex items-center gap-2 px-6 py-3 bg-white text-indigo-600 font-bold rounded-xl shadow-lg hover:shadow-xl hover:bg-gray-50 transition-all transform hover:-translate-y-1"
+              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-white px-6 py-3 font-bold text-indigo-600 shadow-lg transition-all hover:-translate-y-1 hover:bg-gray-50 hover:shadow-xl sm:w-auto"
             >
               <FiPlus className="h-5 w-5" />
               New Item
@@ -494,7 +494,7 @@ const Vault = () => {
           </motion.div>
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard icon={FiList} label="Total Items" value={stats.total} color="bg-blue-500" delay={0.1} />
             <StatCard icon={FiKey} label="Credentials" value={stats.credentials} color="bg-amber-500" delay={0.2} />
             <StatCard icon={FiTerminal} label="Code Snippets" value={stats.code} color="bg-emerald-500" delay={0.3} />
@@ -504,9 +504,9 @@ const Vault = () => {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-[98%] mx-auto px-6 -mt-12 relative z-10">
+      <div className="relative z-10 mx-auto -mt-10 w-full max-w-7xl px-4 sm:-mt-12 sm:px-6 lg:px-8">
 
-        <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-xl border border-white/40 p-2 sm:p-4 mb-8">
+        <div className="mb-6 rounded-2xl border border-white/40 bg-white/80 p-2 shadow-xl backdrop-blur-xl sm:mb-8 sm:rounded-3xl sm:p-4">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             {/* Tabs */}
             <div className="flex overflow-x-auto pb-2 md:pb-0 w-full md:w-auto gap-2 scrollbar-none">
@@ -542,7 +542,7 @@ const Vault = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+              className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 lg:gap-6"
             >
               {[...Array(6)].map((_, i) => (
                 <div key={i} className="h-48 bg-white/50 rounded-2xl animate-pulse border border-white/50" />
@@ -551,7 +551,7 @@ const Vault = () => {
           ) : (
             <motion.div
               layout
-              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+              className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 lg:gap-6"
             >
               {filteredItems.map(item => (
                 <VaultCard
@@ -569,7 +569,7 @@ const Vault = () => {
         </AnimatePresence>
 
         {!isLoading && filteredItems.length === 0 && (
-          <div className="text-center py-24 opacity-60">
+          <div className="py-16 text-center opacity-60 sm:py-24">
             <FiShield className="h-24 w-24 mx-auto text-gray-300 mb-4" />
             <h3 className="text-xl font-medium text-gray-500">No items found</h3>
             <p className="text-gray-400">Try adjusting your search or add a new item.</p>

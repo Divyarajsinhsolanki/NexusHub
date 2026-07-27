@@ -232,8 +232,8 @@ const DailyMomentumHub = () => {
 
   return (
     <div className="min-h-screen pb-16 text-slate-900">
-      <div className="mx-auto max-w-[98%] px-4 pt-6 sm:px-6 lg:px-8">
-        <header className="relative overflow-hidden rounded-[36px] border border-slate-900/10 bg-slate-950 px-6 py-6 text-white shadow-[0_32px_90px_rgb(15_23_42_/_0.24)] sm:px-7">
+      <div className="mx-auto w-full max-w-[1600px] px-4 pt-5 sm:px-6 sm:pt-6 lg:px-8">
+        <header className="relative overflow-hidden rounded-[24px] border border-slate-900/10 bg-slate-950 px-5 py-6 text-white shadow-[0_32px_90px_rgb(15_23_42_/_0.24)] sm:rounded-[36px] sm:px-7">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_12%,rgba(103,232,249,0.22),transparent_24%),radial-gradient(circle_at_82%_20%,rgba(167,139,250,0.2),transparent_24%),linear-gradient(135deg,rgba(15,23,42,0.96),rgba(15,23,42,0.82))]" />
           <div className="absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-white/60 to-transparent" />
           <div className="absolute -left-20 bottom-0 h-56 w-56 rounded-full bg-cyan-400/12 blur-3xl" />
@@ -246,7 +246,7 @@ const DailyMomentumHub = () => {
                 Daily Momentum Hub
               </div>
 
-              <h1 className="max-w-3xl text-4xl font-semibold tracking-[-0.05em] text-white sm:text-5xl">
+              <h1 className="max-w-3xl text-[clamp(2rem,8vw,3rem)] font-semibold tracking-[-0.05em] text-white sm:text-5xl">
                 {user?.first_name ? `${user.first_name}, steer the day before the day steers you.` : "Steer the day before the day steers you."}
               </h1>
               <p className="mt-3 text-sm text-slate-300 sm:text-base">{headerDate}</p>
@@ -307,7 +307,7 @@ const DailyMomentumHub = () => {
                 <button
                   type="button"
                   onClick={() => loadMomentum({ refreshing: true })}
-                  className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-3 text-sm font-semibold text-slate-950 shadow-[0_18px_34px_rgb(255_255_255_/_0.18)] transition hover:brightness-105"
+                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-white px-4 py-3 text-sm font-semibold text-slate-950 shadow-[0_18px_34px_rgb(255_255_255_/_0.18)] transition hover:brightness-105 sm:w-auto"
                 >
                   <FiRefreshCcw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
                   Refresh snapshot

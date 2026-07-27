@@ -271,7 +271,7 @@ function DynamicAdminTable({ table }) {
           </div>
         ) : null}
 
-        <table className="w-full text-left text-sm text-gray-600">
+        <table className="min-w-max w-full text-left text-sm text-gray-600">
           <thead className="bg-gray-50 sticky top-0 z-10 text-xs uppercase font-semibold text-gray-500">
             <tr>
               {columns.map(col => (

@@ -17,11 +17,11 @@ const DemoHub = () => {
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <section className="overflow-hidden rounded-[36px] bg-slate-950 px-6 py-10 text-white shadow-2xl sm:px-10 lg:px-14">
+      <section className="overflow-hidden rounded-[24px] bg-slate-950 px-5 py-8 text-white shadow-2xl sm:rounded-[36px] sm:px-10 sm:py-10 lg:px-14">
         <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">Guided Product Tour</p>
         <div className="mt-5 grid gap-8 lg:grid-cols-[1.4fr_0.6fr] lg:items-end">
           <div>
-            <h1 className="max-w-4xl text-4xl font-semibold tracking-[-0.05em] sm:text-6xl">
+            <h1 className="max-w-4xl text-[clamp(2rem,9vw,3.75rem)] font-semibold tracking-[-0.05em] sm:text-6xl">
               Understand Nexus Hub in about five minutes.
             </h1>
             <p className="mt-5 max-w-3xl text-base leading-7 text-slate-300 sm:text-lg">
@@ -48,7 +48,7 @@ const DemoHub = () => {
             <Link
               key={group.key}
               to={group.route}
-              className="group rounded-[30px] border border-white/80 bg-white/80 p-6 shadow-[0_24px_60px_rgba(15,23,42,0.08)] backdrop-blur transition hover:-translate-y-1 hover:shadow-[0_32px_70px_rgba(15,23,42,0.14)]"
+              className="group rounded-[22px] border border-white/80 bg-white/80 p-5 shadow-[0_24px_60px_rgba(15,23,42,0.08)] backdrop-blur transition hover:-translate-y-1 hover:shadow-[0_32px_70px_rgba(15,23,42,0.14)] sm:rounded-[30px] sm:p-6"
             >
               <div className="flex items-start justify-between">
                 <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-950 text-white">
@@ -73,7 +73,7 @@ const DemoHub = () => {
         })}
       </section>
 
-      <section id="architecture" className="mt-8 rounded-[32px] border border-slate-200 bg-white p-7 sm:p-10">
+      <section id="architecture" className="mt-8 rounded-[24px] border border-slate-200 bg-white p-5 sm:rounded-[32px] sm:p-10">
         <p className="text-xs font-bold uppercase tracking-[0.28em] text-blue-700">Architecture</p>
         <h2 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-slate-950">What to look for behind the UI</h2>
         <div className="mt-6 grid gap-4 md:grid-cols-3">

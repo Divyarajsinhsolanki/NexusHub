@@ -1469,30 +1469,30 @@ const IssueTracker = ({ projectId, sprint, standalone = false }) => {
   }, [handleManualAction, isImporting, projectId]);
 
   return (
-    <div className="min-h-screen bg-slate-50/50 p-6">
+    <div className="min-h-screen bg-slate-50/50 p-4 sm:p-6">
       <Toaster position="top-right" />
 
       {/* Unified Header */}
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-xl overflow-hidden mb-6">
-        <div className="p-6 border-b border-zinc-100 dark:border-zinc-800 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+        <div className="flex flex-col justify-between gap-4 border-b border-zinc-100 p-4 dark:border-zinc-800 sm:p-6 lg:flex-row lg:items-center lg:gap-6">
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            className="flex items-center gap-4"
+            className="flex min-w-0 items-center gap-4"
           >
             <div className="p-3 bg-indigo-100 dark:bg-indigo-900/30 rounded-2xl shadow-inner">
               <ShieldExclamationIcon className="h-8 w-8 text-indigo-600 dark:text-indigo-400" />
             </div>
-            <div>
+            <div className="min-w-0">
               <h1 className="text-2xl font-bold text-zinc-800 dark:text-zinc-100 tracking-tight">Issue Tracker</h1>
               <p className="text-sm text-zinc-500 dark:text-zinc-400 font-medium">Capture and manage project issues</p>
             </div>
           </motion.div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center lg:w-auto">
             <button
               onClick={() => setEditing({})}
-              className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition-all font-semibold shadow-lg shadow-indigo-500/25 active:scale-95 transform"
+              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-6 py-2.5 font-semibold text-white shadow-lg shadow-indigo-500/25 transition-all hover:bg-indigo-700 active:scale-95 sm:w-auto"
             >
               <SparklesIcon className="h-4 w-4" />
               <span>Log New Issue</span>
@@ -1500,7 +1500,7 @@ const IssueTracker = ({ projectId, sprint, standalone = false }) => {
             <button
               onClick={handleImportFromSheet}
               disabled={!projectId || isImporting}
-              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-300 text-white rounded-xl transition-all font-semibold shadow-lg shadow-emerald-500/25 active:scale-95 transform"
+              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 font-semibold text-white shadow-lg shadow-emerald-500/25 transition-all hover:bg-emerald-700 active:scale-95 disabled:bg-emerald-300 sm:w-auto"
             >
               <LinkIcon className="h-4 w-4" />
               <span>{isImporting ? "Importing..." : "Import from Sheet"}</span>
@@ -1508,7 +1508,7 @@ const IssueTracker = ({ projectId, sprint, standalone = false }) => {
 
             <button
               onClick={() => setIsActivityOpen(true)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 rounded-xl font-semibold hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-all"
+              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 font-semibold text-zinc-600 transition-all hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 sm:w-auto"
             >
               <FireIcon className="h-4 w-4 text-amber-500" />
               Live
@@ -1516,7 +1516,7 @@ const IssueTracker = ({ projectId, sprint, standalone = false }) => {
 
             <div className="h-10 w-[1px] bg-zinc-200 dark:bg-zinc-700 hidden lg:block mx-2" />
 
-            <div className="flex flex-col items-end">
+            <div className="flex flex-col items-start sm:items-end">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sprint Health</span>
               <div className="flex items-center gap-2 mt-1">
                 <div className="h-2 w-24 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
@@ -1529,7 +1529,7 @@ const IssueTracker = ({ projectId, sprint, standalone = false }) => {
         </div>
 
         {/* Stats Row */}
-        <div className="px-6 py-4 bg-zinc-50/50 dark:bg-zinc-800/20 border-t border-zinc-100 dark:border-zinc-800">
+        <div className="border-t border-zinc-100 bg-zinc-50/50 px-4 py-4 dark:border-zinc-800 dark:bg-zinc-800/20 sm:px-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <StatCard
               icon={ClipboardDocumentListIcon}
@@ -1564,20 +1564,20 @@ const IssueTracker = ({ projectId, sprint, standalone = false }) => {
         </div>
       </div>
 
-      <div className="max-w-[98%] mx-auto px-6 -mt-6 relative z-10 space-y-4">
+      <div className="relative z-10 mx-auto -mt-6 w-full max-w-7xl space-y-4 px-0 sm:px-2 lg:px-4">
         <div className="bg-white/80 backdrop-blur-xl rounded-2xl border border-white/40 p-4 shadow-xl">
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex flex-wrap items-center gap-3 flex-1">
-              <div className="relative">
+            <div className="flex w-full flex-wrap items-center gap-3">
+              <div className="relative w-full sm:w-auto">
                 <input
                   value={searchId}
                   onChange={(e) => setSearchId(e.target.value)}
                   placeholder="Search #ID or key..."
-                  className="rounded-lg border border-slate-200 px-3 py-2 pr-10 text-sm shadow-sm focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color)]/30"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 pr-10 text-sm shadow-sm focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color)]/30 sm:w-auto"
                 />
                 <span className="pointer-events-none absolute right-3 top-2.5 text-slate-400 text-xs">#</span>
               </div>
-              <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="flex w-full items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 sm:w-auto sm:rounded-full">
                 <span className="text-xs font-semibold text-slate-600">Status</span>
                 <select
                   value={filter}
@@ -1592,7 +1592,7 @@ const IssueTracker = ({ projectId, sprint, standalone = false }) => {
                   ))}
                 </select>
               </div>
-              <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="flex w-full items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 sm:w-auto sm:rounded-full">
                 <span className="text-xs font-semibold text-slate-600">Sprint</span>
                 <select
                   value={sprintFilter}
@@ -1607,7 +1607,7 @@ const IssueTracker = ({ projectId, sprint, standalone = false }) => {
                   ))}
                 </select>
               </div>
-              <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="flex w-full items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 sm:w-auto sm:rounded-full">
                 <span className="text-xs font-semibold text-slate-600">Found By</span>
                 <select
                   value={foundByFilter}
@@ -1622,7 +1622,7 @@ const IssueTracker = ({ projectId, sprint, standalone = false }) => {
                   ))}
                 </select>
               </div>
-              <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="flex w-full items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 sm:w-auto sm:rounded-full">
                 <span className="text-xs font-semibold text-slate-600">Module</span>
                 <select
                   value={moduleFilter}
@@ -1637,7 +1637,7 @@ const IssueTracker = ({ projectId, sprint, standalone = false }) => {
                   ))}
                 </select>
               </div>
-              <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="flex w-full items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 sm:w-auto sm:rounded-full">
                 <span className="text-xs font-semibold text-slate-600">Smart Filter</span>
                 <select
                   value={smartFilter}
@@ -1652,7 +1652,7 @@ const IssueTracker = ({ projectId, sprint, standalone = false }) => {
               </div>
 
               {/* View Switcher */}
-              <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 p-1 ml-auto">
+              <div className="ml-0 flex w-full items-center gap-1 rounded-full border border-slate-200 bg-slate-50 p-1 sm:ml-auto sm:w-auto">
                 <button
                   onClick={() => setViewMode("list")}
                   className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-bold transition-all ${viewMode === "list"

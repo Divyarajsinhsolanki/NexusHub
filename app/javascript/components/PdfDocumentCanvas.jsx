@@ -348,7 +348,7 @@ const PdfDocumentCanvas = ({
   if (!documentRecord) return null;
 
   return (
-    <div ref={containerRef} className="flex h-full min-h-0 w-full justify-center overflow-auto bg-slate-100/80 p-4 md:p-8">
+    <div ref={containerRef} className="flex h-full min-h-0 w-full justify-center overflow-auto bg-slate-100/80 p-2 sm:p-4 md:p-8">
       {error ? (
         <div className="m-auto rounded-2xl border border-rose-200 bg-rose-50 p-8 text-center text-rose-700">
           <AlertTriangle className="mx-auto mb-3 h-8 w-8" />

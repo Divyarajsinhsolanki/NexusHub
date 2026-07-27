@@ -616,10 +616,10 @@ const Profile = () => {
                     </span>
                   )}
                 </div>
-                <h1 className="text-4xl font-semibold tracking-[-0.05em] text-slate-950 md:text-5xl">
+                <h1 className="text-[clamp(2rem,8vw,3rem)] font-semibold tracking-[-0.05em] text-slate-950 md:text-5xl">
                   {user ? displayName : "Loading..."}
                 </h1>
-                <p className="mt-2 text-lg font-medium text-theme">{user?.email}</p>
+                <p className="mt-2 break-all text-base font-medium text-theme sm:text-lg">{user?.email}</p>
                 {user?.phone_number && (
                   <p className="mt-1 text-sm text-slate-500">{user.phone_number}</p>
                 )}
@@ -659,7 +659,7 @@ const Profile = () => {
               {!editMode && !viewingOtherProfile && (
                 <button
                   onClick={() => setEditMode(true)}
-                  className="inline-flex items-center justify-center gap-2 rounded-full border border-white/75 bg-[linear-gradient(135deg,var(--theme-color),var(--theme-secondary))] px-6 py-3 text-sm font-semibold text-white shadow-[0_24px_44px_rgb(52_109_255_/_0.22)] hover:brightness-110"
+                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-white/75 bg-[linear-gradient(135deg,var(--theme-color),var(--theme-secondary))] px-6 py-3 text-sm font-semibold text-white shadow-[0_24px_44px_rgb(52_109_255_/_0.22)] hover:brightness-110 sm:w-auto"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                     <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
@@ -671,7 +671,7 @@ const Profile = () => {
               {!editMode && viewingOtherProfile && (
                 <button
                   onClick={handleStartDirectChat}
-                  className="inline-flex items-center justify-center gap-2 rounded-full border border-white/75 bg-slate-950 px-6 py-3 text-sm font-semibold text-white shadow-[0_24px_44px_rgb(15_23_42_/_0.18)] hover:brightness-110"
+                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-white/75 bg-slate-950 px-6 py-3 text-sm font-semibold text-white shadow-[0_24px_44px_rgb(15_23_42_/_0.18)] hover:brightness-110 sm:w-auto"
                 >
                   Text
                 </button>

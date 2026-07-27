@@ -695,16 +695,16 @@ const WorkLog = () => {
 
   return (
     <div className={`min-h-screen pb-10 text-slate-900 ${isExpandedView ? 'fixed inset-0 z-50 overflow-y-auto bg-[linear-gradient(180deg,#f8fbff_0%,var(--shell-bg)_48%,#edf2fa_100%)]' : ''}`}>
-      <div className="mx-auto max-w-[98%] space-y-6">
+      <div className="mx-auto w-full max-w-[1600px] space-y-4 px-4 sm:space-y-6 sm:px-6 lg:px-0">
 
         {/* Header */}
-        <header className="shell-panel shell-panel-strong landing-hero-3d overflow-hidden rounded-[36px]">
+        <header className="shell-panel shell-panel-strong landing-hero-3d overflow-hidden rounded-[24px] sm:rounded-[36px]">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(103,232,249,0.18),transparent_24%),radial-gradient(circle_at_left,rgba(52,109,255,0.14),transparent_28%)]" />
           <div className="relative space-y-6 p-5 sm:p-6 lg:p-7">
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,0.95fr)] xl:items-start">
               <div>
                 <span className="shell-eyebrow">Focus Command Deck</span>
-                <h1 className="mt-3 flex items-center gap-3 text-3xl font-semibold tracking-[-0.05em] text-slate-950 sm:text-4xl">
+                <h1 className="mt-3 flex flex-wrap items-center gap-3 text-[clamp(1.65rem,7vw,2.25rem)] font-semibold tracking-[-0.05em] text-slate-950 sm:text-4xl">
                   <SparklesIcon className="h-8 w-8 text-[var(--theme-color)]" />
                   Work Log
                 </h1>
@@ -729,7 +729,7 @@ const WorkLog = () => {
                   ) : null}
                 </div>
 
-                <div className="mt-5 flex flex-wrap items-center gap-3">
+                <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
                   <button
                     onClick={() => setIsExpandedView(!isExpandedView)}
                     className="shell-button-secondary"

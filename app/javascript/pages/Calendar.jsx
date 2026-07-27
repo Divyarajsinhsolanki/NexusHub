@@ -521,7 +521,7 @@ const Calendar = () => {
   ];
 
   return (
-    <div className="mx-auto max-w-[1500px] px-4 sm:px-6 py-8 space-y-6">
+    <div className="mx-auto max-w-[1500px] space-y-5 px-4 py-5 sm:space-y-6 sm:px-6 sm:py-8">
 
       <style>{`
         @keyframes calendar-orbit-spin {
@@ -551,7 +551,7 @@ const Calendar = () => {
         .calendar-rail::-webkit-scrollbar { height: 10px; }
         .calendar-rail::-webkit-scrollbar-thumb { background: rgba(125, 211, 252, 0.35); border-radius: 999px; }
       `}</style>
-      <section className="relative overflow-hidden rounded-[2.4rem] border border-white/20 bg-slate-950 p-7 text-white shadow-2xl shadow-blue-950/30 sm:p-8 lg:p-10">
+      <section className="relative overflow-hidden rounded-[1.5rem] border border-white/20 bg-slate-950 p-5 text-white shadow-2xl shadow-blue-950/30 sm:rounded-[2.4rem] sm:p-8 lg:p-10">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(59,130,246,0.38),transparent_32%),radial-gradient(circle_at_80%_8%,rgba(168,85,247,0.34),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.95),rgba(30,41,59,0.9))]" />
         <div className="pointer-events-none absolute -right-20 top-8 h-72 w-72 rounded-full border border-cyan-300/20 bg-cyan-300/10 blur-sm" />
         <div className="relative grid gap-6 xl:grid-cols-[1.05fr_1.4fr]">
@@ -559,10 +559,10 @@ const Calendar = () => {
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.35em] text-cyan-200">Temporal command center</p>
-                <h1 className="mt-2 text-4xl font-black tracking-tight sm:text-5xl">Calendar workspace</h1>
+                <h1 className="mt-2 text-[clamp(2rem,8vw,3rem)] font-black tracking-tight sm:text-5xl">Calendar workspace</h1>
                 <p className="mt-3 max-w-2xl text-base leading-7 text-slate-300">A dimensional planning surface for meetings, deadlines, reminders, focus blocks, and sprint ceremonies.</p>
               </div>
-              <button type="button" onClick={load} disabled={loading} className="inline-flex items-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-950/30 backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/15 disabled:opacity-60">
+              <button type="button" onClick={load} disabled={loading} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-950/30 backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/15 disabled:opacity-60 sm:w-auto">
                 <FiRefreshCw className={loading ? "animate-spin" : ""} />
                 Refresh
               </button>

@@ -212,18 +212,18 @@ const PortfolioAdmin = () => {
   }
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
+    <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.28em] text-blue-700">Site Administration</p>
-          <h1 className="mt-2 text-4xl font-semibold tracking-[-0.05em] text-slate-950">Portfolio editor</h1>
+          <h1 className="mt-2 text-[clamp(2rem,8vw,2.5rem)] font-semibold tracking-[-0.05em] text-slate-950 sm:text-4xl">Portfolio editor</h1>
         </div>
         <Link to="/" target="_blank" className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-5 py-3 font-semibold text-white">
           Preview site <FiExternalLink />
         </Link>
       </div>
 
-      <form onSubmit={saveProfile} className="mt-8 rounded-[30px] border border-slate-200 bg-white p-6 shadow-sm">
+      <form onSubmit={saveProfile} className="mt-8 rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm sm:rounded-[30px] sm:p-6">
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-semibold text-slate-950">Profile and homepage</h2>
           <button disabled={busy} className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 font-semibold text-white"><FiSave /> Save profile</button>
@@ -295,7 +295,7 @@ const PortfolioAdmin = () => {
           </div>
         </aside>
 
-        <form onSubmit={saveProject} className="rounded-[30px] border border-slate-200 bg-white p-6">
+        <form onSubmit={saveProject} className="rounded-[24px] border border-slate-200 bg-white p-4 sm:rounded-[30px] sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-2xl font-semibold text-slate-950">{selectedProjectId ? "Edit project" : "New project"}</h2>
             <div className="flex gap-2">
@@ -346,7 +346,7 @@ const PortfolioAdmin = () => {
 
       {featureDraft ? (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm">
-          <form onSubmit={saveFeature} className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[28px] bg-white p-6 shadow-2xl">
+          <form onSubmit={saveFeature} className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[24px] bg-white p-4 shadow-2xl sm:rounded-[28px] sm:p-6">
             <div className="flex items-center justify-between"><h2 className="text-2xl font-semibold">{featureDraft.id ? "Edit feature" : "New feature"}</h2><button type="button" onClick={() => setFeatureDraft(null)} className="rounded-full border p-2">×</button></div>
             {["category", "title", "demo_path", "alt_text", "position", "tour_position"].map((key) => <label key={key} className="mt-4 block text-sm font-semibold capitalize">{key.replaceAll("_", " ")}<input type={["position", "tour_position"].includes(key) ? "number" : "text"} value={featureDraft[key] ?? ""} onChange={(event) => setFeatureDraft((current) => ({ ...current, [key]: event.target.value }))} className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 font-normal" /></label>)}
             <label className="mt-4 block text-sm font-semibold">Summary<textarea rows={4} value={featureDraft.summary || ""} onChange={(event) => setFeatureDraft((current) => ({ ...current, summary: event.target.value }))} className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 font-normal" /></label>

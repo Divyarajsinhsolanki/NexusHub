@@ -727,13 +727,13 @@ const ProjectVault = ({ projectId }) => {
       <Toaster position="top-right" />
 
       {/* Compact Header */}
-      <div className="bg-white border-b border-slate-200 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+      <div className="border-b border-slate-200 bg-white px-4 py-4 sm:px-6">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
             <div className="p-2 bg-indigo-100 text-indigo-600 rounded-xl">
               <FiLayers className="h-6 w-6" />
             </div>
-            <div>
+            <div className="min-w-0">
               <h1 className="text-xl font-bold text-slate-900">Project Vault</h1>
               <p className="text-sm text-slate-500">Manage environments, credentials, commands, and documentation</p>
             </div>
@@ -741,7 +741,7 @@ const ProjectVault = ({ projectId }) => {
 
           <button
             onClick={() => openCreateModal(activeSection === "environments", getDefaultCategoryForSection(), activeSection === "media")}
-            className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-all shadow-sm"
+            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 font-semibold text-white shadow-sm transition-all hover:bg-indigo-700 sm:w-auto"
           >
             <FiPlus className="h-4 w-4" />
             {activeSection === "environments" ? "New Environment" : activeSection === "media" ? "Add Media" : "New Item"}
@@ -750,9 +750,9 @@ const ProjectVault = ({ projectId }) => {
       </div>
 
       {/* Navigation Tabs and Search */}
-      <div className="bg-white border-b border-slate-200 px-6 py-3">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2 overflow-x-auto pb-1">
+      <div className="border-b border-slate-200 bg-white px-4 py-3 sm:px-6">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex w-full items-center gap-2 overflow-x-auto pb-1 lg:w-auto">
             {SECTIONS.map((section) => {
               const Icon = section.icon;
               const isActive = activeSection === section.id;
@@ -780,12 +780,12 @@ const ProjectVault = ({ projectId }) => {
             })}
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center lg:w-auto">
             {activeSection === "credentials" && environments.length > 0 && (
               <select
                 value={selectedEnvFilter}
                 onChange={(e) => setSelectedEnvFilter(e.target.value)}
-                className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-transparent focus:ring-2 focus:ring-indigo-500 sm:w-auto"
               >
                 <option value="">All Environments</option>
                 <option value="global">Global Only</option>
@@ -794,14 +794,14 @@ const ProjectVault = ({ projectId }) => {
                 ))}
               </select>
             )}
-            <div className="relative">
+            <div className="relative w-full sm:w-72">
               <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 h-4 w-4" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search..."
-                className="pl-9 pr-4 py-2 w-64 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm"
+                className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-4 text-sm outline-none focus:border-transparent focus:ring-2 focus:ring-indigo-500"
               />
             </div>
           </div>
@@ -809,7 +809,7 @@ const ProjectVault = ({ projectId }) => {
       </div>
 
       {/* Content */}
-      <div className="p-6">
+      <div className="mx-auto w-full max-w-7xl p-4 sm:p-6">
         <AnimatePresence mode="wait">
           {isLoading ? (
             <motion.div

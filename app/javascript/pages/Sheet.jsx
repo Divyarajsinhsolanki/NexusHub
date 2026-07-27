@@ -117,7 +117,7 @@ const Sheet = ({ sheetName, projectId, sheetId }) => {
 
   if (error) {
     return (
-      <div className="m-6 p-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl flex items-start gap-4">
+      <div className="m-4 flex items-start gap-4 rounded-2xl border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20 sm:m-6 sm:p-6">
         <FiAlertCircle className="w-6 h-6 text-red-500 shrink-0 mt-1" />
         <div>
           <h3 className="text-lg font-bold text-red-800 dark:text-red-300">Sheet Connection Error</h3>
@@ -134,7 +134,7 @@ const Sheet = ({ sheetName, projectId, sheetId }) => {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6">
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-xl overflow-hidden">
         {/* Header Section */}
         <div className="p-6 border-b border-zinc-100 dark:border-zinc-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -150,23 +150,24 @@ const Sheet = ({ sheetName, projectId, sheetId }) => {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative group">
+          <div className="flex w-full flex-wrap items-center gap-3 md:w-auto">
+            <div className="group relative w-full md:w-64">
               <FiSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-blue-500 transition-colors w-4 h-4" />
               <input
                 type="text"
                 placeholder="Find in sheet..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 pr-4 py-2.5 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none w-full md:w-64 transition-all"
+                className="w-full rounded-xl border border-zinc-200 bg-zinc-50 py-2.5 pl-10 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-800/50"
               />
             </div>
 
             <button
               onClick={() => loadData(true)}
               disabled={refreshing}
-              className="p-2.5 bg-zinc-50 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 rounded-xl border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-blue-500 dark:hover:text-blue-400 transition-all disabled:opacity-50"
+              className="flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-zinc-200 bg-zinc-50 p-2.5 text-zinc-500 transition-all hover:bg-zinc-100 hover:text-blue-500 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-blue-400"
               title="Refresh Data"
+              aria-label="Refresh sheet data"
             >
               <FiRefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
             </button>
@@ -175,7 +176,7 @@ const Sheet = ({ sheetName, projectId, sheetId }) => {
               href={`https://docs.google.com/spreadsheets/d/${sheetId}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-all font-semibold shadow-lg shadow-blue-500/25 active:scale-95 transform"
+              className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:bg-blue-700 active:scale-95 sm:flex-none"
             >
               <FiExternalLink className="w-4 h-4" />
               <span className="hidden sm:inline">Open in Drive</span>
@@ -194,7 +195,7 @@ const Sheet = ({ sheetName, projectId, sheetId }) => {
               <p className="text-sm text-zinc-500 mt-2 max-w-xs">This sheet appears to be empty or the data couldn't be retrieved.</p>
             </div>
           ) : (
-            <table className="w-full border-collapse text-sm text-left">
+            <table className="min-w-max w-full border-collapse text-left text-sm">
               <thead className="sticky top-0 z-20">
                 <tr className="bg-zinc-50/90 dark:bg-zinc-800/90 backdrop-blur-md border-b border-zinc-200 dark:border-zinc-700">
                   {headerRow.map((cell, i) => (

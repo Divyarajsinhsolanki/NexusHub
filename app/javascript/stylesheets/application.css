@@ -61,11 +61,13 @@
   --focus-ring: rgb(var(--theme-color-rgb) / 0.35);
   --surface-muted: rgb(var(--color-muted-rgb) / 0.1);
   --surface-input: rgb(255 255 255 / 0.78);
-  --type-page-title: 4rem;
-  --type-section-title: 2.75rem;
-  --type-panel-title: 1.45rem;
+  --type-page-title: clamp(2.35rem, 7vw, 4rem);
+  --type-section-title: clamp(1.85rem, 4.5vw, 2.75rem);
+  --type-panel-title: clamp(1.15rem, 2vw, 1.45rem);
   --type-body: 0.96rem;
   --type-small: 0.875rem;
+  --app-page-gutter: clamp(1rem, 2.4vw, 1.5rem);
+  --app-section-gap: clamp(1rem, 2.4vw, 1.5rem);
   --shell-routed-min-height: calc(100dvh - 11rem);
 }
 
@@ -102,6 +104,8 @@ body,
 
 html {
   scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
@@ -179,6 +183,24 @@ body::after {
   box-sizing: border-box;
 }
 
+img,
+picture,
+video,
+iframe,
+svg {
+  max-width: 100%;
+}
+
+img,
+video {
+  height: auto;
+}
+
+pre,
+code {
+  overflow-wrap: break-word;
+}
+
 ::selection {
   color: var(--shell-text-strong);
   background: rgb(var(--theme-color-rgb) / 0.18);
@@ -189,6 +211,7 @@ button,
 input,
 select,
 textarea {
+  min-width: 0;
   font: inherit;
   transition:
     color var(--shell-motion-fast),
@@ -385,6 +408,7 @@ textarea {
 .shell-route-frame {
   width: 100%;
   min-height: 0;
+  min-width: 0;
   will-change: opacity, transform, filter;
 }
 
@@ -407,7 +431,7 @@ textarea {
 .shell-route-frame h1.text-7xl,
 .shell-route-frame h2.text-5xl,
 .shell-route-frame h2.text-6xl {
-  font-size: 3rem;
+  font-size: clamp(2rem, 5vw, 3rem);
   line-height: 1.08;
 }
 
@@ -843,6 +867,26 @@ textarea {
   border-radius: var(--shell-radius-xs);
   background: var(--surface-card);
   box-shadow: var(--shell-shadow-sm);
+}
+
+.responsive-page-shell {
+  width: 100%;
+  max-width: 1600px;
+  margin-inline: auto;
+  padding-inline: var(--app-page-gutter);
+}
+
+.responsive-scroll-x {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.shell-route-frame .overflow-x-auto,
+.shell-route-frame pre {
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .app-muted-text {
@@ -1474,9 +1518,20 @@ textarea {
 
 @media (max-width: 640px) {
   :root {
-    --type-page-title: 2.5rem;
-    --type-section-title: 2rem;
+    --type-page-title: clamp(2rem, 10vw, 2.5rem);
+    --type-section-title: clamp(1.55rem, 8vw, 2rem);
+    --type-panel-title: clamp(1.05rem, 5vw, 1.25rem);
+    --app-page-gutter: 1rem;
+    --app-section-gap: 1rem;
+    --shell-radius-xs: 14px;
+    --shell-radius-sm: 20px;
+    --shell-radius-md: 24px;
+    --shell-radius-lg: 28px;
     --shell-routed-min-height: calc(100dvh - 8.75rem);
+  }
+
+  body {
+    font-size: 0.94rem;
   }
 
   .shell-route-frame h1.text-5xl,
@@ -1484,8 +1539,23 @@ textarea {
   .shell-route-frame h1.text-7xl,
   .shell-route-frame h2.text-5xl,
   .shell-route-frame h2.text-6xl {
-    font-size: 2rem;
+    font-size: clamp(1.85rem, 9vw, 2.25rem);
     line-height: 1.14;
+  }
+
+  .shell-route-frame .text-4xl {
+    font-size: clamp(1.85rem, 8vw, 2.25rem);
+    line-height: 1.12;
+  }
+
+  .shell-route-frame .text-3xl {
+    font-size: clamp(1.5rem, 6vw, 1.85rem);
+    line-height: 1.16;
+  }
+
+  .shell-route-frame .text-2xl {
+    font-size: clamp(1.25rem, 5vw, 1.5rem);
+    line-height: 1.22;
   }
 
   .shell-main-stage {
@@ -1500,6 +1570,77 @@ textarea {
     padding: 0 0.5rem 0.5rem;
   }
 
+  .shell-route-frame .max-w-\[98\%\] {
+    max-width: 100%;
+  }
+
+  .shell-route-frame .px-6 {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .shell-route-frame .p-8,
+  .shell-route-frame .p-7,
+  .shell-route-frame .p-6 {
+    padding: 1rem;
+  }
+
+  .shell-route-frame .py-24,
+  .shell-route-frame .py-20,
+  .shell-route-frame .py-16 {
+    padding-top: 3rem;
+    padding-bottom: 3rem;
+  }
+
+  .shell-route-frame .gap-8,
+  .shell-route-frame .gap-6 {
+    gap: 1rem;
+  }
+
+  .shell-route-frame form .grid-cols-2,
+  .shell-route-frame form .grid-cols-3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .shell-route-frame .rounded-\[42px\],
+  .shell-route-frame .rounded-\[36px\],
+  .shell-route-frame .rounded-\[34px\],
+  .shell-route-frame .rounded-\[32px\],
+  .shell-route-frame .rounded-\[30px\] {
+    border-radius: 1.5rem;
+  }
+
+  .shell-route-frame .rounded-\[28px\],
+  .shell-route-frame .rounded-\[26px\] {
+    border-radius: 1.25rem;
+  }
+
+  .shell-button-primary,
+  .shell-button-secondary,
+  .shell-button-dark,
+  .app-primary-button,
+  .app-secondary-button {
+    width: 100%;
+    min-height: 2.75rem;
+  }
+
+  .shell-segmented {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .shell-segmented-button {
+    min-height: 2.6rem;
+    white-space: nowrap;
+  }
+
+  .shell-chip {
+    max-width: 100%;
+    min-height: 2rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   .shell-rings {
     right: -5rem;
     width: 18rem;
@@ -1511,6 +1652,39 @@ textarea {
 
   .landing-node-face span {
     display: none;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1023px) {
+  :root {
+    --type-page-title: clamp(2.4rem, 5vw, 3.2rem);
+    --type-section-title: clamp(1.9rem, 4vw, 2.35rem);
+    --app-page-gutter: 1.25rem;
+  }
+
+  .shell-main-stage {
+    padding: 0 0.75rem;
+  }
+
+  .shell-route-frame .max-w-\[98\%\] {
+    max-width: min(100%, 1600px);
+  }
+}
+
+@media (pointer: coarse) {
+  button,
+  [role="button"],
+  input,
+  select,
+  textarea,
+  .toolbar-button,
+  .inspector-button {
+    touch-action: manipulation;
+  }
+
+  button:not(.toolbar-button):not(.inspector-button),
+  a[role="button"] {
+    min-height: 2.75rem;
   }
 }
 

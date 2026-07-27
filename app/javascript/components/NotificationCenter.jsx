@@ -119,7 +119,7 @@ const NotificationCenter = () => {
         <>
           <Popover.Button
             className={`
-              group inline-flex items-center justify-center rounded-full p-2
+              group inline-flex h-11 w-11 items-center justify-center rounded-full p-2
               text-shell-muted hover:bg-surface-card-hover hover:text-shell-text-strong focus:outline-none focus:ring-2 focus:ring-theme/35
               ${open ? 'bg-surface-card-hover text-shell-text-strong' : ''}
             `}
@@ -141,7 +141,7 @@ const NotificationCenter = () => {
             leaveFrom="opacity-100 translate-y-0"
             leaveTo="opacity-0 translate-y-1"
           >
-            <Popover.Panel className="absolute right-0 z-50 mt-2 w-80 sm:w-96 transform px-4 sm:px-0 lg:max-w-3xl">
+            <Popover.Panel className="absolute right-0 z-50 mt-2 w-[min(24rem,calc(100vw-1rem))] transform px-0 lg:max-w-3xl">
               <div className="overflow-hidden rounded-lg border border-shell-border shadow-shell-lg">
                 <div className="bg-surface-elevated p-4">
                   <div className="flex items-center justify-between mb-4">

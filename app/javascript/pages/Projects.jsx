@@ -936,9 +936,9 @@ const Projects = () => {
 
     // Render UI
     return (
-        <div className="flex h-screen bg-zinc-50 dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200">
+        <div className="flex min-h-screen flex-col bg-zinc-50 text-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 lg:h-screen lg:flex-row">
             {/* Sidebar */}
-            <aside className="w-80 flex-shrink-0 bg-white dark:bg-zinc-800 border-r border-zinc-100 dark:border-zinc-700 flex flex-col">
+            <aside className="flex max-h-[42dvh] w-full flex-shrink-0 flex-col border-b border-zinc-100 bg-white dark:border-zinc-700 dark:bg-zinc-800 lg:max-h-none lg:w-80 lg:border-b-0 lg:border-r">
                 <div className="p-5 border-b border-zinc-100 dark:border-zinc-700 bg-gradient-to-r from-violet-600 to-purple-600">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -1039,8 +1039,8 @@ const Projects = () => {
             </aside>
 
             {/* Main Content Area */}
-            <main className="flex-1 overflow-y-auto">
-                <div className="p-8">
+            <main className="min-w-0 flex-1 overflow-y-auto">
+                <div className="p-4 sm:p-6 lg:p-8">
                     {isFormVisible ? (
                         // Create / Edit Project Form
                         <div className="animate-fadeInUp">

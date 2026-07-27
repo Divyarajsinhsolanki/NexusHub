@@ -219,8 +219,8 @@ const Notifications = () => {
 
   return (
     <div className="min-h-screen pb-16 text-slate-900">
-      <div className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
-        <section className="relative overflow-hidden rounded-[36px] border border-slate-900/10 bg-slate-950 px-6 py-6 text-white shadow-[0_32px_90px_rgb(15_23_42_/_0.24)] sm:px-7">
+      <div className="mx-auto max-w-6xl space-y-5 px-4 py-5 sm:space-y-6 sm:px-6 sm:py-6 lg:px-8">
+        <section className="relative overflow-hidden rounded-[24px] border border-slate-900/10 bg-slate-950 px-5 py-6 text-white shadow-[0_32px_90px_rgb(15_23_42_/_0.24)] sm:rounded-[36px] sm:px-7">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_12%,rgba(103,232,249,0.22),transparent_24%),radial-gradient(circle_at_82%_20%,rgba(167,139,250,0.22),transparent_24%),linear-gradient(135deg,rgba(15,23,42,0.96),rgba(15,23,42,0.82))]" />
           <div className="absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-white/60 to-transparent" />
           <div className="absolute -right-16 top-10 h-48 w-48 rounded-full bg-cyan-400/15 blur-3xl" />
@@ -233,7 +233,7 @@ const Notifications = () => {
                 Signal Feed
               </div>
 
-              <h1 className="max-w-3xl text-4xl font-semibold tracking-[-0.05em] text-white sm:text-5xl">
+              <h1 className="max-w-3xl text-[clamp(2rem,8vw,3rem)] font-semibold tracking-[-0.05em] text-white sm:text-5xl">
                 Command-center notifications with real priority and depth.
               </h1>
               <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-300 sm:text-base">
@@ -248,7 +248,7 @@ const Notifications = () => {
               </div>
             </div>
 
-            <div className="rounded-[30px] border border-white/12 bg-white/[0.08] p-5 shadow-inner shadow-white/5 backdrop-blur-md">
+            <div className="rounded-[24px] border border-white/12 bg-white/[0.08] p-5 shadow-inner shadow-white/5 backdrop-blur-md sm:rounded-[30px]">
               <p className="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-slate-300">Queue Health</p>
               <p className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-white">
                 {filteredNotifications.length}

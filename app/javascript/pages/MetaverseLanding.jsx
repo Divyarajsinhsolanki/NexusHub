@@ -585,7 +585,7 @@ const MetaverseLanding = () => {
         <div className="h-full w-full border-t border-cyan-300/25 bg-[linear-gradient(rgba(34,211,238,0.22)_1px,transparent_1px),linear-gradient(90deg,rgba(168,85,247,0.18)_1px,transparent_1px)] bg-[size:64px_64px] shadow-[0_-36px_120px_rgba(14,165,233,0.24)] [animation:metaverse-grid_4.8s_linear_infinite]" />
       </motion.div>
 
-      <section className="relative z-10 grid min-h-[calc(100vh-5rem)] gap-8 px-5 py-8 sm:px-8 lg:grid-cols-[1fr_1.05fr_1fr] lg:items-center lg:px-10 xl:px-14">
+      <section className="relative z-10 grid min-h-[calc(100vh-5rem)] gap-6 px-4 py-6 sm:gap-8 sm:px-8 sm:py-8 lg:grid-cols-[1fr_1.05fr_1fr] lg:items-center lg:px-10 xl:px-14">
         <motion.div
           initial={{ opacity: 0, x: -28 }}
           animate={{ opacity: 1, x: 0 }}
@@ -595,7 +595,7 @@ const MetaverseLanding = () => {
           <div className="inline-flex rounded-full border border-cyan-300/30 bg-cyan-300/10 px-4 py-2 text-[11px] font-black uppercase tracking-[0.28em] text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.18)] backdrop-blur-xl">
             Nexusverse {year}
           </div>
-          <h1 className="mt-6 max-w-xl text-5xl font-black leading-[0.95] tracking-tight text-white drop-shadow-[0_0_28px_rgba(125,211,252,0.28)] sm:text-6xl xl:text-7xl">
+          <h1 className="mt-6 max-w-xl text-[clamp(2.6rem,13vw,5rem)] font-black leading-[0.98] tracking-tight text-white drop-shadow-[0_0_28px_rgba(125,211,252,0.28)] sm:text-6xl xl:text-7xl">
             Build inside the spatial internet.
           </h1>
           <p className="mt-6 max-w-lg text-base leading-8 text-slate-300 sm:text-lg">
@@ -604,13 +604,13 @@ const MetaverseLanding = () => {
           <div className="mt-8 flex flex-wrap gap-3">
             <a
               href="#room"
-              className="group inline-flex items-center gap-2 rounded-2xl bg-cyan-300 px-5 py-3 text-sm font-black text-slate-950 shadow-[0_0_34px_rgba(34,211,238,0.34)] transition hover:-translate-y-1 hover:bg-white"
+              className="group inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-cyan-300 px-5 py-3 text-sm font-black text-slate-950 shadow-[0_0_34px_rgba(34,211,238,0.34)] transition hover:-translate-y-1 hover:bg-white sm:w-auto"
             >
               Enter Room <FiArrowUpRight className="transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
             </a>
             <a
               href="#signals"
-              className="inline-flex items-center rounded-2xl border border-white/14 bg-white/8 px-5 py-3 text-sm font-bold text-white shadow-2xl shadow-slate-950/20 backdrop-blur-xl transition hover:-translate-y-1 hover:border-violet-200/40 hover:bg-white/12"
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-white/14 bg-white/8 px-5 py-3 text-sm font-bold text-white shadow-2xl shadow-slate-950/20 backdrop-blur-xl transition hover:-translate-y-1 hover:border-violet-200/40 hover:bg-white/12 sm:w-auto"
             >
               Explore Signals
             </a>

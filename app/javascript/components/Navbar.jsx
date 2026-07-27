@@ -226,9 +226,12 @@ const ProjectsDropdown = ({ projects, onItemClick, active }) => {
     <div className="relative shrink-0" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen((value) => !value)}
+        type="button"
         className={`group relative flex items-center gap-1.5 rounded-[16px] px-2.5 py-1.5 text-[12px] font-semibold xl:text-[12.5px] ${
           active || isOpen ? "text-shell-text-strong" : "text-shell-muted"
         }`}
+        aria-expanded={isOpen}
+        aria-haspopup="menu"
       >
         <span
           className={`absolute inset-0 rounded-[16px] border ${
@@ -264,7 +267,7 @@ const ProjectsDropdown = ({ projects, onItemClick, active }) => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 12, scale: 0.97 }}
             transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-            className="shell-panel shell-panel-floating shell-panel-strong absolute right-0 top-full z-50 mt-3 w-[19rem] overflow-hidden rounded-[28px] p-2"
+            className="shell-panel shell-panel-floating shell-panel-strong absolute right-0 top-full z-50 mt-3 w-[min(19rem,calc(100vw-1.5rem))] overflow-hidden rounded-[28px] p-2"
           >
             <div className="rounded-[22px] bg-[linear-gradient(135deg,rgba(255,255,255,0.92),rgba(235,242,255,0.74))] p-4">
               <div className="mb-3 flex items-center justify-between">
@@ -344,6 +347,7 @@ const AreaDropdown = ({ label, icon: Icon, links, active }) => {
           active || isOpen ? "text-shell-text-strong" : "text-shell-muted"
         }`}
         aria-expanded={isOpen}
+        aria-haspopup="menu"
       >
         <span
           className={`absolute inset-0 rounded-[16px] border ${
@@ -371,7 +375,7 @@ const AreaDropdown = ({ label, icon: Icon, links, active }) => {
             initial={{ opacity: 0, y: 14, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 12, scale: 0.97 }}
-            className="shell-panel shell-panel-floating shell-panel-strong absolute right-0 top-full z-50 mt-3 w-[18rem] rounded-[28px] p-2"
+            className="shell-panel shell-panel-floating shell-panel-strong absolute right-0 top-full z-50 mt-3 w-[min(18rem,calc(100vw-1.5rem))] rounded-[28px] p-2"
           >
             <div className="rounded-[22px] bg-white/75 p-3">
               <p className="px-3 pb-2 text-[0.66rem] font-semibold uppercase tracking-[0.25em] text-shell-muted">
@@ -599,8 +603,12 @@ const Navbar = () => {
           {user ? (
             <div className="relative" ref={profileRef}>
               <button
+                type="button"
                 onClick={() => setIsProfileOpen((value) => !value)}
                 className="group relative rounded-[22px] border border-white/65 bg-white/58 p-1 shadow-[0_18px_34px_rgb(15_23_42_/_0.08)] hover:bg-white/82"
+                aria-label="Open profile menu"
+                aria-expanded={isProfileOpen}
+                aria-haspopup="menu"
               >
                 <HolographicAvatar user={user} />
                 {hasAdminRole ? (
@@ -617,7 +625,7 @@ const Navbar = () => {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 12, scale: 0.97 }}
                     transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-                    className="shell-panel shell-panel-floating shell-panel-strong absolute right-0 top-full z-50 mt-4 w-[19rem] overflow-hidden rounded-[30px] p-2"
+                    className="shell-panel shell-panel-floating shell-panel-strong absolute right-0 top-full z-50 mt-4 w-[min(19rem,calc(100vw-1.5rem))] overflow-hidden rounded-[30px] p-2"
                   >
                     <div className="rounded-[24px] bg-[linear-gradient(135deg,rgba(255,255,255,0.92),rgba(235,242,255,0.74))] p-4">
                       <div className="flex items-start gap-3">
@@ -693,8 +701,12 @@ const Navbar = () => {
           )}
 
           <button
+            type="button"
             onClick={() => setIsMobileMenuOpen(true)}
-            className="rounded-[18px] border border-white/65 bg-white/58 p-2.5 shadow-[0_14px_24px_rgb(15_23_42_/_0.06)] hover:bg-white/82 lg:hidden"
+            className="flex h-11 w-11 items-center justify-center rounded-[18px] border border-white/65 bg-white/58 p-2.5 shadow-[0_14px_24px_rgb(15_23_42_/_0.06)] hover:bg-white/82 lg:hidden"
+            aria-label="Open navigation menu"
+            aria-expanded={isMobileMenuOpen}
+            aria-controls="mobile-navigation"
           >
             <div className="space-y-1.5">
               <motion.span
@@ -717,14 +729,15 @@ const Navbar = () => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-50 bg-shell-text-strong/20 px-3 py-3 backdrop-blur-md lg:hidden"
+            className="fixed inset-0 z-50 bg-shell-text-strong/20 px-2 py-2 backdrop-blur-md sm:px-3 sm:py-3 lg:hidden"
           >
             <motion.div
+              id="mobile-navigation"
               initial={{ x: 24, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: 24, opacity: 0 }}
               transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-              className="shell-panel shell-panel-strong relative ml-auto flex h-full w-full max-w-md flex-col overflow-hidden rounded-[32px] bg-white/86"
+              className="shell-panel shell-panel-strong relative ml-auto flex h-full w-full max-w-md flex-col overflow-hidden rounded-[24px] bg-white/86 sm:rounded-[32px]"
             >
               <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(103,232,249,0.42),transparent_68%)]" />
               <div className="pointer-events-none absolute -bottom-16 -left-10 h-48 w-48 rounded-full bg-[radial-gradient(circle,rgba(52,109,255,0.18),transparent_72%)]" />
@@ -736,8 +749,10 @@ const Navbar = () => {
                   <p className="mt-1 text-sm text-shell-muted">{currentSection.caption}</p>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className="rounded-full border border-shell-border bg-surface-card-hover p-2 text-shell-muted-strong shadow-[0_12px_22px_rgb(15_23_42_/_0.08)] hover:text-shell-text-strong"
+                  className="flex h-11 w-11 items-center justify-center rounded-full border border-shell-border bg-surface-card-hover p-2 text-shell-muted-strong shadow-[0_12px_22px_rgb(15_23_42_/_0.08)] hover:text-shell-text-strong"
+                  aria-label="Close navigation menu"
                 >
                   <FiX className="h-5 w-5" />
                 </button>

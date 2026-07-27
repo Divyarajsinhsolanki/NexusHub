@@ -21,14 +21,14 @@ const MyWork = () => {
   }, []);
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
-      <section className="rounded-[34px] bg-slate-950 p-7 text-white sm:p-10">
+    <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-8">
+      <section className="rounded-[24px] bg-slate-950 p-5 text-white sm:rounded-[34px] sm:p-10">
         <p className="text-xs font-bold uppercase tracking-[0.28em] text-cyan-300">My Work</p>
-        <h1 className="mt-3 text-4xl font-semibold tracking-[-0.05em] sm:text-5xl">Assignments, deadlines, meetings, and signals in one place.</h1>
+        <h1 className="mt-3 text-[clamp(2rem,8vw,3rem)] font-semibold tracking-[-0.05em] sm:text-5xl">Assignments, deadlines, meetings, and signals in one place.</h1>
         <div className="mt-7 flex flex-wrap gap-3">
-          <Link to="/momentum" className="rounded-full bg-white px-4 py-2.5 font-semibold text-slate-950">Open Momentum</Link>
-          <Link to="/calendar" className="rounded-full border border-white/15 px-4 py-2.5 font-semibold">Calendar</Link>
-          <Link to="/worklog" className="rounded-full border border-white/15 px-4 py-2.5 font-semibold">Work Log</Link>
+          <Link to="/momentum" className="inline-flex min-h-11 w-full items-center justify-center rounded-full bg-white px-4 py-2.5 font-semibold text-slate-950 sm:w-auto">Open Momentum</Link>
+          <Link to="/calendar" className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-white/15 px-4 py-2.5 font-semibold sm:w-auto">Calendar</Link>
+          <Link to="/worklog" className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-white/15 px-4 py-2.5 font-semibold sm:w-auto">Work Log</Link>
         </div>
       </section>
 
@@ -44,13 +44,13 @@ const MyWork = () => {
         ))}
       </section>
 
-      <section className="mt-6 rounded-[30px] border border-slate-200 bg-white p-5 sm:p-7">
-        <div className="flex items-end justify-between gap-4">
+      <section className="mt-6 rounded-[24px] border border-slate-200 bg-white p-5 sm:rounded-[30px] sm:p-7">
+        <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.24em] text-blue-700">Activity</p>
             <h2 className="mt-2 text-2xl font-semibold text-slate-950">Recent and upcoming work</h2>
           </div>
-          <button onClick={() => window.dispatchEvent(new Event("nexus:open-search"))} className="text-sm font-semibold text-blue-700">Search workspace</button>
+          <button onClick={() => window.dispatchEvent(new Event("nexus:open-search"))} className="inline-flex min-h-11 items-center text-sm font-semibold text-blue-700">Search workspace</button>
         </div>
         <div className="mt-6 divide-y divide-slate-100">
           {(data.items || []).map((item) => (

@@ -196,14 +196,14 @@ const DepartmentDetails = () => {
     <div className="min-h-screen bg-slate-50 dark:bg-zinc-900 pb-20">
 
       {/* Header */}
-      <div className="bg-white dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800 sticky top-0 z-30 px-6 py-4 shadow-sm">
+      <div className="sticky top-0 z-30 border-b border-slate-200 bg-white px-4 py-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:px-6">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
+          <div className="flex min-w-0 items-center gap-4">
             <Link to="/departments" className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-500 transition">
               <FiArrowLeft className="text-xl" />
             </Link>
 
-            <div>
+            <div className="min-w-0">
               {isEditingName && canManage ? (
                 <div className="flex items-center gap-2">
                   <input
@@ -216,8 +216,8 @@ const DepartmentDetails = () => {
                   <button onClick={() => setIsEditingName(false)} className="p-2 rounded-lg bg-slate-100 dark:bg-zinc-700 text-slate-500 hover:text-slate-700"><FiX /></button>
                 </div>
               ) : (
-                <div className="group flex items-center gap-3">
-                  <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{department.name}</h1>
+                <div className="group flex min-w-0 items-center gap-3">
+                  <h1 className="truncate text-2xl font-bold text-slate-900 dark:text-white">{department.name}</h1>
                   {canManage && (
                     <button onClick={() => setIsEditingName(true)} className="text-slate-400 hover:text-[var(--theme-color)] opacity-0 group-hover:opacity-100 transition-opacity p-1">
                       <FiEdit2 />
@@ -237,7 +237,7 @@ const DepartmentDetails = () => {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 py-8 grid gap-8 lg:grid-cols-[2fr_1fr]">
+      <div className="mx-auto grid max-w-7xl gap-5 px-4 py-6 sm:px-6 sm:py-8 lg:grid-cols-[2fr_1fr] lg:gap-8">
 
         {/* Left Column: Description & Members */}
         <div className="space-y-8">

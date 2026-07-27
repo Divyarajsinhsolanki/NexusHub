@@ -790,9 +790,9 @@ const Teams = () => {
 
     // Render
     return (
-        <div className="flex h-screen bg-zinc-50 dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200">
+        <div className="flex min-h-screen flex-col bg-zinc-50 text-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 lg:h-screen lg:flex-row">
             {/* Sidebar */}
-            <aside className="w-80 flex-shrink-0 bg-white dark:bg-zinc-800 border-r border-zinc-100 dark:border-zinc-700 flex flex-col">
+            <aside className="flex max-h-[42dvh] w-full flex-shrink-0 flex-col border-b border-zinc-100 bg-white dark:border-zinc-700 dark:bg-zinc-800 lg:max-h-none lg:w-80 lg:border-b-0 lg:border-r">
                 <div className="p-5 border-b border-zinc-100 dark:border-zinc-700 bg-gradient-to-r from-blue-600 to-indigo-600">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -862,8 +862,8 @@ const Teams = () => {
             </aside>
 
             {/* Main Content */}
-            <main className="flex-1 overflow-y-auto">
-                <div className="p-8">
+            <main className="min-w-0 flex-1 overflow-y-auto">
+                <div className="p-4 sm:p-6 lg:p-8">
                     {isFormVisible ? (
                         // Create/Edit Form
                         <motion.div
@@ -945,12 +945,12 @@ const Teams = () => {
                         <motion.div
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
-                            className="space-y-8"
+                            className="space-y-5 sm:space-y-8"
                         >
                             {/* Header */}
-                            <div className="bg-white dark:bg-zinc-800 rounded-2xl shadow-sm border border-zinc-100 dark:border-zinc-700 p-6">
-                                <div className="flex items-start justify-between">
-                                    <div>
+                            <div className="rounded-2xl border border-zinc-100 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 sm:p-6">
+                                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                                    <div className="min-w-0">
                                         <h1 className="text-3xl font-bold text-zinc-900 dark:text-white">{selectedTeam.name}</h1>
                                         <p className="text-zinc-600 dark:text-zinc-400 mt-2 max-w-2xl">
                                             {selectedTeam.description || 'No description provided.'}
@@ -961,12 +961,14 @@ const Teams = () => {
                                             <button
                                                 onClick={() => handleEditClick(selectedTeam)}
                                                 className="p-2.5 rounded-xl text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-blue-500 transition-all"
+                                                aria-label="Edit team"
                                             >
                                                 <FiEdit2 className="w-5 h-5" />
                                             </button>
                                             <button
                                                 onClick={() => confirmDeleteTeam(selectedTeam.id)}
                                                 className="p-2.5 rounded-xl text-zinc-500 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-500 transition-all"
+                                                aria-label="Delete team"
                                             >
                                                 <FiTrash2 className="w-5 h-5" />
                                             </button>

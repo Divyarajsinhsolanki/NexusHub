@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -63,6 +63,7 @@ class ResizeObserverMock {
 
 describe("PdfMaster", () => {
   beforeEach(() => {
+    cleanup();
     vi.clearAllMocks();
     global.ResizeObserver = ResizeObserverMock;
   });
@@ -76,6 +77,42 @@ describe("PdfMaster", () => {
 
     expect(await screen.findByText("Add your first PDF")).toBeTruthy();
     expect(screen.getByText("Documents stay in your personal library until you delete them.")).toBeTruthy();
+  });
+
+  it("opens the mobile tools panel without changing the selected document", async () => {
+    const user = userEvent.setup();
+    const document = {
+      id: 42,
+      title: "Ops Playbook",
+      original_filename: "ops-playbook.pdf",
+      page_count: 1,
+      encrypted: false,
+      current_version_id: 77,
+      can_undo: false,
+      can_redo: false,
+      content_url: "/api/pdf_documents/42/content",
+      download_url: "/api/pdf_documents/42/download",
+      byte_size: 1200,
+    };
+    pdfApi.fetchPdfDocuments.mockResolvedValue({
+      data: {
+        documents: [document],
+        usage: { document_count: 1, document_limit: 25, storage_bytes: 1200, storage_limit_bytes: 1073741824 },
+      },
+    });
+
+    render(
+      <AuthContext.Provider value={{ user: { id: 1, demo_account: false } }}>
+        <PdfMaster />
+      </AuthContext.Provider>
+    );
+
+    expect((await screen.findAllByText("Ops Playbook")).length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole("button", { name: /^tools$/i }));
+
+    expect(screen.getByRole("heading", { name: /^tools$/i })).toBeTruthy();
+    expect(screen.getAllByText("Ops Playbook").length).toBeGreaterThan(0);
   });
 
   it("sends the selected document version when running an operation", async () => {

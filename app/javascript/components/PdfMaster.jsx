@@ -529,8 +529,8 @@ const PdfMaster = () => {
   }
 
   return (
-    <div className="flex h-[calc(100dvh-5rem)] min-h-0 w-full flex-col overflow-hidden rounded-t-3xl border border-white/70 bg-white shadow-2xl shadow-slate-900/10">
-      <header className="flex h-16 shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-3 md:px-5">
+    <div className="flex h-[calc(100dvh-4.5rem)] min-h-0 w-full flex-col overflow-hidden rounded-t-2xl border border-white/70 bg-white shadow-2xl shadow-slate-900/10 sm:h-[calc(100dvh-5rem)] sm:rounded-t-3xl">
+      <header className="flex min-h-16 shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-2 md:flex-nowrap md:gap-3 md:px-5">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white">
             <FileText className="h-5 w-5" />
@@ -542,7 +542,7 @@ const PdfMaster = () => {
         </div>
 
         {selectedDocument ? (
-          <div className="flex items-center gap-1.5">
+          <div className="flex max-w-full items-center gap-1.5 overflow-x-auto">
             {!isDemo ? (
               <>
                 <button type="button" disabled={busy || !selectedDocument.can_undo} onClick={() => handleHistory("undo")} className="toolbar-button" title="Undo (Ctrl+Z)" aria-label="Undo last PDF change">
@@ -553,8 +553,8 @@ const PdfMaster = () => {
                 </button>
               </>
             ) : null}
-            <a href={selectedDocument.download_url} className="inline-flex h-9 items-center rounded-lg bg-indigo-600 px-3 text-xs font-bold text-white hover:bg-indigo-700">
-              <Download className="mr-1.5 h-4 w-4" /> Download
+            <a href={selectedDocument.download_url} className="inline-flex h-9 shrink-0 items-center rounded-lg bg-indigo-600 px-3 text-xs font-bold text-white hover:bg-indigo-700">
+              <Download className="mr-0 h-4 w-4 sm:mr-1.5" /> <span className="hidden sm:inline">Download</span>
             </a>
           </div>
         ) : null}
@@ -640,15 +640,15 @@ const PdfMaster = () => {
         <main className="flex min-w-0 flex-1 flex-col bg-slate-100">
           {selectedDocument ? (
             <>
-              <div className="flex h-12 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-3">
-                <div className="flex items-center gap-1 overflow-x-auto">
+              <div className="flex min-h-12 shrink-0 items-center justify-between gap-2 border-b border-slate-200 bg-white px-2 py-1.5 sm:px-3">
+                <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
                   {tools.map(({ id, label, icon: Icon }) => (
                     <button key={id} type="button" disabled={isDemo || selectedDocument.encrypted || busy} onClick={() => { setActiveTool(id); setMobilePanel("tools"); }} className={`flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-xs font-bold transition ${activeTool === id ? "bg-indigo-600 text-white" : "text-slate-500 hover:bg-slate-100"} disabled:cursor-not-allowed disabled:opacity-40`} title={label} aria-label={`${label} tool`}>
                       <Icon className="h-4 w-4" /><span className="hidden xl:inline">{label}</span>
                     </button>
                   ))}
                 </div>
-                <div className="ml-2 flex shrink-0 items-center gap-1">
+                <div className="ml-0 flex shrink-0 items-center gap-0.5 sm:ml-2 sm:gap-1">
                   <button type="button" onClick={() => setZoom((value) => Math.max(0.5, value - 0.1))} className="toolbar-button" aria-label="Zoom out"><ZoomOut className="h-4 w-4" /></button>
                   <span className="w-11 text-center text-[10px] font-bold text-slate-500">{Math.round(zoom * 100)}%</span>
                   <button type="button" onClick={() => setZoom((value) => Math.min(2, value + 0.1))} className="toolbar-button" aria-label="Zoom in"><ZoomIn className="h-4 w-4" /></button>
@@ -874,14 +874,14 @@ const PdfMaster = () => {
           ["pages", Images],
           ["tools", Save],
         ].map(([id, Icon]) => (
-          <button key={id} type="button" onClick={() => { setMobilePanel(id); setMobilePanelOpen(true); }} className={`flex items-center justify-center gap-2 py-3 text-xs font-bold capitalize ${mobilePanel === id && mobilePanelOpen ? "text-indigo-600" : "text-slate-400"}`}><Icon className="h-4 w-4" />{id}</button>
+          <button key={id} type="button" onClick={() => { setMobilePanel(id); setMobilePanelOpen(true); }} className={`flex min-h-12 items-center justify-center gap-2 py-3 text-xs font-bold capitalize ${mobilePanel === id && mobilePanelOpen ? "text-indigo-600" : "text-slate-400"}`}><Icon className="h-4 w-4" />{id}</button>
         ))}
       </div>
 
       {mobilePanelOpen ? (
         <div className="fixed inset-0 z-[90] bg-slate-950/30 xl:hidden" onClick={() => setMobilePanelOpen(false)}>
           <section
-            className="absolute inset-x-2 bottom-2 max-h-[72dvh] overflow-hidden rounded-2xl border border-white/70 bg-white shadow-2xl"
+            className="absolute inset-x-2 bottom-2 max-h-[min(72dvh,36rem)] overflow-hidden rounded-2xl border border-white/70 bg-white shadow-2xl sm:inset-x-4 sm:bottom-4"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">

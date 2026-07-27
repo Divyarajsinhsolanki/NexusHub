@@ -30,6 +30,7 @@ gem "connection_pool", "~> 2.5"
 gem "faraday", ">= 2.14.3"
 gem "kaminari"
 gem "ruby-openai", "~> 8.3"
+gem "redis", ">= 4", "< 6"
 gem "sidekiq"
 
 # Storage, observability, and external services

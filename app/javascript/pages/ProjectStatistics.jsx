@@ -1122,21 +1122,21 @@ const ProjectStatistics = ({ projectId }) => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50/50 p-6">
+    <div className="min-h-screen bg-slate-50/50 p-4 sm:p-6">
       {/* Unified Header */}
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-xl overflow-hidden mb-6">
-        <div className="p-6 border-b border-zinc-100 dark:border-zinc-800 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="flex items-center gap-4">
+        <div className="flex flex-col justify-between gap-4 border-b border-zinc-100 p-4 dark:border-zinc-800 sm:p-6 lg:flex-row lg:items-center lg:gap-6">
+          <div className="flex min-w-0 items-center gap-4">
             <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-2xl shadow-inner">
               <ChartBarIcon className="h-8 w-8 text-purple-600 dark:text-purple-400" />
             </div>
-            <div>
+            <div className="min-w-0">
               <h1 className="text-2xl font-bold text-zinc-800 dark:text-zinc-100 tracking-tight">Project Analytics</h1>
               <p className="text-sm text-zinc-500 dark:text-zinc-400 font-medium">Deep insights into sprint performance</p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-1 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 p-1.5 rounded-2xl">
+          <div className="flex w-full items-center gap-1 overflow-x-auto rounded-2xl border border-zinc-200 bg-zinc-50 p-1.5 dark:border-zinc-700 dark:bg-zinc-800/50 lg:w-auto lg:flex-wrap">
             {[
               { key: 'overview', label: 'Overview', icon: ChartBarIcon },
               { key: 'sprints', label: 'Sprints', icon: FlagIcon },
@@ -1146,7 +1146,7 @@ const ProjectStatistics = ({ projectId }) => {
               <button
                 key={tab.key}
                 onClick={() => setActiveView(tab.key)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all ${activeView === tab.key
+                className={`flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition-all ${activeView === tab.key
                   ? 'bg-white dark:bg-zinc-700 text-slate-900 dark:text-white shadow-md'
                   : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
                   }`}
@@ -1159,7 +1159,7 @@ const ProjectStatistics = ({ projectId }) => {
         </div>
 
         {/* Quick Stats Row */}
-        <div className="px-6 py-4 bg-zinc-50/50 dark:bg-zinc-800/20 border-t border-zinc-100 dark:border-zinc-800 flex flex-wrap items-center gap-6">
+        <div className="flex flex-wrap items-center gap-3 border-t border-zinc-100 bg-zinc-50/50 px-4 py-4 dark:border-zinc-800 dark:bg-zinc-800/20 sm:gap-6 sm:px-6">
           <div className="flex items-center gap-2">
             <div className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
             <span className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">{summary.completed} Completed</span>
@@ -1182,7 +1182,7 @@ const ProjectStatistics = ({ projectId }) => {
       </div>
 
       {/* Content Area */}
-      <div className="max-w-[98%] mx-auto px-6 -mt-4 relative z-10">
+      <div className="relative z-10 mx-auto -mt-4 w-full max-w-7xl px-0 sm:px-2 lg:px-4">
         {renderActiveView()}
       </div>
     </div>

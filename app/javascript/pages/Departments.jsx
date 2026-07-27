@@ -189,15 +189,15 @@ const Departments = () => {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-zinc-900 pb-20">
       {/* Header Section similar to Projects */}
-      <div className="bg-white dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800 px-6 py-8">
+      <div className="border-b border-slate-200 bg-white px-4 py-6 dark:border-zinc-800 dark:bg-zinc-900 sm:px-6 sm:py-8">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Departments</h1>
             <p className="mt-1 text-slate-500 dark:text-slate-400">Manage your organization's structure and teams.</p>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-3 px-4 py-2 bg-slate-50 dark:bg-zinc-800 rounded-lg border border-slate-200 dark:border-zinc-700">
+          <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+            <div className="flex w-full items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 dark:border-zinc-700 dark:bg-zinc-800 sm:w-auto">
               <div className="text-center">
                 <p className="text-xs text-slate-500 uppercase font-semibold">Total</p>
                 <p className="text-lg font-bold text-slate-800 dark:text-white">{departments.length}</p>
@@ -217,7 +217,7 @@ const Departments = () => {
             {canManage && (
               <button
                 onClick={() => handleOpenModal()}
-                className="flex items-center gap-2 bg-[var(--theme-color)] text-white px-4 py-2.5 rounded-lg hover:brightness-110 transition shadow-sm font-medium"
+                className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--theme-color)] px-4 py-2.5 font-medium text-white shadow-sm transition hover:brightness-110 sm:w-auto"
               >
                 <FiPlus /> New Department
               </button>
@@ -227,11 +227,11 @@ const Departments = () => {
       </div>
 
       {/* Content Area */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
 
         {/* Search & Filter Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <div className="relative flex-1 max-w-md">
+          <div className="relative w-full flex-1 sm:max-w-md">
             <FiSearch className="absolute left-3 top-3 text-slate-400" />
             <input
               value={search}
@@ -240,16 +240,18 @@ const Departments = () => {
               className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 focus:ring-2 focus:ring-[var(--theme-color)] outline-none transition"
             />
           </div>
-          <div className="flex items-center bg-white dark:bg-zinc-800 rounded-lg border border-slate-200 dark:border-zinc-700 p-1">
+          <div className="flex w-full items-center rounded-lg border border-slate-200 bg-white p-1 dark:border-zinc-700 dark:bg-zinc-800 sm:w-auto">
             <button
               onClick={() => setViewMode('grid')}
-              className={`p-2 rounded-md transition ${viewMode === 'grid' ? 'bg-slate-100 dark:bg-zinc-700 text-[var(--theme-color)]' : 'text-slate-400 hover:text-slate-600'}`}
+              className={`flex min-h-11 flex-1 items-center justify-center rounded-md p-2 transition sm:flex-none ${viewMode === 'grid' ? 'bg-slate-100 dark:bg-zinc-700 text-[var(--theme-color)]' : 'text-slate-400 hover:text-slate-600'}`}
+              aria-label="Show department grid"
             >
               <FiGrid />
             </button>
             <button
               onClick={() => setViewMode('list')}
-              className={`p-2 rounded-md transition ${viewMode === 'list' ? 'bg-slate-100 dark:bg-zinc-700 text-[var(--theme-color)]' : 'text-slate-400 hover:text-slate-600'}`}
+              className={`flex min-h-11 flex-1 items-center justify-center rounded-md p-2 transition sm:flex-none ${viewMode === 'list' ? 'bg-slate-100 dark:bg-zinc-700 text-[var(--theme-color)]' : 'text-slate-400 hover:text-slate-600'}`}
+              aria-label="Show department list"
             >
               <FiList />
             </button>
