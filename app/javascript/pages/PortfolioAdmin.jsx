@@ -216,9 +216,9 @@ const PortfolioAdmin = () => {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.28em] text-blue-700">Site Administration</p>
-          <h1 className="mt-2 text-[clamp(2rem,8vw,2.5rem)] font-semibold tracking-[-0.05em] text-slate-950 sm:text-4xl">Portfolio editor</h1>
+          <h1 className="mt-2 text-[clamp(1.8rem,5vw,2.35rem)] font-semibold tracking-[-0.035em] text-slate-950">Portfolio editor</h1>
         </div>
-        <Link to="/" target="_blank" className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-5 py-3 font-semibold text-white">
+        <Link to="/" target="_blank" className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-5 py-3 font-semibold text-white">
           Preview site <FiExternalLink />
         </Link>
       </div>
@@ -285,7 +285,7 @@ const PortfolioAdmin = () => {
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={() => persistOrder(reorder(projects, draggedProjectId, project.id))}
                 onClick={() => selectProject(project)}
-                className={`flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-semibold ${selectedProjectId === project.id ? "bg-slate-950 text-white" : "text-slate-700 hover:bg-slate-50"}`}
+                className={`flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-semibold ${selectedProjectId === project.id ? "bg-blue-600 text-white" : "text-slate-700 hover:bg-slate-50"}`}
               >
                 <FiMove className="shrink-0 opacity-50" />
                 <span className="truncate">{project.title}</span>
@@ -334,7 +334,7 @@ const PortfolioAdmin = () => {
             <div className="mt-8 border-t border-slate-200 pt-6">
               <div className="flex items-center justify-between">
                 <h3 className="text-xl font-semibold">Feature gallery</h3>
-                <button type="button" onClick={() => setFeatureDraft({ category: "", title: "", summary: "", demo_path: "/demo", alt_text: "", review_notes: "", position: (selectedProject.features?.length || 0) + 1, tour_position: (selectedProject.features?.length || 0) + 1, published: true })} className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white"><FiPlus /> Add feature</button>
+                <button type="button" onClick={() => setFeatureDraft({ category: "", title: "", summary: "", demo_path: "/demo", alt_text: "", review_notes: "", position: (selectedProject.features?.length || 0) + 1, tour_position: (selectedProject.features?.length || 0) + 1, published: true })} className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white"><FiPlus /> Add feature</button>
               </div>
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 {(selectedProject.features || []).map((feature) => <button type="button" draggable key={feature.id} onDragStart={() => setDraggedFeatureId(feature.id)} onDragOver={(event) => event.preventDefault()} onDrop={() => persistOrder(projects, reorder(selectedProject.features, draggedFeatureId, feature.id))} onClick={() => setFeatureDraft(feature)} className="rounded-2xl border border-slate-200 p-4 text-left"><div className="flex items-center gap-2"><FiMove className="text-slate-400" /><p className="text-xs font-bold uppercase tracking-wider text-blue-700">{feature.category}</p><span className="ml-auto text-[10px] uppercase text-slate-400">{feature.published ? "Live" : "Draft"}</span></div><p className="mt-2 font-semibold">{feature.title}</p>{feature.screenshot_url ? <img src={feature.screenshot_url} alt="" className="mt-3 h-24 w-full rounded-xl object-cover" /> : null}</button>)}

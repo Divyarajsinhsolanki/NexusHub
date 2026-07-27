@@ -1418,6 +1418,123 @@ textarea {
   background: rgba(255, 255, 255, 0.86);
 }
 
+.portfolio-page {
+  background:
+    linear-gradient(180deg, #f7faff 0%, #eef3fb 48%, #f8fbff 100%) !important;
+  color: var(--shell-text);
+}
+
+.portfolio-page > .pointer-events-none {
+  display: none;
+}
+
+.portfolio-page header,
+.portfolio-page footer {
+  border-color: var(--shell-border) !important;
+  background: rgb(248 251 255 / 0.9) !important;
+  color: var(--shell-text);
+  box-shadow: 0 12px 32px rgb(15 23 42 / 0.06);
+}
+
+.portfolio-page header nav {
+  background: transparent !important;
+}
+
+.portfolio-page section {
+  scroll-margin-top: 5rem;
+}
+
+.portfolio-page h1 {
+  font-size: clamp(2rem, 4.8vw, 2.85rem) !important;
+  line-height: 1.08 !important;
+  letter-spacing: -0.035em !important;
+}
+
+.portfolio-page h2 {
+  font-size: clamp(1.45rem, 3.2vw, 2.1rem) !important;
+  line-height: 1.14 !important;
+  letter-spacing: -0.025em !important;
+}
+
+.portfolio-page h3 {
+  font-size: clamp(1.05rem, 2vw, 1.28rem) !important;
+  line-height: 1.25 !important;
+  letter-spacing: -0.015em !important;
+}
+
+.portfolio-page .text-white,
+.portfolio-page [class*="text-slate-200"],
+.portfolio-page [class*="text-slate-300"] {
+  color: var(--shell-text) !important;
+}
+
+.portfolio-page [class*="text-slate-400"],
+.portfolio-page [class*="text-slate-500"] {
+  color: var(--shell-muted-strong) !important;
+}
+
+.portfolio-page [class*="text-cyan-"],
+.portfolio-page [class*="text-blue-"] {
+  color: rgb(var(--theme-color-rgb)) !important;
+}
+
+.portfolio-page [class*="text-emerald-"] {
+  color: #047857 !important;
+}
+
+.portfolio-page [class*="text-amber-"] {
+  color: #b45309 !important;
+}
+
+.portfolio-page [class*="text-rose-"] {
+  color: #be123c !important;
+}
+
+.portfolio-page [class*="border-white/"],
+.portfolio-page [class*="border-cyan-"] {
+  border-color: var(--shell-border) !important;
+}
+
+.portfolio-page [class*="bg-slate-950"],
+.portfolio-page [class*="bg-slate-900"],
+.portfolio-page [class*="bg-white/5"],
+.portfolio-page [class*="bg-white/[0.03]"],
+.portfolio-page [class*="from-white/10"],
+.portfolio-page [class*="from-slate-800"],
+.portfolio-page [class*="from-slate-900"],
+.portfolio-page [class*="via-blue-950"],
+.portfolio-page [class*="to-cyan-950"] {
+  background: rgb(255 255 255 / 0.82) !important;
+}
+
+.portfolio-page [class*="bg-cyan-300/10"],
+.portfolio-page [class*="bg-cyan-300/5"] {
+  background: rgb(var(--theme-color-rgb) / 0.08) !important;
+}
+
+.portfolio-page button[class*="bg-cyan-300"],
+.portfolio-page a[class*="bg-cyan-300"] {
+  background: rgb(var(--theme-color-rgb)) !important;
+  color: #fff !important;
+}
+
+.portfolio-page input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.portfolio-page textarea {
+  border-color: var(--shell-border) !important;
+  background: rgb(255 255 255 / 0.9) !important;
+  color: var(--shell-text-strong) !important;
+}
+
+.portfolio-page input::placeholder,
+.portfolio-page textarea::placeholder {
+  color: var(--shell-muted) !important;
+}
+
+.portfolio-page button,
+.portfolio-page a {
+  text-underline-offset: 0.2em;
+}
+
 @keyframes shell-float {
   0%,
   100% {

@@ -8,7 +8,7 @@ module Chat
           message: serialize_message(message)
         }
 
-        ActionCable.server.broadcast(
+        broadcast(
           conversation_stream(message.workspace_id, message.conversation_id),
           payload
         )
@@ -26,7 +26,7 @@ module Chat
           last_actor_action: last_actor_action
         }
 
-        ActionCable.server.broadcast(
+        broadcast(
           conversation_stream(message.workspace_id, message.conversation_id),
           payload
         )
@@ -34,7 +34,7 @@ module Chat
 
       def broadcast_conversation_refresh(conversation)
         conversation.participant_ids.each do |participant_id|
-          ActionCable.server.broadcast(user_stream(conversation.workspace_id, participant_id), {
+          broadcast(user_stream(conversation.workspace_id, participant_id), {
             type: "conversation_refresh",
             conversation_id: conversation.id
           })
@@ -42,7 +42,7 @@ module Chat
       end
 
       def broadcast_conversation_hidden(conversation, user_id)
-        ActionCable.server.broadcast(user_stream(conversation.workspace_id, user_id), {
+        broadcast(user_stream(conversation.workspace_id, user_id), {
           type: "conversation_hidden",
           conversation_id: conversation.id
         })
@@ -50,13 +50,13 @@ module Chat
 
       def broadcast_conversation_deleted(workspace_id, conversation_id, participant_ids)
         participant_ids.each do |participant_id|
-          ActionCable.server.broadcast(user_stream(workspace_id, participant_id), {
+          broadcast(user_stream(workspace_id, participant_id), {
             type: "conversation_deleted",
             conversation_id: conversation_id
           })
         end
 
-        ActionCable.server.broadcast(conversation_stream(workspace_id, conversation_id), {
+        broadcast(conversation_stream(workspace_id, conversation_id), {
           type: "conversation_deleted",
           conversation_id: conversation_id
         })
@@ -71,7 +71,7 @@ module Chat
           is_typing: is_typing
         }
 
-        ActionCable.server.broadcast(conversation_stream(workspace_id, conversation_id), payload)
+        broadcast(conversation_stream(workspace_id, conversation_id), payload)
       end
 
       def broadcast_message_read(workspace_id, conversation_id, user_id)
@@ -82,7 +82,7 @@ module Chat
           read_at: Time.current
         }
 
-        ActionCable.server.broadcast(conversation_stream(workspace_id, conversation_id), payload)
+        broadcast(conversation_stream(workspace_id, conversation_id), payload)
       end
 
       def broadcast_call_ringing(call_session)
@@ -90,7 +90,7 @@ module Chat
           membership = call_session.conversation.conversation_participants.find_by(user_id: participant.user_id)
           next if membership&.muted?
 
-          ActionCable.server.broadcast(user_stream(call_session.workspace_id, participant.user_id), {
+          broadcast(user_stream(call_session.workspace_id, participant.user_id), {
             type: "call_ringing",
             call_session: serialize_call(call_session, current_user: participant.user)
           })
@@ -104,13 +104,13 @@ module Chat
           call_session: serialize_call(call_session)
         }.merge(extra_payload)
 
-        ActionCable.server.broadcast(
+        broadcast(
           conversation_stream(call_session.workspace_id, call_session.conversation_id),
           payload
         )
 
         call_session.call_participants.pluck(:user_id).each do |participant_id|
-          ActionCable.server.broadcast(user_stream(call_session.workspace_id, participant_id), payload)
+          broadcast(user_stream(call_session.workspace_id, participant_id), payload)
         end
       end
 
@@ -150,7 +150,7 @@ module Chat
           }
         }
 
-        ActionCable.server.broadcast(
+        broadcast(
           user_stream(notification.workspace_id, notification.recipient_id),
           payload
         )
@@ -165,6 +165,12 @@ module Chat
       end
 
       private
+
+      def broadcast(stream, payload)
+        return if Current.suppress_realtime_broadcasts
+
+        ActionCable.server.broadcast(stream, payload)
+      end
 
       def serialize_message(message)
         {

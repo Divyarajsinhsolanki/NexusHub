@@ -7,7 +7,9 @@ class DemoWorkspaceSeeder
 
     previous_workspace = Current.workspace
     previous_user = Current.user
+    previous_suppress_realtime_broadcasts = Current.suppress_realtime_broadcasts
     Current.workspace = workspace
+    Current.suppress_realtime_broadcasts = true
 
     roles = Role::NAMES.index_with { |name| Role.find_or_create_by!(name: name) }
     guest = upsert_user(workspace, email: DEMO_EMAIL, first_name: "Demo", last_name: "Visitor", job_title: "Portfolio Guest", demo_account: true, landing_page: "demo")
@@ -174,6 +176,7 @@ class DemoWorkspaceSeeder
 
     workspace
   ensure
+    Current.suppress_realtime_broadcasts = previous_suppress_realtime_broadcasts
     Current.user = previous_user
     Current.workspace = previous_workspace
   end

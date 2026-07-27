@@ -1,5 +1,5 @@
 class Current < ActiveSupport::CurrentAttributes
-  attribute :user, :workspace, :request_id
+  attribute :user, :workspace, :request_id, :suppress_realtime_broadcasts
 
   class << self
     def reset_all

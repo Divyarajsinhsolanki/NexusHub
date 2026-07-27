@@ -241,7 +241,7 @@ const PublicPortfolio = () => {
   };
 
   return (
-    <div className="min-h-dvh overflow-x-hidden bg-[#07111f] text-white">
+    <div className="portfolio-page min-h-dvh overflow-x-hidden bg-[#07111f] text-white">
       <Helmet>
         <title>{seo.title || `${profile.full_name} | Full-stack Rails and React Engineer`}</title>
         <meta name="description" content={seo.description || profile.summary} />
