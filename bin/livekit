@@ -74,9 +74,11 @@ config_sha() {
   fi
 }
 
-warn_if_insecure_secret() {
+require_secure_secret() {
   if [ "${#api_secret}" -lt 32 ]; then
-    echo "Warning: LIVEKIT_API_SECRET is shorter than 32 characters. Calls can work locally, but use a longer secret outside local development." >&2
+    echo "LIVEKIT_API_SECRET must be at least 32 characters for the local LiveKit server." >&2
+    echo "Update .env, for example: LIVEKIT_API_SECRET=dev-secret-change-me-32-characters-min" >&2
+    exit 1
   fi
 }
 
@@ -96,7 +98,7 @@ CONFIG
 start() {
   require_docker
   desired_config_sha="$(config_sha)"
-  warn_if_insecure_secret
+  require_secure_secret
 
   if container_running; then
     current_config_sha="$(docker container inspect -f '{{ index .Config.Labels "com.rails_vite.livekit.config-sha" }}' "$container_name" 2>/dev/null || true)"
@@ -146,7 +148,12 @@ status() {
     return 1
   fi
 
-  docker ps --filter "name=^/${container_name}$" --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
+  docker ps -a --filter "name=^/${container_name}$" --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
+
+  if ! container_running; then
+    echo "LiveKit container ${container_name} is not running. Run bin/livekit restart after fixing .env." >&2
+    return 1
+  fi
 
   if ! command -v curl >/dev/null 2>&1; then
     echo "Health check: skipped because curl is not installed."

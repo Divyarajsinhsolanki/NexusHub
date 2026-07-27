@@ -1,6 +1,15 @@
 class Api::ConversationCallsController < Api::BaseController
   def create
     conversation = Conversation.for_user(current_user).find(params[:conversation_id])
+
+    unless Chat::LivekitTokenGenerator.configured?
+      render json: {
+        error: "livekit_not_configured",
+        message: "LiveKit is not configured"
+      }, status: :service_unavailable
+      return
+    end
+
     call_session = Chat::CallManager.new(user: current_user).create_call(
       conversation: conversation,
       call_type: params[:call_type] || params.dig(:call, :call_type) || "audio"

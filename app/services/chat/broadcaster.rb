@@ -30,6 +30,9 @@ module Chat
           conversation_stream(message.workspace_id, message.conversation_id),
           payload
         )
+        message.conversation.participant_ids.each do |participant_id|
+          broadcast(user_stream(message.workspace_id, participant_id), payload)
+        end
       end
 
       def broadcast_conversation_refresh(conversation)

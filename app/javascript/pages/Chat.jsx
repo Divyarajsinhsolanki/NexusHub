@@ -22,6 +22,7 @@ import {
   FiPhoneOff,
   FiSearch,
   FiSend,
+  FiSmile,
   FiTrash2,
   FiUploadCloud,
   FiWifiOff,
@@ -51,11 +52,12 @@ import {
   removeMessageReaction,
   sendMessage,
   startDirectConversation,
-  unmuteConversation
+  unmuteConversation,
+  updatePresence
 } from "../components/api";
 import { AuthContext } from "../context/AuthContext";
 import CallRoom from "../components/chat/CallRoom";
-import { sendToConversation, subscribeToCableStatus, subscribeToConversationChat, subscribeToUserChat } from "../lib/chatCable";
+import { ensureCableConnection, sendToConversation, subscribeToCableStatus, subscribeToConversationChat, subscribeToPresence, subscribeToUserChat } from "../lib/chatCable";
 import {
   applyComposerEntity,
   getComposerEntityQuery,
@@ -67,7 +69,9 @@ import {
 } from "../utils/chatMentions";
 import { isLiveCall, mergeCallIntoConversationGroups } from "../utils/chatCalls";
 
-const REACTION_EMOJIS = ["👍", "❤️", "🎉"];
+const DEFAULT_REACTION_EMOJIS = ["👍", "❤️", "😂", "🎉", "🙌"];
+const EXTRA_REACTION_EMOJIS = ["🔥", "👏", "🙏", "😊", "😍", "😮", "😢", "😡", "✅", "💯", "🚀", "👀", "🤔", "😎", "🥳", "💪", "✨", "😅", "🤝", "🏆"];
+const REACTION_EMOJIS = [...DEFAULT_REACTION_EMOJIS, ...EXTRA_REACTION_EMOJIS];
 const CONVERSATION_FILTERS = [
   { id: "all", label: "All" },
   { id: "unread", label: "Unread" },
@@ -78,6 +82,8 @@ const NEW_CHAT_MODES = [
   { id: "direct", label: "Direct" },
   { id: "group", label: "Group" }
 ];
+const CALL_MEDIA_CONFIGURATION_MESSAGE = "Call media server is not configured. Set LIVEKIT_URL, LIVEKIT_API_KEY, and LIVEKIT_API_SECRET, then restart the app.";
+const ONLINE_WINDOW_MS = 2 * 60 * 1000;
 const MUTE_OPTIONS = [
   { id: "1h", label: "Mute 1 hour" },
   { id: "8h", label: "Mute 8 hours" },
@@ -193,11 +199,43 @@ const formatDayLabel = (value) => {
 
 const formatParticipantStatus = (participant, currentUserId) => {
   if (Number(participant?.id) === Number(currentUserId)) return "You";
-  if (participant?.online) return "Online";
+  if (isParticipantOnline(participant)) return "Online";
   if (participant?.last_seen_at) return `Last seen ${formatDistanceToNow(new Date(participant.last_seen_at), { addSuffix: true })}`;
   if (!participant?.last_read_at) return "No recent read receipt";
   return `Read ${formatDistanceToNow(new Date(participant.last_read_at), { addSuffix: true })}`;
 };
+
+const isParticipantOnline = (participant, now = Date.now()) => {
+  if (!participant?.last_seen_at) return false;
+
+  const lastSeenTime = new Date(participant.last_seen_at).getTime();
+  return Number.isFinite(lastSeenTime) && now - lastSeenTime <= ONLINE_WINDOW_MS;
+};
+
+const applyPresenceToConversation = (conversation, payload) => {
+  if (!conversation?.participants?.length || !payload?.user_id) return conversation;
+
+  return {
+    ...conversation,
+    participants: conversation.participants.map((participant) => (
+      Number(participant.id) === Number(payload.user_id)
+        ? { ...participant, last_seen_at: payload.last_seen_at, online: !!payload.online }
+        : participant
+    ))
+  };
+};
+
+const getCallParticipantStatus = (callSession, userId) => (
+  callSession?.current_participant?.status ||
+  callSession?.participants?.find((participant) => Number(participant.user_id) === Number(userId))?.status ||
+  null
+);
+
+const shouldSurfaceIncomingCall = (callSession, userId) => (
+  isLiveCall(callSession) &&
+  Number(callSession?.initiator_id) !== Number(userId) &&
+  getCallParticipantStatus(callSession, userId) === "ringing"
+);
 
 const messageMatchesQuery = (message, query, mentionLookups) => {
   const normalizedQuery = query.trim().toLowerCase();
@@ -255,6 +293,19 @@ const getAttachmentKindLabel = (contentType = "") => {
   if (contentType.includes("word") || contentType.includes("document")) return "Document";
   return "File";
 };
+
+const visibleReactionEntries = (reactions = {}) => (
+  Object.entries(reactions)
+    .filter(([, count]) => Number(count) > 0)
+    .sort(([leftEmoji], [rightEmoji]) => {
+      const leftIndex = REACTION_EMOJIS.indexOf(leftEmoji);
+      const rightIndex = REACTION_EMOJIS.indexOf(rightEmoji);
+      if (leftIndex === -1 && rightIndex === -1) return leftEmoji.localeCompare(rightEmoji);
+      if (leftIndex === -1) return 1;
+      if (rightIndex === -1) return -1;
+      return leftIndex - rightIndex;
+    })
+);
 
 
 const formatFileSize = (bytes) => {
@@ -343,7 +394,7 @@ const MentionText = ({ text, query }) => (
 const RichMessageText = ({ text = "", isMe, searchQuery, mentionLookups }) => {
   const segments = tokenizeChatMessage(text, mentionLookups);
   const baseTagClass = isMe
-    ? "border-white/15 bg-white/10 text-white hover:bg-white/15"
+    ? "border-blue-200 bg-blue-100/80 text-blue-800 hover:bg-blue-100"
     : "border-slate-200/90 bg-slate-100/90 text-slate-800 hover:bg-slate-200/80 dark:border-zinc-700 dark:bg-zinc-800/90 dark:text-slate-100 dark:hover:bg-zinc-700/80";
 
   return (
@@ -451,24 +502,40 @@ const StatCard = ({ icon, label, value, accentClass }) => (
   </div>
 );
 
-const ConversationItem = ({ conversation, currentUserId, isActive, searchQuery, previewText, onSelect, onHide, onDeleteForEveryone, onMute, onUnmute }) => {
+const ConversationItem = ({ conversation, currentUserId, isActive, searchQuery, previewText, presenceNow, onSelect, onHide, onDeleteForEveryone, onMute, onUnmute }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuRef = useRef(null);
   const isUnread = conversation.unread_count > 0;
   const isDirect = conversation.conversation_type === "direct";
+  const otherParticipant = isDirect ? getConversationOtherParticipant(conversation, currentUserId) : null;
+  const isDirectOnline = isParticipantOnline(otherParticipant, presenceNow);
   const displayName = getConversationDisplayName(conversation, currentUserId);
   const displayImage = getConversationDisplayImage(conversation, currentUserId);
-  const subtitle = isDirect ? "DM" : `${conversation.participants?.length || 0} members`;
+  const subtitle = isDirect ? (isDirectOnline ? "Online" : "Offline") : `${conversation.participants?.length || 0} members`;
   const conversationPreview = previewText || (isDirect ? "No messages yet" : "Create a room that keeps the whole group aligned");
   const Item = onSelect ? "button" : Link;
   const itemProps = onSelect
     ? { type: "button", onClick: () => onSelect(conversation.id) }
     : { to: `/chat/${conversation.id}` };
 
+  useEffect(() => {
+    if (!isMenuOpen) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (!menuRef.current || menuRef.current.contains(event.target)) return;
+      setIsMenuOpen(false);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [isMenuOpen]);
+
   return (
     <div
+      ref={menuRef}
       className={`group relative flex items-center gap-1 rounded-lg border px-2 py-1.5 transition-colors ${
         isActive
-          ? "border-slate-900 bg-slate-950 text-white dark:border-white dark:bg-white dark:text-slate-950"
+          ? "border-blue-200 bg-blue-50 text-blue-950 dark:border-sky-800 dark:bg-sky-950/45 dark:text-sky-100"
           : "border-transparent bg-transparent text-slate-700 hover:bg-white/80 dark:text-slate-200 dark:hover:bg-zinc-900/80"
       }`}
     >
@@ -480,13 +547,19 @@ const ConversationItem = ({ conversation, currentUserId, isActive, searchQuery, 
           itemProps.onClick?.(event);
         }}
       >
-        <div className="shrink-0">
+        <div className="relative shrink-0">
           {isDirect ? (
             <Avatar name={displayName} src={displayImage} size="sm" />
           ) : (
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-sky-100 to-cyan-50 text-sky-700 ring-2 ring-white/90 dark:from-sky-950/60 dark:to-cyan-950/40 dark:text-sky-200">
               <FiUsers className="h-4 w-4" />
             </div>
+          )}
+          {isDirect && (
+            <span
+              className={`absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white dark:border-zinc-950 ${isDirectOnline ? "bg-emerald-500" : "bg-slate-300 dark:bg-zinc-600"}`}
+              title={isDirectOnline ? "Online" : "Offline"}
+            />
           )}
         </div>
 
@@ -514,7 +587,7 @@ const ConversationItem = ({ conversation, currentUserId, isActive, searchQuery, 
       </Item>
 
       {isUnread && (
-        <span className={`flex h-5 min-w-[1.25rem] shrink-0 items-center justify-center rounded-full px-1.5 text-[10px] font-bold ${isActive ? "bg-white text-slate-950 dark:bg-slate-950 dark:text-white" : "bg-slate-950 text-white dark:bg-white dark:text-slate-950"}`}>
+        <span className={`flex h-5 min-w-[1.25rem] shrink-0 items-center justify-center rounded-full px-1.5 text-[10px] font-bold ${isActive ? "bg-blue-600 text-white dark:bg-sky-200 dark:text-sky-950" : "bg-blue-600 text-white dark:bg-sky-200 dark:text-sky-950"}`}>
           {conversation.unread_count}
         </span>
       )}
@@ -527,7 +600,7 @@ const ConversationItem = ({ conversation, currentUserId, isActive, searchQuery, 
           setIsMenuOpen((previous) => !previous);
         }}
         className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md opacity-0 transition group-hover:opacity-100 ${isMenuOpen ? "opacity-100" : ""} ${
-          isActive ? "hover:bg-white/15 dark:hover:bg-slate-950/10" : "hover:bg-slate-100 dark:hover:bg-zinc-800"
+          isActive ? "hover:bg-blue-100 dark:hover:bg-sky-900/50" : "hover:bg-slate-100 dark:hover:bg-zinc-800"
         }`}
         title="Conversation actions"
       >
@@ -608,11 +681,11 @@ const MessageAttachmentCard = ({ attachment, isMe, searchQuery }) => {
   const downloadUrl = attachment.download_url || attachment.url;
   const fileSize = formatFileSize(attachment.byte_size);
   const containerClass = isMe
-    ? "border-white/20 bg-white/10 text-white"
+    ? "border-blue-200 bg-blue-50/80 text-slate-800"
     : "border-slate-200/80 bg-slate-50/80 text-slate-700 dark:border-zinc-700 dark:bg-zinc-900/80 dark:text-slate-200";
-  const metaTextClass = isMe ? "text-white/70" : "text-slate-400 dark:text-slate-500";
+  const metaTextClass = isMe ? "text-blue-500" : "text-slate-400 dark:text-slate-500";
   const downloadClass = isMe
-    ? "bg-white/15 text-white hover:bg-white/25"
+    ? "bg-blue-600 text-white hover:bg-blue-700"
     : "bg-white/95 text-slate-700 hover:bg-white dark:bg-zinc-800/95 dark:text-slate-100 dark:hover:bg-zinc-700";
 
   if (isImage || isVideo) {
@@ -622,7 +695,7 @@ const MessageAttachmentCard = ({ attachment, isMe, searchQuery }) => {
           {isImage ? (
             <img src={attachment.url} alt={attachment.filename} className="h-44 w-full object-cover" loading="lazy" />
           ) : (
-            <video src={attachment.url} className="h-44 w-full bg-slate-950 object-cover" controls preload="metadata" />
+            <video src={attachment.url} className="h-44 w-full bg-slate-900 object-cover" controls preload="metadata" />
           )}
         </a>
 
@@ -652,7 +725,7 @@ const MessageAttachmentCard = ({ attachment, isMe, searchQuery }) => {
 
   return (
     <div className={`flex items-center gap-3 rounded-2xl border px-3 py-3 transition hover:-translate-y-0.5 ${containerClass}`}>
-      <div className={`flex h-10 w-10 items-center justify-center rounded-2xl ${isMe ? "bg-white/10" : "bg-white text-slate-600 dark:bg-zinc-800 dark:text-slate-200"}`}>
+      <div className={`flex h-10 w-10 items-center justify-center rounded-2xl ${isMe ? "bg-blue-100 text-blue-700" : "bg-white text-slate-600 dark:bg-zinc-800 dark:text-slate-200"}`}>
         <FiFileText className="h-5 w-5" />
       </div>
 
@@ -678,15 +751,34 @@ const MessageAttachmentCard = ({ attachment, isMe, searchQuery }) => {
   );
 };
 
-const MessageBubble = ({ message, isMe, showAvatar, onToggleReaction, participants, searchQuery, mentionLookups }) => {
+const MessageBubble = ({ message, isMe, showAvatar, onToggleReaction, participants, conversationType, searchQuery, mentionLookups }) => {
+  const [isReactionPickerOpen, setIsReactionPickerOpen] = useState(false);
+  const [isReactionPickerExpanded, setIsReactionPickerExpanded] = useState(false);
+  const [customReactionEmoji, setCustomReactionEmoji] = useState("");
   const timeString = format(new Date(message.created_at), "h:mm a");
   const reactions = message.reactions || {};
   const reactedEmojis = message.reacted_emojis || [];
+  const reactionEntries = visibleReactionEntries(reactions);
+  const pickerEmojis = isReactionPickerExpanded ? REACTION_EMOJIS : DEFAULT_REACTION_EMOJIS;
+  const isDirectConversation = conversationType === "direct";
   const seenBy = (participants || []).filter((participant) => (
     Number(participant.id) !== Number(message.user_id) &&
     participant.last_read_at &&
     new Date(participant.last_read_at) >= new Date(message.created_at)
   ));
+  const handleCustomReactionSubmit = (event) => {
+    event.preventDefault();
+    const emoji = customReactionEmoji.trim();
+    if (!emoji) return;
+
+    onToggleReaction(message.id, emoji, reactedEmojis.includes(emoji));
+    setCustomReactionEmoji("");
+    setIsReactionPickerOpen(false);
+  };
+  const handleReactionClick = (emoji, isActive) => {
+    onToggleReaction(message.id, emoji, isActive);
+    setIsReactionPickerOpen(false);
+  };
 
   return (
     <motion.div
@@ -703,15 +795,15 @@ const MessageBubble = ({ message, isMe, showAvatar, onToggleReaction, participan
 
         <div className={`relative flex flex-col ${isMe ? "items-end" : "items-start"}`}>
           {!isMe && showAvatar && (
-            <span className="mb-0.5 ml-2 text-[10px] font-medium uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+            <span className={`mb-0.5 ml-2 text-[10px] font-medium uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500 ${isDirectConversation ? "hidden" : ""}`}>
               {message.user_name}
             </span>
           )}
 
           <div
-            className={`relative overflow-hidden rounded-[20px] border px-3.5 py-2 shadow-[0_18px_45px_-28px_rgba(15,23,42,0.5)] ${
+            className={`relative overflow-hidden rounded-[20px] border px-3.5 py-2 shadow-[0_16px_36px_-28px_rgba(15,23,42,0.45)] ${
               isMe
-                ? "border-transparent bg-[linear-gradient(135deg,rgba(15,23,42,1),rgba(30,41,59,0.92))] text-white"
+                ? "border-blue-300 bg-[linear-gradient(135deg,rgba(191,219,254,0.98),rgba(219,234,254,0.98))] text-slate-900 shadow-[0_16px_36px_-30px_rgba(37,99,235,0.55)]"
                 : "border-white/80 bg-white/92 text-slate-800 dark:border-zinc-700 dark:bg-zinc-900/90 dark:text-slate-200"
             } ${searchQuery.trim() ? "ring-2 ring-amber-300/60" : ""}`}
           >
@@ -731,61 +823,103 @@ const MessageBubble = ({ message, isMe, showAvatar, onToggleReaction, participan
             )}
           </div>
 
-          <div className={`relative z-10 flex flex-wrap items-center gap-1 px-1 ${isMe ? "-mt-1.5 justify-end pr-2" : "-mt-1.5 pl-2"}`}>
-            {REACTION_EMOJIS.map((emoji) => {
-              const count = reactions[emoji] || 0;
-              const isActive = reactedEmojis.includes(emoji);
-              if (count === 0) return null;
+          {reactionEntries.length > 0 && (
+            <div className={`mt-1 flex max-w-full flex-wrap items-center gap-1 px-1 ${isMe ? "justify-end pr-2" : "justify-start pl-2"}`}>
+              {reactionEntries.map(([emoji, count]) => {
+                const isActive = reactedEmojis.includes(emoji);
 
-              return (
-                <button
-                  key={`${message.id}-${emoji}`}
-                  type="button"
-                  onClick={() => onToggleReaction(message.id, emoji, isActive)}
-                  className={`inline-flex items-center gap-1 rounded-full border bg-clip-padding px-2 py-0.5 shadow-sm backdrop-blur text-[10px] font-medium transition ${
-                    isActive
-                      ? "border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-200"
-                      : "border-slate-200 bg-white/80 text-slate-600 hover:border-slate-300 dark:border-zinc-700 dark:bg-zinc-800/85 dark:text-slate-300"
-                  }`}
-                >
-                  <span>{emoji}</span>
-                  <span>{count}</span>
-                </button>
-              );
-            })}
-          </div>
+                return (
+                  <button
+                    key={`${message.id}-${emoji}`}
+                    type="button"
+                    onClick={() => handleReactionClick(emoji, isActive)}
+                    className={`inline-flex items-center gap-1 rounded-full border bg-clip-padding px-2 py-0.5 text-[10px] font-medium shadow-sm backdrop-blur transition ${
+                      isActive
+                        ? "border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-200"
+                        : "border-slate-200 bg-white/80 text-slate-600 hover:border-slate-300 dark:border-zinc-700 dark:bg-zinc-800/85 dark:text-slate-300"
+                    }`}
+                    aria-label={`${isActive ? "Remove" : "Add"} ${emoji} reaction`}
+                  >
+                    <span>{emoji}</span>
+                    <span>{count}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
-          <div className={`pointer-events-none absolute -top-7 z-20 opacity-0 transition-all duration-150 group-hover/bubble:pointer-events-auto group-hover/bubble:opacity-100 ${isMe ? "right-0" : "left-0"}`}>
-            <div className="flex items-center gap-1 rounded-full border border-white/70 bg-white/92 p-1 shadow-xl backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/95">
-              {REACTION_EMOJIS.map((emoji) => {
+          <div className={`absolute top-0 z-20 -translate-y-[calc(100%+0.25rem)] transition-all duration-150 group-hover/bubble:pointer-events-auto group-hover/bubble:opacity-100 group-focus-within/bubble:pointer-events-auto group-focus-within/bubble:opacity-100 ${isReactionPickerOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"} ${isMe ? "right-0" : "left-0"}`}>
+            <div className="flex max-w-[min(19rem,calc(100vw-3rem))] flex-wrap items-center gap-1 rounded-2xl border border-white/70 bg-white/95 p-1 shadow-xl backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/95">
+              {pickerEmojis.map((emoji) => {
                 const isActive = reactedEmojis.includes(emoji);
                 return (
                   <button
                     key={`${message.id}-picker-${emoji}`}
                     type="button"
-                    onClick={() => onToggleReaction(message.id, emoji, isActive)}
-                    className={`flex h-7 w-7 items-center justify-center rounded-full text-sm transition-transform hover:scale-125 ${isActive ? "bg-amber-100 dark:bg-amber-900/40" : "hover:bg-slate-100 dark:hover:bg-zinc-800"}`}
+                    onClick={() => handleReactionClick(emoji, isActive)}
+                    className={`flex h-8 w-8 items-center justify-center rounded-full text-base transition-transform hover:scale-110 ${isActive ? "bg-amber-100 dark:bg-amber-900/40" : "hover:bg-slate-100 dark:hover:bg-zinc-800"}`}
+                    aria-label={`${isActive ? "Remove" : "Add"} ${emoji} reaction`}
                   >
                     {emoji}
                   </button>
                 );
               })}
+              {isReactionPickerExpanded && (
+                <form onSubmit={handleCustomReactionSubmit} className="flex items-center gap-1">
+                  <input
+                    value={customReactionEmoji}
+                    onChange={(event) => setCustomReactionEmoji(event.target.value)}
+                    maxLength={12}
+                    aria-label="Custom emoji reaction"
+                    placeholder="Emoji"
+                    className="h-8 w-16 rounded-full border border-slate-200 bg-white px-2 text-center text-sm text-slate-700 outline-none transition placeholder:text-[10px] placeholder:text-slate-400 focus:border-sky-300 focus:ring-2 focus:ring-sky-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-slate-100 dark:focus:border-sky-700 dark:focus:ring-sky-950/50"
+                  />
+                  <button
+                    type="submit"
+                    className="h-8 rounded-full bg-blue-600 px-2.5 text-[10px] font-bold text-white transition hover:bg-blue-700"
+                    aria-label="Add custom emoji reaction"
+                  >
+                    Add
+                  </button>
+                </form>
+              )}
+              <button
+                type="button"
+                onClick={() => setIsReactionPickerExpanded((previous) => !previous)}
+                className="flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-xs font-bold text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:text-slate-300 dark:hover:bg-zinc-800"
+                aria-label={isReactionPickerExpanded ? "Show fewer reactions" : "Show more reactions"}
+                title={isReactionPickerExpanded ? "Show fewer" : "More reactions"}
+              >
+                {isReactionPickerExpanded ? "-" : "+"}
+              </button>
             </div>
           </div>
 
-          <div className="mt-0.5 flex items-center gap-2 px-1 text-[11px] text-slate-400 dark:text-slate-500">
-            <span>{timeString}</span>
+          <div className={`mt-1 flex max-w-full items-center gap-2 px-1 text-[11px] text-slate-400 dark:text-slate-500 ${isMe ? "justify-end text-right" : "justify-start"}`}>
+            <span className="shrink-0 whitespace-nowrap">{timeString}</span>
             {isMe && (
-              <span className={`inline-flex items-center gap-1 ${seenBy.length > 0 ? "text-emerald-500" : ""}`}>
+              <span
+                className={`inline-flex min-w-0 shrink-0 items-center gap-0 ${seenBy.length > 0 ? "text-emerald-500" : ""}`}
+                title={seenBy.length > 0 ? `Seen by ${seenBy.map((participant) => participant.name).join(", ")}` : "Sent"}
+              >
                 <FiCheck className="h-3.5 w-3.5" />
-                {seenBy.length > 0 && <FiCheck className="-ml-1 h-3.5 w-3.5" />}
-                {seenBy.length > 0 && (
-                  <span className="font-medium">
+                {seenBy.length > 0 && <FiCheck className="-ml-1.5 h-3.5 w-3.5" />}
+                {seenBy.length > 0 && !isDirectConversation && (
+                  <span className="ml-1 min-w-0 truncate font-medium">
                     {seenBy.length === 1 ? `Seen by ${seenBy[0].name}` : `Seen by ${seenBy.length}`}
                   </span>
                 )}
               </span>
             )}
+            <button
+              type="button"
+              onClick={() => setIsReactionPickerOpen((previous) => !previous)}
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-blue-600 dark:text-slate-500 dark:hover:bg-zinc-800 dark:hover:text-sky-200"
+              aria-label="Add reaction"
+              aria-expanded={isReactionPickerOpen}
+            >
+              <FiSmile className="h-3.5 w-3.5" />
+            </button>
           </div>
         </div>
       </div>
@@ -814,7 +948,7 @@ const MentionSuggestions = ({ suggestions, activeIndex, onSelect }) => {
               onClick={() => onSelect(suggestion)}
               className={`flex w-full items-start gap-3 px-4 py-3 text-left transition ${
                 isActive
-                  ? "bg-slate-950 text-white dark:bg-white dark:text-slate-950"
+                  ? "bg-blue-600 text-white dark:bg-sky-200 dark:text-sky-950"
                   : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-zinc-800"
               }`}
             >
@@ -864,6 +998,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   const messageListRef = useRef(null);
   const fileInputRef = useRef(null);
   const composerTextareaRef = useRef(null);
+  const threadActionsRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const conversationLoadTokenRef = useRef(0);
   const conversationCacheRef = useRef({});
@@ -872,6 +1007,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   const callLeaveInFlightRef = useRef(false);
   const ringtoneTimerRef = useRef(null);
   const ringtoneAudioContextRef = useRef(null);
+  const acknowledgedCallIdsRef = useRef(new Set());
 
   const [conversations, setConversations] = useState({ direct: [], group: [] });
   const [conversationListMeta, setConversationListMeta] = useState(null);
@@ -911,6 +1047,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   const [callCredentials, setCallCredentials] = useState(null);
   const [isCallConnecting, setIsCallConnecting] = useState(false);
   const [callError, setCallError] = useState("");
+  const [presenceNow, setPresenceNow] = useState(() => Date.now());
 
   useEffect(() => {
     if (embedded) setEmbeddedConversationId(initialConversationId);
@@ -936,6 +1073,10 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   useEffect(() => {
     allConversationsRef.current = allConversations;
   }, [allConversations]);
+  const activeConversationRef = useRef(activeConversation);
+  useEffect(() => {
+    activeConversationRef.current = activeConversation;
+  }, [activeConversation]);
   const totalConversationCount = conversationListMeta?.total_count ?? allConversations.length;
   const conversationCountLabel = totalConversationCount > allConversations.length
     ? `${allConversations.length} of ${totalConversationCount}`
@@ -1020,6 +1161,56 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     }
   }, [conversationId, embedded, navigate]);
 
+  const scrollMessagesToBottom = useCallback((delay = 80) => {
+    window.setTimeout(() => {
+      const container = messageListRef.current;
+      if (!container) return;
+
+      container.scrollTop = container.scrollHeight;
+    }, delay);
+  }, []);
+
+  const mergeMessagesIntoActiveConversation = useCallback((targetConversationId, incomingMessages = []) => {
+    const nextIncomingMessages = Array.isArray(incomingMessages) ? incomingMessages.filter(Boolean) : [];
+    if (!targetConversationId || nextIncomingMessages.length === 0) return;
+
+    setActiveConversation((previous) => {
+      if (!previous || Number(previous.id) !== Number(targetConversationId)) return previous;
+
+      const existingMessages = previous.messages || [];
+      const existingIds = new Set(existingMessages.map((message) => Number(message.id)));
+      const missingMessages = nextIncomingMessages.filter((message) => !existingIds.has(Number(message.id)));
+      if (missingMessages.length === 0) return previous;
+
+      const nextConversation = {
+        ...previous,
+        messages: [...existingMessages, ...missingMessages].sort((left, right) => (
+          new Date(left.created_at) - new Date(right.created_at)
+        ))
+      };
+
+      conversationCacheRef.current = {
+        ...conversationCacheRef.current,
+        [String(targetConversationId)]: nextConversation
+      };
+      return nextConversation;
+    });
+  }, []);
+
+  const syncActiveConversationMessages = useCallback(async (targetConversationId) => {
+    if (!targetConversationId || Number(activeConversationRef.current?.id) !== Number(targetConversationId)) return;
+
+    try {
+      const { data } = await fetchConversationMessages(targetConversationId, { limit: 50 });
+      const messages = Array.isArray(data?.data) ? data.data : [];
+      mergeMessagesIntoActiveConversation(targetConversationId, messages);
+      setMessagePageMeta((previous) => data?.meta || previous);
+      scrollMessagesToBottom(40);
+    } catch (error) {
+      console.error("Failed to sync active conversation messages", error);
+    }
+  }, [mergeMessagesIntoActiveConversation, scrollMessagesToBottom]);
+
   const refreshConversationSummary = useCallback(async (targetConversationId) => {
     if (!targetConversationId) return;
 
@@ -1044,6 +1235,10 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
           Number(currentCall?.conversation_id) === Number(targetConversationId) ? null : currentCall
         ));
       }
+
+      if (Number(activeConversationRef.current?.id) === Number(targetConversationId)) {
+        syncActiveConversationMessages(targetConversationId);
+      }
     } catch (error) {
       if (error?.response?.status === 404) {
         removeConversationLocally(targetConversationId);
@@ -1052,7 +1247,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
 
       console.error("Failed to refresh conversation summary", error);
     }
-  }, [removeConversationLocally]);
+  }, [removeConversationLocally, syncActiveConversationMessages]);
 
   const loadConversation = useCallback(async (id) => {
     if (!id) return;
@@ -1179,9 +1374,109 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   }, [fetchAllData]);
 
   useEffect(() => {
-    const subscription = subscribeToCableStatus(setCableStatus);
+    const subscription = subscribeToCableStatus((status) => {
+      setCableStatus(status);
+
+      if (status === "connected" && conversationId) {
+        refreshConversationSummary(conversationId);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [conversationId, refreshConversationSummary]);
+
+  useEffect(() => {
+    const resyncActiveConversation = () => {
+      ensureCableConnection();
+      if (conversationId) refreshConversationSummary(conversationId);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") resyncActiveConversation();
+    };
+
+    window.addEventListener("focus", resyncActiveConversation);
+    window.addEventListener("online", resyncActiveConversation);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("focus", resyncActiveConversation);
+      window.removeEventListener("online", resyncActiveConversation);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [conversationId, refreshConversationSummary]);
+
+  useEffect(() => {
+    const publishPresence = () => {
+      updatePresence()
+        .then(({ data }) => {
+          if (!user?.id) return;
+
+          const payload = {
+            user_id: user.id,
+            last_seen_at: data?.last_seen_at,
+            online: data?.online
+          };
+          setPresenceNow(Date.now());
+          setActiveConversation((previous) => applyPresenceToConversation(previous, payload));
+          setConversations((previous) => ({
+            direct: (previous.direct || []).map((conversation) => applyPresenceToConversation(conversation, payload)),
+            group: (previous.group || []).map((conversation) => applyPresenceToConversation(conversation, payload))
+          }));
+        })
+        .catch(() => {});
+    };
+
+    publishPresence();
+    const timer = window.setInterval(publishPresence, 30000);
+    return () => window.clearInterval(timer);
+  }, [user?.id]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setPresenceNow(Date.now()), 30000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const subscription = subscribeToPresence((payload) => {
+      if (!payload?.user_id) return;
+
+      setPresenceNow(Date.now());
+      setUsers((previous) => previous.map((person) => (
+        Number(person.id) === Number(payload.user_id)
+          ? { ...person, online: !!payload.online, last_seen_at: payload.last_seen_at }
+          : person
+      )));
+      setConversations((previous) => ({
+        direct: (previous.direct || []).map((conversation) => applyPresenceToConversation(conversation, payload)),
+        group: (previous.group || []).map((conversation) => applyPresenceToConversation(conversation, payload))
+      }));
+      setActiveConversation((previous) => {
+        const nextConversation = applyPresenceToConversation(previous, payload);
+        if (nextConversation?.id) {
+          conversationCacheRef.current = {
+            ...conversationCacheRef.current,
+            [String(nextConversation.id)]: nextConversation
+          };
+        }
+        return nextConversation;
+      });
+    });
+
     return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!isThreadActionsOpen) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (!threadActionsRef.current || threadActionsRef.current.contains(event.target)) return;
+      setIsThreadActionsOpen(false);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [isThreadActionsOpen]);
 
   useEffect(() => {
     if (!incomingCall) return undefined;
@@ -1256,8 +1551,8 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     const textarea = composerTextareaRef.current;
     if (!textarea) return;
 
-    textarea.style.height = "0px";
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 160)}px`;
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 48)}px`;
   }, [messageBody]);
 
   const applyReactionUpdate = useCallback((messageId, updates = {}) => {
@@ -1323,6 +1618,11 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
 
     if (isLiveCall(callSession)) {
       setActiveCall(callSession);
+      if (!shouldSurfaceIncomingCall(callSession, user?.id)) {
+        setIncomingCall((previous) => (
+          Number(previous?.id) === Number(callSession.id) ? null : previous
+        ));
+      }
       return;
     }
 
@@ -1333,16 +1633,19 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       Number(previous?.id) === Number(callSession.id) ? null : previous
     ));
     setCallCredentials(null);
-  }, [mergeCallIntoConversationState]);
+  }, [mergeCallIntoConversationState, user?.id]);
 
   const handleIncomingCall = useCallback((callSession) => {
-    if (!callSession || Number(callSession.initiator_id) === Number(user?.id)) return;
+    if (!shouldSurfaceIncomingCall(callSession, user?.id)) return;
 
     setIncomingCall(callSession);
     applyCallSessionUpdate(callSession);
-    acknowledgeCallRing(callSession.id).catch((error) => {
-      console.error("Failed to acknowledge incoming call", error);
-    });
+    if (!acknowledgedCallIdsRef.current.has(Number(callSession.id))) {
+      acknowledgedCallIdsRef.current.add(Number(callSession.id));
+      acknowledgeCallRing(callSession.id).catch((error) => {
+        console.error("Failed to acknowledge incoming call", error);
+      });
+    }
   }, [applyCallSessionUpdate, user?.id]);
 
   const handleJoinCall = useCallback(async (callSession = incomingCall || activeCall) => {
@@ -1361,7 +1664,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       if (data.call_session?.conversation_id) openConversation(data.call_session.conversation_id);
     } catch (error) {
       console.error("Failed to join call", error);
-      setCallError(error?.response?.data?.message || "Unable to join the call.");
+      setCallError(error?.response?.data?.error === "livekit_not_configured" ? CALL_MEDIA_CONFIGURATION_MESSAGE : error?.response?.data?.message || "Unable to join the call.");
     } finally {
       setIsCallConnecting(false);
     }
@@ -1393,7 +1696,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       await handleJoinCall(callSession);
     } catch (error) {
       console.error("Failed to start call", error);
-      setCallError(error?.response?.data?.message || "Unable to start the call.");
+      setCallError(error?.response?.data?.error === "livekit_not_configured" ? CALL_MEDIA_CONFIGURATION_MESSAGE : error?.response?.data?.message || "Unable to start the call.");
     } finally {
       setIsCallConnecting(false);
     }
@@ -1477,6 +1780,10 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
         refreshConversationSummary(payload.conversation_id);
       }
 
+      if (payload?.type === "message_reactions_updated" && Number(payload.conversation_id) === Number(conversationId)) {
+        applyReactionUpdate(payload.message_id, payload);
+      }
+
       if (payload?.type === "conversation_hidden" || payload?.type === "conversation_deleted") {
         removeConversationLocally(payload.conversation_id);
       }
@@ -1487,33 +1794,22 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
 
       if (["call_started", "call_participant_joined", "call_participant_left", "call_missed", "call_ended"].includes(payload?.type)) {
         applyCallSessionUpdate(payload.call_session);
+        if (["call_started", "call_participant_joined"].includes(payload?.type)) {
+          handleIncomingCall(payload.call_session);
+        }
       }
     });
 
     return () => userSub.unsubscribe();
-  }, [applyCallSessionUpdate, handleIncomingCall, refreshConversationSummary, removeConversationLocally]);
+  }, [applyCallSessionUpdate, applyReactionUpdate, conversationId, handleIncomingCall, refreshConversationSummary, removeConversationLocally]);
 
   useEffect(() => {
     if (!conversationId) return undefined;
 
     const convSub = subscribeToConversationChat(conversationId, (payload) => {
       if (payload?.type === "message_created" && Number(payload.conversation_id) === Number(conversationId)) {
-        setActiveConversation((previous) => {
-          if (!previous) return previous;
-          if (previous.messages?.some((message) => message.id === payload.message.id)) return previous;
-
-          const nextConversation = {
-            ...previous,
-            messages: [...(previous.messages || []), payload.message]
-          };
-
-          conversationCacheRef.current = {
-            ...conversationCacheRef.current,
-            [String(conversationId)]: nextConversation
-          };
-          return nextConversation;
-        });
-
+        mergeMessagesIntoActiveConversation(conversationId, [payload.message]);
+        scrollMessagesToBottom(40);
         refreshConversationSummary(conversationId);
         markConversationAsRead(conversationId);
       }
@@ -1558,7 +1854,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
         setActiveConversation((previous) => {
           if (!previous) return previous;
 
-          return {
+          const nextConversation = {
             ...previous,
             participants: (previous.participants || []).map((participant) => (
               Number(participant.id) === Number(payload.user_id)
@@ -1566,16 +1862,25 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                 : participant
             ))
           };
+
+          conversationCacheRef.current = {
+            ...conversationCacheRef.current,
+            [String(previous.id)]: nextConversation
+          };
+          return nextConversation;
         });
       }
 
       if (["call_started", "call_participant_joined", "call_participant_left", "call_missed", "call_ended"].includes(payload?.type) && Number(payload.conversation_id) === Number(conversationId)) {
         applyCallSessionUpdate(payload.call_session);
+        if (["call_started", "call_participant_joined"].includes(payload?.type)) {
+          handleIncomingCall(payload.call_session);
+        }
       }
     });
 
     return () => convSub.unsubscribe();
-  }, [applyCallSessionUpdate, applyReactionUpdate, conversationId, markConversationAsRead, refreshConversationSummary, removeConversationLocally, user?.id]);
+  }, [applyCallSessionUpdate, applyReactionUpdate, conversationId, handleIncomingCall, markConversationAsRead, mergeMessagesIntoActiveConversation, refreshConversationSummary, removeConversationLocally, scrollMessagesToBottom, user?.id]);
 
   useEffect(() => () => {
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -1615,6 +1920,15 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     () => getConversationOtherParticipant(activeConversation, user?.id),
     [activeConversation, user?.id]
   );
+
+  const activeConversationOnlineCount = useMemo(
+    () => (activeConversation?.participants || []).filter((participant) => (
+      Number(participant.id) !== Number(user?.id) && isParticipantOnline(participant, presenceNow)
+    )).length,
+    [activeConversation?.participants, presenceNow, user?.id]
+  );
+
+  const activeDirectParticipantOnline = isParticipantOnline(activeConversationOtherParticipant, presenceNow);
 
   const visibleCall = useMemo(() => {
     if (isLiveCall(activeConversation?.active_call)) return activeConversation.active_call;
@@ -1958,7 +2272,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
 
       setActiveConversation((previous) => {
         if (!previous) return previous;
-        if (previous.messages?.some((message) => message.id === newMessage.id)) return previous;
+        if (previous.messages?.some((message) => Number(message.id) === Number(newMessage.id))) return previous;
 
         const nextConversation = {
           ...previous,
@@ -1977,6 +2291,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       setComposerSelection({ start: 0, end: 0 });
       setActiveMentionIndex(0);
       refreshConversationSummary(conversationId);
+      scrollMessagesToBottom(40);
     } catch (error) {
       console.error("Failed to send message", error);
     } finally {
@@ -2076,9 +2391,11 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   const threadStatusLabel = typingNames.length > 0
     ? `${typingNames.join(", ")} ${typingNames.length === 1 ? "is" : "are"} typing...`
     : activeConversation?.conversation_type === "group"
-      ? `${activeConversation?.participants?.length || 0} members • updated ${activeConversation?.updated_at ? formatDistanceToNow(new Date(activeConversation.updated_at), { addSuffix: true }) : "recently"}`
-      : activeConversationOtherParticipant?.job_title || "Private conversation";
+      ? `${activeConversation?.participants?.length || 0} members • ${activeConversationOnlineCount} online`
+      : activeConversationOtherParticipant ? formatParticipantStatus(activeConversationOtherParticipant, user?.id) : "Private conversation";
 
+  const isInitialChatLoading = isConversationListLoading && allConversations.length === 0;
+  const showThreadLoadingState = (conversationId && isConversationLoading && !activeConversation) || (!conversationId && isInitialChatLoading);
   const sidebarEmpty = !isConversationListLoading && filteredConversations.direct.length === 0 && filteredConversations.group.length === 0;
 
   return (
@@ -2091,7 +2408,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
             <div className="flex items-center gap-2">
               <h1 className="text-base font-semibold tracking-tight text-slate-950 dark:text-white">Messages</h1>
               {totalUnreadCount > 0 && (
-                <span className="rounded-full bg-slate-950 px-2 py-0.5 text-[10px] font-bold text-white dark:bg-white dark:text-slate-950">
+                <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-bold text-white dark:bg-sky-200 dark:text-sky-950">
                   {totalUnreadCount}
                 </span>
               )}
@@ -2112,7 +2429,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
               <button
                 type="button"
                 onClick={() => openNewChatModal("direct")}
-                className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-950 text-white transition hover:brightness-110 dark:bg-white dark:text-slate-950"
+                className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white transition hover:bg-blue-700 dark:bg-sky-200 dark:text-sky-950"
                 title="Start a new conversation"
               >
                 <FiEdit className="h-4 w-4" />
@@ -2176,7 +2493,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                 <button
                   type="button"
                   onClick={() => openNewChatModal("direct")}
-                  className="mt-5 inline-flex rounded-2xl bg-slate-950 px-4 py-2.5 text-sm font-medium text-white transition hover:brightness-110 dark:bg-white dark:text-slate-950"
+                  className="mt-5 inline-flex rounded-2xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 dark:bg-sky-200 dark:text-sky-950"
                 >
                   Start new chat
                 </button>
@@ -2200,6 +2517,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                           currentUserId={user?.id}
                           isActive={Number(conversationId) === Number(conversation.id)}
                           searchQuery={deferredSideSearchQuery}
+                          presenceNow={presenceNow}
                           previewText={resolveChatMessageText(conversation.last_message || "", mentionLookups)}
                           onSelect={embedded ? openConversation : undefined}
                           onHide={handleHideConversation}
@@ -2233,6 +2551,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                           currentUserId={user?.id}
                           isActive={Number(conversationId) === Number(conversation.id)}
                           searchQuery={deferredSideSearchQuery}
+                          presenceNow={presenceNow}
                           previewText={resolveChatMessageText(conversation.last_message || "", mentionLookups)}
                           onSelect={embedded ? openConversation : undefined}
                           onHide={handleHideConversation}
@@ -2261,7 +2580,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
         </aside>
 
         <main className={`relative z-10 flex min-h-0 min-w-0 flex-1 flex-col ${!conversationId ? "hidden md:flex" : "flex"}`}>
-          {conversationId && isConversationLoading && !activeConversation ? (
+          {showThreadLoadingState ? (
             <div className="relative flex flex-1 items-center justify-center p-6 md:p-10">
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(125,211,252,0.22),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.6),rgba(248,250,252,0.72))] dark:bg-[linear-gradient(180deg,rgba(9,9,11,0.72),rgba(17,24,39,0.82))]" />
               <div className="relative z-10 w-full max-w-xl rounded-[32px] border border-white/80 bg-white/78 p-8 shadow-[0_30px_70px_-40px_rgba(15,23,42,0.8)] backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-950/78">
@@ -2285,7 +2604,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
             <div className="relative flex flex-1 items-center justify-center p-6 md:p-10">
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(125,211,252,0.22),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.6),rgba(248,250,252,0.72))] dark:bg-[linear-gradient(180deg,rgba(9,9,11,0.72),rgba(17,24,39,0.82))]" />
               <div className="relative z-10 max-w-xl rounded-[32px] border border-white/80 bg-white/78 p-8 text-center shadow-[0_30px_70px_-40px_rgba(15,23,42,0.8)] backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-950/78">
-                <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-[28px] bg-[linear-gradient(135deg,#0f172a,#1e293b)] text-white shadow-[0_24px_60px_-32px_rgba(15,23,42,1)]">
+                <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-[28px] bg-[linear-gradient(135deg,#dbeafe,#e0f2fe)] text-blue-700 shadow-[0_24px_60px_-36px_rgba(37,99,235,0.45)] dark:bg-[linear-gradient(135deg,#082f49,#0f172a)] dark:text-sky-100">
                   <FiMessageSquare className="h-9 w-9" />
                 </div>
                 <p className="mt-6 text-[11px] font-medium uppercase tracking-[0.34em] text-sky-500">Workspace Chat</p>
@@ -2304,7 +2623,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                   <button
                     type="button"
                     onClick={() => openNewChatModal("direct")}
-                    className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110 dark:bg-white dark:text-slate-950"
+                    className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 dark:bg-sky-200 dark:text-sky-950"
                   >
                     Start new chat
                   </button>
@@ -2341,7 +2660,13 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                     )}
 
                     {activeConversation.conversation_type === "direct" ? (
-                      <Avatar name={activeConversationName} src={activeConversationImage} size="lg" />
+                      <div className="relative shrink-0">
+                        <Avatar name={activeConversationName} src={activeConversationImage} size="lg" />
+                        <span
+                          className={`absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white dark:border-zinc-950 ${activeDirectParticipantOnline ? "bg-emerald-500" : "bg-slate-300 dark:bg-zinc-600"}`}
+                          title={activeDirectParticipantOnline ? "Online" : "Offline"}
+                        />
+                      </div>
                     ) : (
                       <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-sky-100 to-cyan-50 text-sky-700 ring-2 ring-white/90 dark:from-sky-950/60 dark:to-cyan-950/40 dark:text-sky-200">
                         <FiUsers className="h-6 w-6" />
@@ -2353,7 +2678,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                         <h2 className="truncate text-xl font-semibold tracking-tight text-slate-950 dark:text-white">
                           {activeConversationName}
                         </h2>
-                        <span className="rounded-full bg-slate-950 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-white dark:bg-white dark:text-slate-950">
+                        <span className="rounded-full bg-blue-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-blue-700 dark:bg-sky-950/70 dark:text-sky-200">
                           {activeConversation.conversation_type === "group" ? "Group" : "Direct"}
                         </span>
                       </div>
@@ -2392,7 +2717,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                       }}
                       className={`flex h-10 w-10 items-center justify-center rounded-2xl transition ${
                         isThreadSearchOpen
-                          ? "bg-slate-950 text-white dark:bg-white dark:text-slate-950"
+                          ? "bg-blue-600 text-white dark:bg-sky-200 dark:text-sky-950"
                           : "border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-300 dark:hover:bg-zinc-800"
                       }`}
                       title="Search in conversation"
@@ -2405,7 +2730,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                       onClick={() => setShowInfo((previous) => !previous)}
                       className={`flex h-10 w-10 items-center justify-center rounded-2xl transition ${
                         showInfo
-                          ? "bg-slate-950 text-white dark:bg-white dark:text-slate-950"
+                          ? "bg-blue-600 text-white dark:bg-sky-200 dark:text-sky-950"
                           : "border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-300 dark:hover:bg-zinc-800"
                       }`}
                       title="Conversation details"
@@ -2413,7 +2738,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                       <FiInfo className="h-4.5 w-4.5" />
                     </button>
 
-                    <div className="relative">
+                    <div ref={threadActionsRef} className="relative">
                       <button
                         type="button"
                         onClick={() => setIsThreadActionsOpen((previous) => !previous)}
@@ -2512,7 +2837,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                               type="button"
                               onClick={() => handleJoinCall(visibleCall)}
                               disabled={isCallConnecting}
-                              className="rounded-xl bg-slate-950 px-4 py-2 text-xs font-semibold text-white transition hover:brightness-110 disabled:opacity-50 dark:bg-white dark:text-slate-950"
+                              className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50 dark:bg-sky-200 dark:text-sky-950"
                             >
                               {isCallConnecting ? "Joining..." : "Join"}
                             </button>
@@ -2620,6 +2945,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                                     showAvatar={showAvatar}
                                     onToggleReaction={handleToggleReaction}
                                     participants={conversationParticipants}
+                                    conversationType={activeConversation.conversation_type}
                                     searchQuery={deferredThreadSearchQuery}
                                     mentionLookups={mentionLookups}
                                   />
@@ -2674,7 +3000,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                                   </div>
                                 ) : isVideo && previewUrl ? (
                                   <div className="overflow-hidden rounded-2xl">
-                                    <video src={previewUrl} className="h-24 w-full bg-slate-950 object-cover" preload="metadata" muted />
+                                    <video src={previewUrl} className="h-24 w-full bg-slate-900 object-cover" preload="metadata" muted />
                                   </div>
                                 ) : (
                                   <div className="flex h-24 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 dark:bg-zinc-800 dark:text-slate-300">
@@ -2692,7 +3018,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                                 <button
                                   type="button"
                                   onClick={() => setAttachments((previous) => previous.filter((_, currentIndex) => currentIndex !== index))}
-                                  className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-slate-950/80 text-white transition hover:bg-slate-950"
+                                  className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-blue-600/90 text-white transition hover:bg-blue-700"
                                 >
                                   <FiX className="h-4 w-4" />
                                 </button>
@@ -2787,7 +3113,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                               onSelect={syncComposerSelection}
                               rows={1}
                               placeholder="Write a message..."
-                              className="max-h-32 min-h-[24px] w-full resize-none border-0 bg-transparent p-0 text-sm leading-5 text-slate-800 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
+                              className="max-h-12 min-h-[24px] w-full resize-none border-0 bg-transparent p-0 text-sm leading-5 text-slate-800 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
                             />
 
                             <MentionSuggestions
@@ -2796,26 +3122,21 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                               onSelect={handleSelectMention}
                             />
 
-                            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-                              <div className="flex flex-wrap items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+                            <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
+                              <div className="flex flex-wrap items-center gap-2 text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
                                 <span className="inline-flex items-center gap-1">
                                   <FiClock className="h-3.5 w-3.5" />
                                   Enter to send
                                 </span>
-                                <span>Shift + Enter for new line</span>
-                                <span>@ mention teammates</span>
-                                <span># reference tasks</span>
+                                <span className="hidden sm:inline">Shift + Enter for new line</span>
+                                <span className="hidden md:inline">@ mentions</span>
+                                <span className="hidden md:inline"># tasks</span>
                               </div>
 
                               <div className="flex flex-wrap items-center gap-2 text-[11px] font-medium text-slate-500 dark:text-slate-400">
                                 {attachments.length > 0 && (
                                   <span className="rounded-full bg-slate-100 px-2.5 py-1 dark:bg-zinc-800">
                                     {attachments.length} attachment{attachments.length === 1 ? "" : "s"}
-                                  </span>
-                                )}
-                                {messageBody.trim() && (
-                                  <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-200">
-                                    Draft ready
                                   </span>
                                 )}
                               </div>
@@ -2825,7 +3146,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                           <button
                             type="submit"
                             disabled={isSending || (!messageBody.trim() && attachments.length === 0)}
-                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-[0_24px_60px_-34px_rgba(15,23,42,1)] transition hover:-translate-y-0.5 hover:brightness-110 disabled:translate-y-0 disabled:opacity-40 disabled:shadow-none dark:bg-white dark:text-slate-950"
+                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-[0_20px_48px_-30px_rgba(37,99,235,0.8)] transition hover:-translate-y-0.5 hover:bg-blue-700 disabled:translate-y-0 disabled:opacity-40 disabled:shadow-none dark:bg-blue-500 dark:text-white"
                             title="Send message"
                           >
                             <FiSend className={`h-5 w-5 ${isSending ? "animate-pulse" : ""}`} />
@@ -3097,6 +3418,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
         callSession={activeCall}
         credentials={callCredentials}
         onLeave={handleLeaveCall}
+        onEnd={handleEndActiveCall}
         onRetry={handleRetryCallConnection}
         onConnectionError={handleCallConnectionError}
         onConnected={handleCallConnected}
@@ -3151,7 +3473,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                       onClick={() => resetNewChatModal(mode.id)}
                       className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
                         newChatMode === mode.id
-                          ? "bg-slate-950 text-white dark:bg-white dark:text-slate-950"
+                          ? "bg-blue-600 text-white dark:bg-sky-200 dark:text-sky-950"
                           : "bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-zinc-900 dark:text-slate-300 dark:hover:bg-zinc-800"
                       }`}
                     >
@@ -3182,7 +3504,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                             key={selectedUser.id}
                             type="button"
                             onClick={() => handleSelectUser(selectedUser.id)}
-                            className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-3 py-1.5 text-xs font-semibold text-white dark:bg-white dark:text-slate-950"
+                            className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white dark:bg-sky-200 dark:text-sky-950"
                           >
                             <span>{getFullUserName(selectedUser)}</span>
                             <FiX className="h-3.5 w-3.5" />
@@ -3204,7 +3526,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                             onClick={() => handleSelectUser(candidate.id)}
                             className={`flex items-center gap-4 rounded-[24px] border px-4 py-3 text-left transition ${
                               selected
-                                ? "border-slate-950 bg-slate-950 text-white shadow-[0_18px_45px_-30px_rgba(15,23,42,1)] dark:border-white dark:bg-white dark:text-slate-950"
+                                ? "border-blue-200 bg-blue-50 text-blue-950 shadow-[0_18px_45px_-34px_rgba(37,99,235,0.45)] dark:border-sky-800 dark:bg-sky-950/45 dark:text-sky-100"
                                 : "border-white/70 bg-white/78 hover:border-slate-200 hover:bg-white dark:border-zinc-800 dark:bg-zinc-900/75 dark:hover:border-zinc-700 dark:hover:bg-zinc-900"
                             }`}
                           >
@@ -3214,12 +3536,12 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                               <p className={`truncate text-sm font-semibold ${selected ? "text-current" : "text-slate-900 dark:text-white"}`}>
                                 {getFullUserName(candidate)}
                               </p>
-                              <p className={`mt-1 truncate text-xs ${selected ? "text-white/75 dark:text-slate-600" : "text-slate-500 dark:text-slate-400"}`}>
+                              <p className={`mt-1 truncate text-xs ${selected ? "text-blue-600 dark:text-sky-200/80" : "text-slate-500 dark:text-slate-400"}`}>
                                 {candidate.job_title || candidate.email}
                               </p>
                             </div>
 
-                            <div className={`flex h-8 w-8 items-center justify-center rounded-full border ${selected ? "border-current bg-white/10 dark:bg-slate-100" : "border-slate-200 bg-white dark:border-zinc-700 dark:bg-zinc-900"}`}>
+                            <div className={`flex h-8 w-8 items-center justify-center rounded-full border ${selected ? "border-blue-200 bg-white text-blue-600 dark:border-sky-700 dark:bg-sky-900/60 dark:text-sky-100" : "border-slate-200 bg-white dark:border-zinc-700 dark:bg-zinc-900"}`}>
                               {selected ? <FiCheck className="h-4 w-4" /> : <FiHash className="h-4 w-4 text-slate-300 dark:text-slate-600" />}
                             </div>
                           </button>
@@ -3247,7 +3569,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                       type="button"
                       onClick={handleContinueNewChat}
                       disabled={newChatMode === "group" ? selectedUserIds.length < 2 : !selectedUserIds[0]}
-                      className="rounded-2xl bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-40 dark:bg-white dark:text-slate-950"
+                      className="rounded-2xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-40 dark:bg-sky-200 dark:text-sky-950"
                     >
                       {newChatMode === "group" ? "Continue" : "Start chat"}
                     </button>
@@ -3262,7 +3584,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                         {selectedUsers.map((selectedUser) => (
                           <span
                             key={selectedUser.id}
-                            className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-3 py-1.5 text-xs font-semibold text-white dark:bg-white dark:text-slate-950"
+                            className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white dark:bg-sky-200 dark:text-sky-950"
                           >
                             {getFullUserName(selectedUser)}
                           </span>
@@ -3297,7 +3619,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                       type="button"
                       onClick={handleContinueNewChat}
                       disabled={!newGroupTitle.trim()}
-                      className="rounded-2xl bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-40 dark:bg-white dark:text-slate-950"
+                      className="rounded-2xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-40 dark:bg-sky-200 dark:text-sky-950"
                     >
                       Create group
                     </button>

@@ -1,12 +1,12 @@
 class MessageReaction < ApplicationRecord
   include WorkspaceScoped
 
-  EMOJIS = %w[👍 ❤️ 🎉].freeze
+  DEFAULT_EMOJIS = %w[👍 ❤️ 😂 🎉 🙌].freeze
 
   belongs_to :message
   belongs_to :user
 
-  validates :emoji, presence: true, inclusion: { in: EMOJIS }
+  validates :emoji, presence: true, length: { maximum: 24 }
   validates :emoji, uniqueness: { scope: [:message_id, :user_id] }
 
   after_create_commit :notify_recipient

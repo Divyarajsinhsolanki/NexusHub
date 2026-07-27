@@ -1,5 +1,6 @@
 class Api::PortfolioController < ApplicationController
   include Rails.application.routes.url_helpers
+  include PortfolioSeedImageUrls
 
   before_action :require_portfolio_enabled!
 
@@ -65,8 +66,6 @@ class Api::PortfolioController < ApplicationController
   end
 
   def attachment_url(attachment, disposition: "inline")
-    return unless attachment.attached?
-
-    rails_blob_url(attachment, only_path: true, disposition: disposition)
+    portfolio_attachment_url(attachment, disposition: disposition)
   end
 end

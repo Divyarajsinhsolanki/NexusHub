@@ -24,6 +24,8 @@ class PortfolioAndDemoTest < ActionDispatch::IntegrationTest
     assert_equal "Nexus Hub", payload.dig("projects", 0, "title")
     assert payload.dig("projects", 0, "cover_image_url").present?
     assert payload.dig("projects", 0, "features").all? { |feature| feature["screenshot_url"].present? }
+    assert_match %r{\A/portfolio-seed-images/}, payload.dig("projects", 0, "cover_image_url")
+    assert payload.dig("projects", 0, "features").all? { |feature| feature["screenshot_url"].start_with?("/portfolio-seed-images/") }
   end
 
   test "demo session exposes manifest and rejects mutations" do

@@ -10,6 +10,7 @@ Rails.application.routes.draw do
   get "up" => "rails/health#show", as: :rails_health_check
   get "sitemap.xml" => "pages#sitemap", defaults: { format: :xml }
   get "robots.txt" => "pages#robots", defaults: { format: :text }
+  get "portfolio-seed-images/:key" => "portfolio_seed_images#show", as: :portfolio_seed_image
 
   root "pages#index"
 

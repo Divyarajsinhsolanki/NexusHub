@@ -30,9 +30,6 @@ class Api::MessageReactionsController < Api::BaseController
   end
 
   def serialize_reactions(message)
-    MessageReaction::EMOJIS.each_with_object({}) do |emoji, acc|
-      count = message.reaction_counts[emoji] || 0
-      acc[emoji] = count if count.positive?
-    end
+    message.reaction_counts.select { |_emoji, count| count.positive? }
   end
 end

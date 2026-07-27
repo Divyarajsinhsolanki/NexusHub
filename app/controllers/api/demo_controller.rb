@@ -1,4 +1,6 @@
 class Api::DemoController < Api::BaseController
+  include PortfolioSeedImageUrls
+
   before_action :require_portfolio_enabled!
 
   GROUPS = [
@@ -83,8 +85,6 @@ class Api::DemoController < Api::BaseController
   private
 
   def attachment_path(attachment)
-    return unless attachment&.attached?
-
-    Rails.application.routes.url_helpers.rails_blob_path(attachment, only_path: true)
+    portfolio_attachment_url(attachment)
   end
 end

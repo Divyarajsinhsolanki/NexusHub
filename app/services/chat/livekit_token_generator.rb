@@ -6,6 +6,24 @@ module Chat
 
     TOKEN_TTL = 10.minutes
 
+    class << self
+      def configured?
+        livekit_url.present? && livekit_api_key.present? && livekit_api_secret.present?
+      end
+
+      def livekit_url
+        ENV["LIVEKIT_URL"].presence || Rails.application.credentials.dig(:livekit, :url)
+      end
+
+      def livekit_api_key
+        ENV["LIVEKIT_API_KEY"].presence || Rails.application.credentials.dig(:livekit, :api_key)
+      end
+
+      def livekit_api_secret
+        ENV["LIVEKIT_API_SECRET"].presence || Rails.application.credentials.dig(:livekit, :api_secret)
+      end
+    end
+
     def initialize(call_session:, user:)
       @call_session = call_session
       @user = user
@@ -58,21 +76,21 @@ module Chat
     end
 
     def ensure_configured!
-      return if livekit_url.present? && livekit_api_key.present? && livekit_api_secret.present?
+      return if self.class.configured?
 
       raise ConfigurationError, "LiveKit is not configured"
     end
 
     def livekit_url
-      ENV["LIVEKIT_URL"].presence || Rails.application.credentials.dig(:livekit, :url)
+      self.class.livekit_url
     end
 
     def livekit_api_key
-      ENV["LIVEKIT_API_KEY"].presence || Rails.application.credentials.dig(:livekit, :api_key)
+      self.class.livekit_api_key
     end
 
     def livekit_api_secret
-      ENV["LIVEKIT_API_SECRET"].presence || Rails.application.credentials.dig(:livekit, :api_secret)
+      self.class.livekit_api_secret
     end
   end
 end

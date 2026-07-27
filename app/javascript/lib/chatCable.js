@@ -1,12 +1,34 @@
 const subscriptions = new Map();
 const statusListeners = new Set();
+const outboundQueue = [];
+const HEARTBEAT_TIMEOUT_MS = 45000;
+const HEARTBEAT_CHECK_INTERVAL_MS = 15000;
+const MAX_OUTBOUND_QUEUE_SIZE = 50;
 let socket;
 let reconnectTimer;
+let heartbeatTimer;
 let reconnectAttempts = 0;
 let intentionallyClosed = false;
+let lastSocketMessageAt = 0;
+let currentStatus = "closed";
 
 const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
-const socketUrl = `${wsProtocol}://${window.location.host}/cable`;
+const configuredCableUrl = import.meta.env.VITE_ACTION_CABLE_URL || import.meta.env.VITE_CABLE_URL;
+const normalizeCableUrl = (url) => {
+  if (!url) return "";
+
+  let resolvedUrl;
+  try {
+    resolvedUrl = new URL(url, window.location.origin);
+  } catch (_error) {
+    return "";
+  }
+
+  if (resolvedUrl.protocol === "http:") resolvedUrl.protocol = "ws:";
+  if (resolvedUrl.protocol === "https:") resolvedUrl.protocol = "wss:";
+  return resolvedUrl.toString();
+};
+const socketUrl = normalizeCableUrl(configuredCableUrl) || `${wsProtocol}://${window.location.host}/cable`;
 const cableProtocols = ["actioncable-v1-json", "actioncable-unsupported"];
 
 const sendWhenOpen = (payload) => {
@@ -17,7 +39,23 @@ const sendWhenOpen = (payload) => {
 };
 
 const emitStatus = (status) => {
+  currentStatus = status;
   statusListeners.forEach((listener) => listener(status));
+};
+
+const flushOutboundQueue = () => {
+  while (outboundQueue.length > 0 && socket?.readyState === WebSocket.OPEN) {
+    sendWhenOpen(outboundQueue.shift());
+  }
+};
+
+const sendOrQueue = (payload) => {
+  if (sendWhenOpen(payload)) return true;
+
+  outboundQueue.push(payload);
+  if (outboundQueue.length > MAX_OUTBOUND_QUEUE_SIZE) outboundQueue.shift();
+  connect();
+  return false;
 };
 
 const resubscribeAll = () => {
@@ -31,6 +69,24 @@ const clearReconnectTimer = () => {
 
   clearTimeout(reconnectTimer);
   reconnectTimer = null;
+};
+
+const stopHeartbeatMonitor = () => {
+  if (!heartbeatTimer) return;
+
+  clearInterval(heartbeatTimer);
+  heartbeatTimer = null;
+};
+
+const startHeartbeatMonitor = () => {
+  stopHeartbeatMonitor();
+  heartbeatTimer = setInterval(() => {
+    if (!socket || socket.readyState !== WebSocket.OPEN) return;
+    if (Date.now() - lastSocketMessageAt < HEARTBEAT_TIMEOUT_MS) return;
+
+    emitStatus("stale");
+    socket.close();
+  }, HEARTBEAT_CHECK_INTERVAL_MS);
 };
 
 const scheduleReconnect = () => {
@@ -53,13 +109,23 @@ const connect = () => {
   socket.onopen = () => {
     clearReconnectTimer();
     reconnectAttempts = 0;
+    lastSocketMessageAt = Date.now();
 
     resubscribeAll();
+    flushOutboundQueue();
+    startHeartbeatMonitor();
     emitStatus("connected");
   };
 
   socket.onmessage = (event) => {
-    const data = JSON.parse(event.data);
+    lastSocketMessageAt = Date.now();
+
+    let data;
+    try {
+      data = JSON.parse(event.data);
+    } catch (_error) {
+      return;
+    }
 
     // Ignore framework-level ActionCable messages.
     if (!data.identifier || !data.message) return;
@@ -70,6 +136,7 @@ const connect = () => {
 
   socket.onclose = () => {
     socket = null;
+    stopHeartbeatMonitor();
     emitStatus(intentionallyClosed ? "closed" : "disconnected");
     scheduleReconnect();
   };
@@ -104,6 +171,7 @@ const subscribe = (params, received) => {
         if (subscriptions.size === 0 && socket) {
           intentionallyClosed = true;
           clearReconnectTimer();
+          stopHeartbeatMonitor();
           socket.close();
           socket = null;
         }
@@ -124,17 +192,31 @@ export const subscribeToConversationChat = (conversationId, received) => {
 
 export const subscribeToCableStatus = (received) => {
   statusListeners.add(received);
+  received(currentStatus);
 
   return {
     unsubscribe: () => statusListeners.delete(received)
   };
 };
 
+export const ensureCableConnection = () => {
+  intentionallyClosed = false;
+
+  if (socket?.readyState === WebSocket.OPEN) {
+    resubscribeAll();
+    flushOutboundQueue();
+    return true;
+  }
+
+  connect();
+  return false;
+};
+
 export const sendToConversation = (conversationId, action, data = {}) => {
   const identifier = JSON.stringify({ channel: "ChatChannel", conversation_id: conversationId });
-  sendWhenOpen({
+  sendOrQueue({
     command: "message",
     identifier,
-    data: JSON.stringify({ action, ...data })
+    data: JSON.stringify({ action, conversation_id: conversationId, ...data })
   });
 };
