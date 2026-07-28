@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Nexus Hub",
-    "slug": "nexus-hub-mobile",
+    "slug": "nexushub",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -75,8 +75,14 @@
     "runtimeVersion": {
       "policy": "appVersion"
     },
+    "extra": {
+      "eas": {
+        "projectId": "d319e159-c19b-48af-8638-c51bc28e7cca"
+      }
+    },
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "owner": "divyarajsinhs"
   }
 }

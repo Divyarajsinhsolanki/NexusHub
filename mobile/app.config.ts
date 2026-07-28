@@ -4,7 +4,8 @@ import appJson from './app.json';
 
 export default ({ config }: ConfigContext): ExpoConfig => {
   const base = appJson.expo as ExpoConfig;
-  const easProjectId = process.env.EAS_PROJECT_ID;
+  const configuredProjectId = (base.extra?.eas as { projectId?: string } | undefined)?.projectId;
+  const easProjectId = process.env.EAS_PROJECT_ID || configuredProjectId;
   const webUrl = process.env.EXPO_PUBLIC_WEB_URL;
   const webHost = webUrl ? safeHost(webUrl) : undefined;
 
