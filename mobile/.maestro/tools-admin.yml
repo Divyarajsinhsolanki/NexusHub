@@ -1,0 +1,25 @@
+appId: com.nexushub.mobile
+name: Knowledge PDF and administration
+---
+- runFlow: login.yml
+- tapOn: More
+- tapOn: Knowledge
+- assertVisible: Knowledge
+- back
+- tapOn: PDF Master
+- assertVisible: PDF Master
+- tapOn:
+    text: Administration
+    optional: true
+- assertVisible:
+    text: Administration
+    optional: true
+- back
+- tapOn: Profile
+- assertVisible: Signed-in devices
+- tapOn:
+    text: Secure impersonation
+    optional: true
+- assertVisible:
+    text: View as user
+    optional: true

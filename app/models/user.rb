@@ -84,6 +84,8 @@ class User < ApplicationRecord
   has_many :call_participants, dependent: :destroy
   has_many :call_sessions, through: :call_participants
   has_many :calendar_events, dependent: :destroy
+  has_many :mobile_sessions, dependent: :destroy
+  has_many :mobile_devices, dependent: :destroy
   belongs_to :department, optional: true
 
   attr_encrypted :keka_api_key,

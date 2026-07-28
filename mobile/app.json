@@ -1,0 +1,82 @@
+{
+  "expo": {
+    "name": "Nexus Hub",
+    "slug": "nexus-hub-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "nexushub",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.nexushub.mobile",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Nexus Hub uses the camera to attach photos to work items and conversations.",
+        "NSMicrophoneUsageDescription": "Nexus Hub uses the microphone for audio and video calls.",
+        "NSPhotoLibraryUsageDescription": "Nexus Hub uses your photo library when you choose an image to upload."
+      }
+    },
+    "android": {
+      "package": "com.nexushub.mobile",
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "POST_NOTIFICATIONS"
+      ],
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff"
+        }
+      ],
+      "expo-secure-store",
+      "expo-image",
+      "expo-sharing",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/android-icon-monochrome.png",
+          "color": "#2563eb",
+          "defaultChannel": "general"
+        }
+      ],
+      [
+        "expo-sqlite",
+        {
+          "useSQLCipher": true
+        }
+      ],
+      "@react-native-community/datetimepicker",
+      "@sentry/react-native",
+      "@react-native-google-signin/google-signin",
+      "@livekit/react-native-expo-plugin",
+      "@config-plugins/react-native-webrtc",
+      "@config-plugins/react-native-blob-util",
+      "@config-plugins/react-native-pdf",
+      "expo-web-browser"
+    ],
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

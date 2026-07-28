@@ -75,6 +75,20 @@ bin/dev
 `Procfile.dev`. It also starts a local LiveKit media server when Docker is
 available. Open `http://localhost:3000`.
 
+### Mobile app
+
+The Expo Android/iOS client lives in `mobile/` and uses the versioned `/api/v1`
+API with session-bound Bearer access tokens and rotating refresh tokens. It includes native daily work, projects, collaboration, calls, knowledge, PDF, settings, and role-gated administration. Start it separately with a development build:
+
+```bash
+cd mobile
+cp .env.example .env.local
+npm install
+npx expo start --dev-client
+```
+
+See `mobile/README.md` for emulator API URLs, testing, Maestro, and internal EAS builds.
+
 Use `PORT=3001 bin/dev` to run on another port. Set `SEED_DEMO=false bin/setup`
 when a local demo workspace is not wanted. Use `START_LIVEKIT=false bin/dev` if
 you do not need voice/video calls during that run.

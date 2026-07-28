@@ -1,0 +1,23 @@
+appId: com.nexushub.mobile
+name: Posts chat and calls
+---
+- runFlow: login.yml
+- tapOn: Inbox
+- tapOn: Updates
+- tapOn: Create post
+- tapOn: Post
+- tapOn: Message
+- inputText: Maestro team update
+- tapOn: Create Post
+- assertVisible: Maestro team update
+- tapOn: Chat
+- tapOn:
+    index: 0
+- assertVisible: Message
+- tapOn: Message
+- inputText: Maestro chat message
+- tapOn: Send message
+- assertVisible: Maestro chat message
+- tapOn:
+    text: Start audio call
+    optional: true

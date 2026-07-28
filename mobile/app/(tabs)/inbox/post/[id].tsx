@@ -1,0 +1,31 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { ArrowLeft, Send, Trash2 } from 'lucide-react-native';
+import { useState } from 'react';
+import { Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+
+import { apiErrorMessage } from '@/src/api/client';
+import { endpoints } from '@/src/api/endpoints';
+import { Avatar } from '@/src/components/Avatar';
+import { PageHeader } from '@/src/components/PageHeader';
+import { Screen } from '@/src/components/Screen';
+import { EmptyState, ErrorState, LoadingState } from '@/src/components/StateView';
+import { useAppTheme } from '@/src/theme';
+
+export default function PostCommentsScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const postId = Number(id);
+  const router = useRouter();
+  const theme = useAppTheme();
+  const queryClient = useQueryClient();
+  const [body, setBody] = useState('');
+  const comments = useQuery({ queryKey: ['post-comments', postId], queryFn: () => endpoints.postComments(postId), enabled: Number.isFinite(postId) });
+  const send = useMutation({ mutationFn: () => endpoints.createComment(postId, body.trim()), onSuccess: async () => { setBody(''); await queryClient.invalidateQueries({ queryKey: ['post-comments', postId] }); await queryClient.invalidateQueries({ queryKey: ['posts'] }); }, onError: (error) => Alert.alert('Comment not sent', apiErrorMessage(error)) });
+  const remove = useMutation({ mutationFn: (commentId: number) => endpoints.deleteComment(postId, commentId), onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['post-comments', postId] }); await queryClient.invalidateQueries({ queryKey: ['posts'] }); } });
+  return <Screen header={<PageHeader leading={<Pressable accessibilityLabel="Back" onPress={() => router.back()} style={styles.iconButton}><ArrowLeft color={theme.text} size={22} /></Pressable>} title="Comments" subtitle="Team discussion" />}>
+    {comments.isLoading ? <LoadingState /> : null}{comments.isError ? <ErrorState message={apiErrorMessage(comments.error)} onRetry={() => comments.refetch()} /> : null}
+    {comments.data ? <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={70} style={styles.flex}><FlatList contentContainerStyle={styles.list} data={comments.data.data} keyExtractor={(item) => String(item.id)} ListEmptyComponent={<EmptyState title="No comments yet" message="Start a focused discussion on this update." />} renderItem={({ item }) => <View style={[styles.comment, { borderBottomColor: theme.border }]}><Avatar color={theme.primary} name={`${item.user.first_name} ${item.user.last_name}`} size={38} uri={item.user.profile_picture} /><View style={styles.copy}><Text style={[styles.name, { color: theme.text }]}>{item.user.first_name} {item.user.last_name}</Text><Text style={[styles.body, { color: theme.text }]}>{item.body}</Text></View>{item.can_delete ? <Pressable accessibilityLabel="Delete comment" onPress={() => remove.mutate(item.id)} style={styles.iconButton}><Trash2 color={theme.danger} size={17} /></Pressable> : null}</View>} /><View style={[styles.composer, { backgroundColor: theme.surface, borderTopColor: theme.border }]}><TextInput accessibilityLabel="Comment" multiline onChangeText={setBody} placeholder="Write a comment" placeholderTextColor={theme.textMuted} style={[styles.input, { backgroundColor: theme.surfaceMuted, color: theme.text }]} value={body} /><Pressable accessibilityLabel="Send comment" disabled={!body.trim() || send.isPending} onPress={() => send.mutate()} style={[styles.send, { backgroundColor: theme.primary, opacity: body.trim() ? 1 : 0.45 }]}><Send color="#ffffff" size={19} /></Pressable></View></KeyboardAvoidingView> : null}
+  </Screen>;
+}
+
+const styles = StyleSheet.create({ flex: { flex: 1 }, iconButton: { alignItems: 'center', height: 44, justifyContent: 'center', width: 44 }, list: { flexGrow: 1, paddingHorizontal: 20, paddingBottom: 20 }, comment: { alignItems: 'flex-start', borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', gap: 11, paddingVertical: 14 }, copy: { flex: 1 }, name: { fontSize: 13, fontWeight: '800' }, body: { fontSize: 14, lineHeight: 20, marginTop: 5 }, composer: { alignItems: 'flex-end', borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row', gap: 8, padding: 10 }, input: { borderRadius: 8, flex: 1, fontSize: 15, maxHeight: 100, minHeight: 44, paddingHorizontal: 12, paddingVertical: 10 }, send: { alignItems: 'center', borderRadius: 8, height: 44, justifyContent: 'center', width: 44 } });

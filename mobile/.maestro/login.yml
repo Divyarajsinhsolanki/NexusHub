@@ -1,0 +1,10 @@
+appId: com.nexushub.mobile
+---
+- launchApp:
+    clearState: true
+- tapOn: Email
+- inputText: ${MOBILE_TEST_EMAIL}
+- tapOn: Password
+- inputText: ${MOBILE_TEST_PASSWORD}
+- tapOn: Sign in
+- assertVisible: Nexus Hub

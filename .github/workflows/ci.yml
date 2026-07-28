@@ -3,6 +3,7 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 jobs:
   verify:
@@ -69,3 +70,65 @@ jobs:
 
       - name: Audit Ruby dependencies
         run: bundle exec bundler-audit check --update
+
+  mobile:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install mobile dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Validate OpenAPI and generated contracts
+        run: npm run validate:api && npm run generate:api && git diff --exit-code -- src/api/generated.ts
+
+      - name: Typecheck and test mobile
+        run: npm run typecheck && npm test
+
+      - name: Run Expo Doctor
+        run: npx expo-doctor
+
+      - name: Export Android and iOS bundles
+        env:
+          EXPO_PUBLIC_API_URL: https://example.invalid/api/v1
+        run: npx expo export --platform android --platform ios --output-dir dist
+
+      - name: Audit critical mobile dependencies
+        run: npm audit --audit-level=critical
+
+  eas-preview:
+    if: github.event_name == 'workflow_dispatch'
+    needs: [verify, mobile]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_PROJECT_ID: ${{ secrets.EAS_PROJECT_ID }}
+      EXPO_PUBLIC_API_URL: ${{ secrets.MOBILE_API_URL }}
+      EXPO_PUBLIC_WEB_URL: ${{ secrets.MOBILE_WEB_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Install mobile dependencies
+        run: npm ci --legacy-peer-deps
+      - name: Queue Android and iOS preview builds
+        run: npx eas-cli@latest build --profile preview --platform all --non-interactive --no-wait

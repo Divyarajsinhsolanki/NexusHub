@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2027_07_13_000000) do
+ActiveRecord::Schema[8.1].define(version: 2027_07_28_000000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -434,6 +434,45 @@ ActiveRecord::Schema[8.1].define(version: 2027_07_13_000000) do
     t.index ["user_id"], name: "index_messages_on_user_id"
     t.index ["workspace_id", "conversation_id", "id"], name: "idx_messages_workspace_conversation_cursor"
     t.index ["workspace_id"], name: "index_messages_on_workspace_id"
+  end
+
+  create_table "mobile_devices", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.string "app_version"
+    t.datetime "created_at", null: false
+    t.string "device_identifier"
+    t.string "device_name"
+    t.datetime "disabled_at"
+    t.string "expo_push_token", null: false
+    t.datetime "last_seen_at"
+    t.string "platform", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.bigint "workspace_id", null: false
+    t.index ["expo_push_token"], name: "index_mobile_devices_on_expo_push_token", unique: true
+    t.index ["user_id", "active"], name: "index_mobile_devices_on_user_id_and_active"
+    t.index ["user_id"], name: "index_mobile_devices_on_user_id"
+    t.index ["workspace_id", "active"], name: "index_mobile_devices_on_workspace_id_and_active"
+    t.index ["workspace_id"], name: "index_mobile_devices_on_workspace_id"
+  end
+
+  create_table "mobile_sessions", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "device_name"
+    t.datetime "expires_at", null: false
+    t.bigint "impersonated_user_id"
+    t.datetime "last_used_at"
+    t.string "refresh_token_digest", null: false
+    t.datetime "revoked_at"
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.bigint "workspace_id", null: false
+    t.index ["expires_at"], name: "index_mobile_sessions_on_expires_at"
+    t.index ["impersonated_user_id"], name: "index_mobile_sessions_on_impersonated_user_id"
+    t.index ["refresh_token_digest"], name: "index_mobile_sessions_on_refresh_token_digest", unique: true
+    t.index ["user_id", "revoked_at"], name: "index_mobile_sessions_on_user_id_and_revoked_at"
+    t.index ["user_id"], name: "index_mobile_sessions_on_user_id"
+    t.index ["workspace_id"], name: "index_mobile_sessions_on_workspace_id"
   end
 
   create_table "notifications", force: :cascade do |t|
@@ -1080,6 +1119,11 @@ ActiveRecord::Schema[8.1].define(version: 2027_07_13_000000) do
   add_foreign_key "messages", "conversations"
   add_foreign_key "messages", "users"
   add_foreign_key "messages", "workspaces"
+  add_foreign_key "mobile_devices", "users"
+  add_foreign_key "mobile_devices", "workspaces"
+  add_foreign_key "mobile_sessions", "users"
+  add_foreign_key "mobile_sessions", "users", column: "impersonated_user_id"
+  add_foreign_key "mobile_sessions", "workspaces"
   add_foreign_key "notifications", "users", column: "actor_id"
   add_foreign_key "notifications", "users", column: "recipient_id"
   add_foreign_key "notifications", "workspaces"

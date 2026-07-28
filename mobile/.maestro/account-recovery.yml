@@ -1,0 +1,11 @@
+appId: com.nexushub.mobile
+name: Account recovery
+---
+- launchApp:
+    clearState: true
+- tapOn: Forgot password?
+- assertVisible: Reset your password
+- tapOn: Email
+- inputText: ${MOBILE_TEST_EMAIL}
+- tapOn: Send reset link
+- assertVisible: Check your inbox for the password reset link.

@@ -16,6 +16,7 @@ class Notification < ApplicationRecord
   end
 
   after_create_commit :broadcast_to_channel
+  after_create_commit :enqueue_mobile_push
 
   private
 
@@ -25,6 +26,10 @@ class Notification < ApplicationRecord
 
   def broadcast_to_channel
     Chat::Broadcaster.broadcast_notification(self)
+  end
+
+  def enqueue_mobile_push
+    ExpoPushNotificationJob.perform_later(id)
   end
 
   def respect_recipient_preferences

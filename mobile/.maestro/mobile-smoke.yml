@@ -1,0 +1,34 @@
+appId: com.nexushub.mobile
+name: Daily work smoke flow
+---
+- runFlow: login.yml
+- tapOn: Projects
+- tapOn: ${MOBILE_TEST_PROJECT}
+- assertVisible: Sprints
+- tapOn:
+    id: add-task
+    optional: true
+- tapOn:
+    text: Create project task
+    optional: true
+- tapOn: Task
+- tapOn: Title
+- inputText: Maestro mobile task
+- tapOn: Description
+- inputText: Created by the mobile smoke flow
+- tapOn: Create Task
+- tapOn: Work
+- tapOn:
+    id: add-work-log
+- tapOn: Title
+- inputText: Mobile smoke verification
+- tapOn: Date
+- eraseText
+- inputText: ${MOBILE_TEST_DATE}
+- tapOn: Create work log
+- assertVisible: Mobile smoke verification
+- tapOn: More
+- tapOn: Profile
+- tapOn: Sign out
+- tapOn: Sign out
+- assertVisible: Welcome back

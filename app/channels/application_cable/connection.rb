@@ -10,7 +10,18 @@ module ApplicationCable
     private
 
     def find_verified_user
-      jwt_cookie_user || warden_user || reject_unauthorized_connection
+      mobile_token_user || jwt_cookie_user || warden_user || reject_unauthorized_connection
+    end
+
+    def mobile_token_user
+      payload = JwtService.decode(request.params[:token].to_s)
+      return if payload.blank? || payload[:error].present? || payload[:type] != "cable_access"
+
+      session = MobileSession.active.includes(:user, :impersonated_user).find_by(id: payload[:mobile_session_id])
+      user = session&.effective_user || User.find_by(id: payload[:user_id])
+      return if user.blank? || user.locked? || user.id != payload[:user_id].to_i
+
+      user
     end
 
     def jwt_cookie_user

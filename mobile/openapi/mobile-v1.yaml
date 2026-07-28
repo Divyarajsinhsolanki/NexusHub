@@ -1,0 +1,621 @@
+openapi: 3.1.0
+info:
+  title: Nexus Hub Mobile API
+  version: 1.0.0
+  description: Stable Bearer-authenticated contract for the Nexus Hub Android and iOS clients.
+servers:
+  - url: /api/v1
+security:
+  - bearerAuth: []
+paths:
+  /mobile_config:
+    get:
+      security: []
+      operationId: getMobileConfig
+      responses:
+        "200":
+          $ref: "#/components/responses/GenericSuccess"
+  /auth/login:
+    post:
+      security: []
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [auth]
+              properties:
+                auth:
+                  type: object
+                  required: [email, password]
+                  properties:
+                    email: { type: string, format: email }
+                    password: { type: string, format: password }
+                    device_name: { type: string }
+      responses:
+        "200":
+          $ref: "#/components/responses/AuthSuccess"
+        "401":
+          $ref: "#/components/responses/Error"
+  /auth/google:
+    post:
+      security: []
+      operationId: googleLogin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id_token]
+              properties:
+                id_token: { type: string }
+                device_name: { type: string }
+      responses:
+        "200":
+          $ref: "#/components/responses/AuthSuccess"
+        "401":
+          $ref: "#/components/responses/Error"
+  /auth/signup:
+    post:
+      security: []
+      operationId: signup
+      responses:
+        "201":
+          $ref: "#/components/responses/GenericSuccess"
+        "422":
+          $ref: "#/components/responses/Error"
+  /auth/refresh:
+    post:
+      security: []
+      operationId: refresh
+      responses:
+        "200":
+          $ref: "#/components/responses/AuthSuccess"
+        "401":
+          $ref: "#/components/responses/Error"
+  /auth/password/forgot:
+    post:
+      security: []
+      operationId: forgotPassword
+      responses:
+        "200":
+          $ref: "#/components/responses/GenericSuccess"
+  /auth/password/reset:
+    post:
+      security: []
+      operationId: resetPassword
+      responses:
+        "200":
+          $ref: "#/components/responses/GenericSuccess"
+        "422":
+          $ref: "#/components/responses/Error"
+  /me:
+    get:
+      operationId: getMe
+      responses:
+        "200":
+          description: Current user and capabilities
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/User"
+    patch:
+      operationId: updateMe
+      responses:
+        "200":
+          $ref: "#/components/responses/GenericSuccess"
+  /home:
+    get:
+      operationId: getHome
+      responses:
+        "200":
+          $ref: "#/components/responses/GenericSuccess"
+  /activity:
+    get:
+      operationId: listActivity
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /daily_momentum:
+    get:
+      operationId: getDailyMomentum
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /search:
+    get:
+      operationId: searchWorkspace
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          $ref: "#/components/responses/GenericSuccess"
+  /projects:
+    get:
+      operationId: listProjects
+      responses:
+        "200":
+          description: Paginated projects
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectCollection"
+    post:
+      operationId: createProject
+      responses:
+        "201":
+          $ref: "#/components/responses/GenericSuccess"
+  /projects/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      operationId: getProject
+      responses:
+        "200":
+          $ref: "#/components/responses/GenericSuccess"
+    patch:
+      operationId: updateProject
+      responses:
+        "200":
+          $ref: "#/components/responses/GenericSuccess"
+    delete:
+      operationId: deleteProject
+      responses:
+        "200":
+          $ref: "#/components/responses/GenericSuccess"
+  /tasks:
+    get:
+      operationId: listTasks
+      responses:
+        "200":
+          description: Paginated tasks
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskCollection"
+    post:
+      operationId: createTask
+      responses:
+        "201":
+          $ref: "#/components/responses/GenericSuccess"
+  /tasks/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      operationId: getTask
+      responses:
+        "200":
+          $ref: "#/components/responses/GenericSuccess"
+    patch:
+      operationId: updateTask
+      responses:
+        "200":
+          $ref: "#/components/responses/GenericSuccess"
+    delete:
+      operationId: deleteTask
+      responses:
+        "200":
+          $ref: "#/components/responses/GenericSuccess"
+  /work_logs:
+    get:
+      operationId: listWorkLogs
+      responses:
+        "200":
+          $ref: "#/components/responses/GenericSuccess"
+    post:
+      operationId: createWorkLog
+      responses:
+        "201":
+          $ref: "#/components/responses/GenericSuccess"
+  /calendar_events:
+    get:
+      operationId: listCalendarEvents
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+    post:
+      operationId: createCalendarEvent
+      responses:
+        "201": { $ref: "#/components/responses/GenericSuccess" }
+  /calendar_events/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    patch:
+      operationId: updateCalendarEvent
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+    delete:
+      operationId: deleteCalendarEvent
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /posts:
+    get:
+      operationId: listPosts
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+    post:
+      operationId: createPost
+      responses:
+        "201": { $ref: "#/components/responses/GenericSuccess" }
+  /posts/{id}/comments:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      operationId: listPostComments
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+    post:
+      operationId: createPostComment
+      responses:
+        "201": { $ref: "#/components/responses/GenericSuccess" }
+  /teams:
+    get:
+      operationId: listTeams
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+    post:
+      operationId: createTeam
+      responses:
+        "201": { $ref: "#/components/responses/GenericSuccess" }
+  /skills:
+    get:
+      operationId: listSkills
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /learning_goals:
+    get:
+      operationId: listLearningGoals
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+    post:
+      operationId: createLearningGoal
+      responses:
+        "201": { $ref: "#/components/responses/GenericSuccess" }
+  /users:
+    get:
+      operationId: listWorkspaceUsers
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+    post:
+      operationId: createWorkspaceUser
+      responses:
+        "201": { $ref: "#/components/responses/GenericSuccess" }
+  /departments:
+    get:
+      operationId: listDepartments
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+    post:
+      operationId: createDepartment
+      responses:
+        "201": { $ref: "#/components/responses/GenericSuccess" }
+  /items:
+    get:
+      operationId: listVaultItems
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+    post:
+      operationId: createVaultItem
+      responses:
+        "201": { $ref: "#/components/responses/GenericSuccess" }
+  /issues:
+    get:
+      operationId: listIssues
+      parameters:
+        - name: project_id
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+    post:
+      operationId: createIssue
+      responses:
+        "201": { $ref: "#/components/responses/GenericSuccess" }
+  /knowledge_items:
+    get:
+      operationId: listKnowledgeItems
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /knowledge_bookmarks:
+    get:
+      operationId: listKnowledgeBookmarks
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+    post:
+      operationId: createKnowledgeBookmark
+      responses:
+        "201": { $ref: "#/components/responses/GenericSuccess" }
+  /conversations:
+    get:
+      operationId: listConversations
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+    post:
+      operationId: createConversation
+      responses:
+        "201": { $ref: "#/components/responses/GenericSuccess" }
+  /conversations/{id}/messages:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      operationId: listConversationMessages
+      parameters:
+        - name: before_id
+          in: query
+          schema: { type: integer }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+    post:
+      operationId: createConversationMessage
+      responses:
+        "201": { $ref: "#/components/responses/GenericSuccess" }
+  /conversations/{id}/calls:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      operationId: createConversationCall
+      responses:
+        "201": { $ref: "#/components/responses/GenericSuccess" }
+  /calls/{id}/join:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      operationId: joinCall
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /notifications:
+    get:
+      operationId: listNotifications
+      responses:
+        "200":
+          $ref: "#/components/responses/GenericSuccess"
+  /mobile_sessions:
+    get:
+      operationId: listMobileSessions
+      responses:
+        "200":
+          $ref: "#/components/responses/GenericSuccess"
+  /mobile_sessions/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    delete:
+      operationId: revokeMobileSession
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /impersonation:
+    post:
+      operationId: startImpersonation
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: stopImpersonation
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /mobile_device:
+    put:
+      operationId: registerMobileDevice
+      responses:
+        "200":
+          $ref: "#/components/responses/GenericSuccess"
+    delete:
+      operationId: unregisterMobileDevice
+      responses:
+        "200":
+          $ref: "#/components/responses/GenericSuccess"
+  /realtime/token:
+    post:
+      operationId: createRealtimeToken
+      responses:
+        "200":
+          $ref: "#/components/responses/GenericSuccess"
+  /uploads:
+    post:
+      operationId: createDirectUpload
+      responses:
+        "201":
+          $ref: "#/components/responses/GenericSuccess"
+  /pdf_documents:
+    get:
+      operationId: listPdfDocuments
+      responses:
+        "200":
+          $ref: "#/components/responses/GenericSuccess"
+    post:
+      operationId: uploadPdfDocument
+      responses:
+        "201":
+          $ref: "#/components/responses/GenericSuccess"
+  /pdf_documents/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      operationId: getPdfDocument
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+    patch:
+      operationId: renamePdfDocument
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+    delete:
+      operationId: deletePdfDocument
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /pdf_document_operations:
+    post:
+      operationId: createPdfOperation
+      responses:
+        "201":
+          $ref: "#/components/responses/GenericSuccess"
+        "202":
+          $ref: "#/components/responses/GenericSuccess"
+  /pdf_document_operations/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      operationId: getPdfOperation
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /admin/tables:
+    get:
+      operationId: listAdminTables
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer }
+  responses:
+    GenericSuccess:
+      description: Normalized success response
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/GenericEnvelope"
+    AuthSuccess:
+      description: Mobile authentication session
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data:
+                $ref: "#/components/schemas/AuthSession"
+    Error:
+      description: Normalized error response
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+  schemas:
+    GenericEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data: {}
+        meta:
+          $ref: "#/components/schemas/PaginationMeta"
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            details: {}
+    PaginationMeta:
+      type: object
+      properties:
+        current_page: { type: integer }
+        next_page: { type: [integer, "null"] }
+        total_pages: { type: integer }
+        total_count: { type: integer }
+        per_page: { type: integer }
+      additionalProperties: true
+    User:
+      type: object
+      required: [id, email, first_name, last_name, full_name, roles, workspace, permissions, features]
+      properties:
+        id: { type: integer }
+        email: { type: string, format: email }
+        first_name: { type: string }
+        last_name: { type: string }
+        full_name: { type: string }
+        job_title: { type: string }
+        profile_picture: { type: [string, "null"] }
+        roles:
+          type: array
+          items: { type: string }
+        permissions:
+          type: array
+          items: { type: string }
+        features:
+          type: object
+          additionalProperties: { type: boolean }
+        workspace:
+          type: object
+          required: [id, name, slug]
+          properties:
+            id: { type: integer }
+            name: { type: string }
+            slug: { type: string }
+        preferences:
+          type: object
+          additionalProperties: true
+    AuthSession:
+      type: object
+      required: [user, access_token, refresh_token, access_token_expires_at, refresh_token_expires_at]
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        access_token: { type: string }
+        refresh_token: { type: string }
+        access_token_expires_at: { type: integer }
+        refresh_token_expires_at: { type: integer }
+        impersonating: { type: boolean }
+    Project:
+      type: object
+      required: [id, name, status]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        description: { type: [string, "null"] }
+        status: { type: string }
+        start_date: { type: [string, "null"], format: date }
+        end_date: { type: [string, "null"], format: date }
+        task_count: { type: integer }
+        sprint_count: { type: integer }
+    Task:
+      type: object
+      required: [id, title, type, status]
+      properties:
+        id: { type: integer }
+        task_id: { type: [string, "null"] }
+        title: { type: string }
+        description: { type: [string, "null"] }
+        type: { type: string }
+        status: { type: string }
+        priority: { type: [string, "null"] }
+        project_id: { type: [integer, "null"] }
+        sprint_id: { type: [integer, "null"] }
+    ProjectCollection:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Project"
+        meta:
+          $ref: "#/components/schemas/PaginationMeta"
+    TaskCollection:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Task"
+        meta:
+          $ref: "#/components/schemas/PaginationMeta"

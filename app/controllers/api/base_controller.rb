@@ -8,7 +8,7 @@ class Api::BaseController < ApplicationController
   before_action :set_cache_headers, if: :cacheable_api_request?
 
   def authenticate_user!
-    @current_user = jwt_cookie_user || devise_session_user
+    @current_user = bearer_token_user || jwt_cookie_user || devise_session_user
     Current.user = @current_user
     Current.workspace = @current_user&.workspace
 
@@ -31,6 +31,14 @@ class Api::BaseController < ApplicationController
     @current_user || devise_session_user
   end
 
+  def current_mobile_session
+    @current_mobile_session
+  end
+
+  def authenticated_mobile_user
+    @authenticated_mobile_user
+  end
+
   private
 
   def enforce_demo_read_only!
@@ -45,6 +53,33 @@ class Api::BaseController < ApplicationController
     token = cookies.signed[:access_token]
     payload = JwtService.decode(token)
     User.find_by(id: payload["user_id"]) if payload
+  end
+
+  def bearer_token_user
+    scheme, token = request.authorization.to_s.split(" ", 2)
+    return unless scheme&.casecmp?("Bearer") && token.present?
+
+    payload = JwtService.decode(token)
+    return if payload.blank? || payload[:error].present?
+    return unless payload[:type] == "mobile_access"
+
+    if payload[:mobile_session_id].present?
+      session = MobileSession.active.includes(:user, :impersonated_user).find_by(id: payload[:mobile_session_id])
+      return unless session
+
+      effective_user = session.effective_user
+      return unless effective_user.id == payload[:user_id].to_i
+      return if session.user.locked? || effective_user.locked?
+
+      @current_mobile_session = session
+      @authenticated_mobile_user = session.user
+      return effective_user
+    end
+
+    # Access tokens issued before session-bound tokens were introduced remain
+    # usable for their original 15-minute lifetime.
+    user = User.find_by(id: payload[:user_id])
+    user unless user&.locked?
   end
 
   def devise_session_user

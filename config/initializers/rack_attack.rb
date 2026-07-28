@@ -4,7 +4,7 @@ class Rack::Attack
   end
 
   throttle('logins/ip', limit: ENV.fetch('RACK_ATTACK_LOGIN_PER_MINUTE', 20).to_i, period: 1.minute) do |req|
-    req.ip if req.path == '/api/login' && req.post?
+    req.ip if ['/api/login', '/api/v1/auth/login'].include?(req.path) && req.post?
   end
 
   throttle('signup/ip', limit: ENV.fetch('RACK_ATTACK_SIGNUP_PER_HOUR', 10).to_i, period: 1.hour) do |req|

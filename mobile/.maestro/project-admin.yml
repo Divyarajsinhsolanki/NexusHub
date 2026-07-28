@@ -1,0 +1,31 @@
+appId: com.nexushub.mobile
+name: Project administration and issues
+---
+- runFlow: login.yml
+- tapOn: Projects
+- tapOn: ${MOBILE_TEST_PROJECT}
+- tapOn: Members
+- assertVisible: Project members
+- back
+- tapOn: Sprints
+- assertVisible: Sprints
+- back
+- tapOn: Issues
+- assertVisible: Issues
+- tapOn: Create Issues
+- tapOn: Issue title
+- inputText: Maestro attachment issue
+- tapOn: Description
+- inputText: Validate project issue workflow
+- tapOn: Status
+- inputText: Open
+- tapOn: Severity
+- inputText: Medium
+- tapOn: Save
+- assertVisible: Maestro attachment issue
+- back
+- tapOn: Environments
+- assertVisible: Environments
+- back
+- tapOn: Vault
+- assertVisible: Project vault

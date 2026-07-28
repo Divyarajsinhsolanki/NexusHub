@@ -1,4 +1,5 @@
 require_relative "boot"
+require_relative "../app/middleware/api_v1_envelope_middleware"
 
 require "rails/all"
 
@@ -18,6 +19,7 @@ module RailsVite
     config.autoload_lib(ignore: %w(assets tasks))
     config.middleware.use ActionDispatch::Cookies
     config.middleware.use Rack::Attack
+    config.middleware.use ApiV1EnvelopeMiddleware
     config.hosts << ENV["ALLOWED_NGROK_HOST"] if Rails.env.development? && ENV["ALLOWED_NGROK_HOST"].present?
     config.hosts << "system.tail54b0b0.ts.net"
     config.hosts << "www.example.com" if Rails.env.test?
