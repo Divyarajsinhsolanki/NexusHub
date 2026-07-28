@@ -8,7 +8,7 @@ class Api::BaseController < ApplicationController
   before_action :set_cache_headers, if: :cacheable_api_request?
 
   def authenticate_user!
-    @current_user = bearer_token_user || jwt_cookie_user || devise_session_user
+    @current_user = authentication_user
     Current.user = @current_user
     Current.workspace = @current_user&.workspace
 
@@ -40,6 +40,10 @@ class Api::BaseController < ApplicationController
   end
 
   private
+
+  def authentication_user
+    bearer_token_user || jwt_cookie_user || devise_session_user
+  end
 
   def enforce_demo_read_only!
     return unless current_user&.demo_account?

@@ -1,8 +1,16 @@
 class Api::V1::BaseController < Api::BaseController
+  # Native clients can send `Origin: null`, which Rails rejects before the
+  # null-session forgery strategy runs. V1 uses Bearer tokens, not cookies.
+  skip_forgery_protection
+
   rescue_from ActiveRecord::RecordNotFound, with: :render_not_found
   rescue_from ActionController::ParameterMissing, with: :render_invalid_request
 
   private
+
+  def authentication_user
+    bearer_token_user
+  end
 
   def render_data(data, meta: nil, status: :ok)
     payload = { data: data }

@@ -49,6 +49,20 @@ class MobileApiV1Test < ActionDispatch::IntegrationTest
     assert_equal @user.email, response.parsed_body.dig("data", "email")
   end
 
+  test "native requests with a null origin bypass browser forgery protection" do
+    previous_setting = ActionController::Base.allow_forgery_protection
+    ActionController::Base.allow_forgery_protection = true
+
+    post "/api/v1/auth/login",
+      params: { auth: { email: @user.email, password: PASSWORD, device_name: "Android app" } },
+      headers: { "Origin" => "null", "Accept" => "application/json" }
+
+    assert_response :success
+    assert response.parsed_body.dig("data", "access_token").present?
+  ensure
+    ActionController::Base.allow_forgery_protection = previous_setting
+  end
+
   test "refresh rotates its token and rejects replay" do
     original = mobile_login.fetch("refresh_token")
 
