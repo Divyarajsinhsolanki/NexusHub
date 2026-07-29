@@ -201,6 +201,7 @@ Rails.application.routes.draw do
 
       get "admin/tables", to: "/api/admin#tables"
       get "admin/meta/:table", to: "/api/admin#meta"
+      patch "admin/users/:id/password", to: "/api/admin#reset_user_password"
       get "admin/:table", to: "/api/admin#index"
       post "admin/:table", to: "/api/admin#create"
       patch "admin/:table/:id", to: "/api/admin#update"
@@ -413,6 +414,7 @@ Rails.application.routes.draw do
 
     get 'admin/tables', to: 'admin#tables'
     get 'admin_meta/:table', to: 'admin#meta'
+    patch 'admin/users/:id/password', to: 'admin#reset_user_password'
   
     scope 'admin/:table' do
       get '/', to: 'admin#index'

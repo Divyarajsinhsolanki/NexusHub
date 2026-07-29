@@ -1228,6 +1228,79 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/meta/{table}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                table: string;
+            };
+            cookie?: never;
+        };
+        get: operations["getAdminTableMetadata"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/{table}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                table: string;
+            };
+            cookie?: never;
+        };
+        get: operations["listAdminRecords"];
+        put?: never;
+        post: operations["createAdminRecord"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/{table}/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                table: string;
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteAdminRecord"];
+        options?: never;
+        head?: never;
+        patch: operations["updateAdminRecord"];
+        trace?: never;
+    };
+    "/admin/users/{id}/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["resetAdminUserPassword"];
+        trace?: never;
+    };
     "/portfolio_admin": {
         parameters: {
             query?: never;
@@ -2947,6 +3020,109 @@ export interface operations {
         responses: {
             200: components["responses"]["GenericSuccess"];
             403: components["responses"]["Error"];
+        };
+    };
+    getAdminTableMetadata: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                table: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            403: components["responses"]["Error"];
+        };
+    };
+    listAdminRecords: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                table: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            403: components["responses"]["Error"];
+        };
+    };
+    createAdminRecord: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                table: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            422: components["responses"]["Error"];
+        };
+    };
+    deleteAdminRecord: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                table: string;
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    updateAdminRecord: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                table: string;
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            422: components["responses"]["Error"];
+        };
+    };
+    resetAdminUserPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    password: {
+                        /** Format: password */
+                        password: string;
+                        /** Format: password */
+                        password_confirmation: string;
+                    };
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            403: components["responses"]["Error"];
+            422: components["responses"]["Error"];
         };
     };
     getPortfolioAdmin: {

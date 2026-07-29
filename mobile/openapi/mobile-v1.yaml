@@ -688,6 +688,72 @@ paths:
       responses:
         "200": { $ref: "#/components/responses/GenericSuccess" }
         "403": { $ref: "#/components/responses/Error" }
+  /admin/meta/{table}:
+    parameters:
+      - name: table
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      operationId: getAdminTableMetadata
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+  /admin/{table}:
+    parameters:
+      - name: table
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      operationId: listAdminRecords
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createAdminRecord
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "422": { $ref: "#/components/responses/Error" }
+  /admin/{table}/{id}:
+    parameters:
+      - name: table
+        in: path
+        required: true
+        schema: { type: string }
+      - $ref: "#/components/parameters/Id"
+    patch:
+      operationId: updateAdminRecord
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "422": { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: deleteAdminRecord
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /admin/users/{id}/password:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    patch:
+      operationId: resetAdminUserPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password:
+                  type: object
+                  required: [password, password_confirmation]
+                  properties:
+                    password: { type: string, format: password, minLength: 6 }
+                    password_confirmation: { type: string, format: password, minLength: 6 }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
   /portfolio_admin:
     get:
       operationId: getPortfolioAdmin

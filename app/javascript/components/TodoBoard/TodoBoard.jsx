@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useContext } from "react";
 import { DragDropContext } from "@hello-pangea/dnd";
-import { Toaster, toast } from "react-hot-toast";
+import { toast } from "react-hot-toast";
 import { SchedulerAPI } from '../api';
 import { AuthContext } from '../../context/AuthContext';
 
@@ -280,7 +280,6 @@ export default function TodoBoard({ sprintId, projectId, onSprintChange, viewMod
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-sky-100 px-4 pb-6 pt-2 font-sans text-gray-800 sm:px-6 sm:pb-8 lg:px-8">
       <div className="mx-auto w-full max-w-[1600px] rounded-xl bg-white p-4 shadow-lg">
-        <Toaster position="top-right" />
         <header className="mb-4">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
             <div className="mb-4 sm:mb-0 flex items-center gap-3">

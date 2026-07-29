@@ -144,6 +144,10 @@ export const endpoints = {
     const response = await api.get<ApiEnvelope<HomeData>>('/home');
     return unwrapData(response.data);
   },
+  async resetAdminUserPassword(userId: number, input: { password: string; password_confirmation: string }) {
+    const response = await api.patch<ApiEnvelope<{ message: string }>>(`/admin/users/${userId}/password`, { password: input });
+    return unwrapData(response.data);
+  },
   async portfolio() {
     const response = await api.get<ApiEnvelope<PortfolioData>>('/portfolio');
     return unwrapData(response.data);

@@ -308,6 +308,7 @@ export const getRecords = (table, params = {}) => api.get(`/admin/${table}`, { p
 export const createRecord = (table, data) => api.post(`/admin/${table}`, { record: data });
 export const updateRecord = (table, id, data) => api.patch(`/admin/${table}/${id}`, { record: data });
 export const deleteRecord = (table, id) => api.delete(`/admin/${table}/${id}`);
+export const resetAdminUserPassword = (id, data) => api.patch(`/admin/users/${id}/password`, { password: data });
 
 export const sendContact = (data) => api.post('/contacts', { contact: data });
 

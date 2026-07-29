@@ -341,6 +341,7 @@ const App = () => {
           position="top-right"
           toastOptions={{
             duration: 3200,
+            removeDelay: 300,
             style: {
               border: "1px solid rgba(255, 255, 255, 0.75)",
               borderRadius: "20px",

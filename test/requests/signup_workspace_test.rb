@@ -1,28 +1,33 @@
 require "test_helper"
 
 class SignupWorkspaceTest < ActionDispatch::IntegrationTest
-  test "public signup creates an isolated workspace and owner role" do
-    assert_difference ["Workspace.count", "User.count"], 1 do
-      post "/api/signup", params: {
-        auth: {
-          first_name: "New",
-          last_name: "Owner",
-          email: "new-owner@example.test",
-          password: "Password!42",
-          job_title: "Engineer"
+  setup do
+    @regular_workspace = Workspace.regular!
+  end
+
+  test "public signup joins the regular workspace as a member" do
+    assert_no_difference "Workspace.count" do
+      assert_difference "User.count", 1 do
+        post "/api/signup", params: {
+          auth: {
+            first_name: "New",
+            last_name: "Owner",
+            email: "new-owner@example.test",
+            password: "Password!42",
+            job_title: "Engineer"
+          }
         }
-      }
+      end
     end
 
     assert_response :created
     user = User.find_by!(email: "new-owner@example.test")
-    assert_equal "private", user.workspace.kind
-    assert_equal "starter", user.workspace.plan_key
-    assert_equal "trialing", user.workspace.billing_status
-    assert user.owner?
+    assert_equal @regular_workspace, user.workspace
+    assert user.member?
+    assert_not user.owner?
 
     payload = JSON.parse(response.body)
-    assert_equal "starter", payload.dig("user", "workspace", "saas", "plan", "key")
-    assert_equal 5, payload.dig("user", "workspace", "saas", "limits", "seats")
+    assert_equal "enterprise", payload.dig("user", "workspace", "saas", "plan", "key")
+    assert_nil payload.dig("user", "workspace", "saas", "limits", "seats")
   end
 end

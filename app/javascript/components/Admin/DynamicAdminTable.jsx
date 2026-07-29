@@ -6,14 +6,11 @@ import {
   Search,
   Edit2,
   Trash2,
-  ChevronLeft,
-  ChevronRight,
   X,
-  Save,
   Filter,
-  MoreHorizontal
+  KeyRound
 } from 'lucide-react';
-import { getMeta, getRecords, createRecord, updateRecord, deleteRecord } from '../api';
+import { getMeta, getRecords, createRecord, updateRecord, deleteRecord, resetAdminUserPassword } from '../api';
 
 const isJsonColumn = (type) => type === 'json' || type === 'jsonb';
 const isNumericColumn = (type) => typeof type === 'string' && (type.includes('int') || type === 'decimal' || type === 'float');
@@ -123,6 +120,8 @@ function DynamicAdminTable({ table }) {
   const [modalMode, setModalMode] = useState('create'); // 'create' | 'edit'
   const [currentRecord, setCurrentRecord] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [passwordReset, setPasswordReset] = useState({ password: '', password_confirmation: '' });
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
 
   // Fetch Metadata
   useEffect(() => {
@@ -170,18 +169,46 @@ function DynamicAdminTable({ table }) {
   const openCreateModal = () => {
     setModalMode('create');
     setCurrentRecord(buildDefaultRecord(columns));
+    setPasswordReset({ password: '', password_confirmation: '' });
     setIsModalOpen(true);
   };
 
   const openEditModal = (record) => {
     setModalMode('edit');
     setCurrentRecord(normalizeRecordForForm(record, columns));
+    setPasswordReset({ password: '', password_confirmation: '' });
     setIsModalOpen(true);
   };
 
   const closeModal = () => {
     setIsModalOpen(false);
     setCurrentRecord({});
+    setPasswordReset({ password: '', password_confirmation: '' });
+  };
+
+  const handlePasswordReset = async (event) => {
+    event.preventDefault();
+
+    if (passwordReset.password.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+    if (passwordReset.password !== passwordReset.password_confirmation) {
+      toast.error('Password confirmation does not match');
+      return;
+    }
+
+    setIsResettingPassword(true);
+    try {
+      await resetAdminUserPassword(currentRecord.id, passwordReset);
+      setPasswordReset({ password: '', password_confirmation: '' });
+      toast.success('User password updated and mobile sessions revoked');
+    } catch (error) {
+      const details = error.response?.data?.errors;
+      toast.error(Array.isArray(details) ? details.join(', ') : 'Failed to update user password');
+    } finally {
+      setIsResettingPassword(false);
+    }
   };
 
   const handleInputChange = (e, col) => {
@@ -224,7 +251,7 @@ function DynamicAdminTable({ table }) {
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col h-[calc(100vh-140px)]">
+    <div className="flex h-[calc(100vh-140px)] flex-col rounded-lg border border-gray-200 bg-white shadow-sm">
       {/* Toolbar */}
       <div className="p-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-2">
@@ -302,18 +329,20 @@ function DynamicAdminTable({ table }) {
                     </td>
                   ))}
                   <td className="px-6 py-3 text-right whitespace-nowrap sticky right-0 bg-white group-hover:bg-blue-50/30 shadow-[-10px_0_10px_-10px_rgba(0,0,0,0.05)]">
-                    <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center justify-end gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
                       <button
                         onClick={() => openEditModal(rec)}
-                        className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
+                        className="inline-flex h-11 w-11 items-center justify-center rounded-md text-blue-600 transition-colors hover:bg-blue-100"
                         title="Edit"
+                        aria-label={`Edit ${table} record ${rec.id}`}
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleDelete(rec.id)}
-                        className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
+                        className="inline-flex h-11 w-11 items-center justify-center rounded-md text-red-600 transition-colors hover:bg-red-100"
                         title="Delete"
+                        aria-label={`Delete ${table} record ${rec.id}`}
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -381,21 +410,27 @@ function DynamicAdminTable({ table }) {
                 leaveFrom="opacity-100 scale-100"
                 leaveTo="opacity-0 scale-95"
               >
-                <Dialog.Panel className="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl transform flex-col overflow-hidden rounded-2xl bg-white text-left align-middle shadow-xl transition-all">
+                <Dialog.Panel className="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl transform flex-col overflow-hidden rounded-lg bg-white text-left align-middle shadow-xl transition-all">
                   <Dialog.Title as="h3" className="flex items-center justify-between border-b px-6 py-4 text-lg font-medium leading-6 text-gray-900">
                     {modalMode === 'create' ? 'Create New Record' : 'Edit Record'}
-                    <button onClick={closeModal} className="text-gray-400 hover:text-gray-500">
+                    <button
+                      type="button"
+                      onClick={closeModal}
+                      className="inline-flex h-11 w-11 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                      aria-label="Close dialog"
+                    >
                       <X className="w-5 h-5" />
                     </button>
                   </Dialog.Title>
 
-                  <form onSubmit={handleSubmit} className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {columns.map(col => {
-                        if (col.name === 'id' || col.name === 'created_at' || col.name === 'updated_at') return null;
+                  <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">
+                    <form onSubmit={handleSubmit}>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {columns.map(col => {
+                          if (col.name === 'id' || col.name === 'created_at' || col.name === 'updated_at') return null;
 
-                        return (
-                          <div key={col.name} className={col.type === 'text' || col.type === 'string' || isJsonColumn(col.type) ? 'md:col-span-2' : ''}>
+                          return (
+                            <div key={col.name} className={col.type === 'text' || col.type === 'string' || isJsonColumn(col.type) ? 'md:col-span-2' : ''}>
                             <label className="block text-sm font-medium text-gray-700 mb-1 capitalize">
                               {col.name.replace(/_/g, ' ')}
                             </label>
@@ -421,11 +456,58 @@ function DynamicAdminTable({ table }) {
                                 placeholder={`Enter ${col.name}`}
                               />
                             )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </form>
+
+                    {table === 'User' && modalMode === 'edit' ? (
+                      <form onSubmit={handlePasswordReset} className="border-t border-gray-200 pt-5">
+                        <div className="mb-4 flex items-start gap-3">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-700">
+                            <KeyRound className="h-5 w-5" aria-hidden="true" />
                           </div>
-                        );
-                      })}
-                    </div>
-                  </form>
+                          <div>
+                            <h4 className="text-sm font-semibold text-gray-900">Set a new password</h4>
+                            <p className="mt-0.5 text-sm text-gray-500">No current password or recovery email is required.</p>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                          <label className="block text-sm font-medium text-gray-700">
+                            New password
+                            <input
+                              type="password"
+                              value={passwordReset.password}
+                              onChange={(event) => setPasswordReset((current) => ({ ...current, password: event.target.value }))}
+                              autoComplete="new-password"
+                              minLength={6}
+                              className="mt-1 min-h-11 w-full rounded-lg border-gray-300 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                            />
+                          </label>
+                          <label className="block text-sm font-medium text-gray-700">
+                            Confirm password
+                            <input
+                              type="password"
+                              value={passwordReset.password_confirmation}
+                              onChange={(event) => setPasswordReset((current) => ({ ...current, password_confirmation: event.target.value }))}
+                              autoComplete="new-password"
+                              minLength={6}
+                              className="mt-1 min-h-11 w-full rounded-lg border-gray-300 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                            />
+                          </label>
+                        </div>
+                        <button
+                          type="submit"
+                          disabled={isResettingPassword || !passwordReset.password || !passwordReset.password_confirmation}
+                          className="mt-4 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 text-sm font-medium text-white hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-700 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <KeyRound className="h-4 w-4" aria-hidden="true" />
+                          {isResettingPassword ? 'Updating password...' : 'Set new password'}
+                        </button>
+                      </form>
+                    ) : null}
+                  </div>
 
                   <div className="flex shrink-0 justify-end gap-3 border-t bg-white px-6 py-4">
                     <button

@@ -1,13 +1,13 @@
 class Api::AdminController < Api::BaseController
   before_action :authorize_admin_access!
-  before_action :set_model, except: [:tables]
+  before_action :set_model, except: [:tables, :reset_user_password]
   
   def tables
     render json: admin_model_names
   end
 
   def meta
-    columns = @model.columns.map do |c|
+    columns = @model.columns.reject { |column| hidden_admin_column?(column) }.map do |c|
       {
         name: c.name,
         type: c.type,
@@ -69,7 +69,45 @@ class Api::AdminController < Api::BaseController
     render json: { success: true }
   end
 
+  def reset_user_password
+    user = admin_user_scope.find(params[:id])
+    return head :forbidden unless password_reset_allowed?(user)
+
+    password_attributes = params.require(:password).permit(:password, :password_confirmation)
+
+    if password_attributes[:password].blank? || password_attributes[:password_confirmation].blank?
+      return render json: { errors: ["Password and confirmation are required"] }, status: :unprocessable_entity
+    end
+
+    if user.update(password_attributes)
+      user.mobile_sessions.active.update_all(revoked_at: Time.current, updated_at: Time.current)
+      AppEventLogger.info(
+        :security_audit,
+        source: "#{self.class.name}#reset_user_password",
+        message: "Administrator reset a user password",
+        payload: { administrator_id: current_user.id, target_user_id: user.id, workspace_id: user.workspace_id }
+      )
+      render json: { message: "Password updated successfully" }
+    else
+      render json: { errors: user.errors.full_messages }, status: :unprocessable_entity
+    end
+  end
+
   private
+
+  def admin_user_scope
+    return User.all if current_user.site_admin?
+
+    User.where(workspace_id: current_user.workspace_id)
+  end
+
+  def password_reset_allowed?(target_user)
+    return true if current_user.site_admin?
+    return false if target_user.site_admin? || target_user.owner?
+    return true if current_user.owner?
+
+    current_user.admin? && !target_user.admin?
+  end
 
   def admin_model_names
     Rails.cache.fetch("api_admin_model_names", expires_in: 12.hours) do
@@ -140,6 +178,12 @@ class Api::AdminController < Api::BaseController
       encrypted_keka_api_key
       encrypted_keka_api_key_iv
     ]
+  end
+
+  def hidden_admin_column?(column)
+    return false unless @model == User
+
+    column.name.to_sym.in?((protected_admin_columns + User::PUBLIC_JSON_EXCLUDED_ATTRIBUTES).uniq)
   end
 
   def filter_params

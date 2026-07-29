@@ -3,7 +3,7 @@ import api from "../components/api";
 import { AuthContext } from "../context/AuthContext";
 import { COLOR_MAP, THEME_PRESETS } from "/utils/theme";
 import { Switch, Tab } from "@headlessui/react";
-import { Toaster, toast } from "react-hot-toast";
+import { toast } from "react-hot-toast";
 import {
   User,
   Palette,
@@ -239,7 +239,6 @@ const Settings = () => {
 
   return (
     <div className="app-page px-4 py-8 sm:px-6 lg:px-8">
-      <Toaster position="top-right" />
       <div className="mx-auto max-w-5xl">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-primary">Settings</h1>

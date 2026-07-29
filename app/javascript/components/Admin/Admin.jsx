@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Toaster, toast } from 'react-hot-toast';
+import { toast } from 'react-hot-toast';
 import { getTables } from '../api';
 import DynamicAdminTable from './DynamicAdminTable';
 import { LayoutDashboard, Database, Search, ChevronRight, Menu } from 'lucide-react';
@@ -43,8 +43,6 @@ function Admin() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
-      <Toaster position="top-right" />
-
       {/* Sidebar */}
       <motion.div
         initial={false}

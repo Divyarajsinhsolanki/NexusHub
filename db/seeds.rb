@@ -3,9 +3,6 @@
 
 Role::NAMES.each { |name| Role.find_or_create_by!(name: name) }
 
-Workspace.find_or_create_by!(slug: "private-workspace") do |workspace|
-  workspace.name = "Private Workspace"
-  workspace.kind = "private"
-end
+Workspace.regular!
 
-puts "Seeded baseline roles and the private workspace."
+puts "Seeded baseline roles and the Nexus Hub workspace."

@@ -233,7 +233,7 @@ class MobileApiV1Test < ActionDispatch::IntegrationTest
     assert response.parsed_body.dig("data", "read_at").present?
   end
 
-  test "signup creates an isolated owner workspace and Google login issues a mobile session" do
+  test "signup and Google login join the regular workspace as members" do
     post "/api/v1/auth/signup", params: {
       auth: {
         first_name: "New",
@@ -245,8 +245,11 @@ class MobileApiV1Test < ActionDispatch::IntegrationTest
     }
     assert_response :created
     signed_up = User.find_by!(email: "new-owner@example.com")
-    assert_includes signed_up.role_names, "owner"
+    assert_includes signed_up.role_names, "member"
+    assert_not_includes signed_up.role_names, "owner"
+    assert_equal Workspace.regular!, signed_up.workspace
     assert_equal signed_up.workspace_id, response.parsed_body.dig("data", "user", "workspace", "id")
+    workspace_count = Workspace.count
 
     provider_payload = {
       email: "google-owner@example.com",
@@ -264,7 +267,12 @@ class MobileApiV1Test < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_equal "google-owner@example.com", response.parsed_body.dig("data", "user", "email")
-    assert MobileSession.exists?(user: User.find_by!(email: "google-owner@example.com"))
+    google_user = User.find_by!(email: "google-owner@example.com")
+    assert_equal signed_up.workspace, google_user.workspace
+    assert google_user.member?
+    assert_not google_user.owner?
+    assert_equal workspace_count, Workspace.count
+    assert MobileSession.exists?(user: google_user)
   end
 
   test "Google login reuses an existing account and workspace" do

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Toaster, toast } from "react-hot-toast";
+import { toast } from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   fetchProjectEnvironments,
@@ -724,7 +724,6 @@ const ProjectVault = ({ projectId }) => {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-10">
-      <Toaster position="top-right" />
 
       {/* Compact Header */}
       <div className="border-b border-slate-200 bg-white px-4 py-4 sm:px-6">

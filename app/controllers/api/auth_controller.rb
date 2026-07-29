@@ -9,11 +9,7 @@ class Api::AuthController < Api::BaseController
 
   def signup
     user = User.new(user_params)
-    workspace = Workspace.new(
-      name: "#{user.first_name.presence || 'New'} Workspace",
-      slug: "#{user.first_name.presence || 'workspace'}-#{SecureRandom.hex(4)}",
-      kind: "private"
-    )
+    workspace = Workspace.regular!
     user.workspace = workspace
     if params.dig(:auth, :profile_picture).present? && params.dig(:auth, :profile_picture) != "null"
       user.profile_picture = params[:auth][:profile_picture]
@@ -22,7 +18,7 @@ class Api::AuthController < Api::BaseController
       user.cover_photo = params[:auth][:cover_photo]
     end
 
-    if save_signup_user(workspace, user)
+    if save_signup_user(user)
       confirmation_email_sent = send_confirmation_instructions(user)
       render json: {
         message: signup_message(confirmation_email_sent),
@@ -52,7 +48,7 @@ class Api::AuthController < Api::BaseController
         user.last_name = last_name.presence || first_name
         user.password = SecureRandom.hex(10)
         user.landing_page ||= User::LANDING_PAGES.first
-        user.workspace = build_personal_workspace(first_name)
+        user.workspace = Workspace.regular!
         user.skip_confirmation! if user.respond_to?(:skip_confirmation!)
       end
 
@@ -197,13 +193,12 @@ class Api::AuthController < Api::BaseController
     permitted
   end
 
-  def save_signup_user(workspace, user)
+  def save_signup_user(user)
     user.skip_confirmation_notification! if user.respond_to?(:skip_confirmation_notification!)
 
-    Workspace.transaction do
-      workspace.save!
+    User.transaction do
+      Role.find_or_create_by!(name: "member")
       user.save!
-      user.roles = [Role.find_or_create_by!(name: "owner")]
     end
     true
   rescue ActiveRecord::RecordInvalid
@@ -233,21 +228,12 @@ class Api::AuthController < Api::BaseController
     "User created successfully, but the confirmation email could not be sent. Please contact support to verify your account."
   end
 
-  def build_personal_workspace(first_name)
-    Workspace.new(
-      name: "#{first_name.presence || 'Personal'} Workspace",
-      slug: "#{first_name.presence || 'workspace'}-#{SecureRandom.hex(4)}",
-      kind: "private"
-    )
-  end
-
   def save_google_user!(user)
     was_new_record = user.new_record?
 
-    Workspace.transaction do
-      user.workspace.save! if user.workspace&.new_record?
+    User.transaction do
+      Role.find_or_create_by!(name: "member") if was_new_record
       user.save!
-      user.roles = [Role.find_or_create_by!(name: "owner")] if was_new_record
     end
   end
 

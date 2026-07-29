@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { SchedulerAPI } from '../api';
-import { Toaster, toast } from 'react-hot-toast';
+import { toast } from 'react-hot-toast';
 import SpinnerOverlay from '../ui/SpinnerOverlay';
 import { getVisibleMembersForView } from '../../utils/sprintViewUtils';
 
@@ -657,7 +657,6 @@ function Scheduler({ sprintId, projectId, sheetIntegrationEnabled, projectMember
   return (
     <DragDropContext onDragEnd={handleDragEnd}>
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-sky-100 flex flex-col">
-        <Toaster position="top-right" />
         {processing && <SpinnerOverlay />}
         <main className="flex-grow container mx-auto p-4 lg:p-6">
           <section className="mb-8 bg-white/70 backdrop-blur-md shadow-xl rounded-xl overflow-hidden border border-gray-200">

@@ -4,7 +4,6 @@ import { fetchPosts, SchedulerAPI, fetchProjects, getUsers } from "../components
 import { AuthContext } from "../context/AuthContext";
 import PostForm from "../components/PostForm";
 import PostList from "../components/PostList";
-import { Toaster } from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { Helmet } from "react-helmet-async";
 import QuickActions from "../components/quick_actions/QuickActions";
@@ -305,7 +304,6 @@ const PostPage = () => {
         <meta property="og:type" content="website" />
       </Helmet>
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50/70 font-sans">
-        <Toaster position="top-right" />
       
         <div className="mx-auto w-full max-w-[1600px] px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
           <section className="mb-6 overflow-hidden rounded-[1.5rem] border border-white/70 bg-slate-950 shadow-2xl shadow-slate-200 sm:mb-8 sm:rounded-[2rem]">

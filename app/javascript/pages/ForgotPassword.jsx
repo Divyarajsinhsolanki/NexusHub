@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Toaster, toast } from "react-hot-toast";
+import { toast } from "react-hot-toast";
 import { requestPasswordReset } from "../components/api";
 import SpinnerOverlay from "../components/ui/SpinnerOverlay";
 import WorkspaceOrb from "../components/landing/WorkspaceOrb";
@@ -46,7 +46,6 @@ const ForgotPassword = () => {
 
   return (
     <div className="relative min-h-dvh overflow-x-hidden bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.22),transparent_32%),radial-gradient(circle_at_80%_20%,rgba(168,85,247,0.18),transparent_28%),linear-gradient(135deg,#020617_0%,#0f172a_48%,#111827_100%)] text-slate-900">
-      <Toaster position="top-right" />
       {loading && <SpinnerOverlay />}
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute -left-24 top-10 h-72 w-72 rounded-full bg-cyan-300/20 blur-3xl" />

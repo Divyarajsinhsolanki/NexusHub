@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { SchedulerAPI, getUsers, fetchProjects } from '../components/api';
-import { Toaster, toast } from 'react-hot-toast';
+import { toast } from 'react-hot-toast';
 import SpinnerOverlay from '../components/ui/SpinnerOverlay';
 import { FiX } from 'react-icons/fi';
 import { CalendarDaysIcon, FunnelIcon, PlusCircleIcon, Squares2X2Icon } from '@heroicons/react/24/outline';
@@ -1365,7 +1365,6 @@ const SprintOverview = ({ sprintId, onSprintChange, projectId, sheetIntegrationE
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 to-sky-100 px-4 pb-6 pt-1 font-sans text-gray-800 sm:px-6">
-            <Toaster position="top-right" />
             {processing && <SpinnerOverlay />}
             <div className="mx-auto max-w-[96rem] rounded-[26px] bg-white p-4 shadow-lg sm:p-5">
                 <div className="mb-4 space-y-3">

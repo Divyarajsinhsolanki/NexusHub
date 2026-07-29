@@ -54,6 +54,8 @@ class AuthFlowsTest < ActionDispatch::IntegrationTest
   end
 
   test "google login uses verified firebase token payload" do
+    regular_workspace = Workspace.regular!
+    workspace_count = Workspace.count
     provider_payload = {
       email: "web-google@example.test",
       name: "Web Google",
@@ -67,7 +69,12 @@ class AuthFlowsTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_equal "web-google@example.test", response.parsed_body.dig("user", "email")
-    assert User.find_by!(email: "web-google@example.test").confirmed?
+    google_user = User.find_by!(email: "web-google@example.test")
+    assert google_user.confirmed?
+    assert_equal regular_workspace, google_user.workspace
+    assert google_user.member?
+    assert_not google_user.owner?
+    assert_equal workspace_count, Workspace.count
   end
 
   test "signup still creates account when confirmation email delivery fails" do

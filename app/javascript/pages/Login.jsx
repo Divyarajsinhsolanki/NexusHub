@@ -2,7 +2,7 @@ import React, { useState, useContext, useEffect } from "react";
 import { AuthContext } from "../context/AuthContext";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { firebaseEnabled } from "../firebaseFlags";
-import { Toaster, toast } from "react-hot-toast";
+import { toast } from "react-hot-toast";
 import SpinnerOverlay from "../components/ui/SpinnerOverlay";
 import WorkspaceOrb from "../components/landing/WorkspaceOrb";
 
@@ -43,7 +43,6 @@ const Login = ({ switchToSignup }) => {
 
   return (
     <div className="w-full">
-      <Toaster position="top-right" />
       {loading && <SpinnerOverlay />}
       <div className="mx-auto grid w-full max-w-6xl items-center gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(340px,0.8fr)] lg:gap-8 xl:gap-10">
         <div className="auth-orb-panel hidden lg:block">

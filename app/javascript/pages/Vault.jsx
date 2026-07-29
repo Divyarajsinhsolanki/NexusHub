@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Toaster, toast } from "react-hot-toast";
+import { toast } from "react-hot-toast";
 import { fetchItems, createItem, updateItem, deleteItem } from "../components/api";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -455,7 +455,6 @@ const Vault = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 pb-20">
-      <Toaster position="top-right" />
 
       {/* Premium Hero Header */}
       <div className="relative overflow-hidden bg-slate-900 pb-12 sm:pb-16">

@@ -1,4 +1,5 @@
 class Workspace < ApplicationRecord
+  REGULAR_SLUG = "private-workspace".freeze
   KINDS = %w[private demo].freeze
   BILLING_STATUSES = %w[trialing active past_due canceled].freeze
 
@@ -22,6 +23,15 @@ class Workspace < ApplicationRecord
 
   before_validation :assign_saas_defaults
   before_validation :normalize_slug
+
+  def self.regular!
+    find_or_create_by!(slug: REGULAR_SLUG) do |workspace|
+      workspace.name = "Nexus Hub Workspace"
+      workspace.kind = "private"
+      workspace.plan_key = "enterprise"
+      workspace.billing_status = "active"
+    end
+  end
 
   def demo?
     kind == "demo"

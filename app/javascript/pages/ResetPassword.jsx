@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Toaster, toast } from "react-hot-toast";
+import { toast } from "react-hot-toast";
 import { resetPassword } from "../components/api";
 import SpinnerOverlay from "../components/ui/SpinnerOverlay";
 
@@ -53,7 +53,6 @@ const ResetPassword = () => {
 
   return (
     <div className="min-h-dvh bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-slate-50">
-      <Toaster position="top-right" />
       {loading && <SpinnerOverlay />}
       <div className="mx-auto flex min-h-dvh max-w-5xl flex-col items-center justify-center gap-6 px-4 py-6 sm:px-6 lg:flex-row lg:py-8">
         <div className="relative w-full rounded-2xl border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur sm:p-7 lg:w-2/5">
