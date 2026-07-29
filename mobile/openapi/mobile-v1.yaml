@@ -58,6 +58,15 @@ paths:
           $ref: "#/components/responses/AuthSuccess"
         "401":
           $ref: "#/components/responses/Error"
+  /auth/demo:
+    post:
+      security: []
+      operationId: demoLogin
+      responses:
+        "200":
+          $ref: "#/components/responses/AuthSuccess"
+        "503":
+          $ref: "#/components/responses/Error"
   /auth/signup:
     post:
       security: []
@@ -235,6 +244,70 @@ paths:
       operationId: deleteCalendarEvent
       responses:
         "200": { $ref: "#/components/responses/GenericSuccess" }
+  /calendar_events/{id}/event_reminders:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      operationId: createEventReminder
+      responses:
+        "201": { $ref: "#/components/responses/GenericSuccess" }
+  /event_reminders/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    patch:
+      operationId: updateEventReminder
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+    delete:
+      operationId: deleteEventReminder
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /sprints:
+    get:
+      operationId: listSprints
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+    post:
+      operationId: createSprint
+      responses:
+        "201": { $ref: "#/components/responses/GenericSuccess" }
+  /sprints/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    patch:
+      operationId: updateSprint
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+    delete:
+      operationId: deleteSprint
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /sprints/{id}/import_tasks:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      operationId: importSprintTasks
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /sprints/{id}/export_tasks:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      operationId: exportSprintTasks
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /sprints/{id}/export_logs:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      operationId: exportSprintLogs
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /tasks/import_backlog:
+    post:
+      operationId: importProjectBacklog
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
   /posts:
     get:
       operationId: listPosts
@@ -264,9 +337,55 @@ paths:
       operationId: createTeam
       responses:
         "201": { $ref: "#/components/responses/GenericSuccess" }
+  /teams/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    patch:
+      operationId: updateTeam
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+    delete:
+      operationId: deleteTeam
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /teams/{id}/insights:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      operationId: getTeamInsights
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /team_users:
+    post:
+      operationId: createTeamMembership
+      responses:
+        "201": { $ref: "#/components/responses/GenericSuccess" }
+  /team_users/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    patch:
+      operationId: updateTeamMembership
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+    delete:
+      operationId: deleteTeamMembership
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
   /skills:
     get:
       operationId: listSkills
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /skill_endorsements:
+    post:
+      operationId: createSkillEndorsement
+      responses:
+        "201": { $ref: "#/components/responses/GenericSuccess" }
+  /skill_endorsements/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    delete:
+      operationId: deleteSkillEndorsement
       responses:
         "200": { $ref: "#/components/responses/GenericSuccess" }
   /learning_goals:
@@ -278,6 +397,33 @@ paths:
       operationId: createLearningGoal
       responses:
         "201": { $ref: "#/components/responses/GenericSuccess" }
+  /learning_goals/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    patch:
+      operationId: updateLearningGoal
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+    delete:
+      operationId: deleteLearningGoal
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /learning_checkpoints:
+    post:
+      operationId: createLearningCheckpoint
+      responses:
+        "201": { $ref: "#/components/responses/GenericSuccess" }
+  /learning_checkpoints/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    patch:
+      operationId: updateLearningCheckpoint
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+    delete:
+      operationId: deleteLearningCheckpoint
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
   /users:
     get:
       operationId: listWorkspaceUsers
@@ -296,6 +442,28 @@ paths:
       operationId: createDepartment
       responses:
         "201": { $ref: "#/components/responses/GenericSuccess" }
+  /departments/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      operationId: getDepartment
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+    patch:
+      operationId: updateDepartment
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+    delete:
+      operationId: deleteDepartment
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /departments/{id}/update_members:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    patch:
+      operationId: updateDepartmentMembers
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
   /items:
     get:
       operationId: listVaultItems
@@ -319,9 +487,32 @@ paths:
       operationId: createIssue
       responses:
         "201": { $ref: "#/components/responses/GenericSuccess" }
+  /issues/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    patch:
+      operationId: updateIssue
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+    delete:
+      operationId: deleteIssue
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /issues/import_from_sheet:
+    post:
+      operationId: importIssuesFromSheet
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
   /knowledge_items:
     get:
       operationId: listKnowledgeItems
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /knowledge_items/{id}/archive:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    patch:
+      operationId: archiveKnowledgeItem
       responses:
         "200": { $ref: "#/components/responses/GenericSuccess" }
   /knowledge_bookmarks:
@@ -333,6 +524,20 @@ paths:
       operationId: createKnowledgeBookmark
       responses:
         "201": { $ref: "#/components/responses/GenericSuccess" }
+  /knowledge_bookmarks/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    delete:
+      operationId: deleteKnowledgeBookmark
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /knowledge_bookmarks/{id}/mark_reviewed:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      operationId: markKnowledgeBookmarkReviewed
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
   /conversations:
     get:
       operationId: listConversations
@@ -417,6 +622,19 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/GenericSuccess"
+  /portfolio:
+    get:
+      security: []
+      operationId: getPublishedPortfolio
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "404": { $ref: "#/components/responses/Error" }
+  /demo/manifest:
+    get:
+      operationId: getDemoManifest
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
   /uploads:
     post:
       operationId: createDirectUpload
@@ -470,6 +688,53 @@ paths:
       responses:
         "200": { $ref: "#/components/responses/GenericSuccess" }
         "403": { $ref: "#/components/responses/Error" }
+  /portfolio_admin:
+    get:
+      operationId: getPortfolioAdmin
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+  /portfolio_admin/profile:
+    patch:
+      operationId: updatePortfolioProfile
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "422": { $ref: "#/components/responses/Error" }
+  /portfolio_admin/projects:
+    post:
+      operationId: createPortfolioProject
+      responses:
+        "201": { $ref: "#/components/responses/GenericSuccess" }
+        "422": { $ref: "#/components/responses/Error" }
+  /portfolio_admin/projects/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    patch:
+      operationId: updatePortfolioProject
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+    delete:
+      operationId: deletePortfolioProject
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /portfolio_admin/projects/{id}/features:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      operationId: createPortfolioFeature
+      responses:
+        "201": { $ref: "#/components/responses/GenericSuccess" }
+  /portfolio_admin/features/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    patch:
+      operationId: updatePortfolioFeature
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+    delete:
+      operationId: deletePortfolioFeature
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
 components:
   securitySchemes:
     bearerAuth:
@@ -544,6 +809,7 @@ components:
         full_name: { type: string }
         job_title: { type: string }
         profile_picture: { type: [string, "null"] }
+        demo_account: { type: boolean }
         roles:
           type: array
           items: { type: string }
@@ -586,6 +852,16 @@ components:
         end_date: { type: [string, "null"], format: date }
         task_count: { type: integer }
         sprint_count: { type: integer }
+        sheet_integration_enabled: { type: boolean }
+        sheet_id: { type: [string, "null"] }
+        issue_sheet_id: { type: [string, "null"] }
+        issue_sheet_name: { type: [string, "null"] }
+        qa_mode_enabled: { type: boolean }
+        users:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
     Task:
       type: object
       required: [id, title, type, status]
@@ -597,8 +873,27 @@ components:
         type: { type: string }
         status: { type: string }
         priority: { type: [string, "null"] }
+        start_date: { type: [string, "null"], format: date }
+        end_date: { type: [string, "null"], format: date }
+        estimated_hours: { type: [number, string, "null"] }
         project_id: { type: [integer, "null"] }
         sprint_id: { type: [integer, "null"] }
+        task_url: { type: [string, "null"] }
+        order: { type: [integer, "null"] }
+        developer_id: { type: [integer, "null"] }
+        assigned_to_user: { type: [integer, "null"] }
+        qa_assigned: { type: [string, "null"] }
+        internal_qa: { type: [string, "null"] }
+        blocker: { type: boolean }
+        demo: { type: boolean }
+        swag_point: { type: [number, string, "null"] }
+        story_point: { type: [number, string, "null"] }
+        dev_hours: { type: [number, string, "null"] }
+        code_review_hours: { type: [number, string, "null"] }
+        dev_to_qa_hours: { type: [number, string, "null"] }
+        qa_hours: { type: [number, string, "null"] }
+        automation_qa_hours: { type: [number, string, "null"] }
+        total_hours: { type: [number, string, "null"] }
     ProjectCollection:
       type: object
       required: [data, meta]

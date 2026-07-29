@@ -11,6 +11,7 @@ import { absoluteAssetUrl, apiErrorMessage } from '@/src/api/client';
 import { endpoints } from '@/src/api/endpoints';
 import type { PdfOperation } from '@/src/api/types';
 import { tokenStore } from '@/src/auth/tokenStore';
+import { useAuth } from '@/src/auth/AuthProvider';
 import { PageHeader } from '@/src/components/PageHeader';
 import { PrimaryButton } from '@/src/components/PrimaryButton';
 import { Screen } from '@/src/components/Screen';
@@ -23,6 +24,8 @@ export default function PdfDetailScreen() {
   const router = useRouter();
   const theme = useAppTheme();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const writable = !user?.demo_account;
   const [page, setPage] = useState(1);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
@@ -63,19 +66,13 @@ export default function PdfDetailScreen() {
 
   return <Screen header={<PageHeader leading={<Pressable accessibilityLabel="Back" onPress={() => router.back()} style={styles.iconButton}><ArrowLeft color={theme.text} size={22} /></Pressable>} title={data.title} subtitle={`Page ${page} of ${data.page_count || 1}`} action={<Pressable accessibilityLabel="PDF tools" onPress={() => setToolsOpen(true)} style={styles.iconButton}><MoreHorizontal color={theme.text} size={23} /></Pressable>} />}>
     <View style={styles.viewer}><Pdf enablePaging horizontal onError={(error) => Alert.alert('Unable to render PDF', String(error))} onPageChanged={setPage} source={{ uri: absoluteAssetUrl(data.content_url), cache: true, headers: viewerToken.data ? { Authorization: `Bearer ${viewerToken.data}` } : undefined }} style={styles.pdf} trustAllCerts={false} /></View>
-    <View style={[styles.quickTools, { backgroundColor: theme.surface, borderTopColor: theme.border }]}><Tool label="Undo" disabled={!data.can_undo || history.isPending} onPress={() => history.mutate('undo')}><Undo2 color={theme.text} size={20} /></Tool><Tool label="Redo" disabled={!data.can_redo || history.isPending} onPress={() => history.mutate('redo')}><Redo2 color={theme.text} size={20} /></Tool><Tool label="Rotate" disabled={operation.isPending} onPress={() => operation.mutate({ kind: 'rotate_pages', parameters: { page_numbers: [page], degrees: 90 } })}><RotateCw color={theme.text} size={20} /></Tool><Tool label="Share" onPress={() => downloadAndShare(true)}><Share2 color={theme.text} size={20} /></Tool></View>
+    <View style={[styles.quickTools, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>{writable ? <><Tool label="Undo" disabled={!data.can_undo || history.isPending} onPress={() => history.mutate('undo')}><Undo2 color={theme.text} size={20} /></Tool><Tool label="Redo" disabled={!data.can_redo || history.isPending} onPress={() => history.mutate('redo')}><Redo2 color={theme.text} size={20} /></Tool><Tool label="Rotate" disabled={operation.isPending} onPress={() => operation.mutate({ kind: 'rotate_pages', parameters: { page_numbers: [page], degrees: 90 } })}><RotateCw color={theme.text} size={20} /></Tool></> : null}<Tool label="Share" onPress={() => downloadAndShare(true)}><Share2 color={theme.text} size={20} /></Tool></View>
 
     <Modal animationType="slide" onRequestClose={() => setToolsOpen(false)} presentationStyle="pageSheet" visible={toolsOpen}><View style={[styles.modal, { backgroundColor: theme.background }]}><PageHeader leading={<Pressable accessibilityLabel="Close tools" onPress={() => setToolsOpen(false)} style={styles.iconButton}><ArrowLeft color={theme.text} size={22} /></Pressable>} title="Document tools" subtitle={operation.isPending ? 'Processing operation...' : `${data.page_count || 0} pages`} /><ScrollView contentContainerStyle={styles.toolList}>
-      <ToolRow icon={<RotateCw color={theme.primary} size={20} />} label="Rotate every page" onPress={() => operation.mutate({ kind: 'rotate_pages', parameters: { page_numbers: allPages, degrees: 90 } })} />
-      <ToolRow icon={<Copy color={theme.primary} size={20} />} label="Duplicate current page" onPress={() => operation.mutate({ kind: 'duplicate_pages', parameters: { page_numbers: [page] } })} />
-      <ToolRow icon={<Scissors color={theme.primary} size={20} />} label="Delete current page" onPress={() => data.page_count && data.page_count > 1 && operation.mutate({ kind: 'delete_pages', parameters: { page_numbers: [page] } })} />
-      <ToolRow icon={<Archive color={theme.primary} size={20} />} label="Compress document" onPress={() => operation.mutate({ kind: 'compress' })} />
-      <ToolRow icon={<Scissors color={theme.primary} size={20} />} label="Split into 10 MB parts" onPress={() => operation.mutate({ kind: 'split_by_size', parameters: { max_size_mb: 10 } })} />
+      {writable ? <><ToolRow icon={<RotateCw color={theme.primary} size={20} />} label="Rotate every page" onPress={() => operation.mutate({ kind: 'rotate_pages', parameters: { page_numbers: allPages, degrees: 90 } })} /><ToolRow icon={<Copy color={theme.primary} size={20} />} label="Duplicate current page" onPress={() => operation.mutate({ kind: 'duplicate_pages', parameters: { page_numbers: [page] } })} /><ToolRow icon={<Scissors color={theme.primary} size={20} />} label="Delete current page" onPress={() => data.page_count && data.page_count > 1 && operation.mutate({ kind: 'delete_pages', parameters: { page_numbers: [page] } })} /><ToolRow icon={<Archive color={theme.primary} size={20} />} label="Compress document" onPress={() => operation.mutate({ kind: 'compress' })} /><ToolRow icon={<Scissors color={theme.primary} size={20} />} label="Split into 10 MB parts" onPress={() => operation.mutate({ kind: 'split_by_size', parameters: { max_size_mb: 10 } })} /></> : null}
       <ToolRow icon={<Download color={theme.primary} size={20} />} label="Download PDF" onPress={() => downloadAndShare(false)} />
       <ToolRow icon={<Share2 color={theme.primary} size={20} />} label="Share PDF" onPress={() => downloadAndShare(true)} />
-      <ToolRow icon={<Undo2 color={theme.primary} size={20} />} label="Restore original" onPress={() => history.mutate('restore_original')} />
-      <ToolRow icon={<MoreHorizontal color={theme.primary} size={20} />} label="Rename document" onPress={() => { setTitle(data.title); setRenaming(true); }} />
-      <ToolRow danger icon={<Trash2 color={theme.danger} size={20} />} label="Delete document" onPress={() => Alert.alert('Delete this PDF?', 'All versions and operations will be removed.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: remove }])} />
+      {writable ? <><ToolRow icon={<Undo2 color={theme.primary} size={20} />} label="Restore original" onPress={() => history.mutate('restore_original')} /><ToolRow icon={<MoreHorizontal color={theme.primary} size={20} />} label="Rename document" onPress={() => { setTitle(data.title); setRenaming(true); }} /><ToolRow danger icon={<Trash2 color={theme.danger} size={20} />} label="Delete document" onPress={() => Alert.alert('Delete this PDF?', 'All versions and operations will be removed.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: remove }])} /></> : null}
     </ScrollView></View></Modal>
     <Modal animationType="fade" onRequestClose={() => setRenaming(false)} transparent visible={renaming}><View style={styles.overlay}><View style={[styles.dialog, { backgroundColor: theme.surface }]}><Text style={[styles.dialogTitle, { color: theme.text }]}>Rename PDF</Text><TextInput autoFocus onChangeText={setTitle} style={[styles.input, { borderColor: theme.border, color: theme.text }]} value={title} /><PrimaryButton disabled={!title.trim() || rename.isPending} label={rename.isPending ? 'Saving...' : 'Rename'} onPress={() => rename.mutate()} /><Pressable onPress={() => setRenaming(false)} style={styles.cancel}><Text style={{ color: theme.textMuted, fontWeight: '700' }}>Cancel</Text></Pressable></View></View></Modal>
   </Screen>;

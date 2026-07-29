@@ -14,6 +14,8 @@ class Api::V1::MobileConfigController < Api::V1::BaseController
         minimum_version: ENV.fetch("MOBILE_MINIMUM_VERSION", "1.0.0"),
         recommended_version: ENV.fetch("MOBILE_RECOMMENDED_VERSION", "1.0.0"),
         maintenance: ActiveModel::Type::Boolean.new.cast(ENV["MOBILE_MAINTENANCE_MODE"]),
+        demo_available: PortfolioAccess.enabled? && ActiveModel::Type::Boolean.new.cast(ENV.fetch("DEMO_MODE_ENABLED", "false")),
+        portfolio_available: PortfolioAccess.enabled?,
         features: FEATURES.index_with { true },
         web_url: ENV["FRONTEND_URL"].presence || request.base_url
       }

@@ -13,6 +13,7 @@ test('submits validated credentials', async () => {
     isLoading: false,
     signIn,
     signInWithGoogle: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
+    signInDemo: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
     signUp: jest.fn() as never,
     forgotPassword: jest.fn() as never,
     resetPassword: jest.fn() as never,

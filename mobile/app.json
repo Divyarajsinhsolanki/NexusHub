@@ -65,7 +65,6 @@
       ],
       "@react-native-community/datetimepicker",
       "@sentry/react-native",
-      "@react-native-google-signin/google-signin",
       "@livekit/react-native-expo-plugin",
       "@config-plugins/react-native-webrtc",
       "@config-plugins/react-native-blob-util",

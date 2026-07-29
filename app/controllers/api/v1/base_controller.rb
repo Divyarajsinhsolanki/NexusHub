@@ -64,6 +64,7 @@ class Api::V1::BaseController < Api::BaseController
       color_theme: user.color_theme,
       dark_mode: user.dark_mode,
       profile_picture: attached_url(user.profile_picture),
+      demo_account: user.demo_account?,
       roles: user.role_names.sort,
       workspace: {
         id: user.workspace_id,
@@ -125,6 +126,22 @@ class Api::V1::BaseController < Api::BaseController
       estimated_hours: task.estimated_hours,
       project_id: task.project_id,
       sprint_id: task.sprint_id,
+      task_url: task.task_url,
+      order: task.order,
+      developer_id: task.developer_id,
+      assigned_to_user: task.assigned_to_user,
+      qa_assigned: task.qa_assigned,
+      internal_qa: task.internal_qa,
+      blocker: task.blocker,
+      demo: task.demo,
+      swag_point: task.swag_point,
+      story_point: task.story_point,
+      dev_hours: task.dev_hours,
+      code_review_hours: task.code_review_hours,
+      dev_to_qa_hours: task.dev_to_qa_hours,
+      qa_hours: task.qa_hours,
+      automation_qa_hours: task.automation_qa_hours,
+      total_hours: task.total_hours,
       assignee: serialize_person(task.assigned_user || task.developer)
     }
   end

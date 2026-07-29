@@ -1,6 +1,6 @@
 # Nexus Hub Mobile
 
-Phone-first Expo React Native client for the Nexus Hub Rails `/api/v1` API. It covers authenticated daily work, project delivery, collaboration, knowledge, PDF, account, and role-gated administration workflows. Public, legal, demo, and metaverse pages open in the authenticated in-app browser.
+Phone-first Expo React Native client for the Nexus Hub Rails `/api/v1` API. Logged-out users enter through the native public portfolio; returning users open the authenticated Today dashboard. The app covers daily work, project delivery, collaboration, knowledge, PDF, account, and role-gated administration workflows. Legal, contact, and metaverse pages open in the in-app browser.
 
 Native modules for encrypted SQLite, push, Google sign-in, LiveKit, and PDF rendering require a development or preview build; Expo Go is not supported.
 
@@ -20,6 +20,42 @@ Set `EXPO_PUBLIC_API_URL` for the device running the app:
 - Physical device: `http://<computer-lan-ip>:3000/api/v1`
 
 For a physical device, run Rails on an accessible interface and permit the development host in the Rails host configuration. Production builds must use an HTTPS API URL.
+
+## Firebase Google Sign-In
+
+Nexus Hub uses native Google account selection, Firebase authentication, and the Rails `/api/v1/auth/google` token exchange. Expo Go cannot run this flow.
+
+In the existing `temppdfmodifier` Firebase project:
+
+1. Enable Google under Authentication > Sign-in method.
+2. Register Android package `com.nexushub.mobile`, add the SHA-1 and SHA-256 fingerprints from the EAS Android signing credential, and download a fresh `google-services.json`.
+3. Register iOS bundle ID `com.nexushub.mobile` and download `GoogleService-Info.plist`.
+4. Copy the Web OAuth client ID and iOS OAuth client ID from Firebase/Google Cloud. The iOS URL scheme is the plist `REVERSED_CLIENT_ID` value.
+
+Set these public values in `.env.local` and in each EAS environment:
+
+```bash
+EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=...apps.googleusercontent.com
+EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=...apps.googleusercontent.com
+GOOGLE_IOS_URL_SCHEME=com.googleusercontent.apps....
+```
+
+Upload the downloaded files as EAS project variables with file type and secret visibility:
+
+```bash
+eas env:create --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --visibility secret --environment preview
+eas env:create --name GOOGLE_SERVICE_INFO_PLIST --type file --value ./GoogleService-Info.plist --visibility secret --environment preview
+```
+
+Repeat the variables for `development` and `production`. Keep both files outside Git; local files can be placed in `mobile/.firebase/` and referenced by `GOOGLE_SERVICES_JSON` and `GOOGLE_SERVICE_INFO_PLIST` in `.env.local`. Render must define `FIREBASE_PROJECT_ID=temppdfmodifier` so Rails verifies the Firebase token audience.
+
+After adding native credentials, create a new binary:
+
+```bash
+eas build --platform android --profile preview
+```
+
+An OTA update alone cannot add the native Google configuration.
 
 ## Verification
 

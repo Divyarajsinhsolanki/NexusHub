@@ -38,7 +38,7 @@ class Api::TeamUsersController < Api::BaseController
   private
 
   def authorize_admin!
-    head :forbidden unless current_user&.admin?
+    head :forbidden unless current_user&.admin? || current_user&.owner?
   end
 
   def authorize_leader!

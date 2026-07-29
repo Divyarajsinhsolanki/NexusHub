@@ -20,6 +20,7 @@ type AuthContextValue = {
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
+  signInDemo: () => Promise<void>;
   signUp: (input: SignupInput) => ReturnType<typeof endpoints.signup>;
   forgotPassword: (email: string) => ReturnType<typeof endpoints.forgotPassword>;
   resetPassword: (input: { reset_password_token: string; password: string; password_confirmation: string }) => ReturnType<typeof endpoints.resetPassword>;
@@ -83,11 +84,21 @@ export function AuthProvider({ children }: PropsWithChildren) {
     await applySession(await endpoints.google(firebaseToken));
   }, [applySession]);
 
+  const signInDemo = useCallback(async () => {
+    await applySession(await endpoints.demo());
+  }, [applySession]);
+
   const signOut = useCallback(async () => {
     const tokens = await tokenStore.get();
     try {
       if (tokens?.refreshToken) await endpoints.logout(tokens.refreshToken);
     } finally {
+      try {
+        const { clearGoogleSession } = await import('./googleAuth');
+        await clearGoogleSession();
+      } catch {
+        // Native Google Sign-In is optional in local and web builds.
+      }
       await expireSession();
     }
   }, [expireSession]);
@@ -114,6 +125,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       isLoading,
       signIn,
       signInWithGoogle,
+      signInDemo,
       signUp: endpoints.signup,
       forgotPassword: endpoints.forgotPassword,
       resetPassword: endpoints.resetPassword,
@@ -122,7 +134,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       startImpersonation,
       stopImpersonation,
     }),
-    [user, isLoading, signIn, signInWithGoogle, signOut, refreshUser, startImpersonation, stopImpersonation],
+    [user, isLoading, signIn, signInWithGoogle, signInDemo, signOut, refreshUser, startImpersonation, stopImpersonation],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

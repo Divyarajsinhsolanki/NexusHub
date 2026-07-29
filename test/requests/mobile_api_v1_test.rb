@@ -134,9 +134,57 @@ class MobileApiV1Test < ActionDispatch::IntegrationTest
     assert_response :success
     assert_equal [@task.id], response.parsed_body.fetch("data").map { |task| task.fetch("id") }
 
-    patch "/api/v1/tasks/#{@task.id}", params: { task: { status: "inprogress" } }, headers: bearer_headers(token)
+    patch "/api/v1/tasks/#{@task.id}", params: { task: { status: "inprogress", task_url: "https://example.test/tasks/APP-1", story_point: 5, dev_hours: 3.5, blocker: true } }, headers: bearer_headers(token)
     assert_response :success
     assert_equal "inprogress", response.parsed_body.dig("data", "status")
+    assert_equal "https://example.test/tasks/APP-1", response.parsed_body.dig("data", "task_url")
+    assert_equal 5, response.parsed_body.dig("data", "story_point").to_i
+    assert_equal true, response.parsed_body.dig("data", "blocker")
+  end
+
+  test "owners manage team membership and department assignments from mobile" do
+    @user.roles = [Role.find_or_create_by!(name: "owner")]
+    teammate = create_user(@workspace, "organization@example.com", "Organization")
+    token = mobile_login.fetch("access_token")
+
+    post "/api/v1/teams", params: { team: { name: "Mobile Platform", description: "Native delivery" } }, headers: bearer_headers(token)
+    assert_response :created
+    team_id = response.parsed_body.dig("data", "id")
+
+    post "/api/v1/team_users", params: { team_user: { team_id: team_id, user_id: teammate.id, role: "member", status: "accepted" } }, headers: bearer_headers(token)
+    assert_response :created
+
+    get "/api/v1/teams/#{team_id}/insights", headers: bearer_headers(token)
+    assert_response :success
+    assert_equal [teammate.id], response.parsed_body.dig("data", "members").map { |member| member.fetch("id") }
+
+    post "/api/v1/departments", params: { department: { name: "Engineering", manager_id: @user.id } }, headers: bearer_headers(token)
+    assert_response :created
+    department_id = response.parsed_body.dig("data", "id")
+
+    patch "/api/v1/departments/#{department_id}/update_members", params: { user_ids: [teammate.id, @other_user.id] }, headers: bearer_headers(token)
+    assert_response :success
+    assert_equal [teammate.id], response.parsed_body.dig("data", "users").map { |member| member.fetch("id") }
+    assert_equal @workspace.id, teammate.reload.workspace_id
+    assert_nil @other_user.reload.department_id
+  end
+
+  test "project calendar events include reminders" do
+    token = mobile_login.fetch("access_token")
+    start_at = 1.day.from_now.change(sec: 0)
+
+    post "/api/v1/calendar_events", params: { calendar_event: { title: "Sprint review", start_at: start_at, end_at: start_at + 1.hour, event_type: "sprint_ceremony", visibility: "project", status: "scheduled", project_id: @project.id } }, headers: bearer_headers(token)
+    assert_response :created
+    event_id = response.parsed_body.dig("data", "events", 0, "id")
+
+    post "/api/v1/calendar_events/#{event_id}/event_reminders", params: { event_reminder: { channel: "in_app", minutes_before: 30 } }, headers: bearer_headers(token)
+    assert_response :created
+
+    get "/api/v1/calendar_events", headers: bearer_headers(token)
+    assert_response :success
+    event = response.parsed_body.fetch("data").find { |row| row.fetch("id") == event_id }
+    assert_equal @project.id, event.fetch("project_id")
+    assert_equal 30, event.fetch("event_reminders").first.fetch("minutes_before")
   end
 
   test "work logs can be created updated listed and deleted" do
@@ -217,6 +265,34 @@ class MobileApiV1Test < ActionDispatch::IntegrationTest
     assert_response :success
     assert_equal "google-owner@example.com", response.parsed_body.dig("data", "user", "email")
     assert MobileSession.exists?(user: User.find_by!(email: "google-owner@example.com"))
+  end
+
+  test "Google login reuses an existing account and workspace" do
+    workspace_count = Workspace.count
+
+    with_firebase_payload(email: @user.email, name: @user.full_name) do
+      post "/api/v1/auth/google", params: { id_token: "verified-firebase-token", device_name: "Existing Google phone" }
+    end
+
+    assert_response :success
+    assert_equal @user.id, response.parsed_body.dig("data", "user", "id")
+    assert_equal @workspace.id, response.parsed_body.dig("data", "user", "workspace", "id")
+    assert_equal workspace_count, Workspace.count
+  end
+
+  test "Google login rejects invalid provider tokens and locked accounts" do
+    with_firebase_payload(nil) do
+      post "/api/v1/auth/google", params: { id_token: "invalid-token", device_name: "Google phone" }
+    end
+    assert_response :unauthorized
+    assert_equal "invalid_provider_token", response.parsed_body.dig("error", "code")
+
+    @user.update!(status: "locked")
+    with_firebase_payload(email: @user.email, name: @user.full_name) do
+      post "/api/v1/auth/google", params: { id_token: "verified-firebase-token", device_name: "Locked Google phone" }
+    end
+    assert_response :forbidden
+    assert_equal "account_locked", response.parsed_body.dig("error", "code")
   end
 
   test "forgot password stays accepted when mail delivery fails" do
@@ -365,6 +441,14 @@ class MobileApiV1Test < ActionDispatch::IntegrationTest
 
   def bearer_headers(token)
     { "Authorization" => "Bearer #{token}", "Accept" => "application/json" }
+  end
+
+  def with_firebase_payload(payload)
+    original = FirebaseIdTokenVerifier.method(:call)
+    FirebaseIdTokenVerifier.singleton_class.define_method(:call) { |_token| payload }
+    yield
+  ensure
+    FirebaseIdTokenVerifier.singleton_class.define_method(:call) { |token| original.call(token) }
   end
 
   def with_reset_mail_failure

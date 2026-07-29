@@ -88,8 +88,9 @@ export async function storeSession(session: AuthSession) {
 
 export function apiErrorMessage(error: unknown) {
   if (axios.isAxiosError(error)) {
-    const payload = error.response?.data as { error?: { message?: string } } | undefined;
-    return payload?.error?.message || (error.code === 'ECONNABORTED' ? 'The request timed out.' : 'Unable to reach Nexus Hub.');
+    const payload = error.response?.data as { error?: { message?: string } | string; errors?: string[]; message?: string } | undefined;
+    const serverMessage = typeof payload?.error === 'string' ? payload.error : payload?.error?.message;
+    return serverMessage || payload?.errors?.join('\n') || payload?.message || (error.code === 'ECONNABORTED' ? 'The request timed out.' : 'Unable to reach Nexus Hub.');
   }
   return error instanceof Error ? error.message : 'Something went wrong.';
 }

@@ -26,7 +26,7 @@ export default function TabLayout() {
         },
         tabBarLabelStyle: { fontSize: 11, fontWeight: '700' },
       }}>
-      <Tabs.Screen name="index" options={{ title: 'Today', tabBarIcon: ({ color, size }) => <LayoutDashboard color={color} size={size} /> }} />
+      <Tabs.Screen name="today" options={{ title: 'Today', tabBarIcon: ({ color, size }) => <LayoutDashboard color={color} size={size} /> }} />
       <Tabs.Screen name="work" options={{ title: 'Work', tabBarIcon: ({ color, size }) => <BriefcaseBusiness color={color} size={size} /> }} />
       <Tabs.Screen name="projects" options={{ title: 'Projects', tabBarIcon: ({ color, size }) => <FolderKanban color={color} size={size} /> }} />
       <Tabs.Screen name="inbox" options={{ title: 'Inbox', tabBarBadge: unread ? (unread > 99 ? '99+' : unread) : undefined, tabBarIcon: ({ color, size }) => <Inbox color={color} size={size} /> }} />

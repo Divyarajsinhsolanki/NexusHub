@@ -8,6 +8,7 @@ import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native
 import { apiErrorMessage } from '@/src/api/client';
 import { endpoints } from '@/src/api/endpoints';
 import type { Notification } from '@/src/api/types';
+import { useAuth } from '@/src/auth/AuthProvider';
 import { Avatar } from '@/src/components/Avatar';
 import { PageHeader } from '@/src/components/PageHeader';
 import { Screen } from '@/src/components/Screen';
@@ -18,6 +19,8 @@ export default function NotificationsScreen() {
   const theme = useAppTheme();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const writable = !user?.demo_account;
   const notifications = useInfiniteQuery({
     queryKey: ['notifications'],
     initialPageParam: 1,
@@ -38,7 +41,7 @@ export default function NotificationsScreen() {
   });
 
   const openNotification = async (notification: Notification) => {
-    if (!notification.read_at) {
+    if (writable && !notification.read_at) {
       try {
         await markRead.mutateAsync(notification.id);
       } catch {
@@ -52,7 +55,7 @@ export default function NotificationsScreen() {
     <Screen
       header={
         <PageHeader
-          action={unread ? (
+          action={writable && unread ? (
             <Pressable accessibilityLabel="Mark all notifications read" accessibilityRole="button" disabled={markAll.isPending} onPress={() => markAll.mutate()} style={styles.headerButton}>
               <CheckCheck color={theme.primary} size={23} />
             </Pressable>

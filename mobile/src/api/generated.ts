@@ -52,6 +52,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/demo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["demoLogin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/signup": {
         parameters: {
             query?: never;
@@ -314,6 +330,146 @@ export interface paths {
         patch: operations["updateCalendarEvent"];
         trace?: never;
     };
+    "/calendar_events/{id}/event_reminders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["createEventReminder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/event_reminders/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteEventReminder"];
+        options?: never;
+        head?: never;
+        patch: operations["updateEventReminder"];
+        trace?: never;
+    };
+    "/sprints": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listSprints"];
+        put?: never;
+        post: operations["createSprint"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sprints/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteSprint"];
+        options?: never;
+        head?: never;
+        patch: operations["updateSprint"];
+        trace?: never;
+    };
+    "/sprints/{id}/import_tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["importSprintTasks"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sprints/{id}/export_tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["exportSprintTasks"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sprints/{id}/export_logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["exportSprintLogs"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tasks/import_backlog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["importProjectBacklog"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/posts": {
         parameters: {
             query?: never;
@@ -364,6 +520,76 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/teams/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteTeam"];
+        options?: never;
+        head?: never;
+        patch: operations["updateTeam"];
+        trace?: never;
+    };
+    "/teams/{id}/insights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get: operations["getTeamInsights"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/team_users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["createTeamMembership"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/team_users/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteTeamMembership"];
+        options?: never;
+        head?: never;
+        patch: operations["updateTeamMembership"];
+        trace?: never;
+    };
     "/skills": {
         parameters: {
             query?: never;
@@ -375,6 +601,40 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/skill_endorsements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["createSkillEndorsement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/skill_endorsements/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteSkillEndorsement"];
         options?: never;
         head?: never;
         patch?: never;
@@ -394,6 +654,58 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/learning_goals/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteLearningGoal"];
+        options?: never;
+        head?: never;
+        patch: operations["updateLearningGoal"];
+        trace?: never;
+    };
+    "/learning_checkpoints": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["createLearningCheckpoint"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/learning_checkpoints/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteLearningCheckpoint"];
+        options?: never;
+        head?: never;
+        patch: operations["updateLearningCheckpoint"];
         trace?: never;
     };
     "/users": {
@@ -428,6 +740,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/departments/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get: operations["getDepartment"];
+        put?: never;
+        post?: never;
+        delete: operations["deleteDepartment"];
+        options?: never;
+        head?: never;
+        patch: operations["updateDepartment"];
+        trace?: never;
+    };
+    "/departments/{id}/update_members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["updateDepartmentMembers"];
+        trace?: never;
+    };
     "/items": {
         parameters: {
             query?: never;
@@ -460,6 +808,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/issues/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteIssue"];
+        options?: never;
+        head?: never;
+        patch: operations["updateIssue"];
+        trace?: never;
+    };
+    "/issues/import_from_sheet": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["importIssuesFromSheet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/knowledge_items": {
         parameters: {
             query?: never;
@@ -476,6 +858,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/knowledge_items/{id}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["archiveKnowledgeItem"];
+        trace?: never;
+    };
     "/knowledge_bookmarks": {
         parameters: {
             query?: never;
@@ -486,6 +886,42 @@ export interface paths {
         get: operations["listKnowledgeBookmarks"];
         put?: never;
         post: operations["createKnowledgeBookmark"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/knowledge_bookmarks/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteKnowledgeBookmark"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/knowledge_bookmarks/{id}/mark_reviewed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["markKnowledgeBookmarkReviewed"];
         delete?: never;
         options?: never;
         head?: never;
@@ -660,6 +1096,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/portfolio": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getPublishedPortfolio"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/demo/manifest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getDemoManifest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/uploads": {
         parameters: {
             query?: never;
@@ -760,6 +1228,108 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/portfolio_admin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getPortfolioAdmin"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/portfolio_admin/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["updatePortfolioProfile"];
+        trace?: never;
+    };
+    "/portfolio_admin/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["createPortfolioProject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/portfolio_admin/projects/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deletePortfolioProject"];
+        options?: never;
+        head?: never;
+        patch: operations["updatePortfolioProject"];
+        trace?: never;
+    };
+    "/portfolio_admin/projects/{id}/features": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["createPortfolioFeature"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/portfolio_admin/features/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deletePortfolioFeature"];
+        options?: never;
+        head?: never;
+        patch: operations["updatePortfolioFeature"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -793,6 +1363,7 @@ export interface components {
             full_name: string;
             job_title?: string;
             profile_picture?: string | null;
+            demo_account?: boolean;
             roles: string[];
             permissions: string[];
             features: {
@@ -826,6 +1397,14 @@ export interface components {
             end_date?: string | null;
             task_count?: number;
             sprint_count?: number;
+            sheet_integration_enabled?: boolean;
+            sheet_id?: string | null;
+            issue_sheet_id?: string | null;
+            issue_sheet_name?: string | null;
+            qa_mode_enabled?: boolean;
+            users?: {
+                [key: string]: unknown;
+            }[];
         };
         Task: {
             id: number;
@@ -835,8 +1414,29 @@ export interface components {
             type: string;
             status: string;
             priority?: string | null;
+            /** Format: date */
+            start_date?: string | null;
+            /** Format: date */
+            end_date?: string | null;
+            estimated_hours?: number | string | null;
             project_id?: number | null;
             sprint_id?: number | null;
+            task_url?: string | null;
+            order?: number | null;
+            developer_id?: number | null;
+            assigned_to_user?: number | null;
+            qa_assigned?: string | null;
+            internal_qa?: string | null;
+            blocker?: boolean;
+            demo?: boolean;
+            swag_point?: number | string | null;
+            story_point?: number | string | null;
+            dev_hours?: number | string | null;
+            code_review_hours?: number | string | null;
+            dev_to_qa_hours?: number | string | null;
+            qa_hours?: number | string | null;
+            automation_qa_hours?: number | string | null;
+            total_hours?: number | string | null;
         };
         ProjectCollection: {
             data: components["schemas"]["Project"][];
@@ -942,6 +1542,19 @@ export interface operations {
         responses: {
             200: components["responses"]["AuthSuccess"];
             401: components["responses"]["Error"];
+        };
+    };
+    demoLogin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["AuthSuccess"];
+            503: components["responses"]["Error"];
         };
     };
     signup: {
@@ -1303,6 +1916,154 @@ export interface operations {
             200: components["responses"]["GenericSuccess"];
         };
     };
+    createEventReminder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: components["responses"]["GenericSuccess"];
+        };
+    };
+    deleteEventReminder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    updateEventReminder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    listSprints: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    createSprint: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: components["responses"]["GenericSuccess"];
+        };
+    };
+    deleteSprint: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    updateSprint: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    importSprintTasks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    exportSprintTasks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    exportSprintLogs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    importProjectBacklog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
     listPosts: {
         parameters: {
             query?: never;
@@ -1379,11 +2140,119 @@ export interface operations {
             201: components["responses"]["GenericSuccess"];
         };
     };
+    deleteTeam: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    updateTeam: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    getTeamInsights: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    createTeamMembership: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: components["responses"]["GenericSuccess"];
+        };
+    };
+    deleteTeamMembership: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    updateTeamMembership: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
     listSkills: {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    createSkillEndorsement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: components["responses"]["GenericSuccess"];
+        };
+    };
+    deleteSkillEndorsement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
             cookie?: never;
         };
         requestBody?: never;
@@ -1413,6 +2282,74 @@ export interface operations {
         requestBody?: never;
         responses: {
             201: components["responses"]["GenericSuccess"];
+        };
+    };
+    deleteLearningGoal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    updateLearningGoal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    createLearningCheckpoint: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: components["responses"]["GenericSuccess"];
+        };
+    };
+    deleteLearningCheckpoint: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    updateLearningCheckpoint: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
         };
     };
     listWorkspaceUsers: {
@@ -1461,6 +2398,62 @@ export interface operations {
         requestBody?: never;
         responses: {
             201: components["responses"]["GenericSuccess"];
+        };
+    };
+    getDepartment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    deleteDepartment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    updateDepartment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    updateDepartmentMembers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
         };
     };
     listVaultItems: {
@@ -1513,11 +2506,65 @@ export interface operations {
             201: components["responses"]["GenericSuccess"];
         };
     };
+    deleteIssue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    updateIssue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    importIssuesFromSheet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
     listKnowledgeItems: {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    archiveKnowledgeItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
             cookie?: never;
         };
         requestBody?: never;
@@ -1547,6 +2594,34 @@ export interface operations {
         requestBody?: never;
         responses: {
             201: components["responses"]["GenericSuccess"];
+        };
+    };
+    deleteKnowledgeBookmark: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    markKnowledgeBookmarkReviewed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
         };
     };
     listConversations: {
@@ -1730,6 +2805,32 @@ export interface operations {
             200: components["responses"]["GenericSuccess"];
         };
     };
+    getPublishedPortfolio: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            404: components["responses"]["Error"];
+        };
+    };
+    getDemoManifest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            403: components["responses"]["Error"];
+        };
+    };
     createDirectUpload: {
         parameters: {
             query?: never;
@@ -1846,6 +2947,115 @@ export interface operations {
         responses: {
             200: components["responses"]["GenericSuccess"];
             403: components["responses"]["Error"];
+        };
+    };
+    getPortfolioAdmin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            403: components["responses"]["Error"];
+        };
+    };
+    updatePortfolioProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            422: components["responses"]["Error"];
+        };
+    };
+    createPortfolioProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: components["responses"]["GenericSuccess"];
+            422: components["responses"]["Error"];
+        };
+    };
+    deletePortfolioProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    updatePortfolioProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    createPortfolioFeature: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: components["responses"]["GenericSuccess"];
+        };
+    };
+    deletePortfolioFeature: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    updatePortfolioFeature: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
         };
     };
 }

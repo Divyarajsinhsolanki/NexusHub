@@ -21,7 +21,7 @@ export default function ProjectsScreen() {
   const [editing, setEditing] = useState<Project | null | undefined>(undefined);
   const [form, setForm] = useState({ name: '', description: '', start_date: '', end_date: '' });
   const projects = useQuery({ queryKey: ['projects'], queryFn: endpoints.projects });
-  const canManage = user?.permissions?.includes('projects.manage');
+  const canManage = !user?.demo_account && user?.permissions?.includes('projects.manage');
   const openEditor = (project: Project | null) => { setForm({ name: project?.name || '', description: project?.description || '', start_date: project?.start_date || '', end_date: project?.end_date || '' }); setEditing(project); };
   const save = useMutation({ mutationFn: () => editing ? endpoints.updateProject(editing.id, form) : endpoints.createProject(form), onSuccess: async () => { setEditing(undefined); await queryClient.invalidateQueries({ queryKey: ['projects'] }); }, onError: (error) => Alert.alert('Unable to save project', apiErrorMessage(error)) });
   const remove = useMutation({ mutationFn: (id: number) => endpoints.deleteProject(id), onSuccess: async () => { setEditing(undefined); await queryClient.invalidateQueries({ queryKey: ['projects'] }); }, onError: (error) => Alert.alert('Unable to delete project', apiErrorMessage(error)) });

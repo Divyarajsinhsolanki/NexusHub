@@ -33,6 +33,11 @@ yarn-error.*
 # local env files
 .env*.local
 
+# Local Firebase native configuration. EAS receives these as secret file variables.
+.firebase/
+google-services.json
+GoogleService-Info.plist
+
 # typescript
 *.tsbuildinfo
 

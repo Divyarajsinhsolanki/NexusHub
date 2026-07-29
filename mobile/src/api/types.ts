@@ -34,6 +34,7 @@ export type User = {
   color_theme?: string;
   dark_mode?: boolean;
   profile_picture?: string | null;
+  demo_account?: boolean;
   roles: string[];
   workspace: Workspace;
   preferences?: UserPreferences;
@@ -63,8 +64,79 @@ export type MobileConfig = {
   minimum_version: string;
   recommended_version: string;
   maintenance: boolean;
+  demo_available?: boolean;
+  portfolio_available?: boolean;
   features: Record<string, boolean>;
   web_url: string;
+};
+
+export type PortfolioFeature = {
+  id: number;
+  category: string;
+  title: string;
+  summary: string;
+  demo_path?: string | null;
+  alt_text?: string | null;
+  screenshot_url?: string | null;
+  position?: number;
+  tour_position?: number;
+  review_notes?: string | null;
+  published?: boolean;
+};
+
+export type PortfolioProject = {
+  id: number;
+  title: string;
+  slug: string;
+  tagline?: string | null;
+  summary: string;
+  description?: string | null;
+  stack: string[];
+  metrics?: Array<string | Record<string, unknown>>;
+  engineering_highlights?: string[];
+  repository_url?: string | null;
+  live_url?: string | null;
+  cover_image_url?: string | null;
+  featured?: boolean;
+  published?: boolean;
+  position?: number;
+  features: PortfolioFeature[];
+};
+
+export type PortfolioProfile = {
+  id?: number;
+  full_name: string;
+  headline: string;
+  location?: string | null;
+  summary: string;
+  skills: string[];
+  metrics?: Array<string | Record<string, unknown>>;
+  social_links?: Record<string, string>;
+  architecture?: string[];
+  engineering_highlights?: string[];
+  avatar_url?: string | null;
+  resume_url?: string | null;
+  published?: boolean;
+};
+
+export type PortfolioData = { profile: PortfolioProfile | null; projects: PortfolioProject[] };
+
+export type DemoTourGroup = {
+  key: string;
+  title: string;
+  summary: string;
+  route: string;
+  step: number;
+  review_notes?: string | null;
+  screenshot_url?: string | null;
+};
+
+export type DemoManifest = {
+  workspace: Workspace;
+  duration: string;
+  total_steps: number;
+  recommended_route?: string | null;
+  groups: DemoTourGroup[];
 };
 
 export type MobileSession = {
@@ -100,8 +172,22 @@ export type Task = {
   estimated_hours?: string | number | null;
   project_id?: number | null;
   sprint_id?: number | null;
+  task_url?: string | null;
+  order?: number | null;
   developer_id?: number | null;
   assigned_to_user?: number | null;
+  qa_assigned?: string | null;
+  internal_qa?: string | null;
+  blocker?: boolean;
+  demo?: boolean;
+  swag_point?: string | number | null;
+  story_point?: string | number | null;
+  dev_hours?: string | number | null;
+  code_review_hours?: string | number | null;
+  dev_to_qa_hours?: string | number | null;
+  qa_hours?: string | number | null;
+  automation_qa_hours?: string | number | null;
+  total_hours?: string | number | null;
   assignee?: Person | null;
 };
 
@@ -184,6 +270,93 @@ export type CalendarEvent = EntityRecord & {
   all_day?: boolean;
   event_type?: string;
   location_or_meet_link?: string | null;
+  visibility?: string;
+  status?: string;
+  recurrence_rule?: string;
+  project_id?: number | null;
+  project_name?: string | null;
+  event_reminders?: EventReminder[];
+  google_event_url?: string | null;
+};
+
+export type EventReminder = {
+  id: number;
+  calendar_event_id: number;
+  channel: 'in_app' | 'email' | 'slack';
+  minutes_before: number;
+  send_at?: string | null;
+  sent_at?: string | null;
+  state?: string;
+};
+
+export type TeamMember = EntityRecord & {
+  team_user_id: number;
+  name: string;
+  email: string;
+  role: 'admin' | 'member' | 'viewer';
+  status: 'invited' | 'requested' | 'accepted' | 'rejected' | 'pending';
+  job_title?: string | null;
+  availability_status?: string | null;
+  availability_label?: string | null;
+  current_projects_count?: number;
+  avatar_color?: string;
+  profile_picture?: string | null;
+  skills?: Array<EntityRecord & { name: string; proficiency?: string; proficiency_label?: string; endorsements_count?: number; endorsed_by_current_user?: boolean; current_user_endorsement_id?: number | null }>;
+};
+
+export type Team = EntityRecord & {
+  name: string;
+  description?: string | null;
+  users: TeamMember[];
+};
+
+export type TeamInsights = {
+  team: { id: number; name: string };
+  members: TeamMember[];
+  skills: Array<{ id: number; name: string }>;
+  roles: string[];
+  skill_gap?: {
+    strengths?: Array<Record<string, string | number>>;
+    opportunities?: Array<Record<string, string | number>>;
+  };
+  team_experts?: Array<Record<string, unknown>>;
+  recent_endorsements?: Array<Record<string, unknown>>;
+};
+
+export type LearningCheckpoint = EntityRecord & {
+  learning_goal_id?: number;
+  title: string;
+  completed: boolean;
+  resource_url?: string | null;
+};
+
+export type LearningGoal = EntityRecord & {
+  title: string;
+  description?: string | null;
+  due_date?: string | null;
+  progress: number;
+  team_id?: number | null;
+  days_remaining?: number | null;
+  checkpoints: LearningCheckpoint[];
+};
+
+export type DepartmentMember = EntityRecord & {
+  full_name: string;
+  first_name?: string;
+  last_name?: string;
+  email: string;
+  job_title?: string | null;
+  profile_picture_url?: string | null;
+};
+
+export type Department = EntityRecord & {
+  name: string;
+  description?: string | null;
+  users_count: number;
+  manager_id?: number | null;
+  manager?: { id: number; full_name: string; profile_picture_url?: string | null } | null;
+  members_preview?: DepartmentMember[];
+  members?: DepartmentMember[];
 };
 
 export type Post = EntityRecord & {

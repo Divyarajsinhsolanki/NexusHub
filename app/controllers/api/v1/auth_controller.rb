@@ -1,6 +1,6 @@
 class Api::V1::AuthController < Api::V1::BaseController
-  skip_before_action :authenticate_user!, only: [:login, :google, :signup, :confirm, :refresh, :logout]
-  skip_before_action :enforce_demo_read_only!, only: [:login, :google, :signup, :confirm, :refresh, :logout]
+  skip_before_action :authenticate_user!, only: [:login, :google, :demo, :signup, :confirm, :refresh, :logout]
+  skip_before_action :enforce_demo_read_only!, only: [:login, :google, :demo, :signup, :confirm, :refresh, :logout]
 
   def login
     credentials = params.require(:auth).permit(:email, :password, :device_name)
@@ -29,6 +29,21 @@ class Api::V1::AuthController < Api::V1::BaseController
     render_session(user, session, refresh_token)
   rescue ActiveRecord::RecordInvalid => error
     render_error(code: "provider_signup_failed", message: "The Google account could not be added.", details: error.record.errors.full_messages, status: :unprocessable_entity)
+  end
+
+  def demo
+    unless PortfolioAccess.enabled? && ActiveModel::Type::Boolean.new.cast(ENV.fetch("DEMO_MODE_ENABLED", "false"))
+      return render_error(code: "demo_disabled", message: "The demo workspace is not available.", status: :service_unavailable)
+    end
+
+    workspace = Workspace.find_by(kind: "demo")
+    user = workspace&.users&.find_by(demo_account: true)
+    return render_error(code: "demo_unavailable", message: "The demo workspace is not ready.", status: :service_unavailable) unless user
+
+    Current.user = user
+    Current.workspace = workspace
+    session, refresh_token = MobileSession.issue_for!(user: user, device_name: params[:device_name])
+    render_session(user, session, refresh_token)
   end
 
   def signup

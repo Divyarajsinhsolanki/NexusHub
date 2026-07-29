@@ -13,17 +13,19 @@ import { EmptyState, ErrorState, LoadingState } from '@/src/components/StateView
 import { TaskCard } from '@/src/components/TaskCard';
 import { useTaskStatus } from '@/src/hooks/useTaskStatus';
 import { useAppTheme } from '@/src/theme';
+import { useAuth } from '@/src/auth/AuthProvider';
 
-export default function HomeScreen() {
+export default function TodayScreen() {
   const theme = useAppTheme();
   const router = useRouter();
+  const { user } = useAuth();
   const home = useQuery({ queryKey: ['home'], queryFn: endpoints.home });
   const taskStatus = useTaskStatus();
 
   const updateStatus = (id: number, status: TaskStatus) => taskStatus.mutate({ id, status });
 
   return (
-    <Screen header={<PageHeader title="Nexus Hub" subtitle={format(new Date(), 'EEEE, MMMM d')} action={<View style={styles.headerActions}><Pressable accessibilityLabel="Search Nexus Hub" onPress={() => router.push('/search')} style={[styles.headerButton, { backgroundColor: theme.surfaceMuted }]}><Search color={theme.text} size={20} /></Pressable><Pressable accessibilityLabel="Create" onPress={() => router.push('/create')} style={[styles.headerButton, { backgroundColor: theme.primary }]}><Plus color="#ffffff" size={21} /></Pressable></View>} />}>
+    <Screen header={<PageHeader title="Nexus Hub" subtitle={format(new Date(), 'EEEE, MMMM d')} action={<View style={styles.headerActions}><Pressable accessibilityLabel="Search Nexus Hub" onPress={() => router.push('/search')} style={[styles.headerButton, { backgroundColor: theme.surfaceMuted }]}><Search color={theme.text} size={20} /></Pressable>{!user?.demo_account ? <Pressable accessibilityLabel="Create" onPress={() => router.push('/create')} style={[styles.headerButton, { backgroundColor: theme.primary }]}><Plus color="#ffffff" size={21} /></Pressable> : null}</View>} />}>
       {home.isLoading ? <LoadingState label="Loading your workday" /> : null}
       {home.isError ? <ErrorState message={apiErrorMessage(home.error)} onRetry={() => home.refetch()} /> : null}
       {home.data ? (
@@ -45,6 +47,7 @@ export default function HomeScreen() {
                 <TaskCard
                   key={task.id}
                   onStatusChange={(status) => updateStatus(task.id, status)}
+                  readOnly={Boolean(user?.demo_account)}
                   task={task}
                   updating={taskStatus.isPending && taskStatus.variables?.id === task.id}
                 />

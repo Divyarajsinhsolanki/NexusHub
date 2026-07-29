@@ -1,4 +1,4 @@
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useRouter, useSegments } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider, usePathname, useRouter, useSegments } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import * as Sentry from '@sentry/react-native';
 import * as SplashScreen from 'expo-splash-screen';
@@ -8,6 +8,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
 import { useAuth } from '@/src/auth/AuthProvider';
+import { authRedirectTarget } from '@/src/auth/authRedirect';
 import { AppProviders } from '@/src/providers/AppProviders';
 import { PushRegistrar } from '@/src/notifications/PushRegistrar';
 import { useAppTheme } from '@/src/theme';
@@ -33,7 +34,7 @@ export {
 } from 'expo-router';
 
 export const unstable_settings = {
-  initialRouteName: '(tabs)',
+  initialRouteName: 'index',
 };
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
@@ -62,6 +63,7 @@ function RootLayoutNav() {
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" options={{ animation: 'fade' }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="login" options={{ animation: 'fade' }} />
         <Stack.Screen name="signup" options={{ animation: 'slide_from_right' }} />
@@ -79,17 +81,25 @@ function RootLayoutNav() {
 function AuthGate() {
   const { user, isLoading } = useAuth();
   const segments = useSegments();
+  const pathname = usePathname();
   const router = useRouter();
   const theme = useAppTheme();
-  const isLogin = ['login', 'signup', 'forgot-password', 'reset-password'].includes(segments[0] || '');
+  const firstSegment = segments[0];
+  const isPublicPortfolio = pathname === '/';
+  const isAuthRoute = ['login', 'signup', 'forgot-password', 'reset-password'].includes(firstSegment);
+  const isProtectedRoute = !isPublicPortfolio && !isAuthRoute;
+  const redirectTarget = authRedirectTarget({
+    firstSegment,
+    isLoading,
+    pathname,
+    signedIn: Boolean(user),
+  });
 
   useEffect(() => {
-    if (isLoading) return;
-    if (!user && !isLogin) router.replace('/login');
-    if (user && isLogin) router.replace('/(tabs)');
-  }, [isLoading, isLogin, router, user]);
+    if (redirectTarget) router.replace(redirectTarget as never);
+  }, [redirectTarget, router]);
 
-  const isTransitioning = isLoading || (!user && !isLogin) || Boolean(user && isLogin);
+  const isTransitioning = isLoading || Boolean(redirectTarget) || (!user && isProtectedRoute) || Boolean(user && (isPublicPortfolio || isAuthRoute));
 
   if (!isTransitioning) return null;
 

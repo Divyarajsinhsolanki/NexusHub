@@ -23,6 +23,7 @@ export default function ChatScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const writable = !user?.demo_account;
   const [body, setBody] = useState('');
   const [attachment, setAttachment] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const conversation = useQuery({ queryKey: ['conversation', conversationId], queryFn: () => endpoints.conversation(conversationId), enabled: Number.isFinite(conversationId) });
@@ -70,7 +71,7 @@ export default function ChatScreen() {
   };
 
   return (
-    <Screen header={<PageHeader leading={<IconButton label="Back" onPress={() => router.back()}><ArrowLeft color={theme.text} size={22} /></IconButton>} title={conversation.data?.title || 'Conversation'} subtitle={connection === 'connected' ? 'Live' : 'Reconnecting'} action={<View style={styles.headerActions}><IconButton label="Start audio call" onPress={() => startCall('audio')}><Phone color={theme.text} size={20} /></IconButton><IconButton label="Start video call" onPress={() => startCall('video')}><Video color={theme.text} size={20} /></IconButton></View>} />}>
+    <Screen header={<PageHeader leading={<IconButton label="Back" onPress={() => router.back()}><ArrowLeft color={theme.text} size={22} /></IconButton>} title={conversation.data?.title || 'Conversation'} subtitle={connection === 'connected' ? 'Live' : 'Reconnecting'} action={writable ? <View style={styles.headerActions}><IconButton label="Start audio call" onPress={() => startCall('audio')}><Phone color={theme.text} size={20} /></IconButton><IconButton label="Start video call" onPress={() => startCall('video')}><Video color={theme.text} size={20} /></IconButton></View> : undefined} />}>
       {messages.isLoading ? <LoadingState label="Loading conversation" /> : null}
       {messages.isError ? <ErrorState message={apiErrorMessage(messages.error)} onRetry={() => messages.refetch()} /> : null}
       {!messages.isLoading ? <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={74} style={styles.flex}>
@@ -82,12 +83,12 @@ export default function ChatScreen() {
           ListHeaderComponent={messages.hasNextPage ? <Pressable onPress={() => messages.fetchNextPage()} style={styles.loadOlder}><Text style={{ color: theme.primary, fontWeight: '700' }}>{messages.isFetchingNextPage ? 'Loading...' : 'Load earlier messages'}</Text></Pressable> : null}
           renderItem={({ item }) => <MessageBubble message={item} mine={item.user_id === user?.id} />}
         />
-        {attachment ? <View style={[styles.attachment, { backgroundColor: theme.surfaceMuted }]}><Text numberOfLines={1} style={[styles.attachmentName, { color: theme.text }]}>{attachment.name}</Text><Pressable accessibilityLabel="Remove attachment" onPress={() => setAttachment(null)}><Text style={{ color: theme.danger, fontWeight: '700' }}>Remove</Text></Pressable></View> : null}
-        <View style={[styles.composer, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
+        {writable && attachment ? <View style={[styles.attachment, { backgroundColor: theme.surfaceMuted }]}><Text numberOfLines={1} style={[styles.attachmentName, { color: theme.text }]}>{attachment.name}</Text><Pressable accessibilityLabel="Remove attachment" onPress={() => setAttachment(null)}><Text style={{ color: theme.danger, fontWeight: '700' }}>Remove</Text></Pressable></View> : null}
+        {writable ? <View style={[styles.composer, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
           <IconButton label="Attach file" onPress={pickAttachment}><FilePlus2 color={theme.textMuted} size={21} /></IconButton>
           <TextInput accessibilityLabel="Message" multiline onChangeText={setBody} placeholder="Message" placeholderTextColor={theme.textMuted} style={[styles.input, { backgroundColor: theme.surfaceMuted, color: theme.text }]} value={body} />
           <Pressable accessibilityLabel="Send message" accessibilityRole="button" disabled={(!body.trim() && !attachment) || send.isPending} onPress={() => send.mutate()} style={[styles.send, { backgroundColor: theme.primary, opacity: (!body.trim() && !attachment) ? 0.45 : 1 }]}><Send color="#ffffff" size={19} /></Pressable>
-        </View>
+        </View> : null}
       </KeyboardAvoidingView> : null}
     </Screen>
   );

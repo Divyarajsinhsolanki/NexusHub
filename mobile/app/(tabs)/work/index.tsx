@@ -16,6 +16,7 @@ import { WorkLogCard } from '@/src/components/WorkLogCard';
 import { WorkLogForm } from '@/src/components/WorkLogForm';
 import { useTaskStatus } from '@/src/hooks/useTaskStatus';
 import { useAppTheme } from '@/src/theme';
+import { useAuth } from '@/src/auth/AuthProvider';
 
 type Mode = 'tasks' | 'logs';
 
@@ -23,6 +24,8 @@ export default function WorkScreen() {
   const theme = useAppTheme();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const writable = !user?.demo_account;
   const [mode, setMode] = useState<Mode>('tasks');
   const [editing, setEditing] = useState<WorkLog | null | undefined>(undefined);
   const taskStatus = useTaskStatus();
@@ -80,11 +83,11 @@ export default function WorkScreen() {
     <Screen
       header={
         <PageHeader
-          action={(
+          action={writable ? (
             <Pressable accessibilityLabel={mode === 'logs' ? 'Add work log' : 'Add task'} accessibilityRole="button" onPress={() => mode === 'logs' ? setEditing(null) : router.push('/create?type=task' as never)} style={[styles.addButton, { backgroundColor: theme.primary }]} testID={mode === 'logs' ? 'add-work-log' : 'add-task'}>
               <Plus color="#ffffff" size={22} />
             </Pressable>
-          )}
+          ) : undefined}
           subtitle="Tasks and time entries"
           title="My work"
         />
@@ -106,6 +109,7 @@ export default function WorkScreen() {
           renderItem={({ item }) => (
             <TaskCard
               onStatusChange={(status) => changeStatus(item.id, status)}
+              readOnly={!writable}
               task={item}
               updating={taskStatus.isPending && taskStatus.variables?.id === item.id}
             />
@@ -122,7 +126,7 @@ export default function WorkScreen() {
           onEndReachedThreshold={0.4}
           onRefresh={() => workLogs.refetch()}
           refreshing={workLogs.isRefetching && !workLogs.isFetchingNextPage}
-          renderItem={({ item }) => <WorkLogCard onEdit={() => setEditing(item)} workLog={item} />}
+          renderItem={({ item }) => <WorkLogCard onEdit={writable ? () => setEditing(item) : undefined} workLog={item} />}
           ListEmptyComponent={<EmptyState title="No work logs" message="Add your first time entry for today." />}
         />
       ) : null}

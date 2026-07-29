@@ -14,19 +14,21 @@ import { Screen } from '@/src/components/Screen';
 import { SegmentedControl } from '@/src/components/SegmentedControl';
 import { EmptyState, ErrorState, LoadingState } from '@/src/components/StateView';
 import { useAppTheme } from '@/src/theme';
+import { useAuth } from '@/src/auth/AuthProvider';
 
 type InboxMode = 'posts' | 'chat';
 
 export default function InboxScreen() {
   const theme = useAppTheme();
   const router = useRouter();
+  const { user } = useAuth();
   const [mode, setMode] = useState<InboxMode>('posts');
   const posts = useQuery({ queryKey: ['posts'], queryFn: () => endpoints.posts() });
   const conversations = useQuery({ queryKey: ['conversations'], queryFn: () => endpoints.conversations() });
   const active = mode === 'posts' ? posts : conversations;
 
   return (
-    <Screen header={<PageHeader title="Inbox" subtitle="Updates and conversations" action={<View style={styles.headerActions}><Pressable accessibilityLabel={mode === 'posts' ? 'Create post' : 'Create message'} onPress={() => router.push(`/create?type=${mode === 'posts' ? 'post' : 'message'}` as never)} style={[styles.iconButton, { backgroundColor: theme.primary }]}><Plus color="#ffffff" size={20} /></Pressable><Pressable accessibilityLabel="Open notifications" onPress={() => router.push('/inbox/notifications')} style={[styles.iconButton, { backgroundColor: theme.surfaceMuted }]}><Bell color={theme.text} size={20} /></Pressable></View>} />}>
+    <Screen header={<PageHeader title="Inbox" subtitle="Updates and conversations" action={<View style={styles.headerActions}>{!user?.demo_account ? <Pressable accessibilityLabel={mode === 'posts' ? 'Create post' : 'Create message'} onPress={() => router.push(`/create?type=${mode === 'posts' ? 'post' : 'message'}` as never)} style={[styles.iconButton, { backgroundColor: theme.primary }]}><Plus color="#ffffff" size={20} /></Pressable> : null}<Pressable accessibilityLabel="Open notifications" onPress={() => router.push('/inbox/notifications')} style={[styles.iconButton, { backgroundColor: theme.surfaceMuted }]}><Bell color={theme.text} size={20} /></Pressable></View>} />}>
       <View style={styles.segment}><SegmentedControl value={mode} onChange={setMode} options={[{ value: 'posts', label: 'Updates' }, { value: 'chat', label: 'Chat' }]} /></View>
       {active.isLoading ? <LoadingState label={mode === 'posts' ? 'Loading updates' : 'Loading conversations'} /> : null}
       {active.isError ? <ErrorState message="Unable to load inbox." onRetry={() => active.refetch()} /> : null}
@@ -45,8 +47,9 @@ function PostCard({ post }: { post: Post }) {
   const theme = useAppTheme();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const like = useMutation({ mutationFn: () => post.liked_by_current_user ? endpoints.unlikePost(post.id) : endpoints.likePost(post.id), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['posts'] }), onError: (error) => Alert.alert('Unable to update reaction', apiErrorMessage(error)) });
-  return <View style={[styles.post, { borderBottomColor: theme.border }]}><View style={styles.postHeader}><View style={[styles.avatar, { backgroundColor: theme.surfaceMuted }]}><Text style={{ color: theme.primary, fontWeight: '800' }}>{post.user.first_name?.[0]}{post.user.last_name?.[0]}</Text></View><View style={styles.flex}><Text style={[styles.name, { color: theme.text }]}>{post.user.first_name} {post.user.last_name}</Text><Text style={[styles.time, { color: theme.textMuted }]}>{formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}</Text></View></View><Text style={[styles.message, { color: theme.text }]}>{post.message}</Text>{post.image_url ? <Image contentFit="cover" source={{ uri: absoluteAssetUrl(post.image_url) }} style={styles.postImage} /> : null}<View style={styles.actions}><Pressable accessibilityLabel={post.liked_by_current_user ? 'Unlike post' : 'Like post'} disabled={like.isPending} onPress={() => like.mutate()} style={styles.actionButton}><Heart color={post.liked_by_current_user ? theme.danger : theme.textMuted} fill={post.liked_by_current_user ? theme.danger : 'transparent'} size={18} /><Text style={[styles.actionText, { color: theme.textMuted }]}>{post.likes_count}</Text></Pressable><Pressable accessibilityLabel="Open comments" onPress={() => router.push(`/inbox/post/${post.id}` as never)} style={styles.actionButton}><MessageCircle color={theme.textMuted} size={18} /><Text style={[styles.actionText, { color: theme.textMuted }]}>{post.comments_count}</Text></Pressable></View></View>;
+  return <View style={[styles.post, { borderBottomColor: theme.border }]}><View style={styles.postHeader}><View style={[styles.avatar, { backgroundColor: theme.surfaceMuted }]}><Text style={{ color: theme.primary, fontWeight: '800' }}>{post.user.first_name?.[0]}{post.user.last_name?.[0]}</Text></View><View style={styles.flex}><Text style={[styles.name, { color: theme.text }]}>{post.user.first_name} {post.user.last_name}</Text><Text style={[styles.time, { color: theme.textMuted }]}>{formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}</Text></View></View><Text style={[styles.message, { color: theme.text }]}>{post.message}</Text>{post.image_url ? <Image contentFit="cover" source={{ uri: absoluteAssetUrl(post.image_url) }} style={styles.postImage} /> : null}<View style={styles.actions}>{!user?.demo_account ? <Pressable accessibilityLabel={post.liked_by_current_user ? 'Unlike post' : 'Like post'} disabled={like.isPending} onPress={() => like.mutate()} style={styles.actionButton}><Heart color={post.liked_by_current_user ? theme.danger : theme.textMuted} fill={post.liked_by_current_user ? theme.danger : 'transparent'} size={18} /><Text style={[styles.actionText, { color: theme.textMuted }]}>{post.likes_count}</Text></Pressable> : <View style={styles.actionButton}><Heart color={theme.textMuted} size={18} /><Text style={[styles.actionText, { color: theme.textMuted }]}>{post.likes_count}</Text></View>}<Pressable accessibilityLabel="Open comments" onPress={() => router.push(`/inbox/post/${post.id}` as never)} style={styles.actionButton}><MessageCircle color={theme.textMuted} size={18} /><Text style={[styles.actionText, { color: theme.textMuted }]}>{post.comments_count}</Text></Pressable></View></View>;
 }
 
 function ConversationList({ conversations }: { conversations: Conversation[] }) {

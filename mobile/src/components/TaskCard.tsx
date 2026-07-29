@@ -1,5 +1,5 @@
 import { format, parseISO } from 'date-fns';
-import { CalendarDays } from 'lucide-react-native';
+import { CalendarDays, Pencil } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Task, TaskStatus } from '../api/types';
@@ -11,13 +11,13 @@ const statuses: Array<{ value: TaskStatus; label: string }> = [
   { value: 'completed', label: 'Done' },
 ];
 
-export function TaskCard({ task, onStatusChange, updating = false }: { task: Task; onStatusChange?: (status: TaskStatus) => void; updating?: boolean }) {
+export function TaskCard({ task, onStatusChange, onEdit, readOnly = false, updating = false }: { task: Task; onStatusChange?: (status: TaskStatus) => void; onEdit?: () => void; readOnly?: boolean; updating?: boolean }) {
   const theme = useAppTheme();
   return (
     <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       <View style={styles.topline}>
         <Text numberOfLines={1} style={[styles.key, { color: theme.primary }]}>{task.task_id || task.type}</Text>
-        {task.priority ? <Text style={[styles.priority, { color: theme.warning }]}>{task.priority}</Text> : null}
+        <View style={styles.topActions}>{task.priority ? <Text style={[styles.priority, { color: theme.warning }]}>{task.priority}</Text> : null}{onEdit && !readOnly ? <Pressable accessibilityLabel={`Edit ${task.title}`} onPress={onEdit} style={styles.edit}><Pencil color={theme.textMuted} size={16} /></Pressable> : null}</View>
       </View>
       <Text style={[styles.title, { color: theme.text }]}>{task.title}</Text>
       {task.description ? <Text numberOfLines={2} style={[styles.description, { color: theme.textMuted }]}>{task.description}</Text> : null}
@@ -30,7 +30,7 @@ export function TaskCard({ task, onStatusChange, updating = false }: { task: Tas
         ) : null}
         {task.assignee ? <Text style={[styles.metaText, { color: theme.textMuted }]}>{task.assignee.name}</Text> : null}
       </View>
-      {onStatusChange ? (
+      {onStatusChange && !readOnly ? (
         <View accessibilityRole="tablist" style={[styles.statuses, { backgroundColor: theme.surfaceMuted }]}>
           {statuses.map((status) => {
             const selected = task.status === status.value;
@@ -55,6 +55,8 @@ export function TaskCard({ task, onStatusChange, updating = false }: { task: Tas
 const styles = StyleSheet.create({
   card: { borderRadius: 8, borderWidth: 1, padding: 15 },
   topline: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  topActions: { alignItems: 'center', flexDirection: 'row', gap: 7 },
+  edit: { alignItems: 'center', height: 32, justifyContent: 'center', width: 32 },
   key: { fontSize: 12, fontWeight: '800' },
   priority: { fontSize: 12, fontWeight: '700', textTransform: 'capitalize' },
   title: { fontSize: 16, fontWeight: '700', lineHeight: 22, marginTop: 6 },

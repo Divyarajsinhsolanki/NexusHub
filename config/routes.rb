@@ -30,6 +30,7 @@ Rails.application.routes.draw do
     namespace :v1 do
       post "auth/login", to: "auth#login"
       post "auth/google", to: "auth#google"
+      post "auth/demo", to: "auth#demo"
       post "auth/signup", to: "auth#signup"
       post "auth/confirm", to: "auth#confirm"
       post "auth/refresh", to: "auth#refresh"
@@ -46,6 +47,8 @@ Rails.application.routes.draw do
       post "realtime/token", to: "realtime#token"
       post "uploads", to: "uploads#create"
       get "mobile_config", to: "mobile_config#show"
+      get "portfolio", to: "portfolio#show"
+      get "demo/manifest", to: "demo#manifest"
 
       get :me, to: "me#show"
       patch :me, to: "/api/auth#update_profile"
@@ -202,15 +205,15 @@ Rails.application.routes.draw do
       post "admin/:table", to: "/api/admin#create"
       patch "admin/:table/:id", to: "/api/admin#update"
       delete "admin/:table/:id", to: "/api/admin#destroy"
-      get "portfolio_admin", to: "/api/admin/portfolio#show"
-      patch "portfolio_admin/profile", to: "/api/admin/portfolio#update_profile"
-      post "portfolio_admin/projects", to: "/api/admin/portfolio#create_project"
-      patch "portfolio_admin/projects/:id", to: "/api/admin/portfolio#update_project"
-      delete "portfolio_admin/projects/:id", to: "/api/admin/portfolio#destroy_project"
-      post "portfolio_admin/projects/:project_id/features", to: "/api/admin/portfolio#create_feature"
-      patch "portfolio_admin/features/:id", to: "/api/admin/portfolio#update_feature"
-      delete "portfolio_admin/features/:id", to: "/api/admin/portfolio#destroy_feature"
-      patch "portfolio_admin/order", to: "/api/admin/portfolio#update_order"
+      get "portfolio_admin", to: "portfolio_admin#show"
+      patch "portfolio_admin/profile", to: "portfolio_admin#update_profile"
+      post "portfolio_admin/projects", to: "portfolio_admin#create_project"
+      patch "portfolio_admin/projects/:id", to: "portfolio_admin#update_project"
+      delete "portfolio_admin/projects/:id", to: "portfolio_admin#destroy_project"
+      post "portfolio_admin/projects/:project_id/features", to: "portfolio_admin#create_feature"
+      patch "portfolio_admin/features/:id", to: "portfolio_admin#update_feature"
+      delete "portfolio_admin/features/:id", to: "portfolio_admin#destroy_feature"
+      patch "portfolio_admin/order", to: "portfolio_admin#update_order"
     end
 
     get 'portfolio', to: 'portfolio#show'

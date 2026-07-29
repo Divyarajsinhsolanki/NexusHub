@@ -3,7 +3,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as WebBrowser from 'expo-web-browser';
 import { format } from 'date-fns';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, Bookmark, CalendarPlus, ChevronRight, ExternalLink, FilePlus2, FileText, Plus, RefreshCw, Search, Settings2 } from 'lucide-react-native';
+import { Archive, ArrowLeft, Bookmark, CalendarPlus, CheckCircle2, ChevronRight, ExternalLink, FilePlus2, FileText, Plus, RefreshCw, Search, Settings2, Trash2 } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 
@@ -17,13 +17,18 @@ import { Screen } from '@/src/components/Screen';
 import { SegmentedControl } from '@/src/components/SegmentedControl';
 import { EmptyState, ErrorState, LoadingState } from '@/src/components/StateView';
 import { useAppTheme } from '@/src/theme';
+import { DemoTourScreen } from '@/src/screens/DemoTourScreen';
+import { PortfolioAdminScreen } from '@/src/screens/PortfolioAdminScreen';
+import { PortfolioScreen } from '@/src/screens/PortfolioScreen';
+import { OwnerAccessScreen } from '@/src/screens/OwnerAccessScreen';
+import { FullCalendarScreen } from '@/src/screens/CalendarScreen';
+import { DepartmentsScreen } from '@/src/screens/DepartmentsScreen';
+import { TeamsScreen } from '@/src/screens/TeamsScreen';
+import { LearningGoalsScreen } from '@/src/screens/LearningGoalsScreen';
 
 const configs: Record<string, { title: string; subtitle: string; path: string; wrapper: string; primary: string; secondary: string[]; fields: EntityField[]; permission?: string }> = {
-  teams: { title: 'Teams', subtitle: 'Members, capabilities, and goals', path: '/teams', wrapper: 'team', primary: 'name', secondary: ['description', 'users'], fields: [{ key: 'name', label: 'Team name' }, { key: 'description', label: 'Description', multiline: true }], permission: 'teams.manage' },
   skills: { title: 'Skills', subtitle: 'Your capabilities and proficiency', path: '/user_skills', wrapper: 'user_skill', primary: 'name', secondary: ['proficiency_label', 'endorsements_count'], fields: [{ key: 'name', label: 'Skill name' }, { key: 'proficiency', label: 'Proficiency', placeholder: 'beginner, intermediate, advanced, expert' }] },
-  goals: { title: 'Learning goals', subtitle: 'Outcomes, checkpoints, and progress', path: '/learning_goals', wrapper: 'learning_goal', primary: 'title', secondary: ['due_date', 'progress'], fields: [{ key: 'title', label: 'Goal' }, { key: 'description', label: 'Description', multiline: true }, { key: 'due_date', label: 'Due date', placeholder: 'YYYY-MM-DD' }] },
   people: { title: 'People', subtitle: 'Workspace directory and availability', path: '/users', wrapper: 'user', primary: 'full_name', secondary: ['job_title', 'email'], fields: [{ key: 'first_name', label: 'First name' }, { key: 'last_name', label: 'Last name' }, { key: 'email', label: 'Email' }, { key: 'job_title', label: 'Job title' }], permission: 'users.manage' },
-  departments: { title: 'Departments', subtitle: 'Organization structure and membership', path: '/departments', wrapper: 'department', primary: 'name', secondary: ['description', 'users_count'], fields: [{ key: 'name', label: 'Department name' }, { key: 'description', label: 'Description', multiline: true }], permission: 'departments.manage' },
   vault: { title: 'Vault', subtitle: 'Private notes and references', path: '/items', wrapper: 'item', primary: 'title', secondary: ['category', 'content'], fields: [{ key: 'title', label: 'Title' }, { key: 'category', label: 'Category' }, { key: 'content', label: 'Content', multiline: true }] },
 };
 
@@ -32,13 +37,20 @@ export default function MoreFeatureScreen() {
   const { user } = useAuth();
   const config = configs[feature];
   if (config) return <EntityCollectionScreen {...config} canWrite={!config.permission || Boolean(user?.permissions?.includes(config.permission))} />;
-  if (feature === 'calendar') return <CalendarScreen />;
+  if (feature === 'teams') return <TeamsScreen />;
+  if (feature === 'departments') return <DepartmentsScreen />;
+  if (feature === 'goals') return <LearningGoalsScreen />;
+  if (feature === 'calendar') return <FullCalendarScreen />;
   if (feature === 'momentum') return <MomentumScreen />;
   if (feature === 'knowledge') return <KnowledgeScreen />;
   if (feature === 'pdf') return <PdfLibraryScreen />;
   if (feature === 'keka') return <KekaScreen />;
   if (feature === 'settings') return <SettingsScreen />;
   if (feature === 'admin') return <AdminScreen />;
+  if (feature === 'demo') return <DemoTourScreen />;
+  if (feature === 'portfolio') return <PortfolioScreen />;
+  if (feature === 'portfolio-admin') return <PortfolioAdminScreen />;
+  if (feature === 'impersonation') return <OwnerAccessScreen />;
   if (feature === 'website') return <WebsiteScreen />;
   return <Screen header={<BackHeader title="Not available" />}><EmptyState title="Feature unavailable" message="This workspace has not enabled this module." /></Screen>;
 }
@@ -88,14 +100,20 @@ function TaskSection({ title, rows }: { title: string; rows: EntityRecord[] }) {
 function KnowledgeScreen() {
   const theme = useAppTheme();
   const queryClient = useQueryClient();
-  const [mode, setMode] = useState<'feed' | 'saved'>('feed');
-  const feed = useQuery({ queryKey: ['knowledge-items'], queryFn: endpoints.knowledgeItems });
+  const { user } = useAuth();
+  const [mode, setMode] = useState<'feed' | 'saved' | 'archived'>('feed');
+  const feed = useQuery({ queryKey: ['knowledge-items', 'active'], queryFn: () => endpoints.knowledgeItems(true) });
   const saved = useQuery({ queryKey: ['knowledge-bookmarks'], queryFn: endpoints.knowledgeBookmarks });
-  const active = mode === 'feed' ? feed : saved;
+  const archived = useQuery({ queryKey: ['knowledge-items', 'archived'], queryFn: () => endpoints.knowledgeItems(false) });
+  const active = mode === 'feed' ? feed : mode === 'saved' ? saved : archived;
   const save = useMutation({ mutationFn: (item: EntityRecord) => endpoints.createKnowledgeBookmark({ card_type: String(item.item_type || 'knowledge'), collection_name: item.collection_name, source_id: String(item.id), payload: item }), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['knowledge-bookmarks'] }) });
-  return <Screen header={<BackHeader title="Knowledge" subtitle="Briefings, prompts, and saved cards" />}><View style={styles.segment}><SegmentedControl value={mode} onChange={setMode} options={[{ value: 'feed', label: 'Briefing' }, { value: 'saved', label: 'Saved' }]} /></View>
+  const archiveItem = useMutation({ mutationFn: endpoints.archiveKnowledgeItem, onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['knowledge-items'] }); }, onError: (error) => Alert.alert('Unable to archive card', apiErrorMessage(error)) });
+  const review = useMutation({ mutationFn: endpoints.markKnowledgeBookmarkReviewed, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['knowledge-bookmarks'] }), onError: (error) => Alert.alert('Unable to mark reviewed', apiErrorMessage(error)) });
+  const remove = useMutation({ mutationFn: endpoints.deleteKnowledgeBookmark, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['knowledge-bookmarks'] }), onError: (error) => Alert.alert('Unable to remove bookmark', apiErrorMessage(error)) });
+  const emptyTitle = mode === 'feed' ? 'No briefing cards' : mode === 'saved' ? 'No saved cards' : 'No archived cards';
+  return <Screen header={<BackHeader title="Knowledge" subtitle="Briefings, prompts, and saved cards" />}><View style={styles.segment}><SegmentedControl value={mode} onChange={setMode} options={[{ value: 'feed', label: 'Briefing' }, { value: 'saved', label: 'Saved' }, { value: 'archived', label: 'Archive' }]} /></View>
     {active.isLoading ? <LoadingState /> : null}{active.isError ? <ErrorState message={apiErrorMessage(active.error)} onRetry={() => active.refetch()} /> : null}
-    {active.data ? <FlatList contentContainerStyle={styles.list} data={active.data.data} keyExtractor={(item) => String(item.id)} ListEmptyComponent={<EmptyState title={mode === 'feed' ? 'No briefing cards' : 'No saved cards'} message="Knowledge collected for your workspace appears here." />} renderItem={({ item }) => <View style={[styles.knowledgeCard, { backgroundColor: theme.surface, borderColor: theme.border }]}><View style={styles.knowledgeHeader}><Text style={[styles.knowledgeType, { color: theme.primary }]}>{String(item.category || item.card_type || 'KNOWLEDGE').toUpperCase()}</Text>{mode === 'feed' ? <Pressable accessibilityLabel="Save knowledge card" onPress={() => save.mutate(item)}><Bookmark color={theme.textMuted} size={19} /></Pressable> : null}</View><Text style={[styles.rowTitle, { color: theme.text }]}>{String(item.title || (item.payload as Record<string, unknown>)?.title || 'Knowledge card')}</Text><Text numberOfLines={5} style={[styles.knowledgeBody, { color: theme.textMuted }]}>{String(item.summary || item.body || (item.payload as Record<string, unknown>)?.summary || '')}</Text></View>} /> : null}
+    {active.data ? <FlatList contentContainerStyle={styles.list} data={active.data.data} keyExtractor={(item) => String(item.id)} ListEmptyComponent={<EmptyState title={emptyTitle} message="Knowledge collected for your workspace appears here." />} renderItem={({ item }) => { const payload = item.payload as Record<string, unknown> | undefined; return <View style={[styles.knowledgeCard, { backgroundColor: theme.surface, borderColor: theme.border }]}><View style={styles.knowledgeHeader}><Text style={[styles.knowledgeType, { color: theme.primary }]}>{String(item.category || item.card_type || 'KNOWLEDGE').toUpperCase()}</Text>{!user?.demo_account ? <View style={styles.knowledgeActions}>{mode === 'feed' ? <><Pressable accessibilityLabel="Save knowledge card" onPress={() => save.mutate(item)} style={styles.knowledgeAction}><Bookmark color={theme.textMuted} size={18} /></Pressable><Pressable accessibilityLabel="Archive knowledge card" onPress={() => archiveItem.mutate(item.id)} style={styles.knowledgeAction}><Archive color={theme.textMuted} size={18} /></Pressable></> : null}{mode === 'saved' ? <><Pressable accessibilityLabel="Mark bookmark reviewed" onPress={() => review.mutate(item.id)} style={styles.knowledgeAction}><CheckCircle2 color={theme.success} size={18} /></Pressable><Pressable accessibilityLabel="Delete bookmark" onPress={() => remove.mutate(item.id)} style={styles.knowledgeAction}><Trash2 color={theme.danger} size={17} /></Pressable></> : null}</View> : null}</View><Text style={[styles.rowTitle, { color: theme.text }]}>{String(item.title || payload?.title || 'Knowledge card')}</Text><Text numberOfLines={5} style={[styles.knowledgeBody, { color: theme.textMuted }]}>{String(item.summary || item.body || payload?.summary || '')}</Text></View>; }} /> : null}
   </Screen>;
 }
 
@@ -103,10 +121,11 @@ function PdfLibraryScreen() {
   const theme = useAppTheme();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const docs = useQuery({ queryKey: ['pdf-documents'], queryFn: endpoints.pdfDocuments });
   const upload = useMutation({ mutationFn: (file: DocumentPicker.DocumentPickerAsset) => endpoints.uploadPdf(file), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pdf-documents'] }), onError: (error) => Alert.alert('Upload failed', apiErrorMessage(error)) });
   const pick = async () => { const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf', copyToCacheDirectory: true }); if (!result.canceled) upload.mutate(result.assets[0]); };
-  return <Screen header={<BackHeader title="PDF Master" subtitle="Secure document workspace" action={<Pressable accessibilityLabel="Upload PDF" onPress={pick} style={[styles.action, { backgroundColor: theme.primary }]}><FilePlus2 color="#ffffff" size={20} /></Pressable>} />}>
+  return <Screen header={<BackHeader title="PDF Master" subtitle="Secure document workspace" action={!user?.demo_account ? <Pressable accessibilityLabel="Upload PDF" onPress={pick} style={[styles.action, { backgroundColor: theme.primary }]}><FilePlus2 color="#ffffff" size={20} /></Pressable> : undefined} />}>
     {upload.isPending ? <View style={[styles.uploading, { backgroundColor: theme.surfaceMuted }]}><RefreshCw color={theme.primary} size={17} /><Text style={{ color: theme.text }}>Uploading and inspecting document...</Text></View> : null}
     {docs.isLoading ? <LoadingState label="Loading documents" /> : null}{docs.isError ? <ErrorState message={apiErrorMessage(docs.error)} onRetry={() => docs.refetch()} /> : null}
     {docs.data ? <FlatList contentContainerStyle={styles.list} data={docs.data.data} keyExtractor={(item) => String(item.id)} ListEmptyComponent={<EmptyState title="No PDF documents" message="Upload a PDF to edit, organize, export, and share it." />} renderItem={({ item }) => <PdfRow document={item} onPress={() => router.push(`/more/pdf/${item.id}` as never)} />} /> : null}
@@ -126,12 +145,13 @@ function SettingsScreen() {
   const prefs = user?.preferences?.notification_preferences || {};
   const mutation = useMutation({ mutationFn: async ({ key, value }: { key: string; value: boolean }) => { await endpoints.updateMe({ notification_preferences: { ...prefs, [key]: value } }); await refreshUser(); }, onSuccess: () => queryClient.invalidateQueries(), onError: (error) => Alert.alert('Unable to save setting', apiErrorMessage(error)) });
   const options = [{ key: 'email_notifications', label: 'Email notifications', detail: 'Account and workspace email updates' }, { key: 'push_notifications', label: 'Push notifications', detail: 'Tasks, mentions, calls, and reminders' }, { key: 'calendar_reminders', label: 'Calendar reminders', detail: 'Upcoming events and schedules' }, { key: 'chat_notifications', label: 'Chat notifications', detail: 'Messages, mentions, and missed calls' }];
-  return <Screen header={<BackHeader title="Settings" subtitle="Appearance, alerts, and account behavior" />}><ScrollView contentContainerStyle={styles.scroll}><Text style={[styles.sectionTitle, { color: theme.text }]}>Notifications</Text><View style={[styles.settingsPanel, { backgroundColor: theme.surface, borderColor: theme.border }]}>{options.map((option, index) => <View key={option.key} style={[styles.settingRow, index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}><View style={styles.flex}><Text style={[styles.rowTitle, { color: theme.text }]}>{option.label}</Text><Text style={[styles.rowMeta, { color: theme.textMuted }]}>{option.detail}</Text></View><Switch accessibilityLabel={option.label} disabled={mutation.isPending} onValueChange={(value) => mutation.mutate({ key: option.key, value })} trackColor={{ false: theme.surfaceMuted, true: theme.primary }} value={prefs[option.key] ?? true} /></View>)}</View><Text style={[styles.sectionTitle, { color: theme.text }]}>Security</Text><Pressable onPress={() => router.push('/more/profile')} style={[styles.settingsLink, { backgroundColor: theme.surface, borderColor: theme.border }]}><Settings2 color={theme.primary} size={20} /><View style={styles.flex}><Text style={[styles.rowTitle, { color: theme.text }]}>Device sessions</Text><Text style={[styles.rowMeta, { color: theme.textMuted }]}>Review and revoke signed-in devices from Profile.</Text></View></Pressable></ScrollView></Screen>;
+  return <Screen header={<BackHeader title="Settings" subtitle="Appearance, alerts, and account behavior" />}><ScrollView contentContainerStyle={styles.scroll}><Text style={[styles.sectionTitle, { color: theme.text }]}>Notifications</Text><View style={[styles.settingsPanel, { backgroundColor: theme.surface, borderColor: theme.border }]}>{options.map((option, index) => <View key={option.key} style={[styles.settingRow, index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}><View style={styles.flex}><Text style={[styles.rowTitle, { color: theme.text }]}>{option.label}</Text><Text style={[styles.rowMeta, { color: theme.textMuted }]}>{option.detail}</Text></View><Switch accessibilityLabel={option.label} disabled={mutation.isPending || Boolean(user?.demo_account)} onValueChange={(value) => mutation.mutate({ key: option.key, value })} trackColor={{ false: theme.surfaceMuted, true: theme.primary }} value={prefs[option.key] ?? true} /></View>)}</View><Text style={[styles.sectionTitle, { color: theme.text }]}>Security</Text><Pressable onPress={() => router.push('/more/profile')} style={[styles.settingsLink, { backgroundColor: theme.surface, borderColor: theme.border }]}><Settings2 color={theme.primary} size={20} /><View style={styles.flex}><Text style={[styles.rowTitle, { color: theme.text }]}>Device sessions</Text><Text style={[styles.rowMeta, { color: theme.textMuted }]}>Review and revoke signed-in devices from Profile.</Text></View></Pressable></ScrollView></Screen>;
 }
 
 function KekaScreen() {
   const theme = useAppTheme();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const profile = useQuery({ queryKey: ['keka-profile'], queryFn: () => endpoints.rawResource<Record<string, unknown>>('/keka/profile') });
   const refresh = useMutation({
     mutationFn: endpoints.kekaRefresh,
@@ -141,7 +161,7 @@ function KekaScreen() {
   const payload = profile.data?.keka as Record<string, unknown> | undefined;
   const data = payload?.data as Record<string, unknown> | undefined;
   const rows = data ? Object.entries(data).filter(([, value]) => ['string', 'number', 'boolean'].includes(typeof value)).slice(0, 24) : [];
-  return <Screen header={<BackHeader title="Keka profile" subtitle="Employee information synced to Nexus Hub" action={<Pressable accessibilityLabel="Refresh Keka profile" disabled={refresh.isPending} onPress={() => refresh.mutate()} style={[styles.action, { backgroundColor: theme.primary }]}><RefreshCw color="#ffffff" size={20} /></Pressable>} />}>
+  return <Screen header={<BackHeader title="Keka profile" subtitle="Employee information synced to Nexus Hub" action={!user?.demo_account ? <Pressable accessibilityLabel="Refresh Keka profile" disabled={refresh.isPending} onPress={() => refresh.mutate()} style={[styles.action, { backgroundColor: theme.primary }]}><RefreshCw color="#ffffff" size={20} /></Pressable> : undefined} />}>
     {profile.isLoading ? <LoadingState label="Loading Keka profile" /> : null}
     {profile.isError ? <ErrorState message={apiErrorMessage(profile.error)} onRetry={() => profile.refetch()} /> : null}
     {profile.data ? <ScrollView contentContainerStyle={styles.scroll}>{rows.length ? rows.map(([key, value]) => <View key={key} style={[styles.simpleRow, { borderBottomColor: theme.border }]}><Text style={[styles.rowMeta, { color: theme.textMuted }]}>{humanize(key)}</Text><Text style={[styles.rowTitle, { color: theme.text, marginTop: 4 }]}>{String(value)}</Text></View>) : <EmptyState title="Keka is not connected" message="Add Keka credentials on the Nexus Hub website, then refresh this profile." />}</ScrollView> : null}
@@ -162,7 +182,7 @@ function AdminScreen() {
 function WebsiteScreen() {
   const theme = useAppTheme();
   const config = useQuery({ queryKey: ['mobile-config'], queryFn: endpoints.config });
-  const links = [{ label: 'Portfolio', path: '/' }, { label: 'Contact', path: '/contact' }, { label: 'Privacy', path: '/privacy' }, { label: 'Terms', path: '/terms' }, { label: 'Demo tour', path: '/demo' }, { label: 'Metaverse', path: '/metaverse' }];
+  const links = [{ label: 'Portfolio', path: '/' }, { label: 'Contact', path: '/contact' }, { label: 'Legal and privacy', path: '/legal' }, { label: 'Metaverse', path: '/metaverse-landing' }];
   return <Screen header={<BackHeader title="Nexus Hub web" subtitle="Public, legal, and immersive experiences" />}><ScrollView contentContainerStyle={styles.scroll}>{links.map((link) => <Pressable key={link.label} onPress={() => WebBrowser.openBrowserAsync(`${config.data?.web_url || ''}${link.path}`)} style={[styles.settingsLink, { backgroundColor: theme.surface, borderColor: theme.border }]}><ExternalLink color={theme.primary} size={20} /><Text style={[styles.rowTitle, { color: theme.text, flex: 1 }]}>{link.label}</Text><ChevronRight color={theme.textMuted} size={19} /></Pressable>)}</ScrollView></Screen>;
 }
 
@@ -180,7 +200,7 @@ const styles = StyleSheet.create({
   list: { padding: 20, paddingBottom: 40 }, scroll: { padding: 20, paddingBottom: 40 }, segment: { paddingHorizontal: 20, paddingTop: 14 },
   calendarRow: { alignItems: 'center', borderRadius: 8, borderWidth: 1, flexDirection: 'row', marginBottom: 9, minHeight: 76, padding: 11 }, dateBlock: { alignItems: 'center', borderRadius: 7, height: 52, justifyContent: 'center', marginRight: 12, width: 52 }, month: { fontSize: 10, fontWeight: '800' }, day: { fontSize: 20, fontWeight: '800' }, rowTitle: { fontSize: 15, fontWeight: '700' }, rowMeta: { fontSize: 12, lineHeight: 17, marginTop: 4 },
   eyebrow: { fontSize: 11, fontWeight: '800' }, heroTitle: { fontSize: 25, fontWeight: '800', lineHeight: 32, marginTop: 8, maxWidth: 330 }, metricGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 9, marginTop: 22 }, metric: { borderRadius: 8, borderWidth: 1, minHeight: 110, padding: 13, width: '48%' }, metricLabel: { fontSize: 11, fontWeight: '700' }, metricValue: { fontSize: 28, fontWeight: '800', marginTop: 8 }, metricDetail: { fontSize: 11, marginTop: 3 }, section: { marginTop: 28 }, sectionTitle: { fontSize: 17, fontWeight: '800', marginBottom: 10 }, simpleRow: { borderBottomWidth: StyleSheet.hairlineWidth, minHeight: 62, paddingVertical: 11 },
-  knowledgeCard: { borderRadius: 8, borderWidth: 1, marginBottom: 10, padding: 15 }, knowledgeHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }, knowledgeType: { fontSize: 10, fontWeight: '800' }, knowledgeBody: { fontSize: 13, lineHeight: 20, marginTop: 8 },
+  knowledgeCard: { borderRadius: 8, borderWidth: 1, marginBottom: 10, padding: 15 }, knowledgeHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }, knowledgeType: { fontSize: 10, fontWeight: '800' }, knowledgeBody: { fontSize: 13, lineHeight: 20, marginTop: 8 }, knowledgeActions: { flexDirection: 'row', gap: 2 }, knowledgeAction: { alignItems: 'center', height: 36, justifyContent: 'center', width: 36 },
   uploading: { alignItems: 'center', flexDirection: 'row', gap: 9, minHeight: 44, paddingHorizontal: 20 }, pdfRow: { alignItems: 'center', borderRadius: 8, borderWidth: 1, flexDirection: 'row', marginBottom: 9, minHeight: 70, padding: 11 }, fileIcon: { alignItems: 'center', borderRadius: 7, height: 42, justifyContent: 'center', marginRight: 12, width: 42 },
   settingsPanel: { borderRadius: 8, borderWidth: 1, overflow: 'hidden' }, settingRow: { alignItems: 'center', flexDirection: 'row', minHeight: 70, paddingHorizontal: 14 }, settingsLink: { alignItems: 'center', borderRadius: 8, borderWidth: 1, flexDirection: 'row', gap: 12, marginBottom: 9, minHeight: 66, padding: 13 }, adminRow: { alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', minHeight: 66 },
 });

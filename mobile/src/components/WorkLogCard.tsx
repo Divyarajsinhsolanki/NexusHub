@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { WorkLog } from '../api/types';
 import { useAppTheme } from '../theme';
 
-export function WorkLogCard({ workLog, onEdit }: { workLog: WorkLog; onEdit: () => void }) {
+export function WorkLogCard({ workLog, onEdit }: { workLog: WorkLog; onEdit?: () => void }) {
   const theme = useAppTheme();
   return (
     <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -18,9 +18,9 @@ export function WorkLogCard({ workLog, onEdit }: { workLog: WorkLog; onEdit: () 
             </Text>
           </View>
         </View>
-        <Pressable accessibilityLabel={`Edit ${workLog.title}`} accessibilityRole="button" hitSlop={10} onPress={onEdit} style={styles.edit}>
+        {onEdit ? <Pressable accessibilityLabel={`Edit ${workLog.title}`} accessibilityRole="button" hitSlop={10} onPress={onEdit} style={styles.edit}>
           <Pencil color={theme.textMuted} size={19} />
-        </Pressable>
+        </Pressable> : null}
       </View>
       {workLog.description ? <Text style={[styles.description, { color: theme.textMuted }]}>{workLog.description}</Text> : null}
       <View style={styles.tags}>

@@ -1,17 +1,20 @@
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Bug, FolderLock, ListTree, Plus, Server, TimerReset, Users } from 'lucide-react-native';
+import { ArrowLeft, BarChart3, Bug, FolderLock, ListTree, Plus, Server, TimerReset, Users } from 'lucide-react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
 
 import { apiErrorMessage } from '@/src/api/client';
 import { endpoints } from '@/src/api/endpoints';
-import type { TaskStatus } from '@/src/api/types';
+import type { Task, TaskStatus } from '@/src/api/types';
 import { PageHeader } from '@/src/components/PageHeader';
 import { Screen } from '@/src/components/Screen';
 import { EmptyState, ErrorState, LoadingState } from '@/src/components/StateView';
 import { TaskCard } from '@/src/components/TaskCard';
 import { useTaskStatus } from '@/src/hooks/useTaskStatus';
 import { useAppTheme } from '@/src/theme';
+import { useAuth } from '@/src/auth/AuthProvider';
+import { TaskEditor } from '@/src/components/TaskEditor';
 
 export default function ProjectDetailScreen() {
   const params = useLocalSearchParams<{ id: string; taskId?: string }>();
@@ -19,6 +22,8 @@ export default function ProjectDetailScreen() {
   const selectedTaskId = Number(params.taskId || 0);
   const router = useRouter();
   const theme = useAppTheme();
+  const { user } = useAuth();
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const project = useQuery({ queryKey: ['project', projectId], queryFn: () => endpoints.project(projectId), enabled: Number.isFinite(projectId) });
   const sprints = useQuery({ queryKey: ['project-sprints', projectId], queryFn: () => endpoints.sprints(projectId), enabled: Number.isFinite(projectId) });
   const tasks = useQuery({ queryKey: ['project-tasks', projectId], queryFn: () => endpoints.tasks({ project_id: projectId, per_page: 100 }), enabled: Number.isFinite(projectId) });
@@ -30,7 +35,7 @@ export default function ProjectDetailScreen() {
 
   return (
     <Screen
-      header={<PageHeader leading={<Pressable accessibilityLabel="Back to projects" accessibilityRole="button" hitSlop={10} onPress={() => router.back()} style={styles.back}><ArrowLeft color={theme.text} size={23} /></Pressable>} title={project.data?.name || 'Project'} subtitle={project.data?.status} action={<Pressable accessibilityLabel="Create project task" onPress={() => router.push(`/create?type=task&projectId=${projectId}` as never)} style={[styles.add, { backgroundColor: theme.primary }]}><Plus color="#ffffff" size={21} /></Pressable>} />}>
+      header={<PageHeader leading={<Pressable accessibilityLabel="Back to projects" accessibilityRole="button" hitSlop={10} onPress={() => router.back()} style={styles.back}><ArrowLeft color={theme.text} size={23} /></Pressable>} title={project.data?.name || 'Project'} subtitle={project.data?.status} action={!user?.demo_account ? <Pressable accessibilityLabel="Create project task" onPress={() => router.push(`/create?type=task&projectId=${projectId}` as never)} style={[styles.add, { backgroundColor: theme.primary }]}><Plus color="#ffffff" size={21} /></Pressable> : undefined} />}>
       {project.isLoading ? <LoadingState label="Loading project" /> : null}
       {project.isError ? <ErrorState message={apiErrorMessage(project.error)} onRetry={() => refresh()} /> : null}
       {project.data ? (
@@ -39,6 +44,7 @@ export default function ProjectDetailScreen() {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tools}>
             <ProjectTool icon={Users} label="Members" onPress={() => router.push(`/projects/${projectId}/members` as never)} />
             <ProjectTool icon={ListTree} label="Sprints" onPress={() => router.push(`/projects/${projectId}/sprints` as never)} />
+            <ProjectTool icon={BarChart3} label="Statistics" onPress={() => router.push(`/projects/${projectId}/statistics` as never)} />
             <ProjectTool icon={Bug} label="Issues" onPress={() => router.push(`/projects/${projectId}/issues` as never)} />
             <ProjectTool icon={TimerReset} label="Logs" onPress={() => router.push(`/projects/${projectId}/logs` as never)} />
             <ProjectTool icon={Server} label="Environments" onPress={() => router.push(`/projects/${projectId}/environments` as never)} />
@@ -58,10 +64,11 @@ export default function ProjectDetailScreen() {
           <View style={styles.tasks}>
             {taskData.length ? taskData.map((task) => (
               <View key={task.id} style={task.id === selectedTaskId ? [styles.selected, { borderColor: theme.primary }] : undefined}>
-                <TaskCard onStatusChange={(status) => changeStatus(task.id, status)} task={task} updating={taskStatus.isPending && taskStatus.variables?.id === task.id} />
+                <TaskCard onEdit={!user?.demo_account ? () => setEditingTask(task) : undefined} onStatusChange={(status) => changeStatus(task.id, status)} readOnly={Boolean(user?.demo_account)} task={task} updating={taskStatus.isPending && taskStatus.variables?.id === task.id} />
               </View>
             )) : <EmptyState title="No tasks" message="This project's tasks will appear here." />}
           </View>
+          <TaskEditor members={project.data.users || []} onClose={() => setEditingTask(null)} onSaved={async () => { setEditingTask(null); await tasks.refetch(); }} projectId={projectId} sprints={sprints.data || []} task={editingTask} />
         </ScrollView>
       ) : null}
     </Screen>
