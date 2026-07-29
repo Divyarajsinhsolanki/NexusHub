@@ -5,7 +5,7 @@ class Api::ConversationCallsController < Api::BaseController
     unless Chat::LivekitTokenGenerator.configured?
       render json: {
         error: "livekit_not_configured",
-        message: "LiveKit is not configured"
+        message: Chat::LivekitTokenGenerator.configuration_error
       }, status: :service_unavailable
       return
     end

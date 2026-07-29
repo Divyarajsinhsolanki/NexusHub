@@ -114,6 +114,12 @@ Environment variables are documented in `.env.example`. The most important group
 Values prefixed with `VITE_` are exposed to browser-side JavaScript. Do not put
 private server secrets in `VITE_` variables.
 
+For calls on Render, create a LiveKit Cloud project and add its project URL,
+API key, and API secret to the Render web service as `LIVEKIT_URL`,
+`LIVEKIT_API_KEY`, and `LIVEKIT_API_SECRET`. The production URL must use
+`wss://`; `ws://localhost:7880` only works for local development. Do not add the
+LiveKit API secret to Expo/EAS or any `VITE_` variable.
+
 Keep `KEKA_API_KEY_ENCRYPTION_KEY` unchanged between deployments. If it changes,
 existing Keka credentials become unreadable and must be entered again.
 
@@ -252,4 +258,5 @@ commands can be retried safely.
 - Image processing fails in PDF flows: install ImageMagick and confirm `convert` or `magick` is available.
 - Google Sheets errors: confirm `config/google_service_account.json` exists, the spreadsheet is shared with the service account, and the project has the correct sheet ID.
 - Firebase token errors: verify both browser `VITE_FIREBASE_*` values and server-side `FIREBASE_PROJECT_ID`.
-- Chat call error `Could not connect to the call media server`: run `bin/livekit status`. If it is not reachable, run `bin/livekit start` and confirm `.env` has `LIVEKIT_URL=ws://localhost:7880`, `LIVEKIT_API_KEY=devkey`, and the matching `LIVEKIT_API_SECRET`.
+- Local chat call error `Could not connect to the call media server`: run `bin/livekit status`. If it is not reachable, run `bin/livekit start` and confirm `.env` has `LIVEKIT_URL=ws://localhost:7880`, `LIVEKIT_API_KEY=devkey`, and the matching `LIVEKIT_API_SECRET`.
+- Render chat call error: configure a LiveKit Cloud `wss://` project URL and matching API credentials on the Render web service, then redeploy it.

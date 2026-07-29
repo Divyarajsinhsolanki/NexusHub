@@ -24,7 +24,7 @@ import {
   Volume2
 } from "lucide-react";
 
-const CALL_MEDIA_CONNECTION_MESSAGE = "Could not connect to the call media server. Start LiveKit locally or set LIVEKIT_URL to a reachable ws:// or wss:// server.";
+const CALL_MEDIA_CONNECTION_MESSAGE = "Could not connect to the call media server. Verify LIVEKIT_URL points to a reachable wss:// LiveKit Cloud or self-hosted endpoint.";
 const FRAME_MARGIN = 12;
 const callControlButtonBaseClass = "inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-2xl border px-3.5 py-2 text-xs font-semibold shadow-sm transition focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:focus:ring-sky-400 dark:focus:ring-offset-zinc-950";
 const callControlButtonActiveClass = "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-sky-800 dark:bg-sky-950/70 dark:text-sky-100 dark:hover:bg-sky-900/70";
