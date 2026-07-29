@@ -286,6 +286,11 @@ GEM
     pdf-core (0.9.0)
     pdfkit (0.8.7.3)
     pg (1.6.3-x86_64-linux)
+    postmark (1.25.1)
+      json
+    postmark-rails (0.22.1)
+      actionmailer (>= 3.0.0)
+      postmark (>= 1.21.3, < 2.0)
     pp (0.6.4)
       prettyprint
     prawn (2.4.0)
@@ -480,6 +485,7 @@ DEPENDENCIES
   net-imap (>= 0.6.4)
   nokogiri (>= 1.19.4)
   pg
+  postmark-rails (~> 0.22)
   puma (~> 7.2, >= 7.2.1)
   rack (>= 3.2.6)
   rack-attack
@@ -605,6 +611,8 @@ CHECKSUMS
   pdf-core (0.9.0) sha256=4f368b2f12b57ec979872d4bf4bd1a67e8648e0c81ab89801431d2fc89f4e0bb
   pdfkit (0.8.7.3) sha256=cd99e9eef3fcfd3ba7932acdb31c05e41141904c025f1363e829c1b93503b7da
   pg (1.6.3-x86_64-linux) sha256=5d9e188c8f7a0295d162b7b88a768d8452a899977d44f3274d1946d67920ae8d
+  postmark (1.25.1) sha256=2ac110fa1b4f85a62996fdc63167922eea1c4284a9a7ceb9e007f2758d9e17be
+  postmark-rails (0.22.1) sha256=fcea27dda4f7418123d7723622ec5447df4dacacc10a20a40add0f6789135d8f
   pp (0.6.4) sha256=dfcb0fce700c41456265922884f9fe195d7fbb0674a3578e6c0f69588e82b570
   prawn (2.4.0) sha256=82062744f7126c2d77501da253a154271790254dfa8c309b8e52e79bc5de2abd
   prettyprint (0.2.0) sha256=2bc9e15581a94742064a3cc8b0fb9d45aae3d03a1baa6ef80922627a0766f193

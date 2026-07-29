@@ -1,6 +1,4 @@
 class IssueMailer < ApplicationMailer
-  default from: "issues@example.com"
-
   def issue_update(issue, previous_status:, previous_assignee:, targets:)
     return if targets.blank?
 

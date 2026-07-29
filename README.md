@@ -99,7 +99,8 @@ Environment variables are documented in `.env.example`. The most important group
 
 - App/runtime: `RAILS_MASTER_KEY`, `RAILS_LOG_LEVEL`, `RAILS_MAX_THREADS`, `RAILS_MIN_THREADS`, `WEB_CONCURRENCY`, `ALLOWED_HOSTS`
 - Database: `DB_HOST`, `DATABASE_URL`
-- Mail links and SMTP: `BASE_URL`, `FRONTEND_URL`, `SMTP_ADDRESS`, `SMTP_PORT`, `SMTP_DOMAIN`, `SMTP_USERNAME`, `SMTP_PASSWORD`
+- Production email (Postmark): `POSTMARK_SERVER_TOKEN`, `MAILER_SENDER`, `ERROR_NOTIFICATION_EMAIL`, `BASE_URL`, `FRONTEND_URL`
+- Optional local SMTP: `SMTP_ADDRESS`, `SMTP_PORT`, `SMTP_DOMAIN`, `SMTP_USERNAME`, `SMTP_PASSWORD`
 - CORS: `CORS_ALLOWED_ORIGINS`, `CORS_ALLOWED_PATH`
 - Action Cable: `REDIS_URL`
 - Calls: `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`
@@ -113,6 +114,13 @@ Environment variables are documented in `.env.example`. The most important group
 
 Values prefixed with `VITE_` are exposed to browser-side JavaScript. Do not put
 private server secrets in `VITE_` variables.
+
+Production email is sent through the Postmark HTTPS API. Confirm a Sender
+Signature in Postmark, then set `MAILER_SENDER` to that exact address, for
+example `Nexus Hub <you@company.example>`. `POSTMARK_SERVER_TOKEN` is a server
+secret: add it only to Render, never to Git, Expo, EAS, or a `VITE_` variable.
+Development continues to use the optional SMTP settings above, while tests use
+Action Mailer's in-memory test delivery.
 
 For calls on Render, create a LiveKit Cloud project and add its project URL,
 API key, and API secret to the Render web service as `LIVEKIT_URL`,

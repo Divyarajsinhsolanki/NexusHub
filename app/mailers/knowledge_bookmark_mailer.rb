@@ -1,6 +1,4 @@
 class KnowledgeBookmarkMailer < ApplicationMailer
-  default from: "knowledge-hub@example.com"
-
   def reminder(bookmark)
     @bookmark = bookmark
     @user = bookmark.user

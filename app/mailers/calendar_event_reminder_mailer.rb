@@ -1,6 +1,4 @@
 class CalendarEventReminderMailer < ApplicationMailer
-  default from: "calendar-reminders@example.com"
-
   def reminder(event_reminder)
     @event_reminder = event_reminder
     @event = event_reminder.calendar_event

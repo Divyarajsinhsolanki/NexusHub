@@ -70,35 +70,15 @@ Rails.application.configure do
   config.active_job.queue_name_prefix = "nexus_hub_production"
 
   config.action_mailer.perform_caching = false
-
-  # Deliver emails via SMTP using credentials stored in environment variables
-  smtp_ssl = ActiveModel::Type::Boolean.new.cast(ENV.fetch("SMTP_SSL", "false"))
-  smtp_starttls = ActiveModel::Type::Boolean.new.cast(ENV.fetch("SMTP_STARTTLS", smtp_ssl ? "false" : "true"))
-
-  config.action_mailer.delivery_method = :smtp
-  config.action_mailer.smtp_settings = {
-    address: ENV.fetch("SMTP_ADDRESS", "smtp.dummy.host"),
-    port: ENV.fetch("SMTP_PORT", 587).to_i,
-    domain: ENV.fetch("SMTP_DOMAIN", "dummy.host"),
-    user_name: ENV.fetch("SMTP_USERNAME", "dummy_user"),
-    password: ENV.fetch("SMTP_PASSWORD", "dummy_pass"),
-    authentication: :plain,
-    enable_starttls_auto: smtp_starttls,
-    ssl: smtp_ssl,
-    open_timeout: ENV.fetch("SMTP_OPEN_TIMEOUT", 5).to_i,
-    read_timeout: ENV.fetch("SMTP_READ_TIMEOUT", 5).to_i
-  }
+  config.action_mailer.delivery_method = :postmark
+  config.action_mailer.postmark_settings = { api_token: ENV["POSTMARK_SERVER_TOKEN"] }
+  config.action_mailer.raise_delivery_errors = true
   app_url = ENV["BASE_URL"].presence || ENV["RENDER_EXTERNAL_URL"].presence || "https://example.com"
   app_uri = URI.parse(app_url.match?(%r{\A[a-z][a-z0-9+\-.]*://}i) ? app_url : "https://#{app_url}")
   app_host = app_uri.host.presence || app_url
   app_protocol = app_uri.scheme.presence || "https"
 
   config.action_mailer.default_url_options = { host: app_host, protocol: app_protocol }
-  
-
-  # Ignore bad email addresses and do not raise email delivery errors.
-  # Set this to true and configure the email server for immediate delivery to raise delivery errors.
-  # config.action_mailer.raise_delivery_errors = false
 
   # Enable locale fallbacks for I18n (makes lookups for any locale fall back to
   # the I18n.default_locale when a translation cannot be found).
