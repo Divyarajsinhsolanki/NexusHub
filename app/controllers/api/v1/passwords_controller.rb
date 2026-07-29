@@ -3,7 +3,11 @@ class Api::V1::PasswordsController < Api::V1::BaseController
   skip_before_action :enforce_demo_read_only!
 
   def forgot
-    User.send_reset_password_instructions(email: params.require(:email).to_s.strip.downcase)
+    email = params.require(:email).to_s.strip.downcase
+    if email.present? && (user = User.find_by(email: email))
+      send_reset_instructions(user, email)
+    end
+
     render_data({ accepted: true })
   end
 
@@ -18,5 +22,21 @@ class Api::V1::PasswordsController < Api::V1::BaseController
 
     MobileSession.where(user: user).active.find_each(&:revoke!)
     render_data({ password_reset: true })
+  end
+
+  private
+
+  def send_reset_instructions(user, email)
+    user.send_reset_password_instructions
+  rescue StandardError => error
+    send_exception_notification(error)
+    AppEventLogger.error(
+      :application_errors,
+      source: "#{self.class.name}#forgot",
+      message: "Mobile password reset email failed",
+      exception: error,
+      payload: { email: email }
+    )
+    Rails.error.report(error, handled: true, context: { controller: self.class.name, action: "password_forgot", email: email })
   end
 end

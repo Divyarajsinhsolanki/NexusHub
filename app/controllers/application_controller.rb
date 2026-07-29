@@ -4,8 +4,41 @@ class ApplicationController < ActionController::Base
   before_action :set_current_user
   before_action :enforce_demo_read_only_request!
   after_action :reset_current_user
+  rescue_from StandardError, with: :notify_unhandled_exception
 
   private
+
+  def notify_unhandled_exception(error)
+    send_exception_notification(error)
+    raise error
+  end
+
+  def send_exception_notification(error)
+    return unless ErrorNotificationMailer.enabled?
+
+    ErrorNotificationMailer.exception_report(
+      exception_class: error.class.name,
+      message: error.message,
+      backtrace: error.backtrace,
+      request_context: exception_request_context
+    ).deliver_now
+  rescue StandardError => mail_error
+    Rails.logger.error("Error notification email failed: #{mail_error.class}: #{mail_error.message}")
+  end
+
+  def exception_request_context
+    {
+      request_id: request.request_id,
+      method: request.request_method,
+      path: request.fullpath,
+      controller: params[:controller],
+      action: params[:action],
+      user_id: Current.user&.id,
+      workspace_id: Current.workspace&.id,
+      remote_ip: request.remote_ip,
+      params: request.filtered_parameters.except("controller", "action")
+    }.compact
+  end
 
   def set_current_user
     Current.user = current_user || user_from_access_cookie

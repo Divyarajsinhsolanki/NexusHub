@@ -219,6 +219,15 @@ class MobileApiV1Test < ActionDispatch::IntegrationTest
     assert MobileSession.exists?(user: User.find_by!(email: "google-owner@example.com"))
   end
 
+  test "forgot password stays accepted when mail delivery fails" do
+    with_reset_mail_failure do
+      post "/api/v1/auth/password/forgot", params: { email: @user.email }
+    end
+
+    assert_response :success
+    assert_equal true, response.parsed_body.dig("data", "accepted")
+  end
+
   test "mobile sessions can be listed and revocation immediately invalidates access" do
     login = mobile_login
     token = login.fetch("access_token")
@@ -338,5 +347,13 @@ class MobileApiV1Test < ActionDispatch::IntegrationTest
 
   def bearer_headers(token)
     { "Authorization" => "Bearer #{token}", "Accept" => "application/json" }
+  end
+
+  def with_reset_mail_failure
+    original = User.instance_method(:send_reset_password_instructions)
+    User.define_method(:send_reset_password_instructions) { raise "SMTP unavailable" }
+    yield
+  ensure
+    User.define_method(:send_reset_password_instructions, original)
   end
 end

@@ -75,6 +75,27 @@ const stageKeyFor = (taskId, stageKey) => `${taskId}:${stageKey}`;
 
 const taskIdFromLog = (log) => log?.task_id ?? log?.task?.id;
 
+const dateWindowFor = (dates = []) => {
+  const sortedDates = [...dates].filter(Boolean).sort();
+  if (!sortedDates.length) return null;
+
+  return {
+    start: sortedDates[0],
+    end: sortedDates[sortedDates.length - 1],
+  };
+};
+
+export const logFallsWithinDateWindow = (log, dates = []) => {
+  const window = dateWindowFor(dates);
+  if (!window) return true;
+
+  const logDate = log?.log_date ?? log?.logDate;
+  return Boolean(logDate && logDate >= window.start && logDate <= window.end);
+};
+
+export const logsWithinDateWindow = (logs = [], dates = []) =>
+  logs.filter((log) => logFallsWithinDateWindow(log, dates));
+
 export const resolveDefaultLogDate = (dates = []) => {
   if (!dates.length) return '';
 
@@ -83,8 +104,8 @@ export const resolveDefaultLogDate = (dates = []) => {
   return dates[dates.length - 1] || dates[0];
 };
 
-export const buildLoggedHoursByTaskStage = (logs = []) =>
-  logs.reduce((accumulator, log) => {
+export const buildLoggedHoursByTaskStage = (logs = [], dates = []) =>
+  logsWithinDateWindow(logs, dates).reduce((accumulator, log) => {
     const taskId = taskIdFromLog(log);
     const stageKey = STAGE_KEY_BY_LOG_TYPE[normalizeText(log?.type)];
     if (!taskId || !stageKey || log?.deleted) return accumulator;
@@ -249,8 +270,8 @@ export const plannedHoursForStage = (task, stage) => {
   return numberOrZero(task?.estimated_hours) || numberOrZero(task?.total_hours);
 };
 
-export const buildTaskStageRows = ({ tasks, existingLogs, developers, viewMode = 'combined' }) => {
-  const loggedHoursByTaskStage = buildLoggedHoursByTaskStage(existingLogs);
+export const buildTaskStageRows = ({ tasks, existingLogs, developers, dates = [], viewMode = 'combined' }) => {
+  const loggedHoursByTaskStage = buildLoggedHoursByTaskStage(existingLogs, dates);
 
   return [...(Array.isArray(tasks) ? tasks : EMPTY_ARRAY)]
     .map((task, sourceIndex) => ({ task, sourceIndex }))
@@ -356,8 +377,9 @@ export const validateStageSelection = (rows = []) => {
 export const buildDistributionPlan = ({ rows, dates, startDate, maxHoursPerDay, existingLogs }) => {
   const distributionDates = dates.filter((date) => date >= startDate);
   const perDayLimit = numberOrZero(maxHoursPerDay);
-  const dailyHoursByMemberDate = buildDailyHoursByMemberDate(existingLogs);
-  const lastLogDateByTaskStage = buildLastLogDateByTaskStage(existingLogs);
+  const scopedExistingLogs = logsWithinDateWindow(existingLogs, dates);
+  const dailyHoursByMemberDate = buildDailyHoursByMemberDate(scopedExistingLogs);
+  const lastLogDateByTaskStage = buildLastLogDateByTaskStage(scopedExistingLogs);
   const selectedRows = rows
     .filter((row) => row.selected && row.developerId && numberOrZero(row.hours) > 0)
     .sort((left, right) => (

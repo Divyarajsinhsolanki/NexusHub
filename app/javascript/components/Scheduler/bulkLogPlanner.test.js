@@ -210,4 +210,39 @@ describe("bulkLogPlanner", () => {
       hours: "3",
     });
   });
+
+  it("ignores task logs outside the sprint date window when calculating remaining hours", () => {
+    const rows = buildTaskStageRows({
+      developers,
+      dates: ["2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30", "2026-07-31"],
+      existingLogs: [
+        {
+          task_id: 15,
+          developer_id: 1,
+          log_date: "2026-07-14",
+          type: "Code",
+          hours_logged: 16,
+        },
+      ],
+      viewMode: "combined",
+      tasks: [
+        {
+          id: 15,
+          task_id: "MYFR-2912",
+          type: "Code",
+          developer_id: 1,
+          dev_hours: 16,
+        },
+      ],
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      stageLabel: "Code",
+      plannedHours: 16,
+      loggedHours: 0,
+      remainingHours: 16,
+      hours: "16",
+    });
+  });
 });

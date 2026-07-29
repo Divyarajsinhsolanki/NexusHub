@@ -96,6 +96,13 @@ class Api::AuthController < Api::BaseController
     end
   end
 
+  def session_info
+    render json: {
+      user: authentication_user_payload(current_user),
+      exp: access_cookie_exp
+    }
+  end
+
   def logout
     clear_jwt_cookies!
     render json: { message: "Logged out successfully" }
@@ -218,33 +225,17 @@ class Api::AuthController < Api::BaseController
   end
 
   def verify_firebase_token(token)
-    project_id = ENV["FIREBASE_PROJECT_ID"].to_s
-    return nil if project_id.blank?
-
-    certs = Rails.cache.fetch('google_certs', expires_in: 1.hour) do
-      uri = URI('https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com')
-      JSON.parse(Net::HTTP.get(uri))
-    end
-
-    header = JWT.decode(token, nil, false).last
-    key_data = certs[header['kid']]
-    return nil unless key_data
-
-    public_key = OpenSSL::X509::Certificate.new(key_data).public_key
-    decoded, = JWT.decode(
-      token,
-      public_key,
-      true,
-      algorithm: 'RS256',
-      iss: "https://securetoken.google.com/#{project_id}",
-      verify_iss: true,
-      aud: project_id,
-      verify_aud: true
-    )
-    decoded
+    FirebaseIdTokenVerifier.call(token)
   rescue => e
     Rails.logger.error("Firebase token error: #{e}")
     nil
+  end
+
+  def access_cookie_exp
+    payload = JwtService.decode(cookies.signed[:access_token])
+    return if payload.blank? || payload[:error].present?
+
+    payload[:exp]
   end
 
 end

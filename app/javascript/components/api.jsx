@@ -137,6 +137,7 @@ export const fetchKekaProfile = () => api.get("/keka/profile");
 export const refreshKekaProfile = () => api.post("/keka/refresh");
 export const requestPasswordReset = (email) => api.post("/password/forgot", { password: { email } });
 export const resetPassword = (payload) => api.post("/password/reset", { password: payload });
+export const changePassword = (payload) => api.patch("/password/change", { password: payload });
 export const getUsers = (params = {}) => withNormalizedCollection(api.get('/users.json', { params: collectionParams(params) }));
 export const updatePresence = () => api.post('/users/presence');
 export const createUser = (data) => api.post('/users.json', { user: data });

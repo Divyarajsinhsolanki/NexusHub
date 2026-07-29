@@ -1,0 +1,17 @@
+<h1>Nexus Hub production error</h1>
+
+<p><strong>Exception:</strong> <%= @exception_class %></p>
+<p><strong>Message:</strong> <%= @message %></p>
+
+<h2>Request</h2>
+<table cellpadding="6" cellspacing="0" border="1">
+  <% @request_context.each do |key, value| %>
+    <tr>
+      <th align="left"><%= key %></th>
+      <td><%= value.inspect %></td>
+    </tr>
+  <% end %>
+</table>
+
+<h2>Backtrace</h2>
+<pre><%= @backtrace.join("\n") %></pre>

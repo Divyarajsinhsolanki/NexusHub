@@ -1,0 +1,14 @@
+Nexus Hub production error
+
+Exception: <%= @exception_class %>
+Message: <%= @message %>
+
+Request:
+<% @request_context.each do |key, value| %>
+<%= key %>: <%= value.inspect %>
+<% end %>
+
+Backtrace:
+<% @backtrace.each do |line| %>
+<%= line %>
+<% end %>

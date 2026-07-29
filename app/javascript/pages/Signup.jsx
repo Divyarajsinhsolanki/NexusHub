@@ -5,6 +5,7 @@ import submitForm from "../utils/formSubmit";
 import { Toaster, toast } from "react-hot-toast";
 import SpinnerOverlay from "../components/ui/SpinnerOverlay";
 import WorkspaceOrb from "../components/landing/WorkspaceOrb";
+import { firebaseEnabled } from "../firebaseFlags";
 
 const signupMetrics = [
   ["2 min", "Quick setup"],
@@ -190,34 +191,40 @@ const Signup = ({ switchToLogin }) => {
               </div>
             )}
 
-            <div className="relative my-5">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-shell-border" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="bg-surface-elevated px-2 text-shell-muted">OR</span>
-              </div>
-            </div>
+            {firebaseEnabled ? (
+              <>
+                <div className="relative my-5">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-shell-border" />
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="bg-surface-elevated px-2 text-shell-muted">OR</span>
+                  </div>
+                </div>
 
-            <button
-              onClick={async () => {
-                setLoading(true);
-                try {
-                  await handleGoogleLogin();
-                } finally {
-                  setLoading(false);
-                }
-              }}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-shell-border bg-surface-card py-2.5 font-medium text-shell-muted-strong shadow-sm transition hover:-translate-y-0.5 hover:bg-surface-card-hover hover:shadow-lg"
-            >
-              <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                <path
-                  fill="currentColor"
-                  d="M12.545 10.239v3.821h5.445c-.712 2.315-2.647 3.972-5.445 3.972a6.033 6.033 0 110-12.064c1.835 0 3.456.705 4.691 1.942l3.099-3.101A10.113 10.113 0 0012.545 2C7.021 2 2.545 6.477 2.545 12s4.476 10 10 10c5.523 0 10-4.477 10-10a10.1 10.1 0 00-.167-1.785l-9.833-.006z"
-                />
-              </svg>
-              Sign up with Google
-            </button>
+                <button
+                  onClick={async () => {
+                    setLoading(true);
+                    try {
+                      await handleGoogleLogin();
+                    } catch (googleError) {
+                      toast.error(googleError.message || "Google signup failed.");
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-shell-border bg-surface-card py-2.5 font-medium text-shell-muted-strong shadow-sm transition hover:-translate-y-0.5 hover:bg-surface-card-hover hover:shadow-lg"
+                >
+                  <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                    <path
+                      fill="currentColor"
+                      d="M12.545 10.239v3.821h5.445c-.712 2.315-2.647 3.972-5.445 3.972a6.033 6.033 0 110-12.064c1.835 0 3.456.705 4.691 1.942l3.099-3.101A10.113 10.113 0 0012.545 2C7.021 2 2.545 6.477 2.545 12s4.476 10 10 10c5.523 0 10-4.477 10-10a10.1 10.1 0 00-.167-1.785l-9.833-.006z"
+                    />
+                  </svg>
+                  Sign up with Google
+                </button>
+              </>
+            ) : null}
 
             <p className="mt-5 text-center text-sm text-shell-muted">
               Already have an account?{" "}

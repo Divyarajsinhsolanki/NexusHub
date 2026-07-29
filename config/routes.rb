@@ -233,10 +233,12 @@ Rails.application.routes.draw do
 
     post 'signup', to: 'auth#signup'
     post 'login', to: 'auth#login'
+    get 'session', to: 'auth#session_info'
     delete 'logout', to: 'auth#logout'
     post   'refresh',       to: 'auth#refresh'
     post 'password/forgot', to: 'passwords#create'
     post 'password/reset',  to: 'passwords#update'
+    patch 'password/change', to: 'passwords#change'
     get 'sprints/last', to: 'sprints#last'  
     get 'view_profile', to: 'auth#view_profile'
     post 'update_profile', to: 'auth#update_profile'

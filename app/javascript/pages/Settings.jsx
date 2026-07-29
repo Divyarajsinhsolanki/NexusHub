@@ -124,6 +124,13 @@ const Settings = () => {
   const [saving, setSaving] = useState(false);
   const [savingNotifications, setSavingNotifications] = useState(false);
   const [notificationPrefs, setNotificationPrefs] = useState(defaultNotificationPrefs);
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({
+    current_password: "",
+    password: "",
+    password_confirmation: ""
+  });
   const workspaceSaas = user?.workspace?.saas || {};
   const currentPlan = workspaceSaas.plan || {};
   const billing = workspaceSaas.billing || {};
@@ -192,6 +199,33 @@ const Settings = () => {
       toast.error("Unable to save notifications. Please try again.");
     } finally {
       setSavingNotifications(false);
+    }
+  };
+
+  const handlePasswordInput = (event) => {
+    const { name, value } = event.target;
+    setPasswordForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleChangePassword = async (event) => {
+    event.preventDefault();
+
+    if (passwordForm.password !== passwordForm.password_confirmation) {
+      toast.error("New password confirmation does not match.");
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      await api.patch("/password/change", { password: passwordForm });
+      setPasswordForm({ current_password: "", password: "", password_confirmation: "" });
+      setShowPasswordForm(false);
+      toast.success("Password changed successfully.");
+    } catch (err) {
+      const message = err?.response?.data?.errors?.join(", ") || "Unable to change password. Please try again.";
+      toast.error(message);
+    } finally {
+      setChangingPassword(false);
     }
   };
 
@@ -522,9 +556,76 @@ const Settings = () => {
                     <p>Ensure your account is using a long, random password to stay secure.</p>
                   </div>
                   <div className="mt-4">
-                    <button type="button" className="app-secondary-button">
-                      Change Password
-                    </button>
+                    {!showPasswordForm ? (
+                      <button type="button" onClick={() => setShowPasswordForm(true)} className="app-secondary-button">
+                        Change Password
+                      </button>
+                    ) : (
+                      <form onSubmit={handleChangePassword} className="max-w-xl space-y-4 rounded-lg border border-default bg-surface-card p-4">
+                        <div>
+                          <label className="mb-1 block text-sm font-semibold text-primary" htmlFor="current_password">
+                            Current password
+                          </label>
+                          <input
+                            id="current_password"
+                            name="current_password"
+                            type="password"
+                            required
+                            value={passwordForm.current_password}
+                            onChange={handlePasswordInput}
+                            className="w-full rounded-lg border border-default bg-surface-elevated px-3 py-2 text-primary focus:border-theme focus:outline-none focus:ring-2 focus:ring-theme/20"
+                          />
+                        </div>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div>
+                            <label className="mb-1 block text-sm font-semibold text-primary" htmlFor="password">
+                              New password
+                            </label>
+                            <input
+                              id="password"
+                              name="password"
+                              type="password"
+                              required
+                              minLength={6}
+                              value={passwordForm.password}
+                              onChange={handlePasswordInput}
+                              className="w-full rounded-lg border border-default bg-surface-elevated px-3 py-2 text-primary focus:border-theme focus:outline-none focus:ring-2 focus:ring-theme/20"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-sm font-semibold text-primary" htmlFor="password_confirmation">
+                              Confirm new password
+                            </label>
+                            <input
+                              id="password_confirmation"
+                              name="password_confirmation"
+                              type="password"
+                              required
+                              minLength={6}
+                              value={passwordForm.password_confirmation}
+                              onChange={handlePasswordInput}
+                              className="w-full rounded-lg border border-default bg-surface-elevated px-3 py-2 text-primary focus:border-theme focus:outline-none focus:ring-2 focus:ring-theme/20"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-3">
+                          <button type="submit" disabled={changingPassword} className="app-primary-button">
+                            {changingPassword ? "Saving..." : "Save Password"}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={changingPassword}
+                            onClick={() => {
+                              setShowPasswordForm(false);
+                              setPasswordForm({ current_password: "", password: "", password_confirmation: "" });
+                            }}
+                            className="app-secondary-button"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </form>
+                    )}
                   </div>
                 </div>
 

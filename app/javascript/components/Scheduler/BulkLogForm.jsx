@@ -34,6 +34,7 @@ export default function BulkLogForm({
       tasks: safeTasks,
       existingLogs: safeExistingLogs,
       developers: safeDevelopers,
+      dates: safeDates,
       viewMode,
     }));
     setLogDate(resolveDefaultLogDate(safeDates));

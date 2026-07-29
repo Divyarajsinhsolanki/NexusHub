@@ -38,9 +38,16 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const hydrate = async () => {
       try {
-        const { data } = await api.post("/refresh", {}, { skipAuthRetry: true });
+        let response;
+        try {
+          response = await api.get("/session", { skipAuthRetry: true });
+        } catch {
+          response = await api.post("/refresh", {}, { skipAuthRetry: true });
+        }
+
+        const { data } = response;
         setUser(data.user);
-        scheduleRefresh(data.exp);
+        scheduleRefresh(data.exp || Math.floor(Date.now() / 1000) + 12 * 60);
       } catch {
         setUser(null);
       } finally {
@@ -53,7 +60,7 @@ export function AuthProvider({ children }) {
   // Schedule silent refresh before token expires
   const scheduleRefresh = useCallback((exp) => {
     if (!exp) return;
-    const ms = (exp * 1000 - Date.now()) * 0.75;
+    const ms = Math.max((exp * 1000 - Date.now()) * 0.75, 1000);
     clearTimeout(refreshTimer.current);
     refreshTimer.current = setTimeout(async () => {
       try {
