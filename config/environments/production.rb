@@ -72,6 +72,9 @@ Rails.application.configure do
   config.action_mailer.perform_caching = false
 
   # Deliver emails via SMTP using credentials stored in environment variables
+  smtp_ssl = ActiveModel::Type::Boolean.new.cast(ENV.fetch("SMTP_SSL", "false"))
+  smtp_starttls = ActiveModel::Type::Boolean.new.cast(ENV.fetch("SMTP_STARTTLS", smtp_ssl ? "false" : "true"))
+
   config.action_mailer.delivery_method = :smtp
   config.action_mailer.smtp_settings = {
     address: ENV.fetch("SMTP_ADDRESS", "smtp.dummy.host"),
@@ -80,7 +83,8 @@ Rails.application.configure do
     user_name: ENV.fetch("SMTP_USERNAME", "dummy_user"),
     password: ENV.fetch("SMTP_PASSWORD", "dummy_pass"),
     authentication: :plain,
-    enable_starttls_auto: true,
+    enable_starttls_auto: smtp_starttls,
+    ssl: smtp_ssl,
     open_timeout: ENV.fetch("SMTP_OPEN_TIMEOUT", 5).to_i,
     read_timeout: ENV.fetch("SMTP_READ_TIMEOUT", 5).to_i
   }
