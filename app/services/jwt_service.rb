@@ -7,6 +7,8 @@ class JwtService
   end
 
   def self.decode(token)
+    return nil if token.blank?
+
     decoded = JWT.decode(token, SECRET_KEY, true, { algorithm: "HS256" })[0]
     decoded.with_indifferent_access
   rescue JWT::ExpiredSignature => e

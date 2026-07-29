@@ -228,6 +228,24 @@ class MobileApiV1Test < ActionDispatch::IntegrationTest
     assert_equal true, response.parsed_body.dig("data", "accepted")
   end
 
+  test "mobile signup still creates account when confirmation email delivery fails" do
+    with_confirmation_mail_failure do
+      post "/api/v1/auth/signup", params: {
+        auth: {
+          first_name: "Mobile",
+          last_name: "MailFail",
+          email: "mobile-mail-fail@example.com",
+          password: PASSWORD,
+          password_confirmation: PASSWORD
+        }
+      }
+    end
+
+    assert_response :created
+    assert_equal false, response.parsed_body.dig("data", "confirmation_email_sent")
+    assert User.find_by!(email: "mobile-mail-fail@example.com")
+  end
+
   test "mobile sessions can be listed and revocation immediately invalidates access" do
     login = mobile_login
     token = login.fetch("access_token")
@@ -355,5 +373,13 @@ class MobileApiV1Test < ActionDispatch::IntegrationTest
     yield
   ensure
     User.define_method(:send_reset_password_instructions, original)
+  end
+
+  def with_confirmation_mail_failure
+    original = User.instance_method(:send_confirmation_instructions)
+    User.define_method(:send_confirmation_instructions) { raise "SMTP unavailable" }
+    yield
+  ensure
+    User.define_method(:send_confirmation_instructions, original)
   end
 end

@@ -40,15 +40,21 @@ class Api::V1::AuthController < Api::V1::BaseController
       kind: "private"
     )
     user.workspace = workspace
+    user.skip_confirmation_notification! if user.respond_to?(:skip_confirmation_notification!)
 
     Workspace.transaction do
       workspace.save!
       user.save!
       user.roles = [Role.find_or_create_by!(name: "owner")]
     end
+    confirmation_email_sent = send_confirmation_instructions(user)
 
     render_data(
-      { user: serialize_user(user), confirmation_required: true },
+      {
+        user: serialize_user(user),
+        confirmation_required: true,
+        confirmation_email_sent: confirmation_email_sent
+      },
       status: :created
     )
   rescue ActiveRecord::RecordInvalid => error
@@ -141,6 +147,23 @@ class Api::V1::AuthController < Api::V1::BaseController
       user.roles = [Role.find_or_create_by!(name: "owner")]
     end
     user
+  end
+
+  def send_confirmation_instructions(user)
+    return true if user.confirmed?
+
+    user.send_confirmation_instructions
+    true
+  rescue StandardError => error
+    AppEventLogger.error(
+      :application_errors,
+      source: "#{self.class.name}#signup",
+      message: "Mobile signup confirmation email failed",
+      exception: error,
+      payload: { email: user.email }
+    )
+    Rails.error.report(error, handled: true, context: { controller: self.class.name, action: "signup_confirmation", email: user.email })
+    false
   end
 
   def invalid_credentials

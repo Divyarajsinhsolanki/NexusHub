@@ -29,7 +29,6 @@ class Api::V1::PasswordsController < Api::V1::BaseController
   def send_reset_instructions(user, email)
     user.send_reset_password_instructions
   rescue StandardError => error
-    send_exception_notification(error)
     AppEventLogger.error(
       :application_errors,
       source: "#{self.class.name}#forgot",

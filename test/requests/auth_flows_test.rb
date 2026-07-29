@@ -70,6 +70,23 @@ class AuthFlowsTest < ActionDispatch::IntegrationTest
     assert User.find_by!(email: "web-google@example.test").confirmed?
   end
 
+  test "signup still creates account when confirmation email delivery fails" do
+    with_confirmation_mail_failure do
+      post "/api/signup", params: {
+        auth: {
+          first_name: "Mail",
+          last_name: "Failure",
+          email: "mail-failure@example.test",
+          password: PASSWORD
+        }
+      }
+    end
+
+    assert_response :created
+    assert_equal false, response.parsed_body.fetch("confirmation_email_sent")
+    assert User.find_by!(email: "mail-failure@example.test")
+  end
+
   test "forgot password returns accepted even when mail delivery raises" do
     with_reset_mail_failure do
       post "/api/password/forgot", params: { password: { email: @user.email } }
@@ -100,5 +117,13 @@ class AuthFlowsTest < ActionDispatch::IntegrationTest
     yield
   ensure
     FirebaseIdTokenVerifier.singleton_class.define_method(:call) { |token| original.call(token) }
+  end
+
+  def with_confirmation_mail_failure
+    original = User.instance_method(:send_confirmation_instructions)
+    User.define_method(:send_confirmation_instructions) { raise "SMTP unavailable" }
+    yield
+  ensure
+    User.define_method(:send_confirmation_instructions, original)
   end
 end

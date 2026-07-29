@@ -23,8 +23,10 @@ class Api::AuthController < Api::BaseController
     end
 
     if save_signup_user(workspace, user)
+      confirmation_email_sent = send_confirmation_instructions(user)
       render json: {
-        message: "User created successfully. Please check your email to verify your account.",
+        message: signup_message(confirmation_email_sent),
+        confirmation_email_sent: confirmation_email_sent,
         user: authentication_user_payload(user)
       }, status: :created
     else
@@ -196,6 +198,8 @@ class Api::AuthController < Api::BaseController
   end
 
   def save_signup_user(workspace, user)
+    user.skip_confirmation_notification! if user.respond_to?(:skip_confirmation_notification!)
+
     Workspace.transaction do
       workspace.save!
       user.save!
@@ -204,6 +208,29 @@ class Api::AuthController < Api::BaseController
     true
   rescue ActiveRecord::RecordInvalid
     false
+  end
+
+  def send_confirmation_instructions(user)
+    return true if user.confirmed?
+
+    user.send_confirmation_instructions
+    true
+  rescue StandardError => error
+    AppEventLogger.error(
+      :application_errors,
+      source: "#{self.class.name}#signup",
+      message: "Signup confirmation email failed",
+      exception: error,
+      payload: { email: user.email }
+    )
+    Rails.error.report(error, handled: true, context: { controller: self.class.name, action: "signup_confirmation", email: user.email })
+    false
+  end
+
+  def signup_message(confirmation_email_sent)
+    return "User created successfully. Please check your email to verify your account." if confirmation_email_sent
+
+    "User created successfully, but the confirmation email could not be sent. Please contact support to verify your account."
   end
 
   def build_personal_workspace(first_name)

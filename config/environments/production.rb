@@ -80,7 +80,9 @@ Rails.application.configure do
     user_name: ENV.fetch("SMTP_USERNAME", "dummy_user"),
     password: ENV.fetch("SMTP_PASSWORD", "dummy_pass"),
     authentication: :plain,
-    enable_starttls_auto: true
+    enable_starttls_auto: true,
+    open_timeout: ENV.fetch("SMTP_OPEN_TIMEOUT", 5).to_i,
+    read_timeout: ENV.fetch("SMTP_READ_TIMEOUT", 5).to_i
   }
   app_url = ENV["BASE_URL"].presence || ENV["RENDER_EXTERNAL_URL"].presence || "https://example.com"
   app_uri = URI.parse(app_url.match?(%r{\A[a-z][a-z0-9+\-.]*://}i) ? app_url : "https://#{app_url}")
