@@ -1,8 +1,16 @@
+import { useEffect, useState } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 
 export function Avatar({ name, uri, color = '#475569', size = 40 }: { name: string; uri?: string | null; color?: string; size?: number }) {
-  if (uri) {
-    return <Image accessibilityLabel={`${name} profile picture`} source={{ uri }} style={{ borderRadius: size / 2, height: size, width: size }} />;
+  const [imageFailed, setImageFailed] = useState(false);
+  const hasValidUri = Boolean(uri && uri !== 'null' && !imageFailed);
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [uri]);
+
+  if (hasValidUri && uri) {
+    return <Image accessibilityLabel={`${name} profile picture`} onError={() => setImageFailed(true)} source={{ uri }} style={{ borderRadius: size / 2, height: size, width: size }} />;
   }
 
   const initials = name

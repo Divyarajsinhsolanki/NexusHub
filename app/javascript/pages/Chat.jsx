@@ -451,6 +451,7 @@ const RichMessageText = ({ text = "", isMe, searchQuery, mentionLookups }) => {
 };
 
 const Avatar = ({ name, src, size = "md", className = "" }) => {
+  const [imageFailed, setImageFailed] = useState(false);
   const sizeClasses = {
     sm: "h-8 w-8 text-xs",
     md: "h-11 w-11 text-sm",
@@ -469,13 +470,19 @@ const Avatar = ({ name, src, size = "md", className = "" }) => {
   const initial = name ? name.charAt(0).toUpperCase() : "?";
   const colorIndex = name ? name.charCodeAt(0) % colors.length : 0;
 
-  if (src && src !== "null") {
+  useEffect(() => {
+    setImageFailed(false);
+  }, [src]);
+
+  if (src && src !== "null" && !imageFailed) {
     return (
       <img
         src={src}
         alt={name}
         className={`rounded-full object-cover ring-2 ring-white/90 shadow-[0_16px_40px_-24px_rgba(15,23,42,0.7)] ${currentSizeClass} ${className}`}
-      loading="lazy" />
+        loading="lazy"
+        onError={() => setImageFailed(true)}
+      />
     );
   }
 
@@ -511,7 +518,7 @@ const ConversationItem = ({ conversation, currentUserId, isActive, searchQuery, 
   const isDirectOnline = isParticipantOnline(otherParticipant, presenceNow);
   const displayName = getConversationDisplayName(conversation, currentUserId);
   const displayImage = getConversationDisplayImage(conversation, currentUserId);
-  const subtitle = isDirect ? (isDirectOnline ? "Online" : "Offline") : `${conversation.participants?.length || 0} members`;
+  const subtitle = isDirect ? "" : `${conversation.participants?.length || 0} members`;
   const conversationPreview = previewText || (isDirect ? "No messages yet" : "Create a room that keeps the whole group aligned");
   const Item = onSelect ? "button" : Link;
   const itemProps = onSelect
@@ -576,9 +583,11 @@ const ConversationItem = ({ conversation, currentUserId, isActive, searchQuery, 
           </div>
 
           <div className="mt-0.5 flex min-w-0 items-center gap-2">
-            <span className={`shrink-0 text-[10px] uppercase ${isActive ? "opacity-70" : "text-slate-400 dark:text-slate-500"}`}>
-              {subtitle}
-            </span>
+            {subtitle && (
+              <span className={`shrink-0 text-[10px] uppercase ${isActive ? "opacity-70" : "text-slate-400 dark:text-slate-500"}`}>
+                {subtitle}
+              </span>
+            )}
             <p className={`truncate text-[11px] leading-4 ${isActive ? "opacity-80" : isUnread ? "font-semibold text-slate-800 dark:text-slate-100" : "text-slate-500 dark:text-slate-400"}`}>
               <HighlightText text={conversationPreview} query={searchQuery} />
             </p>

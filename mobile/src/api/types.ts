@@ -84,6 +84,25 @@ export type PortfolioFeature = {
   published?: boolean;
 };
 
+export type PortfolioCaseStudy = {
+  problem?: string | null;
+  role?: string | null;
+  constraints?: string[];
+  decisions?: string[];
+  trade_offs?: string[];
+  outcomes?: string[];
+  [key: string]: unknown;
+};
+
+export type PortfolioSeo = {
+  title?: string | null;
+  description?: string | null;
+  canonical_path?: string | null;
+  canonical_url?: string | null;
+  image_url?: string | null;
+  [key: string]: unknown;
+};
+
 export type PortfolioProject = {
   id: number;
   title: string;
@@ -94,6 +113,8 @@ export type PortfolioProject = {
   stack: string[];
   metrics?: Array<string | Record<string, unknown>>;
   engineering_highlights?: string[];
+  case_study?: PortfolioCaseStudy | null;
+  seo?: PortfolioSeo | null;
   repository_url?: string | null;
   live_url?: string | null;
   cover_image_url?: string | null;
@@ -119,7 +140,7 @@ export type PortfolioProfile = {
   published?: boolean;
 };
 
-export type PortfolioData = { profile: PortfolioProfile | null; projects: PortfolioProject[] };
+export type PortfolioData = { profile: PortfolioProfile | null; projects: PortfolioProject[]; seo?: PortfolioSeo | null };
 
 export type DemoTourGroup = {
   key: string;

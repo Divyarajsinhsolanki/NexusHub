@@ -4,18 +4,18 @@ import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client
 import { PropsWithChildren, useEffect, useState } from 'react';
 
 import { AuthProvider } from '../auth/AuthProvider';
+import {
+  createMobileQueryClient,
+  MOBILE_CACHE_BUSTER,
+  MOBILE_CACHE_MAX_AGE,
+  shouldPersistMobileQuery,
+} from '../cache/mobileCache';
+import { MobileCacheWarmup } from '../cache/MobileCacheWarmup';
+import { MobileRealtimeSync } from '../realtime/MobileRealtimeSync';
 import { queryPersister } from '../storage/queryPersister';
 
 export function AppProviders({ children }: PropsWithChildren) {
-  const [queryClient] = useState(
-    () =>
-      new QueryClient({
-        defaultOptions: {
-          queries: { staleTime: 30_000, gcTime: 24 * 60 * 60 * 1000, retry: 1, refetchOnReconnect: true },
-          mutations: { retry: 0, networkMode: 'always' },
-        },
-      }),
-  );
+  const [queryClient] = useState<QueryClient>(() => createMobileQueryClient());
 
   useEffect(
     () =>
@@ -28,8 +28,17 @@ export function AppProviders({ children }: PropsWithChildren) {
   return (
     <PersistQueryClientProvider
       client={queryClient}
-      persistOptions={{ persister: queryPersister, maxAge: 24 * 60 * 60 * 1000 }}>
-      <AuthProvider>{children}</AuthProvider>
+      persistOptions={{
+        buster: MOBILE_CACHE_BUSTER,
+        dehydrateOptions: { shouldDehydrateQuery: shouldPersistMobileQuery },
+        maxAge: MOBILE_CACHE_MAX_AGE,
+        persister: queryPersister,
+      }}>
+      <AuthProvider>
+        <MobileCacheWarmup />
+        <MobileRealtimeSync />
+        {children}
+      </AuthProvider>
     </PersistQueryClientProvider>
   );
 }

@@ -4,13 +4,17 @@ import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
+import { useQueryClient } from '@tanstack/react-query';
 
 import { endpoints } from '../api/endpoints';
 import { useAuth } from '../auth/AuthProvider';
+import { refreshCachesForDeepLink } from '../cache/mobileCache';
+import { normalizeMobileDeepLink } from '../navigation/deepLinks';
 
 export function PushRegistrar() {
   const { user } = useAuth();
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!user || Platform.OS === 'web') return;
@@ -52,12 +56,18 @@ export function PushRegistrar() {
 
   useEffect(() => {
     if (!user) return;
-    const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
-      const deepLink = response.notification.request.content.data?.deep_link;
-      if (typeof deepLink === 'string' && deepLink.startsWith('/')) router.push(deepLink as never);
+    const receivedSubscription = Notifications.addNotificationReceivedListener((notification) => {
+      void refreshCachesForDeepLink(queryClient, notification.request.content.data?.deep_link);
     });
-    return () => subscription.remove();
-  }, [router, user]);
+    const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      const deepLink = normalizeMobileDeepLink(response.notification.request.content.data?.deep_link);
+      if (deepLink) router.push(deepLink as never);
+    });
+    return () => {
+      receivedSubscription.remove();
+      subscription.remove();
+    };
+  }, [queryClient, router, user]);
 
   return null;
 }

@@ -11,6 +11,10 @@ describe('authRedirectTarget', () => {
     expect(authRedirectTarget({ isLoading: false, pathname: '/', signedIn: true })).toBe('/(tabs)/today');
   });
 
+  test('sends a signed-in user away from authentication routes', () => {
+    expect(authRedirectTarget({ isLoading: false, pathname: '/login', firstSegment: 'login', signedIn: true })).toBe('/(tabs)/today');
+  });
+
   test('keeps logged-out users on authentication routes', () => {
     expect(authRedirectTarget({ isLoading: false, pathname: '/login', firstSegment: 'login', signedIn: false })).toBeNull();
   });

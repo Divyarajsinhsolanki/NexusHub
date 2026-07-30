@@ -28,9 +28,15 @@ const pickFilterPalette = (user, index) => {
 };
 
 const UserFilterOrb = ({ user, index, selected, onToggle }) => {
+    const [imageFailed, setImageFailed] = useState(false);
     const palette = pickFilterPalette(user, index);
     const label = user.first_name || user.email || 'User';
     const initial = getAvatarInitial(label);
+    const hasValidImage = user.profile_picture && user.profile_picture !== 'null' && !imageFailed;
+
+    useEffect(() => {
+        setImageFailed(false);
+    }, [user.profile_picture]);
 
     return (
         <button
@@ -66,8 +72,8 @@ const UserFilterOrb = ({ user, index, selected, onToggle }) => {
                         transform: 'translateZ(18px)',
                     }}
                 >
-                    {user.profile_picture && user.profile_picture !== 'null' ? (
-                        <img src={user.profile_picture} alt="" className="h-full w-full object-cover" loading="lazy" />
+                    {hasValidImage ? (
+                        <img src={user.profile_picture} alt="" className="h-full w-full object-cover" loading="lazy" onError={() => setImageFailed(true)} />
                     ) : (
                         <span className="text-sm font-semibold text-slate-800 drop-shadow-[0_1px_0_rgba(255,255,255,0.75)]">{initial}</span>
                     )}

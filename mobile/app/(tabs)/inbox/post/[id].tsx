@@ -6,7 +6,9 @@ import { Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet,
 
 import { apiErrorMessage } from '@/src/api/client';
 import { endpoints } from '@/src/api/endpoints';
+import type { CollectionResult, Comment } from '@/src/api/types';
 import { useAuth } from '@/src/auth/AuthProvider';
+import { mobileQueryKeys, updatePostInFeed } from '@/src/cache/mobileCache';
 import { Avatar } from '@/src/components/Avatar';
 import { PageHeader } from '@/src/components/PageHeader';
 import { Screen } from '@/src/components/Screen';
@@ -22,11 +24,82 @@ export default function PostCommentsScreen() {
   const { user } = useAuth();
   const writable = !user?.demo_account;
   const [body, setBody] = useState('');
-  const comments = useQuery({ queryKey: ['post-comments', postId], queryFn: () => endpoints.postComments(postId), enabled: Number.isFinite(postId) });
-  const send = useMutation({ mutationFn: () => endpoints.createComment(postId, body.trim()), onSuccess: async () => { setBody(''); await queryClient.invalidateQueries({ queryKey: ['post-comments', postId] }); await queryClient.invalidateQueries({ queryKey: ['posts'] }); }, onError: (error) => Alert.alert('Comment not sent', apiErrorMessage(error)) });
-  const remove = useMutation({ mutationFn: (commentId: number) => endpoints.deleteComment(postId, commentId), onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['post-comments', postId] }); await queryClient.invalidateQueries({ queryKey: ['posts'] }); } });
+  const comments = useQuery({ queryKey: mobileQueryKeys.postComments(postId), queryFn: () => endpoints.postComments(postId), enabled: Number.isFinite(postId) });
+  const send = useMutation({
+    mutationFn: () => endpoints.createComment(postId, body.trim()),
+    onMutate: async () => {
+      const text = body.trim();
+      const optimisticId = -Date.now();
+      await queryClient.cancelQueries({ queryKey: mobileQueryKeys.postComments(postId) });
+      await queryClient.cancelQueries({ queryKey: mobileQueryKeys.posts });
+      const previousComments = queryClient.getQueryData<CollectionResult<Comment>>(mobileQueryKeys.postComments(postId));
+      const optimistic: Comment = {
+        id: optimisticId,
+        body: text,
+        can_delete: false,
+        created_at: new Date().toISOString(),
+        user: {
+          id: user?.id || 0,
+          first_name: user?.first_name || 'You',
+          last_name: user?.last_name || '',
+          profile_picture: user?.profile_picture,
+        },
+      };
+      setBody('');
+      queryClient.setQueryData<CollectionResult<Comment>>(mobileQueryKeys.postComments(postId), (previous) => ({
+        ...(previous || { data: [] }),
+        data: [...(previous?.data || []), optimistic],
+      }));
+      updatePostInFeed(queryClient, postId, (post) => ({ ...post, comments_count: post.comments_count + 1 }));
+      return { optimisticId, previousComments, text };
+    },
+    onSuccess: (created, _variables, context) => {
+      if (!context) return;
+      queryClient.setQueryData<CollectionResult<Comment>>(mobileQueryKeys.postComments(postId), (previous) => {
+        if (!previous) return previous;
+        return {
+          ...previous,
+          data: previous.data.map((comment) => Number(comment.id) === context.optimisticId ? created : comment),
+        };
+      });
+    },
+    onError: (error, _variables, context) => {
+      if (context?.previousComments) queryClient.setQueryData(mobileQueryKeys.postComments(postId), context.previousComments);
+      else queryClient.setQueryData(mobileQueryKeys.postComments(postId), { data: [] });
+      updatePostInFeed(queryClient, postId, (post) => ({ ...post, comments_count: Math.max(0, post.comments_count - 1) }));
+      if (context?.text) setBody(context.text);
+      Alert.alert('Comment not sent', apiErrorMessage(error));
+    },
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: mobileQueryKeys.postComments(postId) });
+      await queryClient.invalidateQueries({ queryKey: mobileQueryKeys.posts });
+    },
+  });
+  const remove = useMutation({
+    mutationFn: (commentId: number) => endpoints.deleteComment(postId, commentId),
+    onMutate: async (commentId) => {
+      await queryClient.cancelQueries({ queryKey: mobileQueryKeys.postComments(postId) });
+      await queryClient.cancelQueries({ queryKey: mobileQueryKeys.posts });
+      const previousComments = queryClient.getQueryData<CollectionResult<Comment>>(mobileQueryKeys.postComments(postId));
+      queryClient.setQueryData<CollectionResult<Comment>>(mobileQueryKeys.postComments(postId), (previous) => {
+        if (!previous) return previous;
+        return { ...previous, data: previous.data.filter((comment) => Number(comment.id) !== Number(commentId)) };
+      });
+      updatePostInFeed(queryClient, postId, (post) => ({ ...post, comments_count: Math.max(0, post.comments_count - 1) }));
+      return { previousComments };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previousComments) queryClient.setQueryData(mobileQueryKeys.postComments(postId), context.previousComments);
+      else queryClient.setQueryData(mobileQueryKeys.postComments(postId), { data: [] });
+      updatePostInFeed(queryClient, postId, (post) => ({ ...post, comments_count: post.comments_count + 1 }));
+    },
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: mobileQueryKeys.postComments(postId) });
+      await queryClient.invalidateQueries({ queryKey: mobileQueryKeys.posts });
+    },
+  });
   return <Screen header={<PageHeader leading={<Pressable accessibilityLabel="Back" onPress={() => router.back()} style={styles.iconButton}><ArrowLeft color={theme.text} size={22} /></Pressable>} title="Comments" subtitle="Team discussion" />}>
-    {comments.isLoading ? <LoadingState /> : null}{comments.isError ? <ErrorState message={apiErrorMessage(comments.error)} onRetry={() => comments.refetch()} /> : null}
+    {comments.isPending && !comments.data ? <LoadingState /> : null}{comments.isError && !comments.data ? <ErrorState message={apiErrorMessage(comments.error)} onRetry={() => comments.refetch()} /> : null}
     {comments.data ? <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={70} style={styles.flex}><FlatList contentContainerStyle={styles.list} data={comments.data.data} keyExtractor={(item) => String(item.id)} ListEmptyComponent={<EmptyState title="No comments yet" message="Start a focused discussion on this update." />} renderItem={({ item }) => <View style={[styles.comment, { borderBottomColor: theme.border }]}><Avatar color={theme.primary} name={`${item.user.first_name} ${item.user.last_name}`} size={38} uri={item.user.profile_picture} /><View style={styles.copy}><Text style={[styles.name, { color: theme.text }]}>{item.user.first_name} {item.user.last_name}</Text><Text style={[styles.body, { color: theme.text }]}>{item.body}</Text></View>{writable && item.can_delete ? <Pressable accessibilityLabel="Delete comment" onPress={() => remove.mutate(item.id)} style={styles.iconButton}><Trash2 color={theme.danger} size={17} /></Pressable> : null}</View>} />{writable ? <View style={[styles.composer, { backgroundColor: theme.surface, borderTopColor: theme.border }]}><TextInput accessibilityLabel="Comment" multiline onChangeText={setBody} placeholder="Write a comment" placeholderTextColor={theme.textMuted} style={[styles.input, { backgroundColor: theme.surfaceMuted, color: theme.text }]} value={body} /><Pressable accessibilityLabel="Send comment" disabled={!body.trim() || send.isPending} onPress={() => send.mutate()} style={[styles.send, { backgroundColor: theme.primary, opacity: body.trim() ? 1 : 0.45 }]}><Send color="#ffffff" size={19} /></Pressable></View> : null}</KeyboardAvoidingView> : null}
   </Screen>;
 }

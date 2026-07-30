@@ -9,10 +9,12 @@ import { apiErrorMessage } from '@/src/api/client';
 import { endpoints } from '@/src/api/endpoints';
 import type { Notification } from '@/src/api/types';
 import { useAuth } from '@/src/auth/AuthProvider';
+import { MOBILE_CACHE_PAGE_LIMIT, mobileQueryKeys } from '@/src/cache/mobileCache';
 import { Avatar } from '@/src/components/Avatar';
 import { PageHeader } from '@/src/components/PageHeader';
 import { Screen } from '@/src/components/Screen';
 import { EmptyState, ErrorState, LoadingState } from '@/src/components/StateView';
+import { normalizeMobileDeepLink } from '@/src/navigation/deepLinks';
 import { useAppTheme } from '@/src/theme';
 
 export default function NotificationsScreen() {
@@ -22,16 +24,17 @@ export default function NotificationsScreen() {
   const { user } = useAuth();
   const writable = !user?.demo_account;
   const notifications = useInfiniteQuery({
-    queryKey: ['notifications'],
+    queryKey: mobileQueryKeys.notifications,
     initialPageParam: 1,
     queryFn: ({ pageParam }) => endpoints.notifications(pageParam),
     getNextPageParam: (page) => page.meta?.next_page ?? undefined,
+    maxPages: MOBILE_CACHE_PAGE_LIMIT,
   });
   const data = useMemo(() => notifications.data?.pages.flatMap((page) => page.data) || [], [notifications.data]);
   const unread = notifications.data?.pages[0]?.meta?.unread_count || 0;
   const refresh = async () => {
-    await queryClient.invalidateQueries({ queryKey: ['notifications'] });
-    await queryClient.invalidateQueries({ queryKey: ['home'] });
+    await queryClient.invalidateQueries({ queryKey: mobileQueryKeys.notifications });
+    await queryClient.invalidateQueries({ queryKey: mobileQueryKeys.home });
   };
   const markRead = useMutation({ mutationFn: endpoints.readNotification, onSuccess: refresh });
   const markAll = useMutation({
@@ -48,7 +51,7 @@ export default function NotificationsScreen() {
         // Navigation remains useful when a cached notification is opened offline.
       }
     }
-    router.push(notification.deep_link as Href);
+    router.push((normalizeMobileDeepLink(notification.deep_link) || '/inbox/notifications') as Href);
   };
 
   return (
@@ -64,9 +67,9 @@ export default function NotificationsScreen() {
           title="Notifications"
         />
       }>
-      {notifications.isLoading ? <LoadingState label="Loading notifications" /> : null}
-      {notifications.isError ? <ErrorState message={apiErrorMessage(notifications.error)} onRetry={() => notifications.refetch()} /> : null}
-      {!notifications.isLoading ? (
+      {notifications.isPending && !notifications.data ? <LoadingState label="Loading notifications" /> : null}
+      {notifications.isError && !notifications.data ? <ErrorState message={apiErrorMessage(notifications.error)} onRetry={() => notifications.refetch()} /> : null}
+      {notifications.data ? (
         <FlatList
           contentContainerStyle={styles.list}
           data={data}

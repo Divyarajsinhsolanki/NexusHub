@@ -27,6 +27,7 @@ import { fetchProjects } from "./api";
 import NotificationCenter from "./NotificationCenter";
 import logo from "../images/logo.webp";
 import { portfolioEnabled } from "../config/features";
+import { buildAvatarStyle, getAvatarInitial, normalizeAvatarColor } from "../utils/avatar";
 
 const useNavbarEffects = () => {
   const [scrolled, setScrolled] = useState(false);
@@ -123,7 +124,10 @@ const menuIconClass =
 
 const HolographicAvatar = ({ user }) => {
   const [angle, setAngle] = useState(135);
+  const [imageFailed, setImageFailed] = useState(false);
   const avatarRef = useRef(null);
+  const displayName = [user?.first_name, user?.last_name].filter(Boolean).join(" ") || user?.email || "User";
+  const hasValidImage = user?.profile_picture && user.profile_picture !== "null" && !imageFailed;
 
   useEffect(() => {
     const handleMove = (event) => {
@@ -140,17 +144,33 @@ const HolographicAvatar = ({ user }) => {
     return () => window.removeEventListener("mousemove", handleMove);
   }, []);
 
+  useEffect(() => {
+    setImageFailed(false);
+  }, [user?.profile_picture]);
+
   return (
     <div
       ref={avatarRef}
       className="group relative h-11 w-11 overflow-hidden rounded-[18px] border border-white/70 shadow-[0_18px_30px_rgb(15_23_42_/_0.16)]"
     >
       <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.94),rgba(226,237,255,0.72))]" />
-      <img
-        src={user.profile_picture || `https://ui-avatars.com/api/?name=${user.email}&background=random`}
-        alt="User avatar"
-        className="relative z-10 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-      loading="lazy" />
+      {hasValidImage ? (
+        <img
+          src={user.profile_picture}
+          alt={`${displayName}'s avatar`}
+          className="relative z-10 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+          loading="lazy"
+          onError={() => setImageFailed(true)}
+        />
+      ) : (
+        <div
+          className="relative z-10 flex h-full w-full items-center justify-center text-sm font-bold transition-transform duration-500 group-hover:scale-105"
+          style={buildAvatarStyle(normalizeAvatarColor(user?.avatar_color))}
+          aria-label={`${displayName}'s initials`}
+        >
+          {getAvatarInitial(displayName)}
+        </div>
+      )}
       <div className="absolute inset-0 z-20 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.35),transparent_55%)]" />
       <div
         className="absolute inset-0 z-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"

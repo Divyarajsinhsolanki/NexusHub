@@ -1,17 +1,24 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 
 const Avatar = ({ name, src, className = "" }) => {
+  const [imageFailed, setImageFailed] = useState(false);
   const hasValidSrc = src && src !== "null" && src !== "";
   const displayName = (name || "").trim();
   const altText = displayName ? `${displayName}'s avatar` : "User avatar";
 
-  if (hasValidSrc) {
+  useEffect(() => {
+    setImageFailed(false);
+  }, [src]);
+
+  if (hasValidSrc && !imageFailed) {
     return (
       <img
         src={src}
         alt={altText}
         className={`rounded-full object-cover ${className}`.trim()}
-      loading="lazy" />
+        loading="lazy"
+        onError={() => setImageFailed(true)}
+      />
     );
   }
 

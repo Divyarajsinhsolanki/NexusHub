@@ -78,6 +78,7 @@ const Profile = () => {
       website: ""
     }
   });
+  const [profileImageFailed, setProfileImageFailed] = useState(false);
   const [keka, setKeka] = useState({
     connected: false,
     base_url: "",
@@ -307,6 +308,7 @@ const Profile = () => {
 
   const initial = getAvatarInitial(displayName || user?.email);
   const avatarPreviewColor = normalizeAvatarColor(editMode ? formData.avatar_color : user?.avatar_color);
+  const showProfileImage = user?.profile_picture && user.profile_picture !== 'null' && !profileImageFailed;
   const currentRoleLabel = (user?.roles?.[0]?.name || "member")
     .replace(/_/g, " ")
     .replace(/\b\w/g, (char) => char.toUpperCase());
@@ -324,6 +326,10 @@ const Profile = () => {
     if (Array.isArray(payload.data)) return payload.data;
     return [];
   };
+
+  useEffect(() => {
+    setProfileImageFailed(false);
+  }, [user?.profile_picture]);
   const extractNumber = (payload, keys = []) => {
     if (!payload) return null;
     for (const key of keys) {
@@ -579,12 +585,14 @@ const Profile = () => {
               <div className="flex flex-col gap-6 sm:flex-row sm:items-end">
               <div className="relative group -mt-16 sm:-mt-20">
                 <div className="absolute inset-0 rounded-full bg-theme/20 blur-xl -z-10"></div>
-                {user?.profile_picture && user.profile_picture !== 'null' ? (
+                {showProfileImage ? (
                   <img
                     src={user.profile_picture}
                     alt="Profile"
                     className="h-32 w-32 rounded-full border-4 border-white/90 object-cover shadow-[0_26px_54px_rgb(15_23_42_/_0.18)] transition-all duration-300 group-hover:scale-[1.03] md:h-40 md:w-40"
-                  loading="lazy" />
+                    loading="lazy"
+                    onError={() => setProfileImageFailed(true)}
+                  />
                 ) : (
                   <div
                     className="flex h-32 w-32 items-center justify-center rounded-full border-4 border-white/90 text-5xl font-bold shadow-[0_26px_54px_rgb(15_23_42_/_0.18)] transition-all duration-300 group-hover:scale-[1.03] md:h-40 md:w-40 md:text-6xl"

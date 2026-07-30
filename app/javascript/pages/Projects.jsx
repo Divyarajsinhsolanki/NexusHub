@@ -27,6 +27,7 @@ const normalizeProjects = (value) =>
 // --- Premium UI Components ---
 
 const Avatar = ({ name, src, size = 'md', className = '' }) => {
+    const [imageFailed, setImageFailed] = useState(false);
     const displayName = typeof name === "string" ? name : `${name || ""}`;
     const sizeClasses = {
         sm: "w-7 h-7 text-xs",
@@ -36,13 +37,19 @@ const Avatar = ({ name, src, size = 'md', className = '' }) => {
     };
     const currentSizeClass = sizeClasses[size] || sizeClasses.md;
 
-    if (src && src !== 'null') {
+    useEffect(() => {
+        setImageFailed(false);
+    }, [src]);
+
+    if (src && src !== 'null' && !imageFailed) {
         return (
             <img
                 src={src}
                 alt={`${displayName || "User"}'s avatar`}
                 className={`rounded-full object-cover ring-2 ring-white dark:ring-zinc-800 shadow-sm ${currentSizeClass} ${className}`}
-            loading="lazy" />
+                loading="lazy"
+                onError={() => setImageFailed(true)}
+            />
         );
     }
     const initial = displayName ? displayName.charAt(0).toUpperCase() : "?";

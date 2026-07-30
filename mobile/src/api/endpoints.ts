@@ -189,6 +189,10 @@ export const endpoints = {
   async deletePortfolioFeature(id: number) {
     await api.delete(`/portfolio_admin/features/${id}`);
   },
+  async updatePortfolioOrder(input: { projects?: Array<{ id: number; position: number }>; features?: Array<{ id: number; position: number; tour_position?: number }> }) {
+    const response = await api.patch<ApiEnvelope<PortfolioData>>('/portfolio_admin/order', input);
+    return unwrapData(response.data);
+  },
   async activity() {
     const response = await api.get<ApiEnvelope<unknown>>('/activity');
     return unwrapData(response.data);

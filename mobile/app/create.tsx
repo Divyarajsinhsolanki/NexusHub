@@ -11,7 +11,9 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 
 import { apiErrorMessage } from '@/src/api/client';
 import { endpoints } from '@/src/api/endpoints';
+import type { Post } from '@/src/api/types';
 import { useAuth } from '@/src/auth/AuthProvider';
+import { applyPostToFeed } from '@/src/cache/mobileCache';
 import { PrimaryButton } from '@/src/components/PrimaryButton';
 import { draftStore } from '@/src/storage/draftStore';
 import { useAppTheme } from '@/src/theme';
@@ -63,8 +65,9 @@ export default function CreateScreen() {
       if (!document) throw new Error('Choose a PDF first.');
       return endpoints.uploadPdf(document, title.trim() || undefined);
     },
-    onSuccess: async () => {
+    onSuccess: async (created) => {
       if (draftIdentity) await draftStore.remove(draftIdentity);
+      if (type === 'post' && isPost(created)) applyPostToFeed(queryClient, created);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await Promise.all([queryClient.invalidateQueries({ queryKey: ['home'] }), queryClient.invalidateQueries({ queryKey: ['tasks'] }), queryClient.invalidateQueries({ queryKey: ['work-logs'] }), queryClient.invalidateQueries({ queryKey: ['calendar-events'] }), queryClient.invalidateQueries({ queryKey: ['posts'] }), queryClient.invalidateQueries({ queryKey: ['pdf-documents'] }), queryClient.invalidateQueries({ queryKey: ['conversations'] })]);
       router.back();
@@ -106,5 +109,9 @@ export default function CreateScreen() {
 
 function Field({ label, value, onChangeText, multiline, placeholder }: { label: string; value: string; onChangeText: (value: string) => void; multiline?: boolean; placeholder?: string }) { const theme = useAppTheme(); return <View><Text style={[styles.label, { color: theme.text }]}>{label}</Text><TextInput accessibilityLabel={label} multiline={multiline} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor={theme.textMuted} style={[styles.field, multiline && styles.multiline, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }]} value={value} /></View>; }
 function ChoiceList({ label, rows, selected, onSelect, optional }: { label: string; rows: Array<{ id: number; title: string }>; selected?: number; onSelect: (id: number | undefined) => void; optional?: boolean }) { const theme = useAppTheme(); return <View><Text style={[styles.label, { color: theme.text }]}>{label}</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.choices}>{optional ? <Pressable onPress={() => onSelect(undefined)} style={[styles.choice, { borderColor: !selected ? theme.primary : theme.border, backgroundColor: !selected ? theme.surfaceMuted : theme.surface }]}><Text style={{ color: theme.text, fontWeight: '700' }}>Personal</Text></Pressable> : null}{rows.map((row) => <Pressable key={row.id} onPress={() => onSelect(row.id)} style={[styles.choice, { borderColor: selected === row.id ? theme.primary : theme.border, backgroundColor: selected === row.id ? theme.surfaceMuted : theme.surface }]}><Text numberOfLines={1} style={{ color: theme.text, fontWeight: '700' }}>{row.title}</Text></Pressable>)}</ScrollView></View>; }
+
+function isPost(value: unknown): value is Post {
+  return Boolean(value && typeof value === 'object' && 'message' in value && 'likes_count' in value && 'comments_count' in value);
+}
 
 const styles = StyleSheet.create({ screen: { flex: 1, paddingTop: 12 }, readOnly: { alignItems: 'center', justifyContent: 'center', padding: 28 }, readOnlyTitle: { fontSize: 20, fontWeight: '800', marginTop: 15, textAlign: 'center' }, readOnlyText: { fontSize: 14, lineHeight: 21, marginTop: 8, maxWidth: 340, textAlign: 'center' }, readOnlyButton: { borderRadius: 6, marginTop: 22, minHeight: 46, justifyContent: 'center', paddingHorizontal: 18 }, readOnlyButtonText: { fontSize: 14, fontWeight: '800' }, header: { alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', minHeight: 66, paddingHorizontal: 10 }, iconButton: { alignItems: 'center', height: 44, justifyContent: 'center', width: 44 }, headerCopy: { alignItems: 'center', flex: 1 }, headerTitle: { fontSize: 18, fontWeight: '800' }, headerSubtitle: { fontSize: 11, marginTop: 2 }, scroll: { gap: 18, padding: 20, paddingBottom: 40 }, options: { gap: 8, paddingRight: 20 }, option: { alignItems: 'center', borderRadius: 8, borderWidth: 1, flexDirection: 'row', gap: 7, height: 42, paddingHorizontal: 12 }, optionLabel: { fontSize: 12, fontWeight: '700' }, label: { fontSize: 13, fontWeight: '700', marginBottom: 7 }, field: { borderRadius: 8, borderWidth: 1, fontSize: 15, minHeight: 46, paddingHorizontal: 12, paddingVertical: 11 }, multiline: { minHeight: 112, textAlignVertical: 'top' }, datePicker: { alignItems: 'flex-start', borderRadius: 8, borderWidth: 1, minHeight: 48, paddingHorizontal: 6 }, choices: { gap: 8, paddingRight: 20 }, choice: { borderRadius: 8, borderWidth: 1, justifyContent: 'center', maxWidth: 180, minHeight: 44, paddingHorizontal: 13 }, filePicker: { alignItems: 'center', borderRadius: 8, borderStyle: 'dashed', borderWidth: 1, padding: 24 }, fileTitle: { fontSize: 15, fontWeight: '800', marginTop: 10 }, fileDetail: { fontSize: 12, marginTop: 4 }, attachmentButton: { alignItems: 'center', borderRadius: 8, borderWidth: 1, flexDirection: 'row', gap: 10, minHeight: 48, paddingHorizontal: 13 }, attachmentText: { flex: 1, fontSize: 13, fontWeight: '700' }, save: { marginTop: 6 } });

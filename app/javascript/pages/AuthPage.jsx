@@ -1,14 +1,27 @@
-import React, { useEffect, useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
+import { Navigate } from "react-router-dom";
 import Login from "./Login";
 import Signup from "./Signup";
+import { AuthContext } from "../context/AuthContext";
 import authCommandDeck from "../images/nexus/auth-command-deck.webp";
 
+const defaultUserPath = (user) => {
+  const landingPage = user?.landing_page;
+  if (!landingPage) return "/";
+  return landingPage.startsWith("/") ? landingPage : `/${landingPage}`;
+};
+
 function AuthPage({ mode = "login" }) {
+  const { isAuthenticated, user } = useContext(AuthContext);
   const [current, setCurrent] = useState(mode);
 
   useEffect(() => {
     setCurrent(mode);
   }, [mode]);
+
+  if (isAuthenticated) {
+    return <Navigate to={defaultUserPath(user)} replace />;
+  }
 
   return (
     <div className="relative min-h-dvh overflow-x-hidden bg-shell-dark">

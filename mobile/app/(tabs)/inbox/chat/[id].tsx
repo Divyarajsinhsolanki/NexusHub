@@ -10,10 +10,12 @@ import { apiErrorMessage } from '@/src/api/client';
 import { endpoints } from '@/src/api/endpoints';
 import type { Message } from '@/src/api/types';
 import { useAuth } from '@/src/auth/AuthProvider';
+import { MOBILE_CACHE_PAGE_LIMIT, mobileQueryKeys } from '@/src/cache/mobileCache';
 import { PageHeader } from '@/src/components/PageHeader';
 import { Screen } from '@/src/components/Screen';
 import { EmptyState, ErrorState, LoadingState } from '@/src/components/StateView';
-import { useChatRealtime } from '@/src/realtime/useChatRealtime';
+import { handleMobileRealtimeEvent } from '@/src/realtime/MobileRealtimeSync';
+import { useChatRealtime, type ChatEvent } from '@/src/realtime/useChatRealtime';
 import { useAppTheme } from '@/src/theme';
 
 export default function ChatScreen() {
@@ -26,20 +28,20 @@ export default function ChatScreen() {
   const writable = !user?.demo_account;
   const [body, setBody] = useState('');
   const [attachment, setAttachment] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
-  const conversation = useQuery({ queryKey: ['conversation', conversationId], queryFn: () => endpoints.conversation(conversationId), enabled: Number.isFinite(conversationId) });
+  const conversation = useQuery({ queryKey: mobileQueryKeys.conversation(conversationId), queryFn: () => endpoints.conversation(conversationId), enabled: Number.isFinite(conversationId) });
   const messages = useInfiniteQuery({
-    queryKey: ['messages', conversationId],
+    queryKey: mobileQueryKeys.messages(conversationId),
     initialPageParam: undefined as number | undefined,
     queryFn: ({ pageParam }) => endpoints.messages(conversationId, pageParam),
     getNextPageParam: (page) => Number(page.meta?.next_before_id) || undefined,
     enabled: Number.isFinite(conversationId),
+    maxPages: MOBILE_CACHE_PAGE_LIMIT,
   });
   const rows = useMemo(() => [...(messages.data?.pages || [])].reverse().flatMap((page) => page.data), [messages.data]);
 
-  const onRealtime = useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
-    void queryClient.invalidateQueries({ queryKey: ['conversations'] });
-  }, [conversationId, queryClient]);
+  const onRealtime = useCallback((event: ChatEvent) => {
+    void handleMobileRealtimeEvent(queryClient, event);
+  }, [queryClient]);
   const connection = useChatRealtime(conversationId, onRealtime);
 
   const send = useMutation({
@@ -52,8 +54,8 @@ export default function ChatScreen() {
     onSuccess: async () => {
       setBody('');
       setAttachment(null);
-      await queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
-      await queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      await queryClient.invalidateQueries({ queryKey: mobileQueryKeys.messages(conversationId) });
+      await queryClient.invalidateQueries({ queryKey: mobileQueryKeys.conversations });
     },
     onError: (error) => Alert.alert('Message not sent', apiErrorMessage(error)),
   });
@@ -72,9 +74,9 @@ export default function ChatScreen() {
 
   return (
     <Screen header={<PageHeader leading={<IconButton label="Back" onPress={() => router.back()}><ArrowLeft color={theme.text} size={22} /></IconButton>} title={conversation.data?.title || 'Conversation'} subtitle={connection === 'connected' ? 'Live' : 'Reconnecting'} action={writable ? <View style={styles.headerActions}><IconButton label="Start audio call" onPress={() => startCall('audio')}><Phone color={theme.text} size={20} /></IconButton><IconButton label="Start video call" onPress={() => startCall('video')}><Video color={theme.text} size={20} /></IconButton></View> : undefined} />}>
-      {messages.isLoading ? <LoadingState label="Loading conversation" /> : null}
-      {messages.isError ? <ErrorState message={apiErrorMessage(messages.error)} onRetry={() => messages.refetch()} /> : null}
-      {!messages.isLoading ? <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={74} style={styles.flex}>
+      {messages.isPending && !messages.data ? <LoadingState label="Loading conversation" /> : null}
+      {messages.isError && !messages.data ? <ErrorState message={apiErrorMessage(messages.error)} onRetry={() => messages.refetch()} /> : null}
+      {messages.data ? <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={74} style={styles.flex}>
         <FlashList
           contentContainerStyle={styles.messageList}
           data={rows}

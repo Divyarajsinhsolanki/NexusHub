@@ -19,6 +19,7 @@ import {
   updatePresence,
 } from "../components/api";
 import { subscribeToPresence } from "../lib/chatCable";
+import { buildAvatarStyle, getAvatarInitial, normalizeAvatarColor } from "../utils/avatar";
 
 const DEFAULT_CREATE_FORM = {
   first_name: "",
@@ -30,6 +31,38 @@ const DEFAULT_CREATE_FORM = {
   department_id: "",
   role_names: ["member"],
   project_ids: [],
+};
+
+const UserProfileAvatar = ({ user }) => {
+  const [imageFailed, setImageFailed] = useState(false);
+  const displayName = [user.first_name, user.last_name].filter(Boolean).join(" ") || user.email || "User";
+  const hasValidImage = user.profile_picture && user.profile_picture !== "null" && !imageFailed;
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [user.profile_picture]);
+
+  if (hasValidImage) {
+    return (
+      <img
+        src={user.profile_picture}
+        alt={`${displayName}'s avatar`}
+        className="w-20 h-20 rounded-2xl object-cover border-4 border-white shadow-md bg-white"
+        loading="lazy"
+        onError={() => setImageFailed(true)}
+      />
+    );
+  }
+
+  return (
+    <div
+      className="flex w-20 h-20 items-center justify-center rounded-2xl border-4 border-white text-2xl font-bold shadow-md"
+      style={buildAvatarStyle(normalizeAvatarColor(user.avatar_color))}
+      aria-label={`${displayName}'s initials`}
+    >
+      {getAvatarInitial(displayName)}
+    </div>
+  );
 };
 
 const Users = () => {
@@ -392,13 +425,7 @@ const Users = () => {
         <div className="px-6 relative flex-grow">
           <div className="absolute -top-10 left-6">
             <div className="relative">
-              <img
-                src={user.profile_picture || `https://ui-avatars.com/api/?name=${user.first_name}+${user.last_name}&background=random`}
-                alt="Profile"
-                className="w-20 h-20 rounded-2xl object-cover border-4 border-white shadow-md bg-white"
-                loading="lazy"
-                onError={(e) => { e.target.src=`https://placehold.co/100x100?text=${user.first_name?.[0]}`; }}
-              />
+              <UserProfileAvatar user={user} />
               <span className={`absolute bottom-0 right-0 w-4 h-4 border-2 border-white rounded-full ${user.online ? "bg-green-400" : "bg-gray-300"}`} title={user.online ? "Online" : "Offline"}></span>
             </div>
           </div>

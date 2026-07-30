@@ -3,11 +3,12 @@ import { BriefcaseBusiness, FolderKanban, Inbox, LayoutDashboard, Menu } from 'l
 import { Tabs } from 'expo-router';
 
 import { endpoints } from '@/src/api/endpoints';
+import { mobileQueryKeys } from '@/src/cache/mobileCache';
 import { useAppTheme } from '@/src/theme';
 
 export default function TabLayout() {
   const theme = useAppTheme();
-  const home = useQuery({ queryKey: ['home'], queryFn: endpoints.home });
+  const home = useQuery({ queryKey: mobileQueryKeys.home, queryFn: endpoints.home });
   const unread = home.data?.summary.unread_notifications;
 
   return (

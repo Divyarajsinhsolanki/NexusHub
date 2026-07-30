@@ -31,11 +31,16 @@ import PageLoader from "../components/ui/PageLoader";
 
 // Minimal Avatar component
 const Avatar = ({ name, src, size = 'md', className = '' }) => {
+  const [imageFailed, setImageFailed] = useState(false);
   const sizeClasses = { sm: "w-8 h-8 text-xs", md: "w-10 h-10 text-sm", lg: "w-12 h-12 text-base", xl: "w-16 h-16 text-lg" };
   const currentSizeClass = sizeClasses[size] || sizeClasses.md;
 
-  if (src && src !== 'null') {
-    return <img src={src} alt={name} className={`rounded-full object-cover ring-2 ring-white dark:ring-zinc-800 shadow-sm ${currentSizeClass} ${className}`} loading="lazy" />;
+  useEffect(() => {
+    setImageFailed(false);
+  }, [src]);
+
+  if (src && src !== 'null' && !imageFailed) {
+    return <img src={src} alt={name} className={`rounded-full object-cover ring-2 ring-white dark:ring-zinc-800 shadow-sm ${currentSizeClass} ${className}`} loading="lazy" onError={() => setImageFailed(true)} />;
   }
   const initial = name ? name.charAt(0).toUpperCase() : "?";
   const colors = ['bg-violet-500', 'bg-blue-500', 'bg-emerald-500', 'bg-amber-500', 'bg-rose-500'];

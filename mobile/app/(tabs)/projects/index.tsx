@@ -7,6 +7,7 @@ import { Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, TextIn
 import { apiErrorMessage } from '@/src/api/client';
 import { endpoints } from '@/src/api/endpoints';
 import type { Project } from '@/src/api/types';
+import { mobileQueryKeys } from '@/src/cache/mobileCache';
 import { PageHeader } from '@/src/components/PageHeader';
 import { PrimaryButton } from '@/src/components/PrimaryButton';
 import { Screen } from '@/src/components/Screen';
@@ -20,15 +21,15 @@ export default function ProjectsScreen() {
   const { user } = useAuth();
   const [editing, setEditing] = useState<Project | null | undefined>(undefined);
   const [form, setForm] = useState({ name: '', description: '', start_date: '', end_date: '' });
-  const projects = useQuery({ queryKey: ['projects'], queryFn: endpoints.projects });
+  const projects = useQuery({ queryKey: mobileQueryKeys.projects, queryFn: endpoints.projects });
   const canManage = !user?.demo_account && user?.permissions?.includes('projects.manage');
   const openEditor = (project: Project | null) => { setForm({ name: project?.name || '', description: project?.description || '', start_date: project?.start_date || '', end_date: project?.end_date || '' }); setEditing(project); };
   const save = useMutation({ mutationFn: () => editing ? endpoints.updateProject(editing.id, form) : endpoints.createProject(form), onSuccess: async () => { setEditing(undefined); await queryClient.invalidateQueries({ queryKey: ['projects'] }); }, onError: (error) => Alert.alert('Unable to save project', apiErrorMessage(error)) });
   const remove = useMutation({ mutationFn: (id: number) => endpoints.deleteProject(id), onSuccess: async () => { setEditing(undefined); await queryClient.invalidateQueries({ queryKey: ['projects'] }); }, onError: (error) => Alert.alert('Unable to delete project', apiErrorMessage(error)) });
   return (
     <Screen header={<PageHeader title="Projects" subtitle="Workspace delivery overview" action={canManage ? <Pressable accessibilityLabel="Create project" onPress={() => openEditor(null)} style={[styles.add, { backgroundColor: theme.primary }]}><Plus color="#ffffff" size={21} /></Pressable> : undefined} />}>
-      {projects.isLoading ? <LoadingState label="Loading projects" /> : null}
-      {projects.isError ? <ErrorState message={apiErrorMessage(projects.error)} onRetry={() => projects.refetch()} /> : null}
+      {projects.isPending && !projects.data ? <LoadingState label="Loading projects" /> : null}
+      {projects.isError && !projects.data ? <ErrorState message={apiErrorMessage(projects.error)} onRetry={() => projects.refetch()} /> : null}
       {projects.data ? (
         <FlatList
           contentContainerStyle={styles.list}

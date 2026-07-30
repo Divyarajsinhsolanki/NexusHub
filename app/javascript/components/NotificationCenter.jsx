@@ -6,6 +6,7 @@ import { subscribeToUserChat } from '../lib/chatCable';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
+import Avatar from './ui/Avatar';
 
 const NotificationCenter = () => {
   const navigate = useNavigate();
@@ -171,18 +172,11 @@ const NotificationCenter = () => {
                             } ${notification.metadata?.conversation_id ? 'cursor-pointer' : ''}`}
                         >
                           <div className="flex-shrink-0 mt-1">
-                            {notification.actor_avatar && (
-                              <img
-                                src={notification.actor_avatar}
-                                alt=""
-                                className="h-8 w-8 rounded-full border border-shell-border object-cover"
-                              loading="lazy" />
-                            )}
-                            {!notification.actor_avatar && (
-                              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted-soft">
-                                {getIcon(notification.action)}
-                              </div>
-                            )}
+                            <Avatar
+                              name={notification.actor || notification.message}
+                              src={notification.actor_avatar}
+                              className="h-8 w-8 border border-shell-border text-xs"
+                            />
                           </div>
                           <div className="ml-4 flex-1">
                             <p className={`text-sm ${notification.read_at ? 'text-shell-muted' : 'font-medium text-shell-text-strong'}`}>

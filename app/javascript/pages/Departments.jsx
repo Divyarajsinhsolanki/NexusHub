@@ -30,6 +30,7 @@ import PageLoader from '../components/ui/PageLoader';
 // --- Improved UI Components (Copied/Adapted from Projects.jsx) ---
 
 const Avatar = ({ name, src, size = 'md', className = '' }) => {
+  const [imageFailed, setImageFailed] = useState(false);
   const sizeClasses = {
     sm: "w-7 h-7 text-xs",
     md: "w-9 h-9 text-sm",
@@ -38,13 +39,19 @@ const Avatar = ({ name, src, size = 'md', className = '' }) => {
   };
   const currentSizeClass = sizeClasses[size] || sizeClasses.md;
 
-  if (src && src !== 'null') {
+  useEffect(() => {
+    setImageFailed(false);
+  }, [src]);
+
+  if (src && src !== 'null' && !imageFailed) {
     return (
       <img
         src={src}
         alt={`${name}'s avatar`}
         className={`rounded-full object-cover ring-2 ring-white dark:ring-zinc-800 shadow-sm ${currentSizeClass} ${className}`}
-      loading="lazy" />
+        loading="lazy"
+        onError={() => setImageFailed(true)}
+      />
     );
   }
   const initial = name ? name.charAt(0).toUpperCase() : "?";

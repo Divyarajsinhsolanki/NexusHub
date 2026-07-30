@@ -7,6 +7,7 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'r
 import { apiErrorMessage } from '@/src/api/client';
 import { endpoints } from '@/src/api/endpoints';
 import type { TaskStatus } from '@/src/api/types';
+import { mobileQueryKeys } from '@/src/cache/mobileCache';
 import { PageHeader } from '@/src/components/PageHeader';
 import { Screen } from '@/src/components/Screen';
 import { EmptyState, ErrorState, LoadingState } from '@/src/components/StateView';
@@ -19,15 +20,15 @@ export default function TodayScreen() {
   const theme = useAppTheme();
   const router = useRouter();
   const { user } = useAuth();
-  const home = useQuery({ queryKey: ['home'], queryFn: endpoints.home });
+  const home = useQuery({ queryKey: mobileQueryKeys.home, queryFn: endpoints.home });
   const taskStatus = useTaskStatus();
 
   const updateStatus = (id: number, status: TaskStatus) => taskStatus.mutate({ id, status });
 
   return (
     <Screen header={<PageHeader title="Nexus Hub" subtitle={format(new Date(), 'EEEE, MMMM d')} action={<View style={styles.headerActions}><Pressable accessibilityLabel="Search Nexus Hub" onPress={() => router.push('/search')} style={[styles.headerButton, { backgroundColor: theme.surfaceMuted }]}><Search color={theme.text} size={20} /></Pressable>{!user?.demo_account ? <Pressable accessibilityLabel="Create" onPress={() => router.push('/create')} style={[styles.headerButton, { backgroundColor: theme.primary }]}><Plus color="#ffffff" size={21} /></Pressable> : null}</View>} />}>
-      {home.isLoading ? <LoadingState label="Loading your workday" /> : null}
-      {home.isError ? <ErrorState message={apiErrorMessage(home.error)} onRetry={() => home.refetch()} /> : null}
+      {home.isPending && !home.data ? <LoadingState label="Loading your workday" /> : null}
+      {home.isError && !home.data ? <ErrorState message={apiErrorMessage(home.error)} onRetry={() => home.refetch()} /> : null}
       {home.data ? (
         <ScrollView
           contentContainerStyle={styles.scroll}

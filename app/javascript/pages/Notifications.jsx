@@ -20,6 +20,7 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from "../components/api";
+import Avatar from "../components/ui/Avatar";
 
 const ACTION_META = {
   commented: {
@@ -414,7 +415,6 @@ const Notifications = () => {
                   <ul className="space-y-4 p-4 sm:p-5">
                     {entries.map((notification, index) => {
                       const meta = getActionMeta(notification.action);
-                      const Icon = meta.icon;
                       const isUnread = !notification.read_at;
 
                       return (
@@ -433,17 +433,11 @@ const Notifications = () => {
 
                           <div className="relative flex gap-4">
                             <div className="mt-0.5 shrink-0">
-                              {notification.actor_avatar ? (
-                                <img
-                                  src={notification.actor_avatar}
-                                  alt=""
-                                  className="h-12 w-12 rounded-[18px] border border-white/70 object-cover shadow-[0_12px_26px_rgb(15_23_42_/_0.08)]"
-                                loading="lazy" />
-                              ) : (
-                                <div className="flex h-12 w-12 items-center justify-center rounded-[18px] border border-white/70 bg-white/90 shadow-[0_12px_26px_rgb(15_23_42_/_0.08)]">
-                                  <Icon className="h-5 w-5 text-slate-700" />
-                                </div>
-                              )}
+                              <Avatar
+                                name={notification.actor || notification.message}
+                                src={notification.actor_avatar}
+                                className="h-12 w-12 rounded-[18px] border border-white/70 text-sm shadow-[0_12px_26px_rgb(15_23_42_/_0.08)]"
+                              />
                             </div>
 
                             <div className="min-w-0 flex-1">
