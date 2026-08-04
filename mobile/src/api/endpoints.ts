@@ -129,6 +129,9 @@ export const endpoints = {
   async resetPassword(input: { reset_password_token: string; password: string; password_confirmation: string }) {
     return create<{ password_reset: boolean }>('/auth/password/reset', input);
   },
+  async changePassword(input: { current_password: string; password: string; password_confirmation: string }) {
+    return update<{ password_changed: boolean }>('/auth/password/change', { password: input });
+  },
   async logout(refreshToken: string) {
     await api.delete('/auth/logout', { data: { refresh_token: refreshToken } });
   },
@@ -241,7 +244,7 @@ export const endpoints = {
   async exportSprintTasks(id: number) { await api.post(`/sprints/${id}/export_tasks`); },
   async exportSprintLogs(id: number) { await api.post(`/sprints/${id}/export_logs`); },
   async importBacklog(projectId: number) { await api.post('/tasks/import_backlog', { project_id: projectId }); },
-  async tasks(params: { mine?: boolean; project_id?: number; sprint_id?: number; status?: string; page?: number; per_page?: number } = {}) {
+  async tasks(params: { mine?: boolean; project_id?: number; sprint_id?: number; status?: TaskStatus; type?: 'Code' | 'qa'; due_from?: string; due_to?: string; page?: number; per_page?: number } = {}) {
     const response = await api.get<ApiEnvelope<Task[]>>('/tasks', { params: { per_page: 100, ...params } });
     return response.data;
   },

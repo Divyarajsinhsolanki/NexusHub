@@ -37,6 +37,7 @@ Rails.application.routes.draw do
       delete "auth/logout", to: "auth#logout"
       post "auth/password/forgot", to: "passwords#forgot"
       post "auth/password/reset", to: "passwords#reset"
+      patch "auth/password/change", to: "passwords#change"
 
       resources :mobile_sessions, only: [:index, :destroy] do
         delete :destroy_all, on: :collection

@@ -12,6 +12,7 @@ import { PageHeader } from '@/src/components/PageHeader';
 import { PrimaryButton } from '@/src/components/PrimaryButton';
 import { Screen } from '@/src/components/Screen';
 import { EmptyState, ErrorState, LoadingState } from '@/src/components/StateView';
+import { TouchableScale } from '@/src/components/TouchableScale';
 import { useAppTheme } from '@/src/theme';
 import { useAuth } from '@/src/auth/AuthProvider';
 
@@ -27,17 +28,21 @@ export default function ProjectsScreen() {
   const save = useMutation({ mutationFn: () => editing ? endpoints.updateProject(editing.id, form) : endpoints.createProject(form), onSuccess: async () => { setEditing(undefined); await queryClient.invalidateQueries({ queryKey: ['projects'] }); }, onError: (error) => Alert.alert('Unable to save project', apiErrorMessage(error)) });
   const remove = useMutation({ mutationFn: (id: number) => endpoints.deleteProject(id), onSuccess: async () => { setEditing(undefined); await queryClient.invalidateQueries({ queryKey: ['projects'] }); }, onError: (error) => Alert.alert('Unable to delete project', apiErrorMessage(error)) });
   return (
-    <Screen header={<PageHeader title="Projects" subtitle="Workspace delivery overview" action={canManage ? <Pressable accessibilityLabel="Create project" onPress={() => openEditor(null)} style={[styles.add, { backgroundColor: theme.primary }]}><Plus color="#ffffff" size={21} /></Pressable> : undefined} />}>
+    <Screen header={<PageHeader title="Projects" subtitle="Workspace delivery overview" action={canManage ? <TouchableScale accessibilityLabel="Create project" accessibilityRole="button" haptic="light" onPress={() => openEditor(null)} style={[styles.add, { backgroundColor: theme.primary, shadowColor: theme.shadow }]}><Plus color="#ffffff" size={21} /></TouchableScale> : undefined} />}>
       {projects.isPending && !projects.data ? <LoadingState label="Loading projects" /> : null}
       {projects.isError && !projects.data ? <ErrorState message={apiErrorMessage(projects.error)} onRetry={() => projects.refetch()} /> : null}
       {projects.data ? (
         <FlatList
           contentContainerStyle={styles.list}
           data={projects.data}
+          initialNumToRender={10}
           keyExtractor={(item) => String(item.id)}
+          maxToRenderPerBatch={12}
           onRefresh={() => projects.refetch()}
+          removeClippedSubviews
           refreshing={projects.isRefetching}
           renderItem={({ item }) => <ProjectRow onEdit={canManage ? () => openEditor(item) : undefined} project={item} />}
+          windowSize={7}
           ListEmptyComponent={<EmptyState title="No projects" message="Workspace projects will appear here." />}
         />
       ) : null}
@@ -50,23 +55,24 @@ function ProjectRow({ project, onEdit }: { project: Project; onEdit?: () => void
   const theme = useAppTheme();
   const router = useRouter();
   return (
-    <Pressable
+    <TouchableScale
       accessibilityLabel={`Open ${project.name}`}
       accessibilityRole="button"
       onLongPress={onEdit}
       onPress={() => router.push(`/projects/${project.id}`)}
-      style={({ pressed }) => [styles.card, { backgroundColor: theme.surface, borderColor: theme.border, opacity: pressed ? 0.72 : 1 }]}>
-      <View style={[styles.icon, { backgroundColor: theme.surfaceMuted }]}><FolderKanban color={theme.primary} size={22} /></View>
+      scaleTo={0.985}
+      style={[styles.card, { backgroundColor: theme.surfaceRaised, borderColor: theme.border, shadowColor: theme.shadow }]}>
+      <View style={[styles.icon, { backgroundColor: theme.primarySoft }]}><FolderKanban color={theme.primary} size={22} /></View>
       <View style={styles.copy}>
         <View style={styles.titleRow}>
           <Text numberOfLines={1} style={[styles.title, { color: theme.text }]}>{project.name}</Text>
-          <Text style={[styles.status, { color: project.status === 'completed' ? theme.success : theme.primary }]}>{project.status}</Text>
+          <Text style={[styles.status, { backgroundColor: project.status === 'completed' ? (theme.isDark ? '#143d25' : '#dcfce7') : theme.primarySoft, color: project.status === 'completed' ? theme.success : theme.primary }]}>{project.status}</Text>
         </View>
         {project.description ? <Text numberOfLines={2} style={[styles.description, { color: theme.textMuted }]}>{project.description}</Text> : null}
         <Text style={[styles.meta, { color: theme.textMuted }]}>{project.sprint_count} sprints · {project.task_count} tasks</Text>
       </View>
       <ChevronRight color={theme.textMuted} size={20} />
-    </Pressable>
+    </TouchableScale>
   );
 }
 
@@ -74,13 +80,13 @@ function ProjectField({ label, value, onChangeText, multiline, placeholder }: { 
 
 const styles = StyleSheet.create({
   list: { flexGrow: 1, gap: 10, padding: 20, paddingBottom: 36 },
-  add: { alignItems: 'center', borderRadius: 8, height: 42, justifyContent: 'center', width: 42 },
-  card: { alignItems: 'center', borderRadius: 8, borderWidth: 1, flexDirection: 'row', gap: 12, padding: 14 },
+  add: { alignItems: 'center', borderRadius: 8, elevation: 1, height: 42, justifyContent: 'center', shadowOffset: { height: 2, width: 0 }, shadowOpacity: 0.1, shadowRadius: 5, width: 42 },
+  card: { alignItems: 'center', borderRadius: 8, borderWidth: 1, elevation: 1, flexDirection: 'row', gap: 12, padding: 14, shadowOffset: { height: 3, width: 0 }, shadowOpacity: 0.08, shadowRadius: 8 },
   icon: { alignItems: 'center', borderRadius: 6, height: 42, justifyContent: 'center', width: 42 },
   copy: { flex: 1 },
   titleRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   title: { flex: 1, fontSize: 16, fontWeight: '700', paddingRight: 8 },
-  status: { fontSize: 11, fontWeight: '700', textTransform: 'capitalize' },
+  status: { borderRadius: 6, fontSize: 11, fontWeight: '800', overflow: 'hidden', paddingHorizontal: 7, paddingVertical: 3, textTransform: 'capitalize' },
   description: { fontSize: 13, lineHeight: 18, marginTop: 5 },
   meta: { fontSize: 12, marginTop: 8 },
   modal: { flex: 1 }, close: { alignItems: 'center', height: 44, justifyContent: 'center', width: 44 }, form: { gap: 17, padding: 20 }, label: { fontSize: 13, fontWeight: '700', marginBottom: 7 }, field: { borderRadius: 8, borderWidth: 1, fontSize: 15, minHeight: 46, paddingHorizontal: 12, paddingVertical: 11 }, multiline: { minHeight: 110, textAlignVertical: 'top' }, delete: { alignItems: 'center', flexDirection: 'row', gap: 8, justifyContent: 'center', minHeight: 48 },

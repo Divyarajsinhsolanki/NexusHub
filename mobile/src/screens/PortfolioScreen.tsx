@@ -41,6 +41,7 @@ type PortfolioColors = AppTheme;
 type DemoAction = (route?: string) => Promise<void>;
 
 const publicTheme: AppTheme = {
+  isDark: false,
   primary: '#1d4ed8',
   primaryPressed: '#1e40af',
   success: '#047857',
@@ -49,10 +50,14 @@ const publicTheme: AppTheme = {
   white: '#ffffff',
   background: '#f7fbff',
   surface: '#ffffff',
+  surfaceRaised: '#ffffff',
   surfaceMuted: '#eaf5ff',
+  surfacePressed: '#deefff',
+  primarySoft: '#dbeafe',
   text: '#102033',
   textMuted: '#607086',
   border: '#d7e7f6',
+  shadow: 'rgba(15, 23, 42, 0.12)',
   tabBar: '#ffffff',
 };
 

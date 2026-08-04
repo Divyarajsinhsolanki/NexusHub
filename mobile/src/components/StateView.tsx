@@ -1,7 +1,8 @@
 import { AlertCircle, Inbox } from 'lucide-react-native';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 import { useAppTheme } from '../theme';
+import { TouchableScale } from './TouchableScale';
 
 export function LoadingState({ label = 'Loading' }: { label?: string }) {
   const theme = useAppTheme();
@@ -32,9 +33,9 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
       <Text style={[styles.title, { color: theme.text }]}>Unable to load</Text>
       <Text style={[styles.message, { color: theme.textMuted }]}>{message}</Text>
       {onRetry ? (
-        <Pressable accessibilityRole="button" onPress={onRetry} style={[styles.retry, { backgroundColor: theme.primary }]}>
+        <TouchableScale accessibilityRole="button" haptic="light" onPress={onRetry} style={[styles.retry, { backgroundColor: theme.primary }]}>
           <Text style={styles.retryText}>Try again</Text>
-        </Pressable>
+        </TouchableScale>
       ) : null}
     </View>
   );
@@ -44,6 +45,6 @@ const styles = StyleSheet.create({
   state: { alignItems: 'center', flex: 1, justifyContent: 'center', padding: 32 },
   title: { fontSize: 17, fontWeight: '700', marginTop: 12 },
   message: { fontSize: 14, lineHeight: 20, marginTop: 6, textAlign: 'center' },
-  retry: { borderRadius: 6, marginTop: 18, paddingHorizontal: 18, paddingVertical: 10 },
+  retry: { borderRadius: 8, marginTop: 18, paddingHorizontal: 18, paddingVertical: 10 },
   retryText: { color: '#ffffff', fontWeight: '700' },
 });

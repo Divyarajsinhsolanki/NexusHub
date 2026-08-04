@@ -30,3 +30,12 @@ test('renders task identity and status without a mutation control when read only
   expect(screen.getByText('Build the mobile task card')).toBeTruthy();
   expect(screen.queryByText('Doing')).toBeNull();
 });
+
+test('exposes the accessible move action for board cards', async () => {
+  const onMore = jest.fn();
+  const screen = await render(<TaskCard onMore={onMore} task={task} />);
+
+  await fireEvent.press(screen.getByRole('button', { name: 'Move Build the mobile task card' }));
+
+  expect(onMore).toHaveBeenCalledTimes(1);
+});

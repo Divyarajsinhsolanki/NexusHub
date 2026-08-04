@@ -132,6 +132,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/password/change": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["changePassword"];
+        trace?: never;
+    };
     "/me": {
         parameters: {
             query?: never;
@@ -1681,6 +1697,32 @@ export interface operations {
             422: components["responses"]["Error"];
         };
     };
+    changePassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    password: {
+                        /** Format: password */
+                        current_password: string;
+                        /** Format: password */
+                        password: string;
+                        /** Format: password */
+                        password_confirmation: string;
+                    };
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            422: components["responses"]["Error"];
+        };
+    };
     getMe: {
         parameters: {
             query?: never;
@@ -1841,7 +1883,17 @@ export interface operations {
     };
     listTasks: {
         parameters: {
-            query?: never;
+            query?: {
+                project_id?: number;
+                sprint_id?: number;
+                status?: "todo" | "inprogress" | "completed";
+                type?: "Code" | "qa";
+                mine?: boolean;
+                due_from?: string;
+                due_to?: string;
+                page?: number;
+                per_page?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;

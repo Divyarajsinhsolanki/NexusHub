@@ -324,6 +324,7 @@ export default function ProjectMetaverse() {
   const [loading, setLoading] = useState(true);
   const [threeModules, setThreeModules] = useState(null);
   const [threeError, setThreeError] = useState(null);
+  const [webglUnavailable, setWebglUnavailable] = useState(false);
 
   const wallHosts = useMemo(() => {
     if (typeof document === "undefined") return null;
@@ -498,7 +499,7 @@ export default function ProjectMetaverse() {
   useEffect(() => {
     const shell = shellRef.current;
     const canvas = canvasRef.current;
-    if (loading || !project || !shell || !canvas || !wallHosts || !threeModules) return undefined;
+    if (loading || !project || !shell || !canvas || !wallHosts || !threeModules || threeError || webglUnavailable) return undefined;
     const { THREE, CSS3DObject, CSS3DRenderer } = threeModules;
 
     wallHosts.modules.className = `${styles.wallPanel} ${styles.moduleWall}`;
@@ -506,7 +507,14 @@ export default function ProjectMetaverse() {
     wallHosts.controls.className = `${styles.wallPanel} ${styles.controlWall}`;
     wallHosts.chat.className = `${styles.wallPanel} ${styles.chatWall}`;
 
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+    } catch (error) {
+      console.error("Failed to initialize Three.js project metaverse room:", error);
+      setWebglUnavailable(true);
+      return undefined;
+    }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setClearColor(0x0b1523, 1);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -886,7 +894,7 @@ export default function ProjectMetaverse() {
       });
       renderer.dispose();
     };
-  }, [loading, project, threeModules, wallHosts]);
+  }, [loading, project, threeModules, threeError, wallHosts, webglUnavailable]);
 
   const emptyState = (
     <div className={styles.emptyState}>
@@ -953,10 +961,120 @@ export default function ProjectMetaverse() {
     );
   }
 
-  if (threeError) {
+  if (threeError || webglUnavailable) {
+    const fallbackReason = webglUnavailable
+      ? "3D mode needs WebGL, but this browser has WebGL disabled or blocked. The same project tools are available here in a flat workspace."
+      : "The 3D engine could not load. The same project tools are available here in a flat workspace.";
+
     return (
-      <div className={styles.metaverseShell}>
-        <div className={styles.metaverseNotice}>Unable to load the 3D project room.</div>
+      <div className={`${styles.metaverseShell} ${styles.fallbackShell}`}>
+        <div className={styles.fallbackWorkspace}>
+          <div className={styles.fallbackNoticePanel}>
+            <div>
+              <span>2D workspace</span>
+              <h1>{project.name || "Project metaverse"}</h1>
+              <p>{fallbackReason}</p>
+            </div>
+            <button type="button" onClick={() => window.location.reload()}>
+              Retry 3D
+            </button>
+          </div>
+
+          <aside className={styles.fallbackPanel}>
+            <div className={styles.wallHeader}>
+              <span>Project Modules</span>
+              <h2>Modules</h2>
+              <p>{project.name || "Project"} sections</p>
+            </div>
+            <div className={styles.moduleList}>
+              {dashboardTabs.map((tab, index) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  className={activeTab.key === tab.key ? styles.moduleButtonActive : styles.moduleButton}
+                  onClick={() => handleSectionChange(tab.key)}
+                  style={{ "--module-color": tab.color }}
+                >
+                  <span className={styles.moduleIndex}>{String(index + 1).padStart(2, "0")}</span>
+                  <span>
+                    <strong>{tab.label}</strong>
+                    <small>{tab.subtitle}</small>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </aside>
+
+          <main className={`${styles.fallbackPanel} ${styles.fallbackMain}`}>
+            <header className={styles.contentWallHeader} style={{ "--module-color": activeTab.color }}>
+              <div>
+                <span>Selected Module</span>
+                <h1>{activeTab.label}</h1>
+              </div>
+              <div className={styles.contentMeta}>
+                <span>{viewModeLabel}</span>
+                <span>{sprint?.name || "No sprint"}</span>
+              </div>
+            </header>
+            <div className={styles.fallbackContent}>
+              {sectionContent(activeTab.key)}
+            </div>
+          </main>
+
+          <aside className={`${styles.fallbackPanel} ${styles.fallbackSide}`}>
+            <div className={styles.wallHeader}>
+              <span>Sprint Control</span>
+              <h2>Sprint Manager</h2>
+              <p>{sprintRangeLabel}</p>
+            </div>
+            <div className={styles.controlGrid}>
+              <div>
+                <small>Working Days</small>
+                <strong>{workingDaysCount}</strong>
+              </div>
+              <div>
+                <small>Project Crew</small>
+                <strong>{project?.users?.length || 0}</strong>
+              </div>
+            </div>
+            {project?.qa_mode_enabled ? (
+              <div className={styles.modeSwitch}>
+                {VIEW_MODES.map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    className={viewMode === mode ? styles.modeActive : ""}
+                    onClick={() => setViewMode(mode)}
+                  >
+                    {mode === "qa" ? "QA" : mode === "combined" ? "Combined" : "Dev"}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className={styles.modeBadge}>Dev mode</div>
+            )}
+            <div className={styles.sprintManagerWrap}>
+              <SprintManager
+                onSprintChange={handleSprintChange}
+                projectId={projectId}
+                projectName={project?.name}
+                selectedDate={selectedDate}
+                sprintId={sprintId}
+                isVisible
+              />
+            </div>
+            <div className={styles.fallbackChatPanel}>
+              <div className={styles.wallHeader}>
+                <span>Team Chat</span>
+                <h2>Chat</h2>
+                <p>Project conversation</p>
+              </div>
+              <div className={styles.chatEmbed}>
+                <Chat embedded />
+              </div>
+            </div>
+          </aside>
+        </div>
       </div>
     );
   }

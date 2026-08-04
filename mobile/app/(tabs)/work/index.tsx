@@ -2,7 +2,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import { Plus } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, FlatList, StyleSheet, View } from 'react-native';
 
 import { apiErrorMessage } from '@/src/api/client';
 import { endpoints } from '@/src/api/endpoints';
@@ -12,6 +12,7 @@ import { Screen } from '@/src/components/Screen';
 import { SegmentedControl } from '@/src/components/SegmentedControl';
 import { EmptyState, ErrorState, LoadingState } from '@/src/components/StateView';
 import { TaskCard } from '@/src/components/TaskCard';
+import { TouchableScale } from '@/src/components/TouchableScale';
 import { WorkLogCard } from '@/src/components/WorkLogCard';
 import { WorkLogForm } from '@/src/components/WorkLogForm';
 import { useTaskStatus } from '@/src/hooks/useTaskStatus';
@@ -84,9 +85,9 @@ export default function WorkScreen() {
       header={
         <PageHeader
           action={writable ? (
-            <Pressable accessibilityLabel={mode === 'logs' ? 'Add work log' : 'Add task'} accessibilityRole="button" onPress={() => mode === 'logs' ? setEditing(null) : router.push('/create?type=task' as never)} style={[styles.addButton, { backgroundColor: theme.primary }]} testID={mode === 'logs' ? 'add-work-log' : 'add-task'}>
+            <TouchableScale accessibilityLabel={mode === 'logs' ? 'Add work log' : 'Add task'} accessibilityRole="button" haptic="light" onPress={() => mode === 'logs' ? setEditing(null) : router.push('/create?type=task' as never)} style={[styles.addButton, { backgroundColor: theme.primary, shadowColor: theme.shadow }]} testID={mode === 'logs' ? 'add-work-log' : 'add-task'}>
               <Plus color="#ffffff" size={22} />
-            </Pressable>
+            </TouchableScale>
           ) : undefined}
           subtitle="Tasks and time entries"
           title="My work"
@@ -101,10 +102,13 @@ export default function WorkScreen() {
         <FlatList
           contentContainerStyle={styles.list}
           data={taskData}
+          initialNumToRender={10}
           keyExtractor={(item) => String(item.id)}
+          maxToRenderPerBatch={12}
           onEndReached={() => tasks.hasNextPage && tasks.fetchNextPage()}
           onEndReachedThreshold={0.4}
           onRefresh={() => tasks.refetch()}
+          removeClippedSubviews
           refreshing={tasks.isRefetching && !tasks.isFetchingNextPage}
           renderItem={({ item }) => (
             <TaskCard
@@ -114,6 +118,7 @@ export default function WorkScreen() {
               updating={taskStatus.isPending && taskStatus.variables?.id === item.id}
             />
           )}
+          windowSize={7}
           ListEmptyComponent={<EmptyState title="No assigned tasks" message="Tasks assigned to you will appear here." />}
         />
       ) : null}
@@ -121,12 +126,16 @@ export default function WorkScreen() {
         <FlatList
           contentContainerStyle={styles.list}
           data={logData}
+          initialNumToRender={10}
           keyExtractor={(item) => String(item.id)}
+          maxToRenderPerBatch={12}
           onEndReached={() => workLogs.hasNextPage && workLogs.fetchNextPage()}
           onEndReachedThreshold={0.4}
           onRefresh={() => workLogs.refetch()}
+          removeClippedSubviews
           refreshing={workLogs.isRefetching && !workLogs.isFetchingNextPage}
           renderItem={({ item }) => <WorkLogCard onEdit={writable ? () => setEditing(item) : undefined} workLog={item} />}
+          windowSize={7}
           ListEmptyComponent={<EmptyState title="No work logs" message="Add your first time entry for today." />}
         />
       ) : null}
@@ -144,7 +153,7 @@ export default function WorkScreen() {
 }
 
 const styles = StyleSheet.create({
-  addButton: { alignItems: 'center', borderRadius: 6, height: 40, justifyContent: 'center', width: 40 },
+  addButton: { alignItems: 'center', borderRadius: 8, elevation: 1, height: 42, justifyContent: 'center', shadowOffset: { height: 2, width: 0 }, shadowOpacity: 0.1, shadowRadius: 5, width: 42 },
   segmentWrap: { paddingHorizontal: 20, paddingTop: 14 },
   list: { flexGrow: 1, gap: 10, padding: 20, paddingBottom: 36 },
 });

@@ -101,6 +101,29 @@ paths:
           $ref: "#/components/responses/GenericSuccess"
         "422":
           $ref: "#/components/responses/Error"
+  /auth/password/change:
+    patch:
+      operationId: changePassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password:
+                  type: object
+                  required: [current_password, password, password_confirmation]
+                  properties:
+                    current_password: { type: string, format: password }
+                    password: { type: string, format: password, minLength: 8 }
+                    password_confirmation: { type: string, format: password, minLength: 8 }
+      responses:
+        "200":
+          $ref: "#/components/responses/GenericSuccess"
+        "422":
+          $ref: "#/components/responses/Error"
   /me:
     get:
       operationId: getMe
@@ -183,6 +206,34 @@ paths:
   /tasks:
     get:
       operationId: listTasks
+      parameters:
+        - name: project_id
+          in: query
+          schema: { type: integer }
+        - name: sprint_id
+          in: query
+          schema: { type: integer }
+        - name: status
+          in: query
+          schema: { type: string, enum: [todo, inprogress, completed] }
+        - name: type
+          in: query
+          schema: { type: string, enum: [Code, qa] }
+        - name: mine
+          in: query
+          schema: { type: boolean }
+        - name: due_from
+          in: query
+          schema: { type: string, format: date }
+        - name: due_to
+          in: query
+          schema: { type: string, format: date }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1 }
+        - name: per_page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100 }
       responses:
         "200":
           description: Paginated tasks

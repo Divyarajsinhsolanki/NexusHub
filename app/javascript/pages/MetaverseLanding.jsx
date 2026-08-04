@@ -58,16 +58,24 @@ const roomHotspots = {
 const ThreeOrb = () => {
   const mountRef = useRef(null);
   const { THREE } = useThree();
+  const [webglFailed, setWebglFailed] = useState(false);
 
   useEffect(() => {
     const mount = mountRef.current;
-    if (!mount || !THREE) return undefined;
+    if (!mount || !THREE || webglFailed) return undefined;
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
     camera.position.set(0, 0, 5.5);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    } catch (error) {
+      console.error("Failed to initialize metaverse orb WebGL renderer:", error);
+      setWebglFailed(true);
+      return undefined;
+    }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.8));
     renderer.setClearColor(0x000000, 0);
     mount.appendChild(renderer.domElement);
@@ -181,7 +189,7 @@ const ThreeOrb = () => {
     return () => {
       cancelAnimationFrame(frameId);
       window.removeEventListener("resize", resize);
-      mount.removeChild(renderer.domElement);
+      if (renderer.domElement.parentNode === mount) mount.removeChild(renderer.domElement);
       particleGeometry.dispose();
       sphere.geometry.dispose();
       sphere.material.dispose();
@@ -193,7 +201,18 @@ const ThreeOrb = () => {
       });
       renderer.dispose();
     };
-  }, [THREE]);
+  }, [THREE, webglFailed]);
+
+  if (webglFailed) {
+    return (
+      <div className="relative flex h-full min-h-[300px] w-full items-center justify-center overflow-hidden rounded-[28px] border border-cyan-200/20 bg-slate-950/[0.55]" aria-label="Static metaverse orb preview">
+        <div className="absolute h-56 w-56 rounded-full border border-cyan-200/30 bg-cyan-300/[0.12] shadow-[0_0_80px_rgba(34,211,238,0.24)]" />
+        <div className="absolute h-72 w-72 rounded-full border border-violet-300/[0.24]" />
+        <div className="absolute h-40 w-40 rounded-full border border-blue-300/[0.24]" />
+        <div className="relative h-24 w-24 rounded-full bg-cyan-200/70 shadow-[0_0_48px_rgba(125,211,252,0.42)]" />
+      </div>
+    );
+  }
 
   return <div ref={mountRef} className="h-full min-h-[300px] w-full" aria-label="Floating metaverse orb" />;
 };
@@ -207,6 +226,7 @@ const ThreeRoom = () => {
   const interactiveRef = useRef([]);
   const hoverRef = useRef(null);
   const [selectedKey, setSelectedKey] = useState("portal");
+  const [webglFailed, setWebglFailed] = useState(false);
 
   const selectObject = (key) => {
     selectedRef.current = key;
@@ -221,7 +241,7 @@ const ThreeRoom = () => {
 
   useEffect(() => {
     const mount = mountRef.current;
-    if (!mount || !THREE) return undefined;
+    if (!mount || !THREE || webglFailed) return undefined;
 
     interactiveRef.current = [];
     hoverRef.current = null;
@@ -231,7 +251,14 @@ const ThreeRoom = () => {
     scene.fog = new THREE.FogExp2(0x070b1f, 0.035);
 
     const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    } catch (error) {
+      console.error("Failed to initialize metaverse room WebGL renderer:", error);
+      setWebglFailed(true);
+      return undefined;
+    }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.8));
     renderer.setClearColor(0x000000, 0);
     mount.appendChild(renderer.domElement);
@@ -477,7 +504,7 @@ const ThreeRoom = () => {
       window.removeEventListener("keyup", handleKeyUp);
       renderer.domElement.removeEventListener("pointermove", handlePointerMove);
       renderer.domElement.removeEventListener("pointerdown", handlePointerDown);
-      mount.removeChild(renderer.domElement);
+      if (renderer.domElement.parentNode === mount) mount.removeChild(renderer.domElement);
       scene.traverse((object) => {
         object.geometry?.dispose?.();
         if (Array.isArray(object.material)) object.material.forEach((material) => material.dispose?.());
@@ -485,7 +512,7 @@ const ThreeRoom = () => {
       });
       renderer.dispose();
     };
-  }, [THREE]);
+  }, [THREE, webglFailed]);
 
   const selected = roomHotspots[selectedKey] || roomHotspots.portal;
 
@@ -502,9 +529,32 @@ const ThreeRoom = () => {
         </div>
       </div>
 
-      <div ref={mountRef} className="h-[520px] w-full outline-none" aria-label="Interactive clickable 3D metaverse room" />
+      {webglFailed ? (
+        <div className="grid min-h-[520px] w-full content-end gap-3 bg-[radial-gradient(circle_at_50%_30%,rgba(34,211,238,0.18),transparent_35%),linear-gradient(135deg,rgba(15,23,42,0.96),rgba(2,6,23,0.98))] p-5 pt-44" aria-label="Static metaverse room preview">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {Object.entries(roomHotspots).map(([key, hotspot]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => selectObject(key)}
+                className={`rounded-2xl border p-4 text-left backdrop-blur-xl transition ${
+                  selectedKey === key
+                    ? "border-cyan-200/60 bg-cyan-300/15 text-white"
+                    : "border-white/12 bg-white/[0.07] text-slate-200 hover:border-cyan-200/40"
+                }`}
+              >
+                <span className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200">{key}</span>
+                <strong className="mt-2 block text-sm font-black">{hotspot.title}</strong>
+                <small className="mt-1 block text-xs font-semibold leading-5 text-slate-300">{hotspot.body}</small>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div ref={mountRef} className="h-[520px] w-full outline-none" aria-label="Interactive clickable 3D metaverse room" />
+      )}
 
-      <div className="absolute bottom-4 left-4 z-10 grid grid-cols-3 gap-2 sm:hidden">
+      {!webglFailed ? <div className="absolute bottom-4 left-4 z-10 grid grid-cols-3 gap-2 sm:hidden">
         <span />
         <button type="button" onClick={() => nudge("z", -0.38)} className="rounded-xl border border-white/12 bg-white/10 p-3 text-cyan-100 backdrop-blur-xl">
           <FiArrowUp />
@@ -519,7 +569,7 @@ const ThreeRoom = () => {
         <button type="button" onClick={() => nudge("x", 0.38)} className="rounded-xl border border-white/12 bg-white/10 p-3 text-cyan-100 backdrop-blur-xl">
           <FiArrowRight />
         </button>
-      </div>
+      </div> : null}
     </div>
   );
 };

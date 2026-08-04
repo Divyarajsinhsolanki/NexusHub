@@ -1,13 +1,15 @@
 import { Clock3, Pencil } from 'lucide-react-native';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { memo } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 
 import type { WorkLog } from '../api/types';
 import { useAppTheme } from '../theme';
+import { TouchableScale } from './TouchableScale';
 
-export function WorkLogCard({ workLog, onEdit }: { workLog: WorkLog; onEdit?: () => void }) {
+export const WorkLogCard = memo(function WorkLogCard({ workLog, onEdit }: { workLog: WorkLog; onEdit?: () => void }) {
   const theme = useAppTheme();
   return (
-    <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+    <View style={[styles.card, { backgroundColor: theme.surfaceRaised, borderColor: theme.border, shadowColor: theme.shadow }]}>
       <View style={styles.row}>
         <View style={styles.copy}>
           <Text style={[styles.title, { color: theme.text }]}>{workLog.title}</Text>
@@ -18,9 +20,9 @@ export function WorkLogCard({ workLog, onEdit }: { workLog: WorkLog; onEdit?: ()
             </Text>
           </View>
         </View>
-        {onEdit ? <Pressable accessibilityLabel={`Edit ${workLog.title}`} accessibilityRole="button" hitSlop={10} onPress={onEdit} style={styles.edit}>
+        {onEdit ? <TouchableScale accessibilityLabel={`Edit ${workLog.title}`} accessibilityRole="button" hitSlop={10} onPress={onEdit} style={styles.edit}>
           <Pencil color={theme.textMuted} size={19} />
-        </Pressable> : null}
+        </TouchableScale> : null}
       </View>
       {workLog.description ? <Text style={[styles.description, { color: theme.textMuted }]}>{workLog.description}</Text> : null}
       <View style={styles.tags}>
@@ -30,7 +32,7 @@ export function WorkLogCard({ workLog, onEdit }: { workLog: WorkLog; onEdit?: ()
       </View>
     </View>
   );
-}
+});
 
 function Tag({ label, color }: { label: string; color: string }) {
   return (
@@ -41,7 +43,7 @@ function Tag({ label, color }: { label: string; color: string }) {
 }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: 8, borderWidth: 1, padding: 15 },
+  card: { borderRadius: 8, borderWidth: 1, elevation: 1, padding: 15, shadowOffset: { height: 3, width: 0 }, shadowOpacity: 0.08, shadowRadius: 8 },
   row: { alignItems: 'flex-start', flexDirection: 'row' },
   copy: { flex: 1 },
   title: { fontSize: 16, fontWeight: '700' },

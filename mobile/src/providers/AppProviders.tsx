@@ -13,6 +13,7 @@ import {
 import { MobileCacheWarmup } from '../cache/MobileCacheWarmup';
 import { MobileRealtimeSync } from '../realtime/MobileRealtimeSync';
 import { queryPersister } from '../storage/queryPersister';
+import { AppThemeProvider } from '../theme';
 
 export function AppProviders({ children }: PropsWithChildren) {
   const [queryClient] = useState<QueryClient>(() => createMobileQueryClient());
@@ -35,9 +36,11 @@ export function AppProviders({ children }: PropsWithChildren) {
         persister: queryPersister,
       }}>
       <AuthProvider>
-        <MobileCacheWarmup />
-        <MobileRealtimeSync />
-        {children}
+        <AppThemeProvider>
+          <MobileCacheWarmup />
+          <MobileRealtimeSync />
+          {children}
+        </AppThemeProvider>
       </AuthProvider>
     </PersistQueryClientProvider>
   );

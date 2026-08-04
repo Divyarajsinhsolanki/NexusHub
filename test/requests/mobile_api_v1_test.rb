@@ -142,6 +142,59 @@ class MobileApiV1Test < ActionDispatch::IntegrationTest
     assert_equal true, response.parsed_body.dig("data", "blocker")
   end
 
+  test "tasks filter project sprint type status assignment and due window" do
+    qa_task = Task.create!(
+      project: @project,
+      sprint: @sprint,
+      assigned_user: @user,
+      title: "Verify native board",
+      type: "qa",
+      status: "todo",
+      end_date: 2.days.from_now.to_date
+    )
+    Task.create!(
+      project: @project,
+      sprint: @sprint,
+      developer: @user,
+      task_id: "APP-2",
+      title: "Outside due window",
+      type: "Code",
+      status: "todo",
+      end_date: 2.months.from_now.to_date
+    )
+
+    Current.user = @other_user
+    Current.workspace = @other_workspace
+    other_project = Project.find_by!(name: "Private Other Project")
+    other_sprint = Sprint.create!(project: other_project, name: "Other Sprint", start_date: Date.current, end_date: 1.week.from_now.to_date)
+    Task.create!(project: other_project, sprint: other_sprint, assigned_user: @other_user, title: "Private QA", type: "qa", status: "todo", end_date: 2.days.from_now.to_date)
+    Current.reset_all
+
+    token = mobile_login.fetch("access_token")
+    get "/api/v1/tasks", params: {
+      project_id: @project.id,
+      sprint_id: @sprint.id,
+      type: "qa",
+      status: "todo",
+      mine: true,
+      due_from: 1.day.from_now.to_date.iso8601,
+      due_to: 3.days.from_now.to_date.iso8601
+    }, headers: bearer_headers(token)
+
+    assert_response :success
+    assert_equal [qa_task.id], response.parsed_body.fetch("data").map { |task| task.fetch("id") }
+    assert_equal 1, response.parsed_body.dig("meta", "total_count")
+  end
+
+  test "tasks reject malformed due date filters" do
+    token = mobile_login.fetch("access_token")
+
+    get "/api/v1/tasks", params: { due_from: "tomorrow" }, headers: bearer_headers(token)
+
+    assert_response :unprocessable_entity
+    assert_equal "invalid_date_filter", response.parsed_body.dig("error", "code")
+  end
+
   test "owners manage team membership and department assignments from mobile" do
     @user.roles = [Role.find_or_create_by!(name: "owner")]
     teammate = create_user(@workspace, "organization@example.com", "Organization")
@@ -310,6 +363,41 @@ class MobileApiV1Test < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_equal true, response.parsed_body.dig("data", "accepted")
+  end
+
+  test "authenticated mobile users can change their password" do
+    token = mobile_login.fetch("access_token")
+
+    patch "/api/v1/auth/password/change",
+      params: {
+        password: {
+          current_password: PASSWORD,
+          password: "NewPassword!42",
+          password_confirmation: "NewPassword!42"
+        }
+      },
+      headers: bearer_headers(token)
+
+    assert_response :success
+    assert_equal true, response.parsed_body.dig("data", "password_changed")
+    assert @user.reload.valid_password?("NewPassword!42")
+  end
+
+  test "mobile password change rejects the wrong current password" do
+    token = mobile_login.fetch("access_token")
+
+    patch "/api/v1/auth/password/change",
+      params: {
+        password: {
+          current_password: "wrong-password",
+          password: "NewPassword!42",
+          password_confirmation: "NewPassword!42"
+        }
+      },
+      headers: bearer_headers(token)
+
+    assert_response :unprocessable_entity
+    assert_equal "invalid_current_password", response.parsed_body.dig("error", "code")
   end
 
   test "mobile signup still creates account when confirmation email delivery fails" do

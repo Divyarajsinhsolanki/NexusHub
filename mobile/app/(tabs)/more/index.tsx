@@ -1,11 +1,12 @@
 import { useRouter } from 'expo-router';
 import { BookOpen, BriefcaseBusiness, Building2, CalendarDays, ChevronRight, ExternalLink, FileText, FolderLock, GraduationCap, Images, PlayCircle, ScanEye, Settings, Shield, Sparkles, Users, UserRound } from 'lucide-react-native';
 import { ComponentType } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { useAuth } from '@/src/auth/AuthProvider';
 import { PageHeader } from '@/src/components/PageHeader';
 import { Screen } from '@/src/components/Screen';
+import { TouchableScale } from '@/src/components/TouchableScale';
 import { useAppTheme } from '@/src/theme';
 
 type MenuItem = { slug: string; label: string; detail: string; icon: ComponentType<{ color: string; size: number }>; feature?: string; permission?: string };
@@ -44,7 +45,7 @@ export default function MoreScreen() {
   return <Screen header={<PageHeader title="More" subtitle={user?.workspace.name || 'Workspace tools'} />}><ScrollView contentContainerStyle={styles.scroll}>{menuGroups.map((group) => {
     const visible = group.items.filter((item) => (!item.feature || user?.features?.[item.feature]) && (!item.permission || user?.permissions?.includes(item.permission)));
     if (!visible.length) return null;
-    return <View key={group.title} style={styles.group}><Text style={[styles.groupTitle, { color: theme.textMuted }]}>{group.title.toUpperCase()}</Text><View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}>{visible.map((item, index) => { const Icon = item.icon; return <Pressable accessibilityRole="button" key={item.slug} onPress={() => router.push(item.slug === 'profile' ? '/more/profile' : `/more/${item.slug}` as never)} style={[styles.row, index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}><View style={[styles.icon, { backgroundColor: theme.surfaceMuted }]}><Icon color={theme.primary} size={20} /></View><View style={styles.copy}><Text style={[styles.label, { color: theme.text }]}>{item.label}</Text><Text numberOfLines={1} style={[styles.detail, { color: theme.textMuted }]}>{item.detail}</Text></View><ChevronRight color={theme.textMuted} size={19} /></Pressable>; })}</View></View>})}</ScrollView></Screen>;
+    return <View key={group.title} style={styles.group}><Text style={[styles.groupTitle, { color: theme.textMuted }]}>{group.title.toUpperCase()}</Text><View style={[styles.panel, { backgroundColor: theme.surfaceRaised, borderColor: theme.border, shadowColor: theme.shadow }]}>{visible.map((item, index) => { const Icon = item.icon; return <TouchableScale accessibilityRole="button" key={item.slug} onPress={() => router.push(item.slug === 'profile' ? '/more/profile' : `/more/${item.slug}` as never)} scaleTo={0.985} style={[styles.row, index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}><View style={[styles.icon, { backgroundColor: theme.primarySoft }]}><Icon color={theme.primary} size={20} /></View><View style={styles.copy}><Text style={[styles.label, { color: theme.text }]}>{item.label}</Text><Text numberOfLines={1} style={[styles.detail, { color: theme.textMuted }]}>{item.detail}</Text></View><ChevronRight color={theme.textMuted} size={19} /></TouchableScale>; })}</View></View>})}</ScrollView></Screen>;
 }
 
-const styles = StyleSheet.create({ scroll: { padding: 20, paddingBottom: 40 }, group: { marginBottom: 25 }, groupTitle: { fontSize: 11, fontWeight: '800', letterSpacing: 0, marginBottom: 9 }, panel: { borderRadius: 8, borderWidth: 1, overflow: 'hidden' }, row: { alignItems: 'center', flexDirection: 'row', minHeight: 68, paddingHorizontal: 13 }, icon: { alignItems: 'center', borderRadius: 7, height: 39, justifyContent: 'center', marginRight: 12, width: 39 }, copy: { flex: 1 }, label: { fontSize: 15, fontWeight: '700' }, detail: { fontSize: 12, marginTop: 3 } });
+const styles = StyleSheet.create({ scroll: { padding: 20, paddingBottom: 44 }, group: { marginBottom: 25 }, groupTitle: { fontSize: 11, fontWeight: '900', letterSpacing: 0, marginBottom: 9 }, panel: { borderRadius: 8, borderWidth: 1, elevation: 1, overflow: 'hidden', shadowOffset: { height: 4, width: 0 }, shadowOpacity: 0.07, shadowRadius: 9 }, row: { alignItems: 'center', flexDirection: 'row', minHeight: 70, paddingHorizontal: 13 }, icon: { alignItems: 'center', borderRadius: 7, height: 40, justifyContent: 'center', marginRight: 12, width: 40 }, copy: { flex: 1 }, label: { fontSize: 15, fontWeight: '800' }, detail: { fontSize: 12, lineHeight: 17, marginTop: 3 } });

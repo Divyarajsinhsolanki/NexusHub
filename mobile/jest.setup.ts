@@ -14,6 +14,18 @@ jest.mock('expo-sqlite', () => ({
   })),
 }));
 
+jest.mock('expo-haptics', () => ({
+  ImpactFeedbackStyle: { Light: 'light' },
+  impactAsync: jest.fn(async () => undefined),
+  selectionAsync: jest.fn(async () => undefined),
+}));
+
+jest.mock('expo-image', () => {
+  const React = require('react');
+  const { Image } = require('react-native');
+  return { Image: (props: object) => React.createElement(Image, props) };
+});
+
 jest.mock('lucide-react-native', () => {
   const React = require('react');
   const { View } = require('react-native');
