@@ -987,7 +987,11 @@ module Mcp
         body: required_string(args, :body)
       )
       conversation.touch
-      conversation.conversation_participants.where(user_id: user.id).update_all(last_read_at: Time.current)
+      Chat::ReceiptManager.new(user: user).update(
+        conversation: conversation,
+        message_id: message.id,
+        state: "read"
+      )
 
       {
         message: {

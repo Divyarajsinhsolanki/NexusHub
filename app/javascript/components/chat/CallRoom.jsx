@@ -4,16 +4,19 @@ import {
   ParticipantTile,
   RoomAudioRenderer,
   StartMediaButton,
+  useParticipants,
   useTrackToggle,
   useTracks
 } from "@livekit/components-react";
 import "@livekit/components-styles";
 import { Track } from "livekit-client";
 import {
+  Copy,
   GripHorizontal,
   Maximize2,
   Mic,
   MicOff,
+  Minus,
   Minimize2,
   PhoneOff,
   RefreshCcw,
@@ -276,7 +279,34 @@ const CallVideoStage = () => {
   );
 };
 
-const CallControls = ({ isAudioOnly, onEnd, onDeviceError }) => {
+const CallAudioStage = () => {
+  const participants = useParticipants();
+
+  return (
+    <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-5 py-6 text-center">
+      <div>
+        <div className="mx-auto flex max-w-md flex-wrap justify-center gap-4">
+          {participants.map((participant) => {
+            const name = participant.name || participant.identity || "Participant";
+            const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "U";
+            return (
+              <div key={participant.identity} className="w-24">
+                <div className={`mx-auto flex h-16 w-16 items-center justify-center rounded-3xl text-lg font-semibold text-white shadow-lg ${participant.isSpeaking ? "bg-emerald-500 ring-4 ring-emerald-200 dark:ring-emerald-900" : "bg-gradient-to-br from-blue-500 to-sky-400"}`}>
+                  {initials}
+                </div>
+                <p className="mt-2 truncate text-xs font-semibold">{name}{participant.isLocal ? " (You)" : ""}</p>
+                <p className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">{participant.isSpeaking ? "Speaking" : "Connected"}</p>
+              </div>
+            );
+          })}
+        </div>
+        <p className="mt-6 text-xs text-slate-500 dark:text-slate-400">Voice call in progress</p>
+      </div>
+    </div>
+  );
+};
+
+const CallControls = ({ isAudioOnly, onLeave, onEnd, canEnd, onDeviceError }) => {
   return (
     <div className="shrink-0 border-t border-slate-100 bg-white/95 px-3 py-3 shadow-[0_-12px_35px_-28px_rgba(15,23,42,0.9)] backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/95">
       <div className="flex max-w-full items-center gap-2">
@@ -328,20 +358,30 @@ const CallControls = ({ isAudioOnly, onEnd, onDeviceError }) => {
         <button
           type="button"
           data-no-drag="true"
-          onClick={onEnd}
+          onClick={onLeave}
           className={endCallButtonClass}
-          aria-label="End call"
-          title="End call"
+          aria-label="Leave call"
+          title="Leave call"
         >
           <PhoneOff className="h-4 w-4" />
-          End
+          Leave
         </button>
+        {canEnd && (
+          <button
+            type="button"
+            data-no-drag="true"
+            onClick={onEnd}
+            className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-2xl border border-red-300 bg-white px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 dark:border-red-900 dark:bg-zinc-950 dark:text-red-300"
+          >
+            End for all
+          </button>
+        )}
       </div>
     </div>
   );
 };
 
-const CallRoom = ({ callSession, credentials, onLeave, onEnd, onRetry, onConnectionError, onConnected }) => {
+const CallRoom = ({ callSession, credentials, onLeave, onEnd, onRetry, onConnectionError, onConnected, initialAudio = true, initialVideo = true }) => {
   const callFrameRef = useRef(null);
   const dragStateRef = useRef(null);
   const resizeStateRef = useRef(null);
@@ -352,6 +392,8 @@ const CallRoom = ({ callSession, credentials, onLeave, onEnd, onRetry, onConnect
   const [frame, setFrame] = useState(() => getDefaultFrame(callSession?.call_type));
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
+  const [durationNow, setDurationNow] = useState(() => Date.now());
 
   const updateFrame = useCallback((nextFrame) => {
     setFrame((previous) => {
@@ -364,8 +406,14 @@ const CallRoom = ({ callSession, credentials, onLeave, onEnd, onRetry, onConnect
     setConnectionError("");
     setIsConnected(false);
     setIsExpanded(false);
+    setIsMinimized(false);
     setFrame(getDefaultFrame(callSession?.call_type));
   }, [callSession?.id, callSession?.call_type, credentials?.participant_token, credentials?.server_url]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setDurationNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (typeof document === "undefined") return undefined;
@@ -522,9 +570,19 @@ const CallRoom = ({ callSession, credentials, onLeave, onEnd, onRetry, onConnect
     }
   }, [isBrowserFullscreen, isExpanded]);
 
-  const handleEndCall = useCallback(() => {
-    (onEnd || onLeave)?.();
-  }, [onEnd, onLeave]);
+  const handleCopyLink = useCallback(async () => {
+    if (!callSession?.share_url) return;
+    try {
+      await navigator.clipboard.writeText(callSession.share_url);
+    } catch (_error) {
+      window.prompt("Copy meeting link", callSession.share_url);
+    }
+  }, [callSession?.share_url]);
+
+  const startedAt = callSession?.started_at || callSession?.created_at;
+  const durationSeconds = startedAt ? Math.max(0, Math.floor((durationNow - new Date(startedAt).getTime()) / 1000)) : 0;
+  const durationText = `${String(Math.floor(durationSeconds / 60)).padStart(2, "0")}:${String(durationSeconds % 60).padStart(2, "0")}`;
+  const joinedCount = callSession?.participants?.filter((participant) => participant.status === "joined").length || 0;
 
   if (!callSession || !credentials?.server_url || !credentials?.participant_token) return null;
 
@@ -553,12 +611,32 @@ const CallRoom = ({ callSession, credentials, onLeave, onEnd, onRetry, onConnect
               {isAudioOnly ? "Voice call" : "Video call"}
             </p>
             <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-              {statusText}
+              {statusText} · {joinedCount} joined · {durationText}
             </p>
           </div>
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={handleCopyLink}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-700 transition hover:bg-blue-100 dark:bg-sky-950/60 dark:text-sky-200"
+            title="Copy meeting link"
+            aria-label="Copy meeting link"
+          >
+            <Copy className="h-4 w-4" />
+          </button>
+          {!isFullView && (
+            <button
+              type="button"
+              onClick={() => setIsMinimized((value) => !value)}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600 transition hover:bg-slate-200 dark:bg-zinc-900 dark:text-slate-200"
+              title={isMinimized ? "Restore call" : "Minimize call"}
+              aria-label={isMinimized ? "Restore call" : "Minimize call"}
+            >
+              {isMinimized ? <Maximize2 className="h-4 w-4" /> : <Minus className="h-4 w-4" />}
+            </button>
+          )}
           {!isExpanded && (
             <div className="hidden h-9 w-9 items-center justify-center rounded-xl text-slate-300 md:flex" aria-hidden="true">
               <GripHorizontal className="h-4 w-4" />
@@ -586,10 +664,10 @@ const CallRoom = ({ callSession, credentials, onLeave, onEnd, onRetry, onConnect
           </button>
           <button
             type="button"
-            onClick={handleEndCall}
+            onClick={onLeave}
             className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-red-500 text-white transition hover:bg-red-600"
-            title="End call"
-            aria-label="End call"
+            title="Leave call"
+            aria-label="Leave call"
           >
             <PhoneOff className="h-4 w-4" />
           </button>
@@ -606,9 +684,9 @@ const CallRoom = ({ callSession, credentials, onLeave, onEnd, onRetry, onConnect
         serverUrl={credentials.server_url}
         token={credentials.participant_token}
         connect
-        audio
-        video={!isAudioOnly}
-        className={`flex min-h-0 flex-1 flex-col ${isAudioOnly ? "bg-white dark:bg-zinc-950" : "bg-slate-900"}`}
+        audio={initialAudio}
+        video={!isAudioOnly && initialVideo}
+        className={`${isMinimized ? "invisible" : "flex"} min-h-0 flex-1 flex-col ${isAudioOnly ? "bg-white dark:bg-zinc-950" : "bg-slate-900"}`}
         onConnected={() => {
           setIsConnected(true);
           setConnectionError("");
@@ -626,21 +704,15 @@ const CallRoom = ({ callSession, credentials, onLeave, onEnd, onRetry, onConnect
       >
         <RoomAudioRenderer />
         {isAudioOnly ? (
-          <div className="flex min-h-0 flex-1 items-center justify-center px-5 text-center">
-            <div>
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-700 dark:bg-sky-950/60 dark:text-sky-200">
-                <Volume2 className="h-7 w-7" />
-              </div>
-              <p className="mt-4 text-sm font-semibold">Voice call in progress</p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Use the call controls to mute or leave.</p>
-            </div>
-          </div>
+          <CallAudioStage />
         ) : (
           <CallVideoStage />
         )}
         <CallControls
           isAudioOnly={isAudioOnly}
-          onEnd={handleEndCall}
+          onLeave={onLeave}
+          onEnd={onEnd}
+          canEnd={Boolean(callSession.can_end)}
           onDeviceError={(message) => {
             setConnectionError(message);
             onConnectionError?.(message);
@@ -655,7 +727,7 @@ const CallRoom = ({ callSession, credentials, onLeave, onEnd, onRetry, onConnect
       ref={callFrameRef}
       className={isFullView ? "fixed inset-0 z-[60] bg-white dark:bg-zinc-950" : "fixed z-[60]"}
       style={isFullView ? undefined : {
-        height: frame.height,
+        height: isMinimized ? 76 : frame.height,
         left: 0,
         top: 0,
         transform: `translate3d(${frame.x}px, ${frame.y}px, 0)`,
@@ -663,7 +735,7 @@ const CallRoom = ({ callSession, credentials, onLeave, onEnd, onRetry, onConnect
       }}
     >
       {content}
-      {!isFullView && (
+      {!isFullView && !isMinimized && (
         <button
           type="button"
           data-no-drag="true"

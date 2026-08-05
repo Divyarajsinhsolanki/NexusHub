@@ -4,11 +4,14 @@ import { afterEach, describe, expect, test } from '@jest/globals';
 import type { CollectionResult, Message, Post } from '../api/types';
 import {
   appendIncomingMessage,
+  applyConversationReceipt,
   applyPostToFeed,
   createMobileQueryClient,
   MOBILE_CACHE_MAX_AGE,
+  MOBILE_CACHE_PAGE_LIMIT,
   mobileQueryKeys,
   shouldPersistMobileQuery,
+  trimInfinitePages,
   updatePostInFeed,
 } from './mobileCache';
 
@@ -53,6 +56,34 @@ describe('mobile cache data helpers', () => {
 
     const cached = queryClient.getQueryData<InfiniteData<CollectionResult<Message>>>(mobileQueryKeys.messages(5));
     expect(cached?.pages[0].data.map((item) => item.id)).toEqual([1, 2]);
+  });
+
+  test('keeps all active history pages and trims only when a chat becomes inactive', () => {
+    const queryClient = testQueryClient();
+    const pages = Array.from({ length: 5 }, (_, index) => ({ data: [message(index + 1, `Page ${index + 1}`)] }));
+    const history: InfiniteData<CollectionResult<Message>> = { pageParams: [undefined, 1, 2, 3, 4], pages };
+    queryClient.setQueryData(mobileQueryKeys.messages(5), history);
+
+    appendIncomingMessage(queryClient, 5, message(6, 'Live reply'));
+    const active = queryClient.getQueryData<InfiniteData<CollectionResult<Message>>>(mobileQueryKeys.messages(5));
+    expect(active?.pages).toHaveLength(5);
+
+    const inactive = trimInfinitePages(active, MOBILE_CACHE_PAGE_LIMIT);
+    expect(inactive?.pages).toHaveLength(3);
+    expect(inactive?.pages[0].data.map((item) => item.id)).toEqual([1, 6]);
+  });
+
+  test('does not move a cached participant receipt backward when events arrive out of order', () => {
+    const queryClient = testQueryClient();
+    queryClient.setQueryData(mobileQueryKeys.conversation(5), {
+      id: 5,
+      participants: [{ id: 2, name: 'Taylor', last_delivered_message_id: 50, last_read_message_id: 45 }],
+    });
+
+    applyConversationReceipt(queryClient, 5, { user_id: 2, delivered_message_id: 40, read_message_id: 30 });
+
+    const cached = queryClient.getQueryData<{ participants: Array<{ last_delivered_message_id: number; last_read_message_id: number }> }>(mobileQueryKeys.conversation(5));
+    expect(cached?.participants[0]).toMatchObject({ last_delivered_message_id: 50, last_read_message_id: 45 });
   });
 
   test('updates post feed rows in place', () => {

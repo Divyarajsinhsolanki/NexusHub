@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Controller, useForm } from 'react-hook-form';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StyleSheet, Text, TextInput } from 'react-native';
 import { z } from 'zod';
 
@@ -23,6 +23,7 @@ type Fields = z.infer<typeof schema>;
 export default function SignupScreen() {
   const theme = useAppTheme();
   const router = useRouter();
+  const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
   const { signUp } = useAuth();
   const { control, handleSubmit, setError, formState: { errors, isSubmitting, isSubmitSuccessful } } = useForm<Fields>({
     resolver: zodResolver(schema),
@@ -34,7 +35,7 @@ export default function SignupScreen() {
 
   return (
     <AuthScaffold title="Create your workspace" subtitle="Start with a private workspace. You can add teams, projects, and members after confirming your email."
-      footer={<Text style={{ color: theme.textMuted }}>Already registered? <Text accessibilityRole="link" onPress={() => router.back()} style={{ color: theme.primary, fontWeight: '700' }}>Sign in</Text></Text>}>
+      footer={<Text style={{ color: theme.textMuted }}>Already registered? <Text accessibilityRole="link" onPress={() => router.replace(returnTo ? `/login?returnTo=${encodeURIComponent(returnTo)}` as never : '/login')} style={{ color: theme.primary, fontWeight: '700' }}>Sign in</Text></Text>}>
       {isSubmitSuccessful ? (
         <Text accessibilityRole="alert" style={[styles.success, { backgroundColor: theme.surfaceMuted, color: theme.success }]}>Account created. Check your email to confirm it, then return to sign in.</Text>
       ) : (

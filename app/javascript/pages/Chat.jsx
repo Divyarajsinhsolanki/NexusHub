@@ -7,6 +7,7 @@ import {
   FiBellOff,
   FiCheck,
   FiClock,
+  FiCopy,
   FiDownload,
   FiEdit,
   FiFileText,
@@ -53,6 +54,7 @@ import {
   sendMessage,
   startDirectConversation,
   unmuteConversation,
+  updateConversationReceipt,
   updatePresence
 } from "../components/api";
 import { AuthContext } from "../context/AuthContext";
@@ -68,6 +70,7 @@ import {
   tokenizeChatMessage
 } from "../utils/chatMentions";
 import { isLiveCall, mergeCallIntoConversationGroups } from "../utils/chatCalls";
+import { getOutgoingReceiptStatus } from "../utils/chatReceipts";
 
 const DEFAULT_REACTION_EMOJIS = ["👍", "❤️", "😂", "🎉", "🙌"];
 const EXTRA_REACTION_EMOJIS = ["🔥", "👏", "🙏", "😊", "😍", "😮", "😢", "😡", "✅", "💯", "🚀", "👀", "🤔", "😎", "🥳", "💪", "✨", "😅", "🤝", "🏆"];
@@ -84,6 +87,7 @@ const NEW_CHAT_MODES = [
 ];
 const CALL_MEDIA_CONFIGURATION_MESSAGE = "Call media server is not configured. Set LIVEKIT_URL, LIVEKIT_API_KEY, and LIVEKIT_API_SECRET, then restart the app.";
 const ONLINE_WINDOW_MS = 2 * 60 * 1000;
+const INACTIVE_MESSAGE_CACHE_LIMIT = 150;
 const MUTE_OPTIONS = [
   { id: "1h", label: "Mute 1 hour" },
   { id: "8h", label: "Mute 8 hours" },
@@ -91,7 +95,13 @@ const MUTE_OPTIONS = [
   { id: "forever", label: "Mute forever" }
 ];
 const CONVERSATIONS_PAGE_SIZE = 30;
+const MESSAGE_BOTTOM_THRESHOLD = 96;
+const MESSAGE_TOP_LOAD_THRESHOLD = 120;
 const escapeRegExp = (value = "") => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const isMessageListNearBottom = (container) => (
+  !container || container.scrollHeight - container.scrollTop - container.clientHeight <= MESSAGE_BOTTOM_THRESHOLD
+);
 
 const splitConversationList = (items = []) => {
   const direct = [];
@@ -398,7 +408,7 @@ const RichMessageText = ({ text = "", isMe, searchQuery, mentionLookups }) => {
     : "border-slate-200/90 bg-slate-100/90 text-slate-800 hover:bg-slate-200/80 dark:border-zinc-700 dark:bg-zinc-800/90 dark:text-slate-100 dark:hover:bg-zinc-700/80";
 
   return (
-    <div className="whitespace-pre-wrap break-words text-sm leading-6">
+    <span className="whitespace-pre-wrap break-words text-sm leading-6">
       {segments.map((segment, index) => {
         if (segment.kind === "text") {
           return <HighlightText key={`${segment.kind}-${index}`} text={segment.text} query={searchQuery} />;
@@ -446,7 +456,7 @@ const RichMessageText = ({ text = "", isMe, searchQuery, mentionLookups }) => {
           </Link>
         );
       })}
-    </div>
+    </span>
   );
 };
 
@@ -770,11 +780,14 @@ const MessageBubble = ({ message, isMe, showAvatar, onToggleReaction, participan
   const reactionEntries = visibleReactionEntries(reactions);
   const pickerEmojis = isReactionPickerExpanded ? REACTION_EMOJIS : DEFAULT_REACTION_EMOJIS;
   const isDirectConversation = conversationType === "direct";
-  const seenBy = (participants || []).filter((participant) => (
-    Number(participant.id) !== Number(message.user_id) &&
-    participant.last_read_at &&
-    new Date(participant.last_read_at) >= new Date(message.created_at)
-  ));
+  const { recipients: receiptRecipients, deliveredBy, readBy, allDelivered, allRead } = getOutgoingReceiptStatus(message, participants);
+  const receiptTitle = allRead
+    ? `Read by ${readBy.map((participant) => participant.name).join(", ")}`
+    : allDelivered
+      ? `Delivered to ${deliveredBy.map((participant) => participant.name).join(", ")}`
+      : receiptRecipients.length > 1
+        ? `Delivered to ${deliveredBy.length} of ${receiptRecipients.length} · Read by ${readBy.length}`
+        : "Sent";
   const handleCustomReactionSubmit = (event) => {
     event.preventDefault();
     const emoji = customReactionEmoji.trim();
@@ -830,6 +843,20 @@ const MessageBubble = ({ message, isMe, showAvatar, onToggleReaction, participan
                 ))}
               </div>
             )}
+
+            <span className={`ml-2 inline-flex translate-y-0.5 items-center gap-1 whitespace-nowrap text-[10px] ${isMe ? "text-blue-600/75" : "text-slate-400 dark:text-slate-500"}`}>
+              <span>{timeString}</span>
+              {isMe && (
+                <span
+                  className={`inline-flex items-center ${allRead ? "text-emerald-600" : allDelivered ? "text-slate-500" : "text-blue-600/75"}`}
+                  title={receiptTitle}
+                  aria-label={receiptTitle}
+                >
+                  <FiCheck className="h-3.5 w-3.5" />
+                  {allDelivered && <FiCheck className="-ml-1.5 h-3.5 w-3.5" />}
+                </span>
+              )}
+            </span>
           </div>
 
           {reactionEntries.length > 0 && (
@@ -857,7 +884,17 @@ const MessageBubble = ({ message, isMe, showAvatar, onToggleReaction, participan
             </div>
           )}
 
-          <div className={`absolute top-0 z-20 -translate-y-[calc(100%+0.25rem)] transition-all duration-150 group-hover/bubble:pointer-events-auto group-hover/bubble:opacity-100 group-focus-within/bubble:pointer-events-auto group-focus-within/bubble:opacity-100 ${isReactionPickerOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"} ${isMe ? "right-0" : "left-0"}`}>
+          <button
+            type="button"
+            onClick={() => setIsReactionPickerOpen((previous) => !previous)}
+            className={`absolute top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 opacity-0 shadow-sm transition hover:text-blue-600 group-hover/bubble:opacity-100 group-focus-within/bubble:opacity-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-400 ${isReactionPickerOpen ? "opacity-100" : ""} ${isMe ? "-left-9" : "-right-9"}`}
+            aria-label="Add reaction"
+            aria-expanded={isReactionPickerOpen}
+          >
+            <FiSmile className="h-3.5 w-3.5" />
+          </button>
+
+          <div className={`absolute top-0 z-20 -translate-y-[calc(100%+0.25rem)] transition-all duration-150 ${isReactionPickerOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"} ${isMe ? "right-0" : "left-0"}`}>
             <div className="flex max-w-[min(19rem,calc(100vw-3rem))] flex-wrap items-center gap-1 rounded-2xl border border-white/70 bg-white/95 p-1 shadow-xl backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/95">
               {pickerEmojis.map((emoji) => {
                 const isActive = reactedEmojis.includes(emoji);
@@ -904,32 +941,6 @@ const MessageBubble = ({ message, isMe, showAvatar, onToggleReaction, participan
             </div>
           </div>
 
-          <div className={`mt-1 flex max-w-full items-center gap-2 px-1 text-[11px] text-slate-400 dark:text-slate-500 ${isMe ? "justify-end text-right" : "justify-start"}`}>
-            <span className="shrink-0 whitespace-nowrap">{timeString}</span>
-            {isMe && (
-              <span
-                className={`inline-flex min-w-0 shrink-0 items-center gap-0 ${seenBy.length > 0 ? "text-emerald-500" : ""}`}
-                title={seenBy.length > 0 ? `Seen by ${seenBy.map((participant) => participant.name).join(", ")}` : "Sent"}
-              >
-                <FiCheck className="h-3.5 w-3.5" />
-                {seenBy.length > 0 && <FiCheck className="-ml-1.5 h-3.5 w-3.5" />}
-                {seenBy.length > 0 && !isDirectConversation && (
-                  <span className="ml-1 min-w-0 truncate font-medium">
-                    {seenBy.length === 1 ? `Seen by ${seenBy[0].name}` : `Seen by ${seenBy.length}`}
-                  </span>
-                )}
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={() => setIsReactionPickerOpen((previous) => !previous)}
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-blue-600 dark:text-slate-500 dark:hover:bg-zinc-800 dark:hover:text-sky-200"
-              aria-label="Add reaction"
-              aria-expanded={isReactionPickerOpen}
-            >
-              <FiSmile className="h-3.5 w-3.5" />
-            </button>
-          </div>
         </div>
       </div>
     </motion.div>
@@ -1017,6 +1028,10 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   const ringtoneTimerRef = useRef(null);
   const ringtoneAudioContextRef = useRef(null);
   const acknowledgedCallIdsRef = useRef(new Set());
+  const isAtLatestMessagesRef = useRef(true);
+  const receiptAcksRef = useRef({ delivered: new Map(), read: new Map() });
+  const previousConversationIdRef = useRef(null);
+  const olderMessagesRequestRef = useRef(false);
 
   const [conversations, setConversations] = useState({ direct: [], group: [] });
   const [conversationListMeta, setConversationListMeta] = useState(null);
@@ -1026,6 +1041,8 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   const [isConversationLoading, setIsConversationLoading] = useState(false);
   const [messagePageMeta, setMessagePageMeta] = useState(null);
   const [isLoadingOlderMessages, setIsLoadingOlderMessages] = useState(false);
+  const [olderMessagesError, setOlderMessagesError] = useState("");
+  const [hasUnreadBelow, setHasUnreadBelow] = useState(false);
   const [users, setUsers] = useState([]);
   const [tasks, setTasks] = useState([]);
 
@@ -1176,8 +1193,71 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       if (!container) return;
 
       container.scrollTop = container.scrollHeight;
+      isAtLatestMessagesRef.current = true;
+      setHasUnreadBelow(false);
     }, delay);
   }, []);
+
+  const applyReceiptUpdate = useCallback((payload) => {
+    if (!payload?.conversation_id || !payload?.user_id) return;
+
+    const updateConversation = (conversation) => {
+      if (!conversation || Number(conversation.id) !== Number(payload.conversation_id)) return conversation;
+      return {
+        ...conversation,
+        participants: (conversation.participants || []).map((participant) => (
+          Number(participant.id) === Number(payload.user_id)
+            ? (() => {
+                const currentDeliveredId = Number(participant.last_delivered_message_id || 0);
+                const currentReadId = Number(participant.last_read_message_id || 0);
+                const incomingDeliveredId = Number(payload.delivered_message_id || 0);
+                const incomingReadId = Number(payload.read_message_id || 0);
+                return {
+                  ...participant,
+                  last_delivered_message_id: Math.max(currentDeliveredId, incomingDeliveredId) || null,
+                  last_read_message_id: Math.max(currentReadId, incomingReadId) || null,
+                  last_delivered_at: incomingDeliveredId >= currentDeliveredId && payload.delivered_at ? payload.delivered_at : participant.last_delivered_at,
+                  last_read_at: incomingReadId >= currentReadId && payload.read_at ? payload.read_at : participant.last_read_at
+                };
+              })()
+            : participant
+        ))
+      };
+    };
+
+    setConversations((previous) => ({
+      direct: (previous.direct || []).map(updateConversation),
+      group: (previous.group || []).map(updateConversation)
+    }));
+    setActiveConversation((previous) => {
+      const nextConversation = updateConversation(previous);
+      if (nextConversation?.id) {
+        conversationCacheRef.current = {
+          ...conversationCacheRef.current,
+          [String(nextConversation.id)]: nextConversation
+        };
+      }
+      return nextConversation;
+    });
+  }, []);
+
+  const acknowledgeReceipt = useCallback(async (targetConversationId, messageId, state) => {
+    if (!targetConversationId || !messageId || user?.demo_account) return;
+    const acknowledgements = receiptAcksRef.current[state];
+    const previousMessageId = Number(acknowledgements.get(String(targetConversationId)) || 0);
+    if (previousMessageId >= Number(messageId)) return;
+
+    acknowledgements.set(String(targetConversationId), Number(messageId));
+    try {
+      const { data } = await updateConversationReceipt(targetConversationId, messageId, state);
+      if (data?.receipt) applyReceiptUpdate(data.receipt);
+    } catch (error) {
+      if (Number(acknowledgements.get(String(targetConversationId))) === Number(messageId)) {
+        acknowledgements.set(String(targetConversationId), previousMessageId);
+      }
+      console.error(`Failed to mark message ${state}`, error);
+    }
+  }, [applyReceiptUpdate, user?.demo_account]);
 
   const mergeMessagesIntoActiveConversation = useCallback((targetConversationId, incomingMessages = []) => {
     const nextIncomingMessages = Array.isArray(incomingMessages) ? incomingMessages.filter(Boolean) : [];
@@ -1214,7 +1294,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       const messages = Array.isArray(data?.data) ? data.data : [];
       mergeMessagesIntoActiveConversation(targetConversationId, messages);
       setMessagePageMeta((previous) => data?.meta || previous);
-      scrollMessagesToBottom(40);
+      if (isAtLatestMessagesRef.current) scrollMessagesToBottom(40);
     } catch (error) {
       console.error("Failed to sync active conversation messages", error);
     }
@@ -1264,6 +1344,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     const cachedConversation = conversationCacheRef.current[String(id)];
     if (cachedConversation) {
       setActiveConversation(cachedConversation);
+      setMessagePageMeta(cachedConversation.messages_meta || null);
     } else {
       setActiveConversation(null);
     }
@@ -1300,18 +1381,21 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   }, [removeConversationLocally]);
 
   const loadOlderMessages = useCallback(async () => {
-    if (!conversationId || !messagePageMeta?.has_more || isLoadingOlderMessages) return;
+    if (!conversationId || !messagePageMeta?.has_more || olderMessagesRequestRef.current) return;
 
     const container = messageListRef.current;
     const previousScrollHeight = container?.scrollHeight || 0;
 
     try {
+      olderMessagesRequestRef.current = true;
       setIsLoadingOlderMessages(true);
+      setOlderMessagesError("");
       const { data } = await fetchConversationMessages(conversationId, {
         before_id: messagePageMeta.next_before_id,
         limit: messagePageMeta.per_page || 50
       });
       const olderMessages = Array.isArray(data?.data) ? data.data : [];
+      if (Number(activeConversationRef.current?.id) !== Number(conversationId)) return;
       skipNextMessageAutoScrollRef.current = true;
 
       setActiveConversation((previous) => {
@@ -1322,7 +1406,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
           ...olderMessages.filter((message) => !existingIds.has(Number(message.id))),
           ...(previous.messages || [])
         ];
-        const nextConversation = { ...previous, messages: nextMessages };
+        const nextConversation = { ...previous, messages: nextMessages, messages_meta: data?.meta || null };
         conversationCacheRef.current = {
           ...conversationCacheRef.current,
           [String(conversationId)]: nextConversation
@@ -1332,15 +1416,36 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       setMessagePageMeta(data?.meta || null);
 
       window.requestAnimationFrame(() => {
-        if (!container) return;
-        container.scrollTop = container.scrollHeight - previousScrollHeight + container.scrollTop;
+        window.requestAnimationFrame(() => {
+          if (!container) return;
+          container.scrollTop = container.scrollHeight - previousScrollHeight + container.scrollTop;
+        });
       });
     } catch (error) {
       console.error("Failed to load older messages", error);
+      setOlderMessagesError("Could not load older messages.");
     } finally {
+      olderMessagesRequestRef.current = false;
       setIsLoadingOlderMessages(false);
     }
-  }, [conversationId, isLoadingOlderMessages, messagePageMeta]);
+  }, [conversationId, messagePageMeta]);
+
+  const handleMessageListScroll = useCallback(() => {
+    const container = messageListRef.current;
+    if (!container) return;
+
+    const atLatest = isMessageListNearBottom(container);
+    isAtLatestMessagesRef.current = atLatest;
+    if (atLatest) {
+      setHasUnreadBelow(false);
+      const latestMessage = activeConversationRef.current?.messages?.at?.(-1) || activeConversationRef.current?.messages?.slice(-1)[0];
+      if (latestMessage) acknowledgeReceipt(conversationId, latestMessage.id, "read");
+    }
+
+    if (container.scrollTop <= MESSAGE_TOP_LOAD_THRESHOLD && messagePageMeta?.has_more && !isLoadingOlderMessages) {
+      loadOlderMessages();
+    }
+  }, [acknowledgeReceipt, conversationId, isLoadingOlderMessages, loadOlderMessages, messagePageMeta?.has_more]);
 
   const resetNewChatModal = useCallback((mode = "direct") => {
     setNewChatMode(mode);
@@ -1363,14 +1468,6 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       is_typing: isTyping
     });
   }, [conversationId]);
-
-  const markConversationAsRead = useCallback((targetConversationId) => {
-    if (!targetConversationId) return;
-
-    sendToConversation(targetConversationId, "mark_as_read", {
-      conversation_id: targetConversationId
-    });
-  }, []);
 
   useEffect(() => {
     fetchAllData();
@@ -1397,7 +1494,13 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   useEffect(() => {
     const resyncActiveConversation = () => {
       ensureCableConnection();
-      if (conversationId) refreshConversationSummary(conversationId);
+      if (conversationId) {
+        refreshConversationSummary(conversationId);
+        const latestMessage = activeConversationRef.current?.messages?.slice(-1)[0];
+        if (latestMessage && isAtLatestMessagesRef.current) {
+          acknowledgeReceipt(conversationId, latestMessage.id, "read");
+        }
+      }
     };
 
     const handleVisibilityChange = () => {
@@ -1413,7 +1516,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       window.removeEventListener("online", resyncActiveConversation);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [conversationId, refreshConversationSummary]);
+  }, [acknowledgeReceipt, conversationId, refreshConversationSummary]);
 
   useEffect(() => {
     const publishPresence = () => {
@@ -1526,7 +1629,32 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   }, [incomingCall]);
 
   useEffect(() => {
+    const previousConversationId = previousConversationIdRef.current;
+    if (previousConversationId && Number(previousConversationId) !== Number(conversationId)) {
+      const previousCache = conversationCacheRef.current[String(previousConversationId)];
+      if ((previousCache?.messages || []).length > INACTIVE_MESSAGE_CACHE_LIMIT) {
+        const messages = previousCache.messages.slice(-INACTIVE_MESSAGE_CACHE_LIMIT);
+        conversationCacheRef.current = {
+          ...conversationCacheRef.current,
+          [String(previousConversationId)]: {
+            ...previousCache,
+            messages,
+            messages_meta: {
+              ...(previousCache.messages_meta || {}),
+              has_more: true,
+              next_before_id: messages[0]?.id,
+              per_page: previousCache.messages_meta?.per_page || 50
+            }
+          }
+        };
+      }
+    }
+    previousConversationIdRef.current = conversationId || null;
+
     if (conversationId) {
+      isAtLatestMessagesRef.current = true;
+      setHasUnreadBelow(false);
+      setOlderMessagesError("");
       loadConversation(conversationId);
       setThreadSearchQuery("");
       setIsThreadSearchOpen(false);
@@ -1546,6 +1674,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       return;
     }
 
+    if (!isAtLatestMessagesRef.current) return;
     const container = messageListRef.current;
     if (!container) return;
 
@@ -1555,6 +1684,15 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
 
     return () => window.clearTimeout(timeoutId);
   }, [activeConversation?.messages?.length, conversationId, deferredThreadSearchQuery]);
+
+  useEffect(() => {
+    const latestMessage = activeConversation?.messages?.slice(-1)[0];
+    if (!conversationId || !latestMessage) return;
+
+    acknowledgeReceipt(conversationId, latestMessage.id, "delivered");
+    const canMarkRead = document.visibilityState === "visible" && document.hasFocus() && isAtLatestMessagesRef.current;
+    if (canMarkRead) acknowledgeReceipt(conversationId, latestMessage.id, "read");
+  }, [acknowledgeReceipt, activeConversation?.messages, conversationId]);
 
   useEffect(() => {
     const textarea = composerTextareaRef.current;
@@ -1623,23 +1761,28 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   const applyCallSessionUpdate = useCallback((callSession) => {
     if (!callSession) return;
 
-    mergeCallIntoConversationState(callSession);
+    const personalizedCallSession = {
+      ...callSession,
+      can_end: Number(callSession.initiator_id) === Number(user?.id)
+    };
 
-    if (isLiveCall(callSession)) {
-      setActiveCall(callSession);
-      if (!shouldSurfaceIncomingCall(callSession, user?.id)) {
+    mergeCallIntoConversationState(personalizedCallSession);
+
+    if (isLiveCall(personalizedCallSession)) {
+      setActiveCall(personalizedCallSession);
+      if (!shouldSurfaceIncomingCall(personalizedCallSession, user?.id)) {
         setIncomingCall((previous) => (
-          Number(previous?.id) === Number(callSession.id) ? null : previous
+          Number(previous?.id) === Number(personalizedCallSession.id) ? null : previous
         ));
       }
       return;
     }
 
     setActiveCall((previous) => (
-      Number(previous?.id) === Number(callSession.id) ? null : previous
+      Number(previous?.id) === Number(personalizedCallSession.id) ? null : previous
     ));
     setIncomingCall((previous) => (
-      Number(previous?.id) === Number(callSession.id) ? null : previous
+      Number(previous?.id) === Number(personalizedCallSession.id) ? null : previous
     ));
     setCallCredentials(null);
   }, [mergeCallIntoConversationState, user?.id]);
@@ -1744,7 +1887,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   }, [activeCall]);
 
   const handleEndActiveCall = useCallback(async () => {
-    if (!activeCall) return;
+    if (!activeCall?.can_end) return;
 
     try {
       const { data } = await endCallSession(activeCall.id, "ended");
@@ -1754,6 +1897,15 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       console.error("Failed to end call", error);
     }
   }, [activeCall, applyCallSessionUpdate]);
+
+  const handleCopyCallLink = useCallback(async (callSession = activeCall) => {
+    if (!callSession?.share_url) return;
+    try {
+      await navigator.clipboard.writeText(callSession.share_url);
+    } catch (error) {
+      window.prompt("Copy meeting link", callSession.share_url);
+    }
+  }, [activeCall]);
 
   const handleMuteConversation = useCallback(async (conversation, duration = "forever") => {
     if (!conversation) return;
@@ -1785,12 +1937,22 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
 
   useEffect(() => {
     const userSub = subscribeToUserChat((payload) => {
+      if (payload?.type === "message_created" && payload.message) {
+        if (Number(payload.message.user_id) !== Number(user?.id)) {
+          acknowledgeReceipt(payload.conversation_id, payload.message.id, "delivered");
+        }
+      }
+
       if (payload?.type === "conversation_refresh") {
         refreshConversationSummary(payload.conversation_id);
       }
 
       if (payload?.type === "message_reactions_updated" && Number(payload.conversation_id) === Number(conversationId)) {
         applyReactionUpdate(payload.message_id, payload);
+      }
+
+      if (payload?.type === "message_receipt_updated") {
+        applyReceiptUpdate(payload);
       }
 
       if (payload?.type === "conversation_hidden" || payload?.type === "conversation_deleted") {
@@ -1810,17 +1972,25 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     });
 
     return () => userSub.unsubscribe();
-  }, [applyCallSessionUpdate, applyReactionUpdate, conversationId, handleIncomingCall, refreshConversationSummary, removeConversationLocally]);
+  }, [acknowledgeReceipt, applyCallSessionUpdate, applyReactionUpdate, applyReceiptUpdate, conversationId, handleIncomingCall, refreshConversationSummary, removeConversationLocally, user?.id]);
 
   useEffect(() => {
     if (!conversationId) return undefined;
 
     const convSub = subscribeToConversationChat(conversationId, (payload) => {
       if (payload?.type === "message_created" && Number(payload.conversation_id) === Number(conversationId)) {
+        const shouldFollowMessage = isAtLatestMessagesRef.current;
         mergeMessagesIntoActiveConversation(conversationId, [payload.message]);
-        scrollMessagesToBottom(40);
+        acknowledgeReceipt(conversationId, payload.message.id, "delivered");
+        if (shouldFollowMessage) {
+          scrollMessagesToBottom(40);
+          if (document.visibilityState === "visible" && document.hasFocus()) {
+            acknowledgeReceipt(conversationId, payload.message.id, "read");
+          }
+        } else {
+          setHasUnreadBelow(true);
+        }
         refreshConversationSummary(conversationId);
-        markConversationAsRead(conversationId);
       }
 
       if (payload?.type === "conversation_deleted" && Number(payload.conversation_id) === Number(conversationId)) {
@@ -1880,6 +2050,10 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
         });
       }
 
+      if (payload?.type === "message_receipt_updated" && Number(payload.conversation_id) === Number(conversationId)) {
+        applyReceiptUpdate(payload);
+      }
+
       if (["call_started", "call_participant_joined", "call_participant_left", "call_missed", "call_ended"].includes(payload?.type) && Number(payload.conversation_id) === Number(conversationId)) {
         applyCallSessionUpdate(payload.call_session);
         if (["call_started", "call_participant_joined"].includes(payload?.type)) {
@@ -1889,7 +2063,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     });
 
     return () => convSub.unsubscribe();
-  }, [applyCallSessionUpdate, applyReactionUpdate, conversationId, handleIncomingCall, markConversationAsRead, mergeMessagesIntoActiveConversation, refreshConversationSummary, removeConversationLocally, scrollMessagesToBottom, user?.id]);
+  }, [acknowledgeReceipt, applyCallSessionUpdate, applyReactionUpdate, applyReceiptUpdate, conversationId, handleIncomingCall, mergeMessagesIntoActiveConversation, refreshConversationSummary, removeConversationLocally, scrollMessagesToBottom, user?.id]);
 
   useEffect(() => () => {
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -2270,6 +2444,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     event.preventDefault();
     if ((!messageBody.trim() && attachments.length === 0) || !conversationId) return;
 
+    const shouldFollowMessage = isAtLatestMessagesRef.current;
     setIsSending(true);
 
     try {
@@ -2300,7 +2475,8 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       setComposerSelection({ start: 0, end: 0 });
       setActiveMentionIndex(0);
       refreshConversationSummary(conversationId);
-      scrollMessagesToBottom(40);
+      if (shouldFollowMessage) scrollMessagesToBottom(40);
+      else setHasUnreadBelow(true);
     } catch (error) {
       console.error("Failed to send message", error);
     } finally {
@@ -2841,6 +3017,15 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                         </div>
 
                         <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleCopyCallLink(visibleCall)}
+                            className="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-white px-3 py-2 text-xs font-semibold text-sky-700 transition hover:bg-sky-50 dark:border-sky-900/60 dark:bg-zinc-950 dark:text-sky-200"
+                            title="Copy shareable meeting link"
+                          >
+                            <FiCopy className="h-3.5 w-3.5" />
+                            Share
+                          </button>
                           {!callCredentials && (
                             <button
                               type="button"
@@ -2851,14 +3036,26 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                               {isCallConnecting ? "Joining..." : "Join"}
                             </button>
                           )}
-                          <button
-                            type="button"
-                            onClick={handleEndActiveCall}
-                            className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 dark:border-red-900/60 dark:bg-zinc-950 dark:text-red-300 dark:hover:bg-red-950/30"
-                          >
-                            <FiPhoneOff className="h-3.5 w-3.5" />
-                            End
-                          </button>
+                          {callCredentials && (
+                            <button
+                              type="button"
+                              onClick={handleLeaveCall}
+                              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-slate-200"
+                            >
+                              <FiPhoneOff className="h-3.5 w-3.5" />
+                              Leave
+                            </button>
+                          )}
+                          {visibleCall.can_end && (
+                            <button
+                              type="button"
+                              onClick={handleEndActiveCall}
+                              className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 dark:border-red-900/60 dark:bg-zinc-950 dark:text-red-300 dark:hover:bg-red-950/30"
+                            >
+                              <FiPhoneOff className="h-3.5 w-3.5" />
+                              End for all
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -2872,6 +3069,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
 
                   <div
                     ref={messageListRef}
+                    onScroll={handleMessageListScroll}
                     className="scrollbar-hide relative flex-1 overflow-y-auto px-4 py-4 md:px-5 md:py-4"
                     style={{
                       backgroundImage: "radial-gradient(circle at top, rgba(96,165,250,0.12), transparent 28%), radial-gradient(circle at bottom right, rgba(56,189,248,0.14), transparent 24%), linear-gradient(180deg, rgba(255,255,255,0.55), rgba(248,250,252,0.78))"
@@ -2886,17 +3084,21 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                         </span>
                       </div>
 
-                      {messagePageMeta?.has_more && !deferredThreadSearchQuery.trim() && (
+                      {(isLoadingOlderMessages || olderMessagesError) && !deferredThreadSearchQuery.trim() && (
                         <div className="flex justify-center">
                           <button
                             type="button"
                             onClick={loadOlderMessages}
-                            disabled={isLoadingOlderMessages}
-                            className="rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-xs font-semibold text-slate-500 shadow-sm transition hover:bg-white disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900/90 dark:text-slate-300"
+                            disabled={isLoadingOlderMessages || !olderMessagesError}
+                            className={`rounded-full border bg-white/90 px-4 py-2 text-xs font-semibold shadow-sm transition disabled:opacity-70 dark:bg-zinc-900/90 ${olderMessagesError ? "border-red-200 text-red-600 dark:border-red-900 dark:text-red-300" : "border-slate-200 text-slate-500 dark:border-zinc-700 dark:text-slate-300"}`}
                           >
-                            {isLoadingOlderMessages ? "Loading..." : "Load older messages"}
+                            {isLoadingOlderMessages ? "Loading older messages…" : `${olderMessagesError} Retry`}
                           </button>
                         </div>
+                      )}
+
+                      {!messagePageMeta?.has_more && activeConversationMessages.length >= 50 && !deferredThreadSearchQuery.trim() && (
+                        <p className="text-center text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Beginning of conversation</p>
                       )}
 
                       {activeConversationMessages.length === 0 ? (
@@ -2986,6 +3188,21 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                       </AnimatePresence>
                     </div>
                   </div>
+
+                  <AnimatePresence>
+                    {hasUnreadBelow && (
+                      <motion.button
+                        type="button"
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 8 }}
+                        onClick={() => scrollMessagesToBottom(0)}
+                        className="absolute bottom-24 left-1/2 z-20 -translate-x-1/2 rounded-full bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-lg hover:bg-blue-700"
+                      >
+                        New messages ↓
+                      </motion.button>
+                    )}
+                  </AnimatePresence>
 
                   <div className="border-t border-white/70 bg-white/76 px-4 py-2 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-950/76 md:px-6">
                     <div className="mx-auto max-w-4xl">

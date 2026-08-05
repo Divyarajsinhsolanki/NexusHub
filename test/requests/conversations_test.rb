@@ -59,6 +59,34 @@ class ConversationsTest < ActionDispatch::IntegrationTest
     assert_nil @conversation.conversation_participants.find_by!(user: @creator).reload.hidden_at
   end
 
+  test "receipt endpoint returns monotonic delivered and read cursors" do
+    second_message = @conversation.messages.create!(workspace: @workspace, user: @participant, body: "Newest")
+    login(@creator)
+
+    patch "/api/conversations/#{@conversation.id}/receipt", params: { receipt: { message_id: second_message.id, state: "read" } }
+
+    assert_response :success
+    payload = JSON.parse(response.body).fetch("receipt")
+    assert_equal second_message.id, payload.fetch("read_message_id")
+    assert_equal second_message.id, payload.fetch("delivered_message_id")
+
+    patch "/api/conversations/#{@conversation.id}/receipt", params: { receipt: { message_id: @message.id, state: "delivered" } }
+
+    assert_response :success
+    payload = JSON.parse(response.body).fetch("receipt")
+    assert_equal second_message.id, payload.fetch("read_message_id")
+    assert_equal second_message.id, payload.fetch("delivered_message_id")
+  end
+
+  test "receipt endpoint requires conversation membership" do
+    outsider = create_test_user(workspace: @workspace, email: "chat-outsider@example.test")
+    login(outsider)
+
+    patch "/api/conversations/#{@conversation.id}/receipt", params: { receipt: { message_id: @message.id, state: "read" } }
+
+    assert_response :not_found
+  end
+
   test "regular participant cannot delete a conversation for everyone" do
     login(@participant)
 

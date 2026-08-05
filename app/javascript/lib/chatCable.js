@@ -1,4 +1,5 @@
 const subscriptions = new Map();
+const confirmedSubscriptions = new Set();
 const statusListeners = new Set();
 const outboundQueue = [];
 const HEARTBEAT_TIMEOUT_MS = 45000;
@@ -44,13 +45,22 @@ const emitStatus = (status) => {
 };
 
 const flushOutboundQueue = () => {
-  while (outboundQueue.length > 0 && socket?.readyState === WebSocket.OPEN) {
-    sendWhenOpen(outboundQueue.shift());
-  }
+  if (!socket || socket.readyState !== WebSocket.OPEN) return;
+
+  const pending = outboundQueue.splice(0, outboundQueue.length);
+  pending.forEach((payload) => {
+    if (payload.command === "message" && !confirmedSubscriptions.has(payload.identifier)) {
+      outboundQueue.push(payload);
+      return;
+    }
+
+    sendWhenOpen(payload);
+  });
 };
 
 const sendOrQueue = (payload) => {
-  if (sendWhenOpen(payload)) return true;
+  const subscriptionConfirmed = payload.command !== "message" || confirmedSubscriptions.has(payload.identifier);
+  if (subscriptionConfirmed && sendWhenOpen(payload)) return true;
 
   outboundQueue.push(payload);
   if (outboundQueue.length > MAX_OUTBOUND_QUEUE_SIZE) outboundQueue.shift();
@@ -59,9 +69,16 @@ const sendOrQueue = (payload) => {
 };
 
 const resubscribeAll = () => {
+  confirmedSubscriptions.clear();
   subscriptions.forEach((_handlers, identifier) => {
     sendWhenOpen({ command: "subscribe", identifier });
   });
+};
+
+const discardQueuedMessages = (identifier) => {
+  for (let index = outboundQueue.length - 1; index >= 0; index -= 1) {
+    if (outboundQueue[index].identifier === identifier) outboundQueue.splice(index, 1);
+  }
 };
 
 const clearReconnectTimer = () => {
@@ -114,7 +131,6 @@ const connect = () => {
     resubscribeAll();
     flushOutboundQueue();
     startHeartbeatMonitor();
-    emitStatus("connected");
   };
 
   socket.onmessage = (event) => {
@@ -127,7 +143,30 @@ const connect = () => {
       return;
     }
 
-    // Ignore framework-level ActionCable messages.
+    if (data.type === "welcome") {
+      emitStatus("connected");
+      return;
+    }
+
+    if (data.type === "confirm_subscription" && data.identifier) {
+      if (!subscriptions.has(data.identifier)) {
+        sendWhenOpen({ command: "unsubscribe", identifier: data.identifier });
+        discardQueuedMessages(data.identifier);
+        return;
+      }
+
+      confirmedSubscriptions.add(data.identifier);
+      flushOutboundQueue();
+      return;
+    }
+
+    if (data.type === "reject_subscription" && data.identifier) {
+      confirmedSubscriptions.delete(data.identifier);
+      discardQueuedMessages(data.identifier);
+      return;
+    }
+
+    // Ignore other framework-level ActionCable messages.
     if (!data.identifier || !data.message) return;
 
     const handlers = subscriptions.get(data.identifier) || [];
@@ -136,6 +175,7 @@ const connect = () => {
 
   socket.onclose = () => {
     socket = null;
+    confirmedSubscriptions.clear();
     stopHeartbeatMonitor();
     emitStatus(intentionallyClosed ? "closed" : "disconnected");
     scheduleReconnect();
@@ -150,6 +190,7 @@ const connect = () => {
 const subscribe = (params, received) => {
   const identifier = JSON.stringify(params);
   const handlers = subscriptions.get(identifier) || [];
+  const firstSubscriber = handlers.length === 0;
 
   if (!handlers.includes(received)) {
     subscriptions.set(identifier, [...handlers, received]);
@@ -157,7 +198,7 @@ const subscribe = (params, received) => {
 
   connect();
 
-  sendWhenOpen({ command: "subscribe", identifier });
+  if (firstSubscriber) sendWhenOpen({ command: "subscribe", identifier });
 
   return {
     unsubscribe: () => {
@@ -166,6 +207,8 @@ const subscribe = (params, received) => {
 
       if (remainingHandlers.length === 0) {
         subscriptions.delete(identifier);
+        confirmedSubscriptions.delete(identifier);
+        discardQueuedMessages(identifier);
         sendWhenOpen({ command: "unsubscribe", identifier });
 
         if (subscriptions.size === 0 && socket) {
@@ -190,6 +233,10 @@ export const subscribeToConversationChat = (conversationId, received) => {
   return subscribe({ channel: "ChatChannel", conversation_id: conversationId }, received);
 };
 
+export const subscribeToCall = (publicId, received) => {
+  return subscribe({ channel: "CallChannel", public_id: publicId }, received);
+};
+
 export const subscribeToCableStatus = (received) => {
   statusListeners.add(received);
   received(currentStatus);
@@ -202,11 +249,7 @@ export const subscribeToCableStatus = (received) => {
 export const ensureCableConnection = () => {
   intentionallyClosed = false;
 
-  if (socket?.readyState === WebSocket.OPEN) {
-    resubscribeAll();
-    flushOutboundQueue();
-    return true;
-  }
+  if (socket?.readyState === WebSocket.OPEN) return true;
 
   connect();
   return false;
@@ -214,7 +257,9 @@ export const ensureCableConnection = () => {
 
 export const sendToConversation = (conversationId, action, data = {}) => {
   const identifier = JSON.stringify({ channel: "ChatChannel", conversation_id: conversationId });
-  sendOrQueue({
+  if (!subscriptions.has(identifier)) return false;
+
+  return sendOrQueue({
     command: "message",
     identifier,
     data: JSON.stringify({ action, conversation_id: conversationId, ...data })

@@ -1,10 +1,11 @@
 import React, { useState, useContext, useEffect } from "react";
 import { AuthContext } from "../context/AuthContext";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { firebaseEnabled } from "../firebaseFlags";
 import { toast } from "react-hot-toast";
 import SpinnerOverlay from "../components/ui/SpinnerOverlay";
 import WorkspaceOrb from "../components/landing/WorkspaceOrb";
+import { safeReturnPath } from "../utils/safeReturnPath";
 
 const Login = ({ switchToSignup }) => {
   const { handleLogin, handleGoogleLogin } = useContext(AuthContext);
@@ -13,6 +14,8 @@ const Login = ({ switchToSignup }) => {
   const [loading, setLoading] = useState(false);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo = safeReturnPath(location.state?.from || searchParams.get("return_to"));
 
   const handleChange = (e) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -24,7 +27,7 @@ const Login = ({ switchToSignup }) => {
     setLoading(true);
 
     try {
-      await handleLogin({ auth: formData });
+      await handleLogin({ auth: formData }, returnTo);
     } catch (err) {
       const msg = "Invalid email or password. Please try again.";
       setError(msg);
@@ -129,7 +132,7 @@ const Login = ({ switchToSignup }) => {
                   onClick={async () => {
                     setLoading(true);
                     try {
-                      await handleGoogleLogin();
+                      await handleGoogleLogin(returnTo);
                     } catch (googleError) {
                       toast.error(googleError.message || "Google login failed.");
                     } finally {

@@ -460,7 +460,7 @@ module Mcp
           conversation_type: conversation.conversation_type,
           participants: conversation.participants.map { |participant| user(participant) },
           unread_count: conversation.messages
-            .where("created_at > ?", membership&.last_read_at || Time.at(0))
+            .where("messages.id > ?", membership&.last_read_message_id || 0)
             .where.not(user_id: current_user.id)
             .count,
           latest_message: latest_message && {

@@ -9,6 +9,7 @@ import type {
   Comment,
   CollectionResult,
   Conversation,
+  ConversationReceipt,
   Department,
   EntityRecord,
   EventReminder,
@@ -398,7 +399,7 @@ export const endpoints = {
     return create<Message>(`/conversations/${conversationId}/messages`, form);
   },
   reactToMessage(conversationId: number, messageId: number, emoji: string) {
-    return create<Message>(`/conversations/${conversationId}/messages/${messageId}/reactions`, { emoji });
+    return create<{ reactions: Record<string, number>; reacted_emojis: string[] }>(`/conversations/${conversationId}/messages/${messageId}/reactions`, { message_reaction: { emoji } });
   },
   async removeMessageReaction(conversationId: number, messageId: number, emoji: string) {
     await api.delete(`/conversations/${conversationId}/messages/${messageId}/reactions`, { data: { emoji } });
@@ -409,11 +410,24 @@ export const endpoints = {
       : await api.delete<ApiEnvelope<Conversation>>(`/conversations/${id}/mute`);
     return unwrapData(response.data);
   },
+  updateConversationReceipt(conversationId: number, messageId: number, state: 'delivered' | 'read') {
+    return update<{ receipt: ConversationReceipt }>(`/conversations/${conversationId}/receipt`, {
+      receipt: { message_id: messageId, state },
+    });
+  },
   startCall(conversationId: number, callType: 'audio' | 'video') {
     return create<{ call_session: CallSession }>(`/conversations/${conversationId}/calls`, { call_type: callType });
   },
   async joinCall(id: number) {
     const response = await api.post<ApiEnvelope<import('./types').LiveKitCredentials>>(`/calls/${id}/join`);
+    return unwrapData(response.data);
+  },
+  async meeting(publicId: string) {
+    const response = await api.get<ApiEnvelope<{ call_session: CallSession }> | { call_session: CallSession }>(`/meet/${encodeURIComponent(publicId)}`);
+    return unwrapData(response.data);
+  },
+  async joinMeeting(publicId: string) {
+    const response = await api.post<ApiEnvelope<import('./types').LiveKitCredentials> | import('./types').LiveKitCredentials>(`/meet/${encodeURIComponent(publicId)}/join`);
     return unwrapData(response.data);
   },
   async callAction(id: number, action: 'ack_ring' | 'decline' | 'leave' | 'end') {

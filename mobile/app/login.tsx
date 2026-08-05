@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Controller, useForm } from 'react-hook-form';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, Eye, EyeOff, PlayCircle } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -29,6 +29,8 @@ const googleAuthConfigured = Boolean(
 export default function LoginScreen() {
   const theme = useAppTheme();
   const router = useRouter();
+  const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
+  const authQuery = returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : '';
   const { signIn, signInWithGoogle, signInDemo } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -78,7 +80,7 @@ export default function LoginScreen() {
       subtitle="Sign in to review your day, move work forward, and stay close to your team."
       footer={
         <View style={styles.footer}><Text style={[styles.footerText, { color: theme.textMuted }]}>New to Nexus Hub?{' '}
-          <Text accessibilityRole="link" onPress={() => router.push('/signup')} style={{ color: theme.primary, fontWeight: '700' }}>Create an account</Text>
+          <Text accessibilityRole="link" onPress={() => router.push(`/signup${authQuery}` as never)} style={{ color: theme.primary, fontWeight: '700' }}>Create an account</Text>
         </Text><Pressable accessibilityRole="link" onPress={() => router.replace('/')} style={styles.portfolioLink}><ArrowLeft color={theme.primary} size={15} /><Text style={[styles.portfolioLabel, { color: theme.primary }]}>Back to portfolio</Text></Pressable></View>
       }>
       <Text style={[styles.label, { color: theme.text }]}>Email</Text>

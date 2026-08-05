@@ -978,6 +978,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/conversations/{id}/receipt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["updateConversationReceipt"];
+        trace?: never;
+    };
     "/conversations/{id}/calls": {
         parameters: {
             query?: never;
@@ -1008,6 +1026,81 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["joinCall"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/calls/{id}/leave": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["leaveCall"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/calls/{id}/end": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Ends the call for everyone. Only the initiator may use this action. */
+        post: operations["endCall"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/meet/{public_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        /** @description Returns call-only metadata without exposing its source conversation. */
+        get: operations["getMeeting"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/meet/{public_id}/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Idempotently joins an authenticated link holder without granting conversation access. */
+        post: operations["joinMeeting"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1442,6 +1535,56 @@ export interface components {
             per_page?: number;
         } & {
             [key: string]: unknown;
+        };
+        ConversationReceipt: {
+            conversation_id: number;
+            user_id: number;
+            delivered_message_id?: number | null;
+            read_message_id?: number | null;
+            /** Format: date-time */
+            delivered_at?: string | null;
+            /** Format: date-time */
+            read_at?: string | null;
+        };
+        CallParticipant: {
+            user_id: number;
+            name: string;
+            status: string;
+            /** Format: date-time */
+            ring_acknowledged_at?: string | null;
+            /** Format: date-time */
+            joined_at?: string | null;
+            /** Format: date-time */
+            left_at?: string | null;
+        };
+        CallSession: {
+            id: number;
+            /** Format: uuid */
+            public_id: string;
+            /** Format: uri */
+            share_url: string;
+            conversation_id: number;
+            /** @enum {string} */
+            call_type: "audio" | "video";
+            status: string;
+            initiator_id: number;
+            initiator_name: string;
+            can_end: boolean;
+            /** Format: date-time */
+            started_at?: string | null;
+            /** Format: date-time */
+            ended_at?: string | null;
+            ended_reason?: string | null;
+            /** Format: date-time */
+            created_at?: string | null;
+            current_participant?: components["schemas"]["CallParticipant"] | null;
+            participants: components["schemas"]["CallParticipant"][];
+        };
+        LiveKitCredentials: {
+            /** Format: uri */
+            server_url: string;
+            participant_token: string;
+            call_session: components["schemas"]["CallSession"];
         };
         User: {
             id: number;
@@ -2803,6 +2946,41 @@ export interface operations {
             201: components["responses"]["GenericSuccess"];
         };
     };
+    updateConversationReceipt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    receipt: {
+                        message_id: number;
+                        /** @enum {string} */
+                        state: "delivered" | "read";
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description Monotonic receipt high-water marks for the current participant */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        receipt: components["schemas"]["ConversationReceipt"];
+                    };
+                };
+            };
+            422: components["responses"]["Error"];
+        };
+    };
     createConversationCall: {
         parameters: {
             query?: never;
@@ -2829,6 +3007,83 @@ export interface operations {
         requestBody?: never;
         responses: {
             200: components["responses"]["GenericSuccess"];
+        };
+    };
+    leaveCall: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    endCall: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            403: components["responses"]["Error"];
+        };
+    };
+    getMeeting: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Meeting details */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        call_session: components["schemas"]["CallSession"];
+                    };
+                };
+            };
+            404: components["responses"]["Error"];
+        };
+    };
+    joinMeeting: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description LiveKit credentials and personalized call metadata */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LiveKitCredentials"];
+                };
+            };
+            410: components["responses"]["Error"];
         };
     };
     listNotifications: {

@@ -12,7 +12,29 @@ module Chat
           conversation_stream(message.workspace_id, message.conversation_id),
           payload
         )
+        message.conversation.participant_ids.each do |participant_id|
+          next if participant_id == message.user_id
+
+          broadcast(user_stream(message.workspace_id, participant_id), payload)
+        end
         broadcast_conversation_refresh(message.conversation)
+      end
+
+      def broadcast_message_receipt_updated(conversation, membership)
+        payload = {
+          type: "message_receipt_updated",
+          conversation_id: conversation.id,
+          user_id: membership.user_id,
+          delivered_message_id: membership.last_delivered_message_id,
+          read_message_id: membership.last_read_message_id,
+          delivered_at: membership.last_delivered_at,
+          read_at: membership.last_read_at
+        }
+
+        broadcast(conversation_stream(conversation.workspace_id, conversation.id), payload)
+        conversation.participant_ids.each do |participant_id|
+          broadcast(user_stream(conversation.workspace_id, participant_id), payload)
+        end
       end
 
       def broadcast_message_reactions_updated(message, last_actor_id: nil, last_actor_emoji: nil, last_actor_action: nil)
@@ -111,6 +133,7 @@ module Chat
           conversation_stream(call_session.workspace_id, call_session.conversation_id),
           payload
         )
+        broadcast(call_stream(call_session.public_id), payload)
 
         call_session.call_participants.pluck(:user_id).each do |participant_id|
           broadcast(user_stream(call_session.workspace_id, participant_id), payload)
@@ -165,6 +188,10 @@ module Chat
 
       def conversation_stream(workspace_id, conversation_id)
         "workspace_#{workspace_id}:chat_conversation_#{conversation_id}"
+      end
+
+      def call_stream(public_id)
+        "chat_call_#{public_id}"
       end
 
       private

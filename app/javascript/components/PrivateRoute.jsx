@@ -10,7 +10,7 @@ const PrivateRoute = ({ children, ownerOnly = false, siteAdminOnly = false, allo
   const mode = location.state?.mode || "login";
 
   if (initializing) return <PageLoader title="Authenticating" message="Checking your access…" />;
-  if (!isAuthenticated) return <Navigate to="/login" replace state={{ mode, from: location.pathname }} />;
+  if (!isAuthenticated) return <Navigate to="/login" replace state={{ mode, from: `${location.pathname}${location.search}${location.hash}` }} />;
   if (siteAdminOnly && !user?.site_admin) {
     return <AccessDeniedRedirect />;
   }

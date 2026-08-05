@@ -31,10 +31,25 @@ class ChatChannel < ApplicationCable::Channel
     conversation = Conversation.for_user(current_user).find_by(id: conversation_id)
     return unless conversation
 
-    participant = conversation.conversation_participants.find_by(user_id: current_user.id)
-    if participant&.update(last_read_at: Time.current)
-      Chat::Broadcaster.broadcast_message_read(current_workspace.id, conversation_id, current_user.id)
-    end
+    membership = Chat::ReceiptManager.new(user: current_user).mark_latest(conversation: conversation)
+    Chat::Broadcaster.broadcast_message_read(current_workspace.id, conversation_id, current_user.id) if membership
+  end
+
+  def mark_delivered(data)
+    return if current_user.demo_account?
+
+    conversation_id = data["conversation_id"]
+    message_id = data["message_id"]
+    return unless conversation_id && message_id
+
+    conversation = Conversation.for_user(current_user).find_by(id: conversation_id)
+    return unless conversation
+
+    Chat::ReceiptManager.new(user: current_user).update(
+      conversation: conversation,
+      message_id: message_id,
+      state: "delivered"
+    )
   end
 
   private

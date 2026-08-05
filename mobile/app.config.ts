@@ -46,7 +46,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         action: 'VIEW',
         autoVerify: true,
         category: ['BROWSABLE', 'DEFAULT'],
-        data: [{ scheme: 'https', host: webHost, pathPrefix: '/mobile' }],
+        data: [
+          { scheme: 'https', host: webHost, pathPrefix: '/mobile' },
+          { scheme: 'https', host: webHost, pathPrefix: '/meet' },
+        ],
       }] : undefined,
     },
   };

@@ -42,15 +42,6 @@ class Api::ConversationsController < Api::BaseController
   end
 
   def show
-    participant = @conversation.conversation_participants.find_by(user_id: current_user.id)
-    if !current_user.demo_account? && participant&.update(last_read_at: Time.current)
-      Chat::Broadcaster.broadcast_message_read(
-        current_user.workspace_id,
-        @conversation.id,
-        current_user.id
-      )
-    end
-
     render json: serialize_conversation(@conversation, include_messages: true)
   end
 
@@ -84,7 +75,14 @@ class Api::ConversationsController < Api::BaseController
 
   def destroy
     membership = @conversation.conversation_participants.find_by!(user_id: current_user.id)
-    membership.update!(hidden_at: Time.current, last_read_at: Time.current)
+    latest_message_id = @conversation.messages.maximum(:id)
+    membership.update!(
+      hidden_at: Time.current,
+      last_read_at: Time.current,
+      last_delivered_at: Time.current,
+      last_delivered_message_id: latest_message_id,
+      last_read_message_id: latest_message_id
+    )
     Chat::Broadcaster.broadcast_conversation_hidden(@conversation, current_user.id)
 
     render json: { success: true, conversation_id: @conversation.id }
@@ -225,7 +223,7 @@ class Api::ConversationsController < Api::BaseController
       .where('current_memberships.user_id = ?', current_user.id)
       .where('current_memberships.hidden_at IS NULL')
       .where.not(user_id: current_user.id)
-      .where('messages.created_at > COALESCE(current_memberships.last_read_at, ?)', Time.at(0))
+      .where('messages.id > COALESCE(current_memberships.last_read_message_id, 0)')
       .group('messages.conversation_id')
       .count
   end
@@ -288,7 +286,7 @@ class Api::ConversationsController < Api::BaseController
 
   def serialize_conversation(conversation, include_messages: false, unread_count: nil, last_message: nil, last_message_at: nil, last_message_loaded: false)
     membership = conversation.conversation_participants.find { |cp| cp.user_id == current_user.id } || conversation.conversation_participants.find_by(user_id: current_user.id)
-    unread_count = conversation.messages.where("messages.created_at > ?", membership&.last_read_at || Time.at(0)).where.not(user_id: current_user.id).count if unread_count.nil?
+    unread_count = conversation.messages.where("messages.id > ?", membership&.last_read_message_id || 0).where.not(user_id: current_user.id).count if unread_count.nil?
     active_call = CallSession.live
       .includes(:initiator, call_participants: :user)
       .where(conversation_id: conversation.id)
@@ -313,11 +311,16 @@ class Api::ConversationsController < Api::BaseController
           profile_picture: (rails_blob_url(user.profile_picture, only_path: true) if user.profile_picture.attached?),
           last_seen_at: user.last_seen_at,
           last_read_at: participant&.last_read_at,
+          last_delivered_at: participant&.last_delivered_at,
+          last_delivered_message_id: participant&.last_delivered_message_id,
+          last_read_message_id: participant&.last_read_message_id,
+          joined_at: participant&.created_at,
           online: user.last_seen_at.present? && user.last_seen_at >= 2.minutes.ago
         }
       end,
       unread_count: unread_count,
       last_message_at: last_message_at || conversation.last_message_at || conversation.messages.maximum(:created_at),
+      last_message_id: conversation.last_message_id,
       updated_at: conversation.updated_at
     }
 

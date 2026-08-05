@@ -6,6 +6,14 @@ class ConversationParticipant < ApplicationRecord
 
   validates :user_id, uniqueness: { scope: :conversation_id }
 
+  def delivered_through?(message)
+    last_delivered_message_id.present? && last_delivered_message_id >= message.id
+  end
+
+  def read_through?(message)
+    last_read_message_id.present? && last_read_message_id >= message.id
+  end
+
   def muted?(at = Time.current)
     muted_at.present? && (muted_until.blank? || muted_until > at)
   end

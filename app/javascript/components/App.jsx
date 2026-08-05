@@ -24,6 +24,7 @@ const AdminImpersonation = lazy(() => import("../pages/AdminImpersonation"));
 const AuthPage = lazy(() => import("../pages/AuthPage"));
 const Calendar = lazy(() => import("../pages/Calendar"));
 const Chat = lazy(() => import("../pages/Chat"));
+const Meeting = lazy(() => import("../pages/Meeting"));
 const Contact = lazy(() => import("../pages/Contact"));
 const DailyMomentumHub = lazy(() => import("../pages/DailyMomentumHub"));
 const DepartmentDetails = lazy(() => import("../pages/DepartmentDetails"));
@@ -275,6 +276,14 @@ const AppRoutes = () => {
               element={
                 <PrivateRoute>
                   <Chat />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/meet/:publicId"
+              element={
+                <PrivateRoute>
+                  <Meeting />
                 </PrivateRoute>
               }
             />

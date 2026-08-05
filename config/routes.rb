@@ -165,6 +165,7 @@ Rails.application.routes.draw do
           delete :for_everyone
         end
         resources :calls, controller: "/api/conversation_calls", only: [:create]
+        resource :receipt, controller: "/api/conversation_receipts", only: [:update]
         resources :messages, controller: "/api/messages", only: [:index, :create] do
           resources :reactions, controller: "/api/message_reactions", only: [:create]
           delete :reactions, to: "/api/message_reactions#destroy"
@@ -179,6 +180,8 @@ Rails.application.routes.draw do
           post :end, action: :end_call
         end
       end
+      get "meet/:public_id", to: "/api/meetings#show"
+      post "meet/:public_id/join", to: "/api/meetings#join"
 
       resources :notifications, only: [:index] do
         member do
@@ -363,6 +366,7 @@ Rails.application.routes.draw do
         delete :for_everyone
       end
       resources :calls, controller: "conversation_calls", only: [:create]
+      resource :receipt, controller: "conversation_receipts", only: [:update]
       resources :messages, only: [:index, :create] do
         resources :reactions, controller: "message_reactions", only: [:create]
         delete "reactions", to: "message_reactions#destroy"
@@ -378,6 +382,8 @@ Rails.application.routes.draw do
         post :end, action: :end_call
       end
     end
+    get "meet/:public_id", to: "meetings#show"
+    post "meet/:public_id/join", to: "meetings#join"
 
     resources :notifications, only: [:index] do
       collection do

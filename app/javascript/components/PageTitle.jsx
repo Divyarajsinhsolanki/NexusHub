@@ -31,6 +31,7 @@ const routeTitles = {
   "/admin/login-as-user": "Admin Impersonation",
   "/settings": "Settings",
   "/chat": "Chat",
+  "/meet": "Meeting",
   "/notifications": "Notifications",
   "/forgot-password": "Forgot Password",
   "/reset-password": "Reset Password",
@@ -45,6 +46,7 @@ const pageTitleForPath = (pathname) => {
   if (/^\/departments\/[^/]+$/.test(pathname)) return "Department Details";
   if (/^\/profile\/[^/]+$/.test(pathname)) return "Profile";
   if (/^\/chat\/[^/]+$/.test(pathname)) return "Chat";
+  if (/^\/meet\/[^/]+$/.test(pathname)) return "Meeting";
 
   return null;
 };

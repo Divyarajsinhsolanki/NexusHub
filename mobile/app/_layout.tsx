@@ -1,4 +1,4 @@
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider, usePathname, useRouter, useSegments } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useGlobalSearchParams, usePathname, useRouter, useSegments } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import * as Sentry from '@sentry/react-native';
 import * as SplashScreen from 'expo-splash-screen';
@@ -71,6 +71,7 @@ function RootLayoutNav() {
         <Stack.Screen name="reset-password" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="search" options={{ animation: 'fade_from_bottom' }} />
         <Stack.Screen name="create" options={{ animation: 'slide_from_bottom', presentation: 'modal' }} />
+        <Stack.Screen name="meet/[publicId]" options={{ animation: 'fade' }} />
       </Stack>
       <PushRegistrar />
       <AuthGate />
@@ -83,6 +84,7 @@ function AuthGate() {
   const segments = useSegments();
   const pathname = usePathname();
   const router = useRouter();
+  const { returnTo } = useGlobalSearchParams<{ returnTo?: string }>();
   const theme = useAppTheme();
   const firstSegment = segments[0];
   const isPublicPortfolio = pathname === '/';
@@ -92,6 +94,7 @@ function AuthGate() {
     firstSegment,
     isLoading,
     pathname,
+    returnTo,
     signedIn: Boolean(user),
   });
 

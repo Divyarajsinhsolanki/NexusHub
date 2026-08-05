@@ -613,6 +613,37 @@ paths:
       operationId: createConversationMessage
       responses:
         "201": { $ref: "#/components/responses/GenericSuccess" }
+  /conversations/{id}/receipt:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    patch:
+      operationId: updateConversationReceipt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [receipt]
+              properties:
+                receipt:
+                  type: object
+                  required: [message_id, state]
+                  properties:
+                    message_id: { type: integer }
+                    state: { type: string, enum: [delivered, read] }
+      responses:
+        "200":
+          description: Monotonic receipt high-water marks for the current participant
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [receipt]
+                properties:
+                  receipt:
+                    $ref: "#/components/schemas/ConversationReceipt"
+        "422": { $ref: "#/components/responses/Error" }
   /conversations/{id}/calls:
     parameters:
       - $ref: "#/components/parameters/Id"
@@ -627,6 +658,60 @@ paths:
       operationId: joinCall
       responses:
         "200": { $ref: "#/components/responses/GenericSuccess" }
+  /calls/{id}/leave:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      operationId: leaveCall
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /calls/{id}/end:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      operationId: endCall
+      description: Ends the call for everyone. Only the initiator may use this action.
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+  /meet/{public_id}:
+    parameters:
+      - name: public_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: getMeeting
+      description: Returns call-only metadata without exposing its source conversation.
+      responses:
+        "200":
+          description: Meeting details
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [call_session]
+                properties:
+                  call_session:
+                    $ref: "#/components/schemas/CallSession"
+        "404": { $ref: "#/components/responses/Error" }
+  /meet/{public_id}/join:
+    parameters:
+      - name: public_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: joinMeeting
+      description: Idempotently joins an authenticated link holder without granting conversation access.
+      responses:
+        "200":
+          description: LiveKit credentials and personalized call metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LiveKitCredentials"
+        "410": { $ref: "#/components/responses/Error" }
   /notifications:
     get:
       operationId: listNotifications
@@ -915,6 +1000,59 @@ components:
         total_count: { type: integer }
         per_page: { type: integer }
       additionalProperties: true
+    ConversationReceipt:
+      type: object
+      required: [conversation_id, user_id]
+      properties:
+        conversation_id: { type: integer }
+        user_id: { type: integer }
+        delivered_message_id: { type: [integer, "null"] }
+        read_message_id: { type: [integer, "null"] }
+        delivered_at: { type: [string, "null"], format: date-time }
+        read_at: { type: [string, "null"], format: date-time }
+    CallParticipant:
+      type: object
+      required: [user_id, name, status]
+      properties:
+        user_id: { type: integer }
+        name: { type: string }
+        status: { type: string }
+        ring_acknowledged_at: { type: [string, "null"], format: date-time }
+        joined_at: { type: [string, "null"], format: date-time }
+        left_at: { type: [string, "null"], format: date-time }
+    CallSession:
+      type: object
+      required: [id, public_id, share_url, conversation_id, call_type, status, initiator_id, initiator_name, can_end, participants]
+      properties:
+        id: { type: integer }
+        public_id: { type: string, format: uuid }
+        share_url: { type: string, format: uri }
+        conversation_id: { type: integer }
+        call_type: { type: string, enum: [audio, video] }
+        status: { type: string }
+        initiator_id: { type: integer }
+        initiator_name: { type: string }
+        can_end: { type: boolean }
+        started_at: { type: [string, "null"], format: date-time }
+        ended_at: { type: [string, "null"], format: date-time }
+        ended_reason: { type: [string, "null"] }
+        created_at: { type: [string, "null"], format: date-time }
+        current_participant:
+          oneOf:
+            - $ref: "#/components/schemas/CallParticipant"
+            - type: "null"
+        participants:
+          type: array
+          items:
+            $ref: "#/components/schemas/CallParticipant"
+    LiveKitCredentials:
+      type: object
+      required: [server_url, participant_token, call_session]
+      properties:
+        server_url: { type: string, format: uri }
+        participant_token: { type: string }
+        call_session:
+          $ref: "#/components/schemas/CallSession"
     User:
       type: object
       required: [id, email, first_name, last_name, full_name, roles, workspace, permissions, features]

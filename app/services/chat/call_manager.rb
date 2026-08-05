@@ -3,6 +3,7 @@ module Chat
     class Error < StandardError; end
     class ActiveCallExists < Error; end
     class InvalidTransition < Error; end
+    class HostRequired < Error; end
 
     RING_TIMEOUT = 60.seconds
 
@@ -90,6 +91,22 @@ module Chat
       call_session
     end
 
+    def join_by_link(call_session)
+      raise InvalidTransition, "This call has ended" unless call_session.live?
+
+      participant = call_session.call_participants.find_or_initialize_by(user_id: user.id)
+      participant.workspace ||= call_session.workspace
+      participant.status = "joined"
+      participant.joined_at ||= Time.current
+      participant.left_at = nil
+      participant.ring_acknowledged_at ||= Time.current
+      participant.save!
+
+      join(call_session)
+    rescue ActiveRecord::RecordNotUnique
+      join(call_session.tap { |session| session.call_participants.reset })
+    end
+
     def decline(call_session)
       participant = participant_for!(call_session)
       return call_session unless call_session.live?
@@ -131,6 +148,7 @@ module Chat
 
     def end_call(call_session, reason: "ended")
       participant_for!(call_session)
+      raise HostRequired, "Only the call host can end the call for everyone" unless call_session.initiator_id == user.id
       return call_session unless call_session.live?
 
       call_session.with_lock do

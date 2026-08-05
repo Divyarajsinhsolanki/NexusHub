@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2027_07_29_000000) do
+ActiveRecord::Schema[8.1].define(version: 2027_07_30_000000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -102,6 +102,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_07_29_000000) do
     t.bigint "initiator_id", null: false
     t.string "livekit_room_name", null: false
     t.jsonb "metadata", default: {}, null: false
+    t.string "public_id", null: false
     t.datetime "started_at"
     t.string "status", default: "ringing", null: false
     t.datetime "updated_at", null: false
@@ -110,6 +111,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_07_29_000000) do
     t.index ["conversation_id"], name: "index_call_sessions_on_conversation_id"
     t.index ["initiator_id"], name: "index_call_sessions_on_initiator_id"
     t.index ["livekit_room_name"], name: "index_call_sessions_on_livekit_room_name", unique: true
+    t.index ["public_id"], name: "index_call_sessions_on_public_id", unique: true
     t.index ["status", "created_at"], name: "idx_call_sessions_status_created"
     t.index ["workspace_id", "conversation_id", "created_at"], name: "idx_call_sessions_conversation_history"
     t.index ["workspace_id"], name: "index_call_sessions_on_workspace_id"
@@ -140,12 +142,17 @@ ActiveRecord::Schema[8.1].define(version: 2027_07_29_000000) do
     t.bigint "conversation_id", null: false
     t.datetime "created_at", null: false
     t.datetime "hidden_at"
+    t.datetime "last_delivered_at"
+    t.bigint "last_delivered_message_id"
     t.datetime "last_read_at"
+    t.bigint "last_read_message_id"
     t.datetime "muted_at"
     t.datetime "muted_until"
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.bigint "workspace_id", null: false
+    t.index ["conversation_id", "last_delivered_message_id"], name: "idx_conversation_participants_delivery_cursor"
+    t.index ["conversation_id", "last_read_message_id"], name: "idx_conversation_participants_read_cursor"
     t.index ["conversation_id", "muted_until"], name: "idx_on_conversation_id_muted_until_3907826291"
     t.index ["conversation_id", "user_id"], name: "idx_unique_conversation_participant", unique: true
     t.index ["conversation_id"], name: "index_conversation_participants_on_conversation_id"

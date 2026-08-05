@@ -20,7 +20,15 @@ describe('authRedirectTarget', () => {
   });
 
   test('sends logged-out protected routes back to the portfolio', () => {
-    expect(authRedirectTarget({ isLoading: false, pathname: '/projects', firstSegment: '(tabs)', signedIn: false })).toBe('/');
+    expect(authRedirectTarget({ isLoading: false, pathname: '/projects', firstSegment: '(tabs)', signedIn: false })).toBe('/login?returnTo=%2Fprojects');
+  });
+
+  test('returns an authenticated user to a safe meeting path', () => {
+    expect(authRedirectTarget({ isLoading: false, pathname: '/login', firstSegment: 'login', returnTo: '/meet/abc-123', signedIn: true })).toBe('/meet/abc-123');
+  });
+
+  test('rejects external return paths', () => {
+    expect(authRedirectTarget({ isLoading: false, pathname: '/login', firstSegment: 'login', returnTo: '//evil.example', signedIn: true })).toBe('/(tabs)/today');
   });
 
   test('does not redirect before session hydration completes', () => {

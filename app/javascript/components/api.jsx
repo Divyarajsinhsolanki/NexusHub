@@ -329,6 +329,8 @@ export const muteConversation = (id, duration = "forever") =>
 export const unmuteConversation = (id) => api.delete(`/conversations/${id}/mute`);
 export const fetchConversationMessages = (conversationId, params = {}) =>
   api.get(`/conversations/${conversationId}/messages`, { params });
+export const updateConversationReceipt = (conversationId, messageId, state) =>
+  api.patch(`/conversations/${conversationId}/receipt`, { receipt: { message_id: messageId, state } });
 export const sendMessage = (conversationId, formData) =>
   api.post(`/conversations/${conversationId}/messages`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
 export const addMessageReaction = (conversationId, messageId, emoji) =>
@@ -342,6 +344,8 @@ export const joinCall = (callId) => api.post(`/calls/${callId}/join`);
 export const declineCall = (callId) => api.post(`/calls/${callId}/decline`);
 export const leaveCall = (callId) => api.post(`/calls/${callId}/leave`);
 export const endCall = (callId, reason = "ended") => api.post(`/calls/${callId}/end`, { reason });
+export const fetchMeeting = (publicId) => api.get(`/meet/${publicId}`);
+export const joinMeeting = (publicId) => api.post(`/meet/${publicId}/join`);
 
 // NOTIFICATION ENDPOINTS
 export const fetchNotifications = (params = {}) => api.get('/notifications.json', { params });

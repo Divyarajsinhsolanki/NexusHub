@@ -2,9 +2,11 @@ import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 
 import type { Message, Notification } from '../api/types';
+import { endpoints } from '../api/endpoints';
 import { useAuth } from '../auth/AuthProvider';
 import {
   appendIncomingMessage,
+  applyConversationReceipt,
   mobileQueryKeys,
   prependNotification,
   refreshCachesForDeepLink,
@@ -44,6 +46,7 @@ export async function handleMobileRealtimeEvent(queryClient: QueryClient, event:
     if (conversationId && message) {
       appendIncomingMessage(queryClient, conversationId, message);
       updateConversationPreview(queryClient, conversationId, message);
+      void endpoints.updateConversationReceipt(conversationId, message.id, 'delivered').catch(() => undefined);
     }
     await refreshConversationCaches(queryClient, conversationId);
     return;
@@ -51,6 +54,17 @@ export async function handleMobileRealtimeEvent(queryClient: QueryClient, event:
 
   if (event.type === 'conversation_refresh' || event.type === 'message_reactions_updated') {
     await refreshConversationCaches(queryClient, conversationId);
+    return;
+  }
+
+  if (event.type === 'message_receipt_updated') {
+    if (conversationId) applyConversationReceipt(queryClient, conversationId, {
+      user_id: event.user_id,
+      delivered_message_id: event.delivered_message_id,
+      read_message_id: event.read_message_id,
+      delivered_at: event.delivered_at,
+      read_at: event.read_at,
+    });
     return;
   }
 

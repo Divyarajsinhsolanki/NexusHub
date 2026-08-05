@@ -405,8 +405,29 @@ export type Conversation = EntityRecord & {
   muted?: boolean;
   unread_count?: number;
   last_message?: EntityRecord | null;
-  participants?: EntityRecord[];
+  participants?: ConversationParticipant[];
   active_call?: CallSession | null;
+};
+
+export type ConversationParticipant = {
+  id: number;
+  name: string;
+  profile_picture?: string | null;
+  joined_at?: string | null;
+  last_delivered_at?: string | null;
+  last_read_at?: string | null;
+  last_delivered_message_id?: number | null;
+  last_read_message_id?: number | null;
+  online?: boolean;
+};
+
+export type ConversationReceipt = {
+  conversation_id: number;
+  user_id: number;
+  delivered_message_id?: number | null;
+  read_message_id?: number | null;
+  delivered_at?: string | null;
+  read_at?: string | null;
 };
 
 export type Message = EntityRecord & {
@@ -425,14 +446,29 @@ export type Message = EntityRecord & {
 
 export type CallSession = {
   id: number;
+  public_id: string;
+  share_url: string;
   conversation_id: number;
   call_type: 'audio' | 'video';
   status: string;
   initiator_id: number;
   initiator_name: string;
+  can_end: boolean;
   started_at?: string | null;
   ended_at?: string | null;
-  participants: Array<{ user_id: number; name: string; status: string }>;
+  ended_reason?: string | null;
+  created_at?: string | null;
+  current_participant?: CallParticipant | null;
+  participants: CallParticipant[];
+};
+
+export type CallParticipant = {
+  user_id: number;
+  name: string;
+  status: string;
+  ring_acknowledged_at?: string | null;
+  joined_at?: string | null;
+  left_at?: string | null;
 };
 
 export type LiveKitCredentials = {

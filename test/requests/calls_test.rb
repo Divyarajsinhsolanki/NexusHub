@@ -49,6 +49,9 @@ class CallsTest < ActionDispatch::IntegrationTest
     call_payload = JSON.parse(response.body).fetch("call_session")
     assert_equal "video", call_payload.fetch("call_type")
     assert_equal "ringing", call_payload.fetch("status")
+    assert_match(/\A[0-9a-f-]{36}\z/, call_payload.fetch("public_id"))
+    assert_match(%r{/meet/#{call_payload.fetch("public_id")}\z}, call_payload.fetch("share_url"))
+    assert_equal true, call_payload.fetch("can_end")
 
     post "/api/conversations/#{@conversation.id}/calls", params: { call_type: "audio" }
     assert_response :conflict
@@ -60,6 +63,66 @@ class CallsTest < ActionDispatch::IntegrationTest
     decoded_token = JWT.decode(join_payload.fetch("participant_token"), "testsecret", true, algorithm: "HS256").first
     assert_equal "testkey", decoded_token.fetch("iss")
     assert_equal true, decoded_token.dig("video", "roomJoin")
+  end
+
+  test "authenticated external link holder joins idempotently without chat access" do
+    login(@caller)
+    post "/api/conversations/#{@conversation.id}/calls", params: { call_type: "video" }
+    call_payload = JSON.parse(response.body).fetch("call_session")
+
+    external_workspace = Workspace.create!(name: "External Workspace", slug: "external-workspace", kind: "private")
+    Current.workspace = external_workspace
+    external_user = create_test_user(workspace: external_workspace, email: "external-caller@example.test")
+    login(external_user)
+
+    get "/api/meet/#{call_payload.fetch("public_id")}"
+    assert_response :success
+
+    2.times do
+      post "/api/meet/#{call_payload.fetch("public_id")}/join"
+      assert_response :success
+      assert_equal false, JSON.parse(response.body).dig("call_session", "can_end")
+    end
+
+    call_session = CallSession.unscoped.find(call_payload.fetch("id"))
+    external_participants = call_session.call_participants.where(user_id: external_user.id)
+    assert_equal 1, external_participants.count
+    assert_equal @workspace.id, external_participants.first.workspace_id
+
+    get "/api/conversations/#{@conversation.id}"
+    assert_response :not_found
+  end
+
+  test "only the host can end for everyone and ended links cannot be joined" do
+    login(@caller)
+    post "/api/conversations/#{@conversation.id}/calls", params: { call_type: "audio" }
+    call_payload = JSON.parse(response.body).fetch("call_session")
+
+    login(@recipient)
+    post "/api/calls/#{call_payload.fetch("id")}/end"
+    assert_response :forbidden
+
+    login(@caller)
+    post "/api/calls/#{call_payload.fetch("id")}/end"
+    assert_response :success
+
+    login(@recipient)
+    post "/api/meet/#{call_payload.fetch("public_id")}/join"
+    assert_response :gone
+  end
+
+  test "each new call receives a different public meeting id" do
+    login(@caller)
+    post "/api/conversations/#{@conversation.id}/calls", params: { call_type: "audio" }
+    first_call = JSON.parse(response.body).fetch("call_session")
+    post "/api/calls/#{first_call.fetch("id")}/end"
+    assert_response :success
+
+    post "/api/conversations/#{@conversation.id}/calls", params: { call_type: "audio" }
+    assert_response :created
+    second_call = JSON.parse(response.body).fetch("call_session")
+
+    assert_not_equal first_call.fetch("public_id"), second_call.fetch("public_id")
   end
 
   test "muted recipient does not receive chat or missed call notifications or email" do

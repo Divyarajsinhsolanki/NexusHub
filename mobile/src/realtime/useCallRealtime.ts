@@ -2,24 +2,17 @@ import { createConsumer, type Consumer, type Subscription } from '@rails/actionc
 import { useEffect, useRef, useState } from 'react';
 
 import { endpoints } from '../api/endpoints';
-
-export type ChatEvent = {
-  type: string;
-  conversation_id?: number;
-  message?: Record<string, unknown>;
-  message_id?: number;
-  call_session?: Record<string, unknown>;
-  [key: string]: unknown;
-};
+import type { ChatEvent } from './useChatRealtime';
 
 type RealtimeState = 'connecting' | 'connected' | 'disconnected';
 
-export function useChatRealtime(conversationId: number | undefined, onEvent: (event: ChatEvent) => void) {
+export function useCallRealtime(publicId: string | undefined, onEvent: (event: ChatEvent) => void) {
   const [state, setState] = useState<RealtimeState>('connecting');
   const callback = useRef(onEvent);
   callback.current = onEvent;
 
   useEffect(() => {
+    if (!publicId) return;
     let active = true;
     let consumer: Consumer | undefined;
     let subscription: Subscription | undefined;
@@ -27,7 +20,6 @@ export function useChatRealtime(conversationId: number | undefined, onEvent: (ev
     let attempts = 0;
 
     const connect = async () => {
-      setState('connecting');
       try {
         const credentials = await endpoints.realtimeToken();
         if (!active) return;
@@ -35,12 +27,9 @@ export function useChatRealtime(conversationId: number | undefined, onEvent: (ev
         const url = credentials.url.includes('token=') ? credentials.url : `${credentials.url}${separator}token=${encodeURIComponent(credentials.token)}`;
         consumer = createConsumer(url);
         subscription = consumer.subscriptions.create(
-          { channel: 'ChatChannel', ...(conversationId ? { conversation_id: conversationId } : {}) },
+          { channel: 'CallChannel', public_id: publicId },
           {
-            connected: () => {
-              attempts = 0;
-              setState('connected');
-            },
+            connected: () => { attempts = 0; setState('connected'); },
             disconnected: () => setState('disconnected'),
             rejected: () => setState('disconnected'),
             received: (event: ChatEvent) => callback.current(event),
@@ -61,7 +50,7 @@ export function useChatRealtime(conversationId: number | undefined, onEvent: (ev
       subscription?.unsubscribe();
       consumer?.disconnect();
     };
-  }, [conversationId]);
+  }, [publicId]);
 
   return state;
 }

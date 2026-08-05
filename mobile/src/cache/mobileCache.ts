@@ -175,7 +175,7 @@ export function appendIncomingMessage(
         index === 0 ? { ...page, data: [...page.data, incoming] } : page
       ));
 
-      return trimInfinitePages({ ...previous, pages });
+      return { ...previous, pages };
     },
   );
 }
@@ -194,6 +194,45 @@ export function updateConversationPreview(
     const rest = previous.data.filter((item) => Number(item.id) !== Number(conversationId));
     return { ...previous, data: [conversation, ...rest] };
   });
+}
+
+export function applyConversationReceipt(
+  queryClient: QueryClient,
+  conversationId: number,
+  receipt: {
+    user_id?: unknown;
+    delivered_message_id?: unknown;
+    read_message_id?: unknown;
+    delivered_at?: unknown;
+    read_at?: unknown;
+  },
+) {
+  const update = (conversation: Conversation) => {
+    if (Number(conversation.id) !== Number(conversationId) || !Array.isArray(conversation.participants)) return conversation;
+    return {
+      ...conversation,
+      participants: conversation.participants.map((participant) => {
+        if (Number(participant.id) !== Number(receipt.user_id)) return participant;
+        const currentDeliveredId = Number(participant.last_delivered_message_id || 0);
+        const currentReadId = Number(participant.last_read_message_id || 0);
+        const incomingDeliveredId = Number(receipt.delivered_message_id || 0);
+        const incomingReadId = Number(receipt.read_message_id || 0);
+        return {
+          ...participant,
+          last_delivered_message_id: Math.max(currentDeliveredId, incomingDeliveredId) || null,
+          last_read_message_id: Math.max(currentReadId, incomingReadId) || null,
+          last_delivered_at: incomingDeliveredId >= currentDeliveredId && typeof receipt.delivered_at === 'string' ? receipt.delivered_at : participant.last_delivered_at,
+          last_read_at: incomingReadId >= currentReadId && typeof receipt.read_at === 'string' ? receipt.read_at : participant.last_read_at,
+        };
+      }),
+    };
+  };
+
+  queryClient.setQueryData<Conversation>(mobileQueryKeys.conversation(conversationId), (previous) => previous ? update(previous) : previous);
+  queryClient.setQueryData<CollectionResult<Conversation>>(mobileQueryKeys.conversations, (previous) => previous ? {
+    ...previous,
+    data: previous.data.map(update),
+  } : previous);
 }
 
 export function prependNotification(

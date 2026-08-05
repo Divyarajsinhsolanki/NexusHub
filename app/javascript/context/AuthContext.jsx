@@ -7,6 +7,7 @@ import { toast } from "react-hot-toast";
 import { COLOR_MAP, toRgb, lightenColor, darkenColor } from '/utils/theme';
 import PageLoader from "../components/ui/PageLoader";
 import { logoutDestination } from "../config/features";
+import { safeReturnPath } from "../utils/safeReturnPath";
 
 export const AuthContext = createContext();
 
@@ -75,11 +76,11 @@ export function AuthProvider({ children }) {
   }, [navigate]);
 
   // Normal login/signup + Google login: schedule refresh from exp
-  const handleLogin = async (credentials) => {
+  const handleLogin = async (credentials, returnTo = null) => {
     const { data } = await api.post("/login", credentials);
     setUser(data.user);
     scheduleRefresh(data.exp);
-    navigate(data.user.landing_page ? `/${data.user.landing_page}` : "/");
+    navigate(safeReturnPath(returnTo) || (data.user.landing_page ? `/${data.user.landing_page}` : "/"));
     toast.success("Logged in successfully");
   };
 
@@ -90,7 +91,7 @@ export function AuthProvider({ children }) {
     toast.success("Workspace created. Verify your email before signing in.");
   };
 
-  const handleGoogleLogin = async () => {
+  const handleGoogleLogin = async (returnTo = null) => {
     if (!firebaseEnabled) {
       throw new Error("Google sign-in is not configured.");
     }
@@ -106,7 +107,7 @@ export function AuthProvider({ children }) {
       );
       setUser(data.user);
       scheduleRefresh(data.exp);
-      navigate(data.user.landing_page ? `/${data.user.landing_page}` : "/");
+      navigate(safeReturnPath(returnTo) || (data.user.landing_page ? `/${data.user.landing_page}` : "/"));
       toast.success("Logged in successfully");
     } catch (error) {
       console.error("Google login failed:", error);

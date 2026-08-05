@@ -1,6 +1,7 @@
 class Api::CallsController < Api::BaseController
   before_action :set_call_session
   rescue_from Chat::CallManager::InvalidTransition, with: :render_invalid_transition
+  rescue_from Chat::CallManager::HostRequired, with: :render_host_required
 
   def ack_ring
     call_session = call_manager.acknowledge_ring(@call_session)
@@ -36,7 +37,7 @@ class Api::CallsController < Api::BaseController
 
   def set_call_session
     @call_session = CallSession
-      .in_workspace(current_user.workspace)
+      .unscoped
       .joins(:call_participants)
       .where(call_participants: { user_id: current_user.id })
       .includes(:initiator, :conversation, call_participants: :user)
@@ -49,5 +50,9 @@ class Api::CallsController < Api::BaseController
 
   def render_invalid_transition(error)
     render json: { error: "invalid_call_transition", message: error.message }, status: :unprocessable_entity
+  end
+
+  def render_host_required(error)
+    render json: { error: "host_required", message: error.message }, status: :forbidden
   end
 end

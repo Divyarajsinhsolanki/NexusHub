@@ -1,7 +1,7 @@
 import React, { useContext, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { MessageCircle, Phone, PhoneOff, Video } from "lucide-react";
-import { acknowledgeCallRing, declineCall, endCall, fetchConversations, joinCall, leaveCall } from "./api";
+import { acknowledgeCallRing, declineCall, endCall, fetchConversations, joinCall, leaveCall, updateConversationReceipt } from "./api";
 import { subscribeToUserChat } from "../lib/chatCable";
 import { AuthContext } from "../context/AuthContext";
 import CallRoom from "./chat/CallRoom";
@@ -51,21 +51,27 @@ const ChatLauncher = () => {
     load();
 
     const subscription = subscribeToUserChat((payload) => {
+      if (!location.pathname.startsWith("/chat") && payload?.type === "message_created" && Number(payload.message?.user_id) !== Number(user?.id)) {
+        updateConversationReceipt(payload.conversation_id, payload.message.id, "delivered").catch(() => {});
+      }
+
       if (["conversation_refresh", "conversation_hidden", "conversation_deleted"].includes(payload?.type)) {
         load();
       }
 
       if (payload?.type === "call_ringing" || ["call_started", "call_participant_joined"].includes(payload?.type)) {
-        if (shouldSurfaceIncomingCall(payload.call_session, user?.id)) {
-          setIncomingCall(payload.call_session);
-          setActiveCall(payload.call_session);
+        const personalizedCall = { ...payload.call_session, can_end: Number(payload.call_session?.initiator_id) === Number(user?.id) };
+        if (shouldSurfaceIncomingCall(personalizedCall, user?.id)) {
+          setIncomingCall(personalizedCall);
+          setActiveCall(personalizedCall);
           acknowledgeCallRing(payload.call_session.id).catch(() => {});
         }
       }
 
       if (["call_started", "call_participant_joined", "call_participant_left", "call_missed", "call_ended"].includes(payload?.type)) {
-        if (isLiveCall(payload.call_session)) {
-          setActiveCall(payload.call_session);
+        const personalizedCall = { ...payload.call_session, can_end: Number(payload.call_session?.initiator_id) === Number(user?.id) };
+        if (isLiveCall(personalizedCall)) {
+          setActiveCall(personalizedCall);
         } else {
           setActiveCall((previous) => Number(previous?.id) === Number(payload.call_session?.id) ? null : previous);
           setIncomingCall((previous) => Number(previous?.id) === Number(payload.call_session?.id) ? null : previous);
@@ -75,7 +81,7 @@ const ChatLauncher = () => {
     });
 
     return () => subscription.unsubscribe();
-  }, [isAuthenticated, user?.id]);
+  }, [isAuthenticated, location.pathname, user?.id]);
 
   const isChatRoute = location.pathname.startsWith("/chat");
   const showGlobalCallUi = isAuthenticated && !isChatRoute;

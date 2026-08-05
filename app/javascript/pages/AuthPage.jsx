@@ -1,9 +1,10 @@
 import React, { useContext, useEffect, useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import Login from "./Login";
 import Signup from "./Signup";
 import { AuthContext } from "../context/AuthContext";
 import authCommandDeck from "../images/nexus/auth-command-deck.webp";
+import { safeReturnPath } from "../utils/safeReturnPath";
 
 const defaultUserPath = (user) => {
   const landingPage = user?.landing_page;
@@ -14,13 +15,16 @@ const defaultUserPath = (user) => {
 function AuthPage({ mode = "login" }) {
   const { isAuthenticated, user } = useContext(AuthContext);
   const [current, setCurrent] = useState(mode);
+  const location = useLocation();
 
   useEffect(() => {
     setCurrent(mode);
   }, [mode]);
 
   if (isAuthenticated) {
-    return <Navigate to={defaultUserPath(user)} replace />;
+    const returnTo = safeReturnPath(location.state?.from || window.sessionStorage.getItem("post_auth_return_to"));
+    if (returnTo) window.sessionStorage.removeItem("post_auth_return_to");
+    return <Navigate to={returnTo || defaultUserPath(user)} replace />;
   }
 
   return (

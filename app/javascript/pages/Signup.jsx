@@ -1,11 +1,12 @@
 import React, { useState, useContext } from "react";
 import { AuthContext } from "../context/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import submitForm from "../utils/formSubmit";
 import { toast } from "react-hot-toast";
 import SpinnerOverlay from "../components/ui/SpinnerOverlay";
 import WorkspaceOrb from "../components/landing/WorkspaceOrb";
 import { firebaseEnabled } from "../firebaseFlags";
+import { safeReturnPath } from "../utils/safeReturnPath";
 
 const signupMetrics = [
   ["2 min", "Quick setup"],
@@ -38,6 +39,9 @@ const Signup = ({ switchToLogin }) => {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const returnTo = safeReturnPath(location.state?.from || searchParams.get("return_to"));
 
   const handleChange = (e) => {
     const { name, type, files, value } = e.target;
@@ -64,6 +68,7 @@ const Signup = ({ switchToLogin }) => {
 
     try {
       await submitForm("/api/signup", "POST", submissionData);
+      if (returnTo) window.sessionStorage.setItem("post_auth_return_to", returnTo);
       if (switchToLogin) switchToLogin();
       else navigate("/", { state: { mode: "login" } });
       toast.success("Account created. Please log in.");
@@ -205,7 +210,7 @@ const Signup = ({ switchToLogin }) => {
                   onClick={async () => {
                     setLoading(true);
                     try {
-                      await handleGoogleLogin();
+                      await handleGoogleLogin(returnTo);
                     } catch (googleError) {
                       toast.error(googleError.message || "Google signup failed.");
                     } finally {

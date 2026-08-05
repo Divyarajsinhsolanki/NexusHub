@@ -32,11 +32,10 @@ class Api::MessagesController < Api::BaseController
 
     if message.save
       @conversation.touch
-      @conversation.conversation_participants.where(user_id: current_user.id).update_all(last_read_at: Time.current)
-      Chat::Broadcaster.broadcast_message_read(
-        current_user.workspace_id,
-        @conversation.id,
-        current_user.id
+      Chat::ReceiptManager.new(user: current_user).update(
+        conversation: @conversation,
+        message_id: message.id,
+        state: "read"
       )
       render json: serialize_message(message), status: :created
     else
