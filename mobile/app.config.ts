@@ -34,6 +34,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       ...base.ios,
       associatedDomains: webHost ? [`applinks:${webHost}`] : undefined,
       googleServicesFile: googleServiceInfoPlist || base.ios?.googleServicesFile,
+      infoPlist: {
+        ...base.ios?.infoPlist,
+        ITSAppUsesNonExemptEncryption: false,
+      },
     },
     android: {
       ...base.android,
