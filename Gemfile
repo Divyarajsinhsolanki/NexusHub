@@ -35,6 +35,7 @@ gem "sidekiq"
 
 # Storage, observability, and external services
 gem "aws-sdk-s3", require: false
+gem "cloudinary"
 gem "image_processing", "~> 1.2"
 gem "postmark-rails", "~> 0.22"
 gem "sentry-rails"

@@ -31,7 +31,9 @@ Rails.application.configure do
   # config.action_dispatch.x_sendfile_header = "X-Sendfile" # for Apache
   # config.action_dispatch.x_sendfile_header = "X-Accel-Redirect" # for NGINX
 
-  config.active_storage.service = ENV.fetch("ACTIVE_STORAGE_SERVICE", "local").to_sym
+  # Keep every persistent user upload off Render's ephemeral filesystem.
+  # ACTIVE_STORAGE_SERVICE can still override this for another configured cloud service.
+  config.active_storage.service = ENV.fetch("ACTIVE_STORAGE_SERVICE", "cloudinary").to_sym
   config.active_storage.variant_processor = :vips
 
   # Mount Action Cable outside main process or domain.
