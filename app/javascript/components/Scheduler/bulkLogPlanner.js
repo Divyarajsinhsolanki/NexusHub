@@ -1,4 +1,5 @@
 export const EMPTY_ARRAY = [];
+export const DEFAULT_DAILY_CAPACITY = 7;
 
 export const WORK_STAGES = [
   {
@@ -99,9 +100,7 @@ export const logsWithinDateWindow = (logs = [], dates = []) =>
 export const resolveDefaultLogDate = (dates = []) => {
   if (!dates.length) return '';
 
-  const today = new Date().toISOString().slice(0, 10);
-  if (dates.includes(today)) return today;
-  return dates[dates.length - 1] || dates[0];
+  return [...dates].filter(Boolean).sort()[0] || '';
 };
 
 export const buildLoggedHoursByTaskStage = (logs = [], dates = []) =>
@@ -312,12 +311,6 @@ export const buildTaskStageRows = ({ tasks, existingLogs, developers, dates = []
       .filter(Boolean));
 };
 
-const nextDistributionDateAfter = (distributionDates, date) =>
-  distributionDates.find((candidateDate) => candidateDate > date);
-
-const maxDate = (dates) =>
-  dates.filter(Boolean).sort().slice(-1)[0];
-
 const previousStageRowsFor = (rows, row) =>
   rows
     .filter((candidate) => (
@@ -327,18 +320,23 @@ const previousStageRowsFor = (rows, row) =>
     ))
     .sort((left, right) => left.stageOrder - right.stageOrder);
 
-const earliestDateForStage = ({ rows, row, distributionDates, lastLogDateByTaskStage, startDate }) => {
+const dependencyForStage = ({ rows, row, completionByTaskStage }) => {
   const previousRows = previousStageRowsFor(rows, row);
-  const lastPreviousDate = maxDate(
-    previousRows.map((previousRow) => lastLogDateByTaskStage[stageKeyFor(previousRow.taskId, previousRow.stageKey)])
-  );
+  if (!previousRows.length) return { ready: true, completion: null };
 
-  if (!lastPreviousDate || lastPreviousDate < startDate) return startDate;
+  const incompleteRow = previousRows.find((previousRow) => (
+    !completionByTaskStage[stageKeyFor(previousRow.taskId, previousRow.stageKey)]
+  ));
+  if (incompleteRow) return { ready: false, blockedBy: incompleteRow, completion: null };
 
-  const lastSprintDate = distributionDates[distributionDates.length - 1];
-  if (!lastSprintDate || lastPreviousDate >= lastSprintDate) return lastSprintDate || startDate;
+  const completion = previousRows
+    .map((previousRow) => completionByTaskStage[stageKeyFor(previousRow.taskId, previousRow.stageKey)])
+    .sort((left, right) => (
+      left.date.localeCompare(right.date) || left.stageOrder - right.stageOrder
+    ))
+    .slice(-1)[0];
 
-  return nextDistributionDateAfter(distributionDates, lastPreviousDate) || lastSprintDate;
+  return { ready: true, completion };
 };
 
 export const validateStageSelection = (rows = []) => {
@@ -375,11 +373,24 @@ export const validateStageSelection = (rows = []) => {
 };
 
 export const buildDistributionPlan = ({ rows, dates, startDate, maxHoursPerDay, existingLogs }) => {
-  const distributionDates = dates.filter((date) => date >= startDate);
+  const distributionDates = [...dates].filter((date) => date >= startDate).sort();
   const perDayLimit = numberOrZero(maxHoursPerDay);
   const scopedExistingLogs = logsWithinDateWindow(existingLogs, dates);
   const dailyHoursByMemberDate = buildDailyHoursByMemberDate(scopedExistingLogs);
   const lastLogDateByTaskStage = buildLastLogDateByTaskStage(scopedExistingLogs);
+  const completionByTaskStage = rows.reduce((accumulator, row) => {
+    if (numberOrZero(row.loggedHours) < numberOrZero(row.plannedHours)) return accumulator;
+
+    const key = stageKeyFor(row.taskId, row.stageKey);
+    const date = lastLogDateByTaskStage[key];
+    if (date) {
+      accumulator[key] = {
+        date,
+        stageOrder: row.stageOrder,
+      };
+    }
+    return accumulator;
+  }, {});
   const selectedRows = rows
     .filter((row) => row.selected && row.developerId && numberOrZero(row.hours) > 0)
     .sort((left, right) => (
@@ -389,76 +400,124 @@ export const buildDistributionPlan = ({ rows, dates, startDate, maxHoursPerDay, 
     ));
 
   const entries = [];
-  let overflowHours = 0;
-  let overflowTasks = 0;
-
-  selectedRows.forEach((row) => {
+  const remainingHoursByRow = selectedRows.reduce((remaining, row) => {
+    remaining[row.rowId] = numberOrZero(row.hours);
+    return remaining;
+  }, {});
+  const allocatedHoursByRow = selectedRows.reduce((allocated, row) => {
+    allocated[row.rowId] = 0;
+    return allocated;
+  }, {});
+  const allocateRowOnDate = (row, date) => {
     const developerId = String(row.developerId);
-    let remainingHours = numberOrZero(row.hours);
-    let lastAssignedDate = null;
-    const earliestDate = earliestDateForStage({
-      rows,
-      row,
-      distributionDates,
-      lastLogDateByTaskStage,
-      startDate,
-    });
-    const availableDates = distributionDates.filter((date) => date >= earliestDate);
+    const currentHours = numberOrZero(dailyHoursByMemberDate[developerId]?.[date]);
+    const availableHours = Math.max(perDayLimit - currentHours, 0);
+    if (availableHours <= 0 || remainingHoursByRow[row.rowId] <= 0) return 0;
 
-    availableDates.forEach((date) => {
-      if (remainingHours <= 0 || perDayLimit <= 0) return;
-
-      const currentHours = dailyHoursByMemberDate[developerId]?.[date] || 0;
-      const availableHours = Math.max(perDayLimit - currentHours, 0);
-      if (availableHours <= 0) return;
-
-      const assignedHours = Math.min(remainingHours, availableHours);
-      appendOrMergeEntry(entries, {
-        task_id: row.taskId,
-        developer_id: Number(developerId),
-        log_date: date,
-        type: row.logType,
-        hours_logged: assignedHours,
-        status: 'todo',
-      });
-
-      if (!dailyHoursByMemberDate[developerId]) dailyHoursByMemberDate[developerId] = {};
-      dailyHoursByMemberDate[developerId][date] = currentHours + assignedHours;
-      remainingHours -= assignedHours;
-      lastAssignedDate = date;
+    const assignedHours = Math.min(remainingHoursByRow[row.rowId], availableHours);
+    appendOrMergeEntry(entries, {
+      task_id: row.taskId,
+      developer_id: Number(developerId),
+      log_date: date,
+      type: row.logType,
+      hours_logged: assignedHours,
+      status: 'todo',
     });
 
-    if (remainingHours > 0 && distributionDates.length) {
-      const lastDate = distributionDates[distributionDates.length - 1];
-      appendOrMergeEntry(entries, {
-        task_id: row.taskId,
-        developer_id: Number(developerId),
-        log_date: lastDate,
-        type: row.logType,
-        hours_logged: remainingHours,
-        status: 'todo',
-      });
+    if (!dailyHoursByMemberDate[developerId]) dailyHoursByMemberDate[developerId] = {};
+    dailyHoursByMemberDate[developerId][date] = currentHours + assignedHours;
+    remainingHoursByRow[row.rowId] -= assignedHours;
+    allocatedHoursByRow[row.rowId] += assignedHours;
 
-      if (!dailyHoursByMemberDate[developerId]) dailyHoursByMemberDate[developerId] = {};
-      dailyHoursByMemberDate[developerId][lastDate] = (dailyHoursByMemberDate[developerId][lastDate] || 0) + remainingHours;
-      overflowHours += remainingHours;
-      overflowTasks += 1;
-      lastAssignedDate = lastDate;
+    const totalCoveredHours = numberOrZero(row.loggedHours) + allocatedHoursByRow[row.rowId];
+    if (remainingHoursByRow[row.rowId] <= 0 && totalCoveredHours >= numberOrZero(row.plannedHours)) {
+      completionByTaskStage[stageKeyFor(row.taskId, row.stageKey)] = {
+        date,
+        stageOrder: row.stageOrder,
+      };
     }
 
-    if (lastAssignedDate) {
-      const key = stageKeyFor(row.taskId, row.stageKey);
-      if (!lastLogDateByTaskStage[key] || lastAssignedDate > lastLogDateByTaskStage[key]) {
-        lastLogDateByTaskStage[key] = lastAssignedDate;
-      }
-    }
+    return assignedHours;
+  };
+
+  // Schedule as a pipeline, one day at a time. Ready handoffs get capacity
+  // before new Code work, preventing long Code stages from consuming the
+  // final days that completed tasks need for Review and Dev to QA.
+  distributionDates.forEach((date) => {
+    const candidates = selectedRows
+      .filter((row) => remainingHoursByRow[row.rowId] > 0)
+      .sort((left, right) => (
+        right.stageOrder - left.stageOrder ||
+        left.taskOrder - right.taskOrder ||
+        left.taskPosition - right.taskPosition
+      ));
+
+    candidates.forEach((row) => {
+      const dependency = dependencyForStage({ rows, row, completionByTaskStage });
+      if (!dependency.ready) return;
+      if (dependency.completion?.date && dependency.completion.date >= date) return;
+
+      allocateRowOnDate(row, date);
+    });
   });
+
+  // Final sprint-day closure: when Code completes on the last available day,
+  // allow its Review and then Dev to QA to use that same date. This exception
+  // is deliberately limited to these two handoffs and still respects each
+  // assignee's daily capacity.
+  const finalDate = distributionDates[distributionDates.length - 1] || '';
+  let finalDayHandoffCount = 0;
+  if (finalDate) {
+    ['code_review', 'dev_to_qa'].forEach((stageKey) => {
+      selectedRows
+        .filter((row) => row.stageKey === stageKey && remainingHoursByRow[row.rowId] > 0)
+        .sort((left, right) => (
+          left.taskOrder - right.taskOrder || left.taskPosition - right.taskPosition
+        ))
+        .forEach((row) => {
+          const dependency = dependencyForStage({ rows, row, completionByTaskStage });
+          if (!dependency.ready || dependency.completion?.date !== finalDate) return;
+
+          if (allocateRowOnDate(row, finalDate) > 0) finalDayHandoffCount += 1;
+        });
+    });
+  }
+
+  const unallocatedStages = selectedRows
+    .filter((row) => remainingHoursByRow[row.rowId] > 0)
+    .map((row) => {
+      const dependency = dependencyForStage({ rows, row, completionByTaskStage });
+      const requiresLaterDate = Boolean(
+        dependency.ready &&
+        dependency.completion?.date &&
+        (!finalDate || dependency.completion.date >= finalDate)
+      );
+
+      return {
+        rowId: row.rowId,
+        taskId: row.taskId,
+        taskKey: row.taskKey,
+        stageKey: row.stageKey,
+        stageLabel: row.stageLabel,
+        developerId: Number(row.developerId),
+        hours: remainingHoursByRow[row.rowId],
+        reason: !dependency.ready
+          ? 'dependency'
+          : requiresLaterDate
+            ? 'outside_sprint'
+            : 'capacity',
+        blockedBy: dependency.blockedBy?.stageLabel,
+        requiredAfterDate: dependency.completion?.date || null,
+      };
+    });
+  const unallocatedHours = unallocatedStages.reduce((total, stage) => total + stage.hours, 0);
 
   return {
     entries,
     selectedRows,
     distributionDates,
-    overflowHours,
-    overflowTasks,
+    finalDayHandoffCount,
+    unallocatedHours,
+    unallocatedStages,
   };
 };

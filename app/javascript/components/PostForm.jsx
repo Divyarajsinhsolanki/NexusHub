@@ -1,15 +1,21 @@
-import React, { useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import toast from "react-hot-toast";
 import { createPost } from "../components/api";
 import { FiImage, FiSend, FiX } from 'react-icons/fi';
+import Avatar from './ui/Avatar';
 
-const PostForm = ({ refreshPosts }) => {
+const PostForm = ({ refreshPosts, onPostCreated, user }) => {
   const [message, setMessage] = useState("");
   const [image, setImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDragActive, setIsDragActive] = useState(false);
   const fileInputRef = useRef(null);
+  const userName = [user?.first_name, user?.last_name].filter(Boolean).join(' ') || user?.email || 'You';
+
+  useEffect(() => () => {
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
+  }, [imagePreview]);
 
   const handleImageChange = (input) => {
     const file =
@@ -74,11 +80,15 @@ const PostForm = ({ refreshPosts }) => {
     if (image) formData.append("post[image]", image);
 
     try {
-      await createPost(formData);
+      const { data: createdPost } = await createPost(formData);
       toast.success("Posted successfully!");
       setMessage("");
       removeImage();
-      refreshPosts();
+      if (createdPost && typeof onPostCreated === 'function') {
+        onPostCreated(createdPost);
+      } else if (typeof refreshPosts === 'function') {
+        refreshPosts();
+      }
     } catch (error) {
       toast.error("Failed to create post. Please try again.");
       console.error(error);
@@ -88,24 +98,21 @@ const PostForm = ({ refreshPosts }) => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-slate-200 p-6" encType="multipart/form-data">
+    <form onSubmit={handleSubmit} className="nexus-post-composer" encType="multipart/form-data">
       <div className="flex items-start space-x-3">
-        <div className="flex-shrink-0">
-          <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-medium">
-            Y
-          </div>
-        </div>
+        <Avatar name={userName} src={user?.profile_picture || user?.profile_picture_url} className="h-10 w-10 flex-shrink-0" />
         <div className="flex-1">
           <div
             data-testid="post-form-dropzone"
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            className={`rounded-lg border-2 border-dashed transition-colors p-2 ${isDragActive ? "border-blue-400 bg-blue-50" : "border-transparent"}`}
+            className={`nexus-post-dropzone ${isDragActive ? "is-dragging" : ""}`}
           >
             <textarea
-              placeholder="What's on your mind?"
-              className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all resize-none"
+              placeholder="Share progress, a decision, question, or blocker…"
+              aria-label="Write an update"
+              className="nexus-post-composer-input"
               rows="3"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
@@ -113,28 +120,30 @@ const PostForm = ({ refreshPosts }) => {
             />
 
             {imagePreview && (
-              <div className="mt-4 relative rounded-lg overflow-hidden border border-slate-200">
+              <div className="nexus-post-image-preview">
                 <img
                   src={imagePreview}
                   alt="Preview"
-                  className="w-full h-auto max-h-80 object-contain"
-                loading="lazy" />
+                  className="h-auto max-h-80 w-full object-contain"
+                  loading="lazy"
+                />
                 <button
                   type="button"
                   onClick={removeImage}
-                  className="absolute top-2 right-2 bg-white/90 rounded-full p-1 shadow-sm hover:bg-white transition-colors"
+                  className="absolute right-2 top-2 rounded-full bg-white/90 p-1 shadow-sm transition-colors hover:bg-white"
+                  aria-label="Remove attached image"
                 >
                   <FiX className="text-slate-700" />
                 </button>
               </div>
             )}
 
-            <div className="flex justify-between items-center mt-4">
+            <div className="mt-3 flex items-center justify-between gap-3">
               <div className="flex space-x-2">
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center gap-2 text-slate-600 hover:text-blue-600 px-3 py-2 rounded-lg hover:bg-slate-100 transition-colors disabled:opacity-50"
+                  className="nexus-post-attachment-button"
                   disabled={isSubmitting}
                 >
                   <FiImage size={18} />
@@ -151,7 +160,7 @@ const PostForm = ({ refreshPosts }) => {
 
               <button
                 type="submit"
-                className="flex items-center gap-2 bg-blue-600 text-white font-medium py-2 px-5 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-slate-300 disabled:cursor-not-allowed transition-all"
+                className="nexus-post-submit"
                 disabled={(!message.trim() && !image) || isSubmitting}
               >
                 {isSubmitting ? (

@@ -5,8 +5,10 @@ import { Draggable } from "@hello-pangea/dnd";
 import { FiEdit2, FiTrash2, FiCalendar, FiUser, FiTag, FiCheckCircle } from "react-icons/fi";
 import { getUsers } from '../api';
 import { toast } from 'react-hot-toast';
+import { useSearchParams } from 'react-router-dom';
 
 const TaskCard = ({ item, index, columnId, onDelete, onUpdate }) => {
+  const [, setSearchParams] = useSearchParams();
   const [isEditing, setIsEditing] = useState(false);
   const [editDetails, setEditDetails] = useState({
       title: item.title || '',
@@ -17,6 +19,16 @@ const TaskCard = ({ item, index, columnId, onDelete, onUpdate }) => {
       end_date: item.end_date || ''
   });
   const [users, setUsers] = useState([]);
+
+  const inspectTask = (event) => {
+    if (event.target.closest('button, a, input, textarea, select')) return;
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set('task_id', item.id);
+      next.delete('log_id');
+      return next;
+    }, { replace: true });
+  };
 
   useEffect(() => {
     if (!isEditing) return;
@@ -136,6 +148,7 @@ const TaskCard = ({ item, index, columnId, onDelete, onUpdate }) => {
       {(provided, snapshot) => {
         const card = (
           <div
+            onClick={inspectTask}
             className={`bg-white p-4 mb-4 rounded-lg shadow-md border-l-4 ${
               {
                 todo: 'border-theme',

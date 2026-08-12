@@ -8,7 +8,6 @@ import PrivateRoute from "../components/PrivateRoute";
 import ProjectMemberRoute from "../components/ProjectMemberRoute";
 
 import Navbar from "../components/Navbar";
-import Footer from "./Footer";
 import PageTitle from "./PageTitle";
 import PageLoader from "./ui/PageLoader";
 import ChatLauncher from "./ChatLauncher";
@@ -16,8 +15,10 @@ import DemoBanner from "./DemoBanner";
 import DemoTourNavigator from "./DemoTourNavigator";
 import CommandPalette from "./CommandPalette";
 import { AuthContext } from "../context/AuthContext";
+import { WorkspaceDataProvider } from "../context/WorkspaceDataContext";
 import { portfolioEnabled } from "../config/features";
 import { routeFrameKeyForPath } from "../utils/routeFrameKey";
+import { getRouteLayout } from "./shell/routeLayout";
 
 const Admin = lazy(() => import("../components/Admin/Admin"));
 const AdminImpersonation = lazy(() => import("../pages/AdminImpersonation"));
@@ -53,15 +54,13 @@ const Vault = lazy(() => import("../pages/Vault"));
 const WorkLog = lazy(() => import("../pages/WorkLog"));
 
 const routeTransitionProps = {
-  initial: { opacity: 0, y: 18, scale: 0.992, filter: "blur(12px)" },
+  initial: { opacity: 0, y: 8 },
   animate: {
     opacity: 1,
     y: 0,
-    scale: 1,
-    filter: "blur(0px)",
     transition: {
-      duration: 0.48,
-      ease: [0.22, 1, 0.36, 1],
+      duration: 0.2,
+      ease: [0.16, 1, 0.3, 1],
     },
   },
 };
@@ -306,38 +305,41 @@ const AppShell = () => {
   const { user } = useContext(AuthContext);
   const isProjectMetaverseRoute = /^\/projects\/[^/]+\/metaverse$/.test(location.pathname);
   const isPdfRoute = location.pathname.startsWith("/pdf");
-  const isImmersiveRoute = location.pathname.startsWith("/knowledge") || isProjectMetaverseRoute || isPdfRoute;
+  const isImmersiveRoute = location.pathname.startsWith("/knowledge") || location.pathname.startsWith("/meet/") || isProjectMetaverseRoute || isPdfRoute;
   const isChatRoute = location.pathname.startsWith("/chat");
   const portfolioPublicRoutes = portfolioEnabled ? ["/contact", "/metaverse-landing"] : [];
   const isPublicRoute = ["/", "/legal", ...portfolioPublicRoutes].includes(location.pathname);
   const isAuthRoute = ["/login", "/signup", "/forgot-password", "/reset-password"].includes(location.pathname);
+  const routeLayout = getRouteLayout(location.pathname);
+  const isChatThreadRoute = routeLayout.mobileChrome === "thread";
 
   if (isPublicRoute || isAuthRoute) {
     return <AppRoutes />;
   }
 
   return (
-    <div className={`shell-app flex min-h-dvh flex-col ${isImmersiveRoute ? "shell-app-immersive" : ""} ${isChatRoute ? "shell-app-chat" : ""}`}>
-      <div className="shell-backdrop" aria-hidden="true">
-        <div className="shell-orb shell-orb-one" />
-        <div className="shell-orb shell-orb-two" />
-        <div className="shell-orb shell-orb-three" />
-        <div className="shell-rings" />
-      </div>
-
-      {user?.demo_account ? <DemoBanner /> : null}
-      {user?.demo_account ? <DemoTourNavigator /> : null}
+    <div
+      className={`shell-app nexus-workspace-shell flex min-h-dvh flex-col ${isImmersiveRoute ? "shell-app-immersive" : ""} ${isChatRoute ? "shell-app-chat" : ""} ${isChatThreadRoute ? "nexus-shell-chat-thread" : ""} ${isProjectMetaverseRoute ? "nexus-shell-chromeless" : ""}`}
+      data-layout-mode={routeLayout.mode}
+      data-density={routeLayout.density}
+      data-route={location.pathname}
+    >
       <CommandPalette />
       {isProjectMetaverseRoute ? null : <Navbar />}
 
       <main className={`shell-main ${isImmersiveRoute ? "shell-main-immersive" : ""} ${isChatRoute ? "shell-main-chat" : ""}`}>
+        {user?.demo_account && !isProjectMetaverseRoute && !isChatThreadRoute ? (
+          <div className="nexus-demo-chrome">
+            <DemoBanner />
+            <DemoTourNavigator />
+          </div>
+        ) : null}
         <div className={`shell-main-stage ${isImmersiveRoute ? "shell-main-stage-immersive" : ""} ${isChatRoute ? "shell-main-stage-chat" : ""}`}>
           <AppRoutes />
         </div>
       </main>
 
       {isProjectMetaverseRoute ? null : <ChatLauncher />}
-      {isImmersiveRoute || isChatRoute ? null : <Footer />}
     </div>
   );
 };
@@ -346,7 +348,8 @@ const App = () => {
   return (
     <Router>
       <AuthProvider>
-        <Toaster
+        <WorkspaceDataProvider>
+          <Toaster
           position="top-right"
           toastOptions={{
             duration: 3200,
@@ -372,9 +375,10 @@ const App = () => {
               },
             },
           }}
-        />
-        <PageTitle />
-        <AppShell />
+          />
+          <PageTitle />
+          <AppShell />
+        </WorkspaceDataProvider>
       </AuthProvider>
     </Router>
   );

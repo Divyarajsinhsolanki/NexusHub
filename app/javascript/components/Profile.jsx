@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useContext } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { fetchUserInfo, fetchUserProfile, fetchPosts, SchedulerAPI, fetchTeams, saveKekaCredentials, refreshKekaProfile, startDirectConversation } from "../components/api";
 import { getStatusClasses } from '/utils/taskUtils';
 import { Squares2X2Icon, FolderIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
@@ -52,6 +52,7 @@ const Profile = () => {
   const navigate = useNavigate();
   const { setUser: setAuthUser } = useContext(AuthContext);
   const { userId } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const viewingOtherProfile = Boolean(userId);
   const [user, setUser] = useState(null);
   const [posts, setPosts] = useState([]);
@@ -59,7 +60,19 @@ const Profile = () => {
   const [teams, setTeams] = useState([]);
   const [projects, setProjects] = useState([]);
   const [editMode, setEditMode] = useState(false);
-  const [activeTab, setActiveTab] = useState('overview');
+  const profileTabs = ['overview', 'posts', 'tasks', 'teams', 'projects', 'keka'];
+  const [activeTab, setActiveTabState] = useState(() => {
+    const tab = searchParams.get('tab');
+    return profileTabs.includes(tab) ? tab : 'overview';
+  });
+  const setActiveTab = (tab) => {
+    setActiveTabState(tab);
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (tab === 'overview') next.delete('tab'); else next.set('tab', tab);
+      return next;
+    }, { replace: true });
+  };
   const [isLoading, setIsLoading] = useState(true);
   const [formData, setFormData] = useState({
     first_name: "",
@@ -96,6 +109,11 @@ const Profile = () => {
   const [kekaRefreshing, setKekaRefreshing] = useState(false);
   const [kekaError, setKekaError] = useState("");
   const [kekaSuccess, setKekaSuccess] = useState("");
+
+  useEffect(() => {
+    const requested = searchParams.get('tab') || 'overview';
+    if (profileTabs.includes(requested) && requested !== activeTab) setActiveTabState(requested);
+  }, [activeTab, searchParams]);
 
   const refreshUserInfo = async () => {
     setIsLoading(true);
@@ -544,11 +562,11 @@ const Profile = () => {
   }
 
   return (
-    <div className="pb-12 pt-4 sm:pt-6">
-      <div className="mx-auto max-w-[1280px] space-y-6">
+    <div className="nexus-profile-page pb-6">
+      <div className="nexus-profile-page-inner">
         {/* Profile Header */}
-        <div className="shell-panel shell-panel-strong overflow-hidden rounded-[38px]">
-          <div className="relative h-56 overflow-hidden bg-[linear-gradient(135deg,rgba(15,23,42,0.9),rgba(52,109,255,0.58),rgba(103,232,249,0.34))] md:h-64">
+        <div className="nexus-profile-identity shell-panel shell-panel-strong overflow-hidden">
+          <div className="nexus-profile-cover relative overflow-hidden bg-[linear-gradient(135deg,rgba(15,23,42,0.9),rgba(52,109,255,0.58),rgba(103,232,249,0.34))]">
             {/* Cover Photo */}
             {user?.cover_photo && user.cover_photo !== 'null' && (
               <img
@@ -579,11 +597,11 @@ const Profile = () => {
             )}
           </div>
 
-          <div className="relative px-5 pb-8 sm:px-8">
-            <div className="flex flex-col gap-7 xl:flex-row xl:items-end xl:justify-between">
+          <div className="relative px-5 pb-6">
+            <div className="nexus-profile-identity-content flex flex-col gap-6">
               {/* Profile Picture */}
-              <div className="flex flex-col gap-6 sm:flex-row sm:items-end">
-              <div className="relative group -mt-16 sm:-mt-20">
+              <div className="flex flex-col items-center gap-5">
+              <div className="relative group -mt-16">
                 <div className="absolute inset-0 rounded-full bg-theme/20 blur-xl -z-10"></div>
                 {showProfileImage ? (
                   <img
@@ -612,8 +630,8 @@ const Profile = () => {
               </div>
 
               {/* User Info */}
-              <div className="flex-1 text-center sm:text-left">
-                <div className="mb-3 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+              <div className="flex-1 text-center">
+                <div className="mb-3 flex flex-wrap items-center justify-center gap-2">
                   <span className="shell-chip">
                     <span className="shell-chip-dot" />
                     {currentRoleLabel}
@@ -634,13 +652,13 @@ const Profile = () => {
                 {user?.bio && (
                   <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">{user.bio}</p>
                 )}
-                <div className="mt-3 flex flex-wrap justify-center gap-3 text-sm sm:justify-start">
+                <div className="mt-3 flex flex-wrap justify-center gap-3 text-sm">
                   {user?.social_links?.linkedin && <a className="font-medium text-theme hover:underline" href={user.social_links.linkedin} target="_blank" rel="noreferrer">LinkedIn</a>}
                   {user?.social_links?.github && <a className="font-medium text-theme hover:underline" href={user.social_links.github} target="_blank" rel="noreferrer">GitHub</a>}
                   {user?.social_links?.twitter && <a className="font-medium text-theme hover:underline" href={user.social_links.twitter} target="_blank" rel="noreferrer">Twitter</a>}
                   {user?.social_links?.website && <a className="font-medium text-theme hover:underline" href={user.social_links.website} target="_blank" rel="noreferrer">Website</a>}
                 </div>
-                <div className="mt-5 flex flex-wrap justify-center gap-3 sm:justify-start">
+                <div className="nexus-profile-stats mt-5">
                   <div className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/72 px-4 py-2 text-sm font-semibold text-slate-700 shadow-[0_14px_28px_rgb(15_23_42_/_0.06)]">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-theme mr-2" viewBox="0 0 20 20" fill="currentColor">
                       <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v1h8v-1zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-1a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v1h-3zM4.75 12.094A5.973 5.973 0 004 15v1H1v-1a3 3 0 013.75-2.906z" />
@@ -667,7 +685,7 @@ const Profile = () => {
               {!editMode && !viewingOtherProfile && (
                 <button
                   onClick={() => setEditMode(true)}
-                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-white/75 bg-[linear-gradient(135deg,var(--theme-color),var(--theme-secondary))] px-6 py-3 text-sm font-semibold text-white shadow-[0_24px_44px_rgb(52_109_255_/_0.22)] hover:brightness-110 sm:w-auto"
+                  className="nexus-primary-action inline-flex min-h-11 w-full items-center justify-center gap-2 px-6 py-3 text-sm font-semibold text-white"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                     <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
@@ -679,7 +697,7 @@ const Profile = () => {
               {!editMode && viewingOtherProfile && (
                 <button
                   onClick={handleStartDirectChat}
-                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-white/75 bg-slate-950 px-6 py-3 text-sm font-semibold text-white shadow-[0_24px_44px_rgb(15_23_42_/_0.18)] hover:brightness-110 sm:w-auto"
+                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-slate-950 px-6 py-3 text-sm font-semibold text-white"
                 >
                   Text
                 </button>
@@ -689,7 +707,7 @@ const Profile = () => {
         </div>
 
         {/* Content Tabs */}
-        <div className="shell-panel shell-panel-strong rounded-[28px] p-2">
+        <div className="nexus-profile-tabs shell-panel shell-panel-strong p-1.5">
           <div className="scrollbar-hide flex gap-2 overflow-x-auto">
             <button
               onClick={() => setActiveTab('overview')}
@@ -758,7 +776,7 @@ const Profile = () => {
           </div>
         </div>
 
-        <div className="shell-panel shell-panel-strong rounded-[32px] p-6 sm:p-7">
+        <div className="nexus-profile-content shell-panel shell-panel-strong p-4 sm:p-5">
             {activeTab === 'overview' && (
               <div className="space-y-8">
                 {/* Stats Cards */}

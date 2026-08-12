@@ -2,7 +2,10 @@ class Api::ConversationsController < Api::BaseController
   CONVERSATION_PAGE_SIZE = 30
   MAX_CONVERSATION_PAGE_SIZE = 100
 
-  before_action :set_conversation, only: [:show, :summary, :destroy, :for_everyone, :mute, :unmute]
+  before_action :set_conversation, only: [
+    :show, :summary, :update, :add_participants, :remove_participant, :leave,
+    :destroy, :for_everyone, :mute, :unmute
+  ]
 
   def index
     base_scope = Conversation.for_user(current_user)
@@ -53,17 +56,106 @@ class Api::ConversationsController < Api::BaseController
     conversation = Conversation.new(conversation_params.merge(creator: current_user))
 
     participant_ids = Array(params[:participant_ids]).map(&:to_i).uniq
-    participant_ids << current_user.id
+    participant_ids |= [current_user.id]
+
+    participants = current_user.workspace.users.where(id: participant_ids).to_a
+    if participants.length != participant_ids.length
+      render json: { error: "invalid_participants", message: "Every participant must belong to this workspace" }, status: :unprocessable_entity
+      return
+    end
 
     if conversation.save
-      participant_ids.each do |user_id|
-        conversation.conversation_participants.create!(user_id: user_id)
+      participants.each do |participant|
+        conversation.conversation_participants.create!(workspace: conversation.workspace, user: participant)
       end
       Chat::Broadcaster.broadcast_conversation_refresh(conversation)
       render json: serialize_conversation(conversation), status: :created
     else
       render json: { errors: conversation.errors.full_messages }, status: :unprocessable_entity
     end
+  end
+
+  def update
+    unless can_manage_group?(@conversation)
+      head :forbidden
+      return
+    end
+
+    if @conversation.update(conversation_params.slice(:title))
+      Chat::Broadcaster.broadcast_conversation_refresh(@conversation)
+      render json: serialize_conversation(reload_conversation)
+    else
+      render json: { errors: @conversation.errors.full_messages }, status: :unprocessable_entity
+    end
+  end
+
+  def add_participants
+    unless can_manage_group?(@conversation)
+      head :forbidden
+      return
+    end
+
+    requested_ids = Array(params[:participant_ids]).map(&:to_i).uniq
+    requested_ids -= @conversation.participant_ids
+    users = current_user.workspace.users.where(id: requested_ids).to_a
+
+    if users.length != requested_ids.length
+      render json: { error: "invalid_participants", message: "Every participant must belong to this workspace" }, status: :unprocessable_entity
+      return
+    end
+
+    invited_calls = Conversation.transaction do
+      users.each do |user|
+        @conversation.conversation_participants.create!(workspace: @conversation.workspace, user: user)
+      end
+      invite_users_to_live_calls(users)
+    end
+
+    Chat::Broadcaster.broadcast_conversation_refresh(@conversation.reload)
+    invited_calls.each do |call_session|
+      users.each { |user| Chat::Broadcaster.broadcast_call_ringing_to(call_session, user) }
+      Chat::Broadcaster.broadcast_call_event(call_session, "call_participants_invited", user_ids: users.map(&:id))
+    end
+    render json: serialize_conversation(reload_conversation), status: :created
+  end
+
+  def remove_participant
+    unless can_manage_group?(@conversation)
+      head :forbidden
+      return
+    end
+
+    target = @conversation.participants.find_by(id: params[:user_id])
+    unless target
+      render json: { error: "participant_not_found" }, status: :not_found
+      return
+    end
+    if target.id == @conversation.creator_id
+      render json: { error: "creator_required", message: "The group creator cannot be removed" }, status: :unprocessable_entity
+      return
+    end
+    if target.id == current_user.id
+      render json: { error: "use_leave", message: "Use Leave group to remove yourself" }, status: :unprocessable_entity
+      return
+    end
+
+    remove_user_from_group(target)
+    render json: serialize_conversation(reload_conversation)
+  end
+
+  def leave
+    unless @conversation.group?
+      render json: { error: "group_required" }, status: :unprocessable_entity
+      return
+    end
+    if @conversation.creator_id == current_user.id
+      render json: { error: "creator_required", message: "The group creator cannot leave while the group exists" }, status: :unprocessable_entity
+      return
+    end
+
+    conversation_id = @conversation.id
+    remove_user_from_group(current_user)
+    render json: { success: true, conversation_id: conversation_id }
   end
 
   def start_direct
@@ -183,6 +275,7 @@ class Api::ConversationsController < Api::BaseController
   def serialize_conversation_collection(conversations)
     conversation_ids = conversations.map(&:id)
     unread_counts = unread_counts_for(conversation_ids)
+    active_calls = active_calls_for(conversation_ids)
 
     conversations.map do |conversation|
       serialize_conversation(
@@ -190,9 +283,23 @@ class Api::ConversationsController < Api::BaseController
         unread_count: unread_counts[conversation.id] || 0,
         last_message: conversation.last_message,
         last_message_at: conversation.last_message_at,
-        last_message_loaded: true
+        last_message_loaded: true,
+        active_call: active_calls[conversation.id],
+        active_call_loaded: true
       )
     end
+  end
+
+  def active_calls_for(conversation_ids)
+    return {} if conversation_ids.empty?
+
+    CallSession.live
+      .includes(:initiator, call_participants: :user)
+      .where(conversation_id: conversation_ids)
+      .recent
+      .each_with_object({}) do |call_session, calls_by_conversation|
+        calls_by_conversation[call_session.conversation_id] ||= call_session
+      end
   end
 
   def latest_message_times_for(conversation_ids)
@@ -240,6 +347,65 @@ class Api::ConversationsController < Api::BaseController
     conversation.creator_id == current_user.id || current_user.owner? || current_user.admin?
   end
 
+  def can_manage_group?(conversation)
+    conversation.group? && can_delete_for_everyone?(conversation)
+  end
+
+  def reload_conversation
+    @conversation = Conversation.for_user(current_user)
+      .includes(:last_message, :conversation_participants, participants: { profile_picture_attachment: :blob })
+      .find(@conversation.id)
+  end
+
+  def invite_users_to_live_calls(users)
+    return [] if users.empty?
+
+    CallSession.live.where(conversation_id: @conversation.id).map do |call_session|
+      users.each do |user|
+        participant = call_session.call_participants.find_or_initialize_by(user: user)
+        participant.assign_attributes(
+          workspace: call_session.workspace,
+          status: "ringing",
+          ring_acknowledged_at: nil,
+          joined_at: nil,
+          left_at: nil
+        )
+        participant.save!
+      end
+
+      call_session.reload
+    end
+  end
+
+  def remove_user_from_group(user)
+    live_calls = CallSession.live.where(conversation_id: @conversation.id).to_a
+
+    Conversation.transaction do
+      @conversation.conversation_participants.find_by!(user_id: user.id).destroy!
+      live_calls.each do |call_session|
+        if call_session.initiator_id == user.id
+          call_session.call_participants.where(status: "ringing").update_all(status: "missed", left_at: Time.current, updated_at: Time.current)
+          call_session.call_participants.where(status: "joined").update_all(status: "left", left_at: Time.current, updated_at: Time.current)
+          call_session.update!(status: "ended", ended_reason: "host_left_group", ended_at: Time.current)
+          next
+        end
+
+        participant = call_session.call_participants.find_by(user_id: user.id)
+        next unless participant
+
+        participant.update!(status: "left", left_at: Time.current)
+      end
+    end
+
+    live_calls.each do |call_session|
+      call_session.reload
+      event_type = call_session.live? ? "call_participant_left" : "call_ended"
+      Chat::Broadcaster.broadcast_call_event(call_session, event_type, user_id: user.id)
+    end
+    Chat::Broadcaster.broadcast_conversation_removed(@conversation, user.id)
+    Chat::Broadcaster.broadcast_conversation_refresh(@conversation.reload)
+  end
+
   def delete_confirmation_text(conversation)
     "DELETE #{conversation.id}"
   end
@@ -284,20 +450,25 @@ class Api::ConversationsController < Api::BaseController
     nil
   end
 
-  def serialize_conversation(conversation, include_messages: false, unread_count: nil, last_message: nil, last_message_at: nil, last_message_loaded: false)
+  def serialize_conversation(conversation, include_messages: false, unread_count: nil, last_message: nil, last_message_at: nil, last_message_loaded: false, active_call: nil, active_call_loaded: false)
     membership = conversation.conversation_participants.find { |cp| cp.user_id == current_user.id } || conversation.conversation_participants.find_by(user_id: current_user.id)
     unread_count = conversation.messages.where("messages.id > ?", membership&.last_read_message_id || 0).where.not(user_id: current_user.id).count if unread_count.nil?
-    active_call = CallSession.live
-      .includes(:initiator, call_participants: :user)
-      .where(conversation_id: conversation.id)
-      .recent
-      .first
+    unless active_call_loaded
+      active_call = CallSession.live
+        .includes(:initiator, call_participants: :user)
+        .where(conversation_id: conversation.id)
+        .recent
+        .first
+    end
     payload = {
       id: conversation.id,
       title: conversation_display_name(conversation),
       conversation_type: conversation.conversation_type,
       creator_id: conversation.creator_id,
       can_delete_for_everyone: can_delete_for_everyone?(conversation),
+      can_manage_members: can_manage_group?(conversation),
+      can_edit_group: can_manage_group?(conversation),
+      can_leave_group: conversation.group? && conversation.creator_id != current_user.id,
       hidden_at: membership&.hidden_at,
       muted_at: membership&.muted_at,
       muted_until: membership&.muted_until,
@@ -315,6 +486,7 @@ class Api::ConversationsController < Api::BaseController
           last_delivered_message_id: participant&.last_delivered_message_id,
           last_read_message_id: participant&.last_read_message_id,
           joined_at: participant&.created_at,
+          is_creator: user.id == conversation.creator_id,
           online: user.last_seen_at.present? && user.last_seen_at >= 2.minutes.ago
         }
       end,

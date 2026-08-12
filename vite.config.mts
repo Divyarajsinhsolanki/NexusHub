@@ -86,7 +86,7 @@ export default defineConfig({
   },
   
   server: {
-    hmr: isProductionBuild ? false : undefined,
+    hmr: isProductionBuild ? false : { clientPort: 3036 },
     // This workspace can exceed Linux inotify limits when Rails, esbuild,
     // and Vite all watch files at once. Polling keeps Vite stable in dev.
     watch: {

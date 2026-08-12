@@ -64,6 +64,9 @@ module Chat
       participant = participant_for!(call_session)
       raise InvalidTransition, "This call has ended" unless call_session.live?
       raise InvalidTransition, "This call was declined" if participant.call_declined?
+      if participant.call_left? && !call_session.conversation.conversation_participants.exists?(user_id: user.id)
+        raise InvalidTransition, "You no longer have access to this group call"
+      end
 
       started_now = false
 

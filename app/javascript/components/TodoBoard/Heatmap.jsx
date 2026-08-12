@@ -64,10 +64,10 @@ const Heatmap = ({ columns, view, onViewChange, sprint }) => {
   const handleNext = () => setWeekIndex(i => Math.min(weekStarts.length - 1, i + 1));
 
   return (
-    <div className="bg-white p-6 shadow-lg rounded-xl border border-gray-100">
+    <div className="min-w-0 rounded-xl border border-gray-100 bg-white p-4 shadow-sm sm:p-6">
       <div className="flex items-center mb-4">
         <FiCalendar className="text-theme mr-3" size={24} />
-        <h3 className="text-xl font-bold text-gray-800">Due Date Heatmap</h3>
+        <h3 className="text-lg font-bold text-gray-800 sm:text-xl">Due Date Heatmap</h3>
         {weekStarts.length > 1 && (
           <div className="ml-auto flex gap-2">
             <button
@@ -88,22 +88,22 @@ const Heatmap = ({ columns, view, onViewChange, sprint }) => {
         )}
       </div>
 
-      <div className="flex justify-center gap-2 mb-6">
+      <div className="mb-6 grid min-w-0 grid-cols-7 gap-1 sm:gap-2">
         {data.map((d, i) => {
           const intensity = d.count === 0 ? 'bg-gray-100 text-gray-500'
                           : d.count < 3 ? 'bg-yellow-200 text-yellow-800'
                           : d.count < 6 ? 'bg-orange-300 text-orange-800'
                           : 'bg-red-400 text-white';
           return (
-            <div key={i} className="relative group flex-1">
+            <div key={i} className="group relative min-w-0">
               <div
                 onClick={() => setSelectedDate(d.date)}
-                className={`p-3 rounded-lg text-center cursor-pointer transition-all transform group-hover:scale-110 ${intensity} ${selectedDate === d.date ? 'ring-2 ring-offset-2 ring-theme' : ''}`}
+                className={`min-w-0 cursor-pointer rounded-lg p-1.5 text-center transition-colors sm:p-3 ${intensity} ${selectedDate === d.date ? 'ring-2 ring-offset-1 ring-theme sm:ring-offset-2' : ''}`}
               >
-                <div className="text-sm font-semibold">{format(parseISO(d.date), 'EEE')}</div>
-                <div className="text-2xl font-bold">{d.count}</div>
+                <div className="truncate text-[10px] font-semibold sm:text-sm">{format(parseISO(d.date), 'EEE')}</div>
+                <div className="text-lg font-bold sm:text-2xl">{d.count}</div>
               </div>
-              <div className="absolute bottom-full mb-2 w-max bg-gray-800 text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none left-1/2 -translate-x-1/2">
+              <div className="pointer-events-none absolute bottom-full left-1/2 mb-2 hidden w-max -translate-x-1/2 rounded bg-gray-800 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100 sm:block">
                 {getTooltipText(d.count)}
                 <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-800"></div>
               </div>
@@ -113,7 +113,7 @@ const Heatmap = ({ columns, view, onViewChange, sprint }) => {
       </div>
 
       <div className="border-t border-gray-200 pt-4">
-        <h4 className="font-semibold text-gray-700 flex items-center mb-3">
+        <h4 className="mb-3 flex min-w-0 items-center font-semibold text-gray-700">
           <FiAlertTriangle className="text-red-500 mr-2" />
           <span>
             Tasks Due {selectedDate === todayISO ? 'Today' : format(parseISO(selectedDate), 'MMM d, yyyy')}

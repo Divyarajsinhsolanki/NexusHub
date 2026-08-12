@@ -12,16 +12,17 @@ import {
   FiLinkedin,
   FiMail,
 } from 'react-icons/fi';
-import { deletePost, likePost, unlikePost, createComment, deleteComment } from "../components/api";
+import { deletePost, likePost, unlikePost, fetchComments, createComment, deleteComment } from "../components/api";
 import Avatar from "./ui/Avatar";
 import { AuthContext } from "../context/AuthContext";
 
-const PostList = ({ posts, refreshPosts, onPostUpdate = () => {} }) => {
+const PostList = ({ posts, refreshPosts, onPostUpdate = () => {}, onPostDelete = null }) => {
   const [likedPosts, setLikedPosts] = React.useState(new Set());
   const [likeCounts, setLikeCounts] = React.useState({});
   const [expandedComments, setExpandedComments] = React.useState(new Set());
   const [commentInputs, setCommentInputs] = React.useState({});
   const [submittingComments, setSubmittingComments] = React.useState(new Set());
+  const [loadingComments, setLoadingComments] = React.useState(new Set());
   const { user } = useContext(AuthContext);
   const [openSharePostId, setOpenSharePostId] = React.useState(null);
   const shareButtonRefs = React.useRef({});
@@ -177,7 +178,11 @@ const PostList = ({ posts, refreshPosts, onPostUpdate = () => {} }) => {
       try {
         await deletePost(id);
         toast.success("Post deleted successfully");
-        refreshPosts();
+        if (typeof onPostDelete === 'function') {
+          onPostDelete(id);
+        } else if (typeof refreshPosts === 'function') {
+          refreshPosts();
+        }
       } catch (error) {
         toast.error("Failed to delete post");
         console.error(error);
@@ -187,6 +192,18 @@ const PostList = ({ posts, refreshPosts, onPostUpdate = () => {} }) => {
 
   const toggleLike = async (postId) => {
     const isCurrentlyLiked = likedPosts.has(postId);
+    const previousCount = likeCounts[postId] ?? posts.find((post) => post.id === postId)?.likes_count ?? 0;
+
+    setLikedPosts((previous) => {
+      const optimistic = new Set(previous);
+      if (isCurrentlyLiked) optimistic.delete(postId);
+      else optimistic.add(postId);
+      return optimistic;
+    });
+    setLikeCounts((previous) => ({
+      ...previous,
+      [postId]: Math.max(previousCount + (isCurrentlyLiked ? -1 : 1), 0),
+    }));
 
     try {
       const { data } = isCurrentlyLiked ? await unlikePost(postId) : await likePost(postId);
@@ -205,13 +222,25 @@ const PostList = ({ posts, refreshPosts, onPostUpdate = () => {} }) => {
         ...prev,
         [postId]: data.likes_count ?? 0,
       }));
+      onPostUpdate(postId, (previousPost) => ({
+        ...previousPost,
+        likes_count: data.likes_count ?? 0,
+        liked_by_current_user: Boolean(data.liked_by_current_user),
+      }));
     } catch (error) {
+      setLikedPosts((previous) => {
+        const rolledBack = new Set(previous);
+        if (isCurrentlyLiked) rolledBack.add(postId);
+        else rolledBack.delete(postId);
+        return rolledBack;
+      });
+      setLikeCounts((previous) => ({ ...previous, [postId]: previousCount }));
       toast.error(isCurrentlyLiked ? 'Failed to remove like' : 'Failed to like post');
       console.error(error);
     }
   };
 
-  const toggleComments = (postId) => {
+  const toggleComments = async (postId) => {
     const newExpandedComments = new Set(expandedComments);
     if (newExpandedComments.has(postId)) {
       newExpandedComments.delete(postId);
@@ -219,6 +248,33 @@ const PostList = ({ posts, refreshPosts, onPostUpdate = () => {} }) => {
       newExpandedComments.add(postId);
     }
     setExpandedComments(newExpandedComments);
+
+    const post = posts.find((candidate) => candidate.id === postId);
+    const hasOnlyPreview = (
+      !expandedComments.has(postId) &&
+      post?.has_more_comments &&
+      (post.comments?.length || 0) < Number(post.comments_count || 0)
+    );
+    if (!hasOnlyPreview || loadingComments.has(postId)) return;
+
+    setLoadingComments((previous) => new Set(previous).add(postId));
+    try {
+      const { data } = await fetchComments(postId);
+      onPostUpdate(postId, (previousPost) => ({
+        ...previousPost,
+        comments: Array.isArray(data) ? data : [],
+        has_more_comments: false,
+      }));
+    } catch (error) {
+      toast.error('Could not load all comments');
+      console.error(error);
+    } finally {
+      setLoadingComments((previous) => {
+        const updated = new Set(previous);
+        updated.delete(postId);
+        return updated;
+      });
+    }
   };
 
   const handleCommentChange = (postId, value) => {
@@ -300,21 +356,22 @@ const PostList = ({ posts, refreshPosts, onPostUpdate = () => {} }) => {
   return (
     <div className="space-y-5">
       {posts.map((post) => {
-        const fullName = [post.user.first_name, post.user.last_name].filter(Boolean).join(' ') || post.user.email;
+        const postUser = post.user || {};
+        const fullName = [postUser.first_name, postUser.last_name].filter(Boolean).join(' ') || postUser.email || 'Unknown member';
         const comments = Array.isArray(post.comments) ? post.comments : [];
         const commentCount = post.comments_count ?? comments.length;
         const currentUserName = user ? [user.first_name, user.last_name].filter(Boolean).join(' ') || user.email : 'Current User';
         const currentUserAvatar = user?.profile_picture || user?.profile_picture_url;
 
         return (
-          <article id={`post-${post.id}`} key={post.id} className="bg-white rounded-lg shadow-xs border border-slate-200 hover:shadow-md transition-shadow">
+          <article id={`post-${post.id}`} key={post.id} className="nexus-post-card">
             <div className="p-5">
             {/* Post Header */}
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-start space-x-3">
                 <Avatar
                   name={fullName}
-                  src={post.user.profile_picture}
+                  src={postUser.profile_picture}
                   className="w-10 h-10"
                 />
                 <div>
@@ -324,7 +381,7 @@ const PostList = ({ posts, refreshPosts, onPostUpdate = () => {} }) => {
                   </p>
                 </div>
               </div>
-              {user?.id === post.user.id && (
+              {String(user?.id) === String(postUser.id) && (
                 <button
                   onClick={() => handleDelete(post.id)}
                   className="text-slate-400 hover:text-red-500 p-1 rounded-full transition-colors"
@@ -374,6 +431,8 @@ const PostList = ({ posts, refreshPosts, onPostUpdate = () => {} }) => {
               <button
                 onClick={() => toggleComments(post.id)}
                 className="flex items-center space-x-1 px-3 py-1 rounded-md hover:bg-slate-100 transition-colors"
+                aria-expanded={expandedComments.has(post.id)}
+                aria-controls={`post-comments-${post.id}`}
               >
                 <FiMessageCircle size={18} />
                 <span>Comment</span>
@@ -460,7 +519,7 @@ const PostList = ({ posts, refreshPosts, onPostUpdate = () => {} }) => {
 
             {/* Comments Section */}
             {expandedComments.has(post.id) && (
-              <div className="mt-3 pt-3 border-t border-slate-100">
+              <div id={`post-comments-${post.id}`} className="mt-3 border-t border-slate-100 pt-3">
                 <form onSubmit={(event) => handleCommentSubmit(event, post.id)} className="flex items-start space-x-3">
                   <Avatar name={currentUserName} src={currentUserAvatar} className="w-8 h-8 text-sm" />
                   <div className="flex-1 bg-slate-100 rounded-xl px-3 py-2 flex items-center space-x-2">
@@ -482,17 +541,23 @@ const PostList = ({ posts, refreshPosts, onPostUpdate = () => {} }) => {
                 </form>
 
                 <div className="mt-3 space-y-3">
-                  {comments.length === 0 ? (
+                  {loadingComments.has(post.id) ? (
+                    <p className="flex items-center gap-2 text-sm text-slate-500" role="status">
+                      <span className="h-3 w-3 animate-spin rounded-full border-2 border-slate-300 border-t-current" />
+                      Loading all comments…
+                    </p>
+                  ) : comments.length === 0 ? (
                     <p className="text-sm text-slate-500">Be the first to comment.</p>
                   ) : (
                     comments.map((comment) => {
-                      const commenterName = [comment.user.first_name, comment.user.last_name].filter(Boolean).join(' ') || comment.user.email;
+                      const commentUser = comment.user || {};
+                      const commenterName = [commentUser.first_name, commentUser.last_name].filter(Boolean).join(' ') || commentUser.email || 'Unknown member';
                       const commentTimestamp = comment.created_at
                         ? formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })
                         : '';
                       return (
                         <div key={comment.id} className="flex items-start space-x-2">
-                          <Avatar name={commenterName} src={comment.user.profile_picture} className="w-8 h-8 text-sm" />
+                          <Avatar name={commenterName} src={commentUser.profile_picture} className="w-8 h-8 text-sm" />
                           <div className="bg-slate-100 rounded-xl px-3 py-2 text-sm flex-1">
                             <div className="flex items-start justify-between">
                               <div>

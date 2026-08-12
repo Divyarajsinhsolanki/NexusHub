@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useContext, useState, useEffect, useMemo } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { SchedulerAPI, fetchProjects, updateProject } from '../components/api';
 import { CalendarDaysIcon, ChevronDownIcon, ChevronUpIcon, CubeTransparentIcon } from '@heroicons/react/24/outline';
@@ -11,6 +11,7 @@ import ProjectStatistics from './ProjectStatistics';
 import IssueTracker from './IssueTracker';
 import ProjectVault from './ProjectVault';
 import PageLoader from '../components/ui/PageLoader';
+import { ProjectRouteContext } from '../components/ProjectMemberRoute';
 
 const VIEW_MODES = ['dev', 'qa', 'combined'];
 
@@ -132,6 +133,7 @@ const buildWorkloadRows = (tasks = [], members = []) => {
 
 export default function SprintDashboard() {
   const { projectId } = useParams();
+  const projectRoute = useContext(ProjectRouteContext);
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = searchParams.get('tab') || 'overview';
   const dateParam = searchParams.get('date');
@@ -155,7 +157,26 @@ export default function SprintDashboard() {
   const [project, setProject] = useState(null);
   const [isProjectLoaded, setIsProjectLoaded] = useState(false);
   const [isHeaderExpanded, setIsHeaderExpanded] = useState(false);
-  const [viewMode, setViewMode] = useState('combined');
+  const [viewMode, setViewMode] = useState(() => {
+    const mode = searchParams.get('mode');
+    return VIEW_MODES.includes(mode) ? mode : 'combined';
+  });
+
+  const changeViewMode = (mode) => {
+    setViewMode(mode);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('mode', mode);
+      return next;
+    }, { replace: true });
+  };
+
+  useEffect(() => {
+    const requestedTab = searchParams.get('tab') || 'overview';
+    if (requestedTab !== activeTab) setActiveTabState(requestedTab);
+    const requestedMode = searchParams.get('mode');
+    if (VIEW_MODES.includes(requestedMode) && requestedMode !== viewMode) setViewMode(requestedMode);
+  }, [activeTab, searchParams, viewMode]);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
   const [workloadTasks, setWorkloadTasks] = useState([]);
   const [isLoadingWorkload, setIsLoadingWorkload] = useState(false);
@@ -183,6 +204,13 @@ export default function SprintDashboard() {
 
     let mounted = true;
     setIsProjectLoaded(false);
+
+    if (projectRoute?.project && Number(projectRoute.project.id) === Number(projectId)) {
+      setProject(projectRoute.project);
+      setIsProjectLoaded(true);
+      return undefined;
+    }
+
     fetchProjects()
       .then(({ data }) => {
         if (!mounted) return;
@@ -200,7 +228,7 @@ export default function SprintDashboard() {
     return () => {
       mounted = false;
     };
-  }, [projectId]);
+  }, [projectId, projectRoute?.project]);
 
   useEffect(() => {
     if (!project) return;
@@ -227,7 +255,7 @@ export default function SprintDashboard() {
   // Fall back to dev-only when the project does not support QA mode.
   useEffect(() => {
     if (!project?.qa_mode_enabled && viewMode !== 'dev') {
-      setViewMode('dev');
+      changeViewMode('dev');
     }
   }, [project?.qa_mode_enabled, viewMode]);
 
@@ -402,7 +430,7 @@ export default function SprintDashboard() {
 
 
   return (
-    <div className="space-y-5 pb-8">
+    <div className="nexus-project-command-center space-y-3 pb-4">
       <header className="shell-panel shell-panel-strong dashboard-command-deck landing-hero-3d overflow-hidden rounded-[30px]">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(103,232,249,0.16),transparent_24%),radial-gradient(circle_at_left,rgba(52,109,255,0.12),transparent_26%)]" />
         <div className="relative space-y-3 p-3.5 sm:p-4 lg:p-5">
@@ -535,7 +563,7 @@ export default function SprintDashboard() {
                       <button
                         key={mode}
                         type="button"
-                        onClick={() => setViewMode(mode)}
+                        onClick={() => changeViewMode(mode)}
                         className={`shell-segmented-button min-w-[5rem] ${active ? 'shell-segmented-button-active' : ''}`}
                         aria-pressed={active}
                       >
@@ -584,6 +612,7 @@ export default function SprintDashboard() {
         <SprintOverview
           projectId={projectId}
           sprintId={sprintId}
+          availableSprints={sprints}
           onSprintChange={handleSprintChange}
           sheetIntegrationEnabled={project?.sheet_integration_enabled}
           projectMembers={project?.users}
@@ -605,7 +634,7 @@ export default function SprintDashboard() {
       )}
       {activeTab === 'todo' && (
         sprintId
-          ? <TodoBoard sprintId={sprintId} projectId={projectId} viewMode={viewMode} onSprintChange={handleSprintChange} />
+          ? <TodoBoard sprintId={sprintId} projectId={projectId} viewMode={viewMode} onSprintChange={handleSprintChange} availableSprints={sprints} />
           : emptyState
       )}
       {activeTab === 'sheet' && sheetEnabled && (

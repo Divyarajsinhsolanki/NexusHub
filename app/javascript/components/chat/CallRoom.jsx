@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import {
   LiveKitRoom,
   ParticipantTile,
@@ -91,6 +91,33 @@ const getDefaultFrame = (callType) => {
     y: Math.max(12, viewportHeight - height - 20)
   }, callType);
 };
+
+const useMobileCallLayout = () => {
+  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(max-width: 767px)").matches);
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return undefined;
+    const query = window.matchMedia("(max-width: 767px)");
+    const update = () => setIsMobile(query.matches);
+    update();
+    query.addEventListener?.("change", update);
+    return () => query.removeEventListener?.("change", update);
+  }, []);
+
+  return isMobile;
+};
+
+const CallDuration = memo(({ startedAt }) => {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const durationSeconds = startedAt ? Math.max(0, Math.floor((now - new Date(startedAt).getTime()) / 1000)) : 0;
+  return <>{String(Math.floor(durationSeconds / 60)).padStart(2, "0")}:{String(durationSeconds % 60).padStart(2, "0")}</>;
+});
 
 const friendlyConnectionError = (error) => {
   const message = error?.message || "";
@@ -308,9 +335,9 @@ const CallAudioStage = () => {
 
 const CallControls = ({ isAudioOnly, onLeave, onEnd, canEnd, onDeviceError }) => {
   return (
-    <div className="shrink-0 border-t border-slate-100 bg-white/95 px-3 py-3 shadow-[0_-12px_35px_-28px_rgba(15,23,42,0.9)] backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/95">
-      <div className="flex max-w-full items-center gap-2">
-        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div className="shrink-0 border-t border-slate-100 bg-white px-3 py-3 dark:border-zinc-800 dark:bg-zinc-950">
+      <div className="call-room-controls flex max-w-full items-center gap-2">
+        <div className="call-room-media-controls flex min-w-0 flex-1 items-center gap-2">
           <MediaToggle
             source={Track.Source.Microphone}
             label="Mic"
@@ -359,7 +386,7 @@ const CallControls = ({ isAudioOnly, onLeave, onEnd, canEnd, onDeviceError }) =>
           type="button"
           data-no-drag="true"
           onClick={onLeave}
-          className={endCallButtonClass}
+          className={`${endCallButtonClass} call-room-leave`}
           aria-label="Leave call"
           title="Leave call"
         >
@@ -371,7 +398,7 @@ const CallControls = ({ isAudioOnly, onLeave, onEnd, canEnd, onDeviceError }) =>
             type="button"
             data-no-drag="true"
             onClick={onEnd}
-            className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-2xl border border-red-300 bg-white px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 dark:border-red-900 dark:bg-zinc-950 dark:text-red-300"
+            className="call-room-end inline-flex min-h-11 shrink-0 items-center justify-center rounded-2xl border border-red-300 bg-white px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 dark:border-red-900 dark:bg-zinc-950 dark:text-red-300"
           >
             End for all
           </button>
@@ -385,6 +412,9 @@ const CallRoom = ({ callSession, credentials, onLeave, onEnd, onRetry, onConnect
   const callFrameRef = useRef(null);
   const dragStateRef = useRef(null);
   const resizeStateRef = useRef(null);
+  const pointerFrameRef = useRef(null);
+  const latestPointerRef = useRef(null);
+  const isMobile = useMobileCallLayout();
   const [connectionError, setConnectionError] = useState("");
   const [isConnected, setIsConnected] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -393,7 +423,6 @@ const CallRoom = ({ callSession, credentials, onLeave, onEnd, onRetry, onConnect
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
-  const [durationNow, setDurationNow] = useState(() => Date.now());
 
   const updateFrame = useCallback((nextFrame) => {
     setFrame((previous) => {
@@ -411,11 +440,6 @@ const CallRoom = ({ callSession, credentials, onLeave, onEnd, onRetry, onConnect
   }, [callSession?.id, callSession?.call_type, credentials?.participant_token, credentials?.server_url]);
 
   useEffect(() => {
-    const timer = window.setInterval(() => setDurationNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
     if (typeof document === "undefined") return undefined;
 
     const handleFullscreenChange = () => {
@@ -431,6 +455,7 @@ const CallRoom = ({ callSession, credentials, onLeave, onEnd, onRetry, onConnect
 
   useEffect(() => {
     const handleWindowResize = () => {
+      if (isMobile) return;
       updateFrame((previous) => previous);
     };
 
@@ -439,19 +464,24 @@ const CallRoom = ({ callSession, credentials, onLeave, onEnd, onRetry, onConnect
     return () => {
       window.removeEventListener("resize", handleWindowResize);
     };
-  }, [updateFrame]);
+  }, [isMobile, updateFrame]);
 
   useEffect(() => {
     if (!isDragging) return undefined;
 
     const handlePointerMove = (event) => {
-      const dragState = dragStateRef.current;
-      if (!dragState) return;
-
-      updateFrame({
-        ...dragState.frame,
-        x: dragState.frame.x + event.clientX - dragState.pointerX,
-        y: dragState.frame.y + event.clientY - dragState.pointerY
+      latestPointerRef.current = event;
+      if (pointerFrameRef.current) return;
+      pointerFrameRef.current = window.requestAnimationFrame(() => {
+        pointerFrameRef.current = null;
+        const dragState = dragStateRef.current;
+        const pointer = latestPointerRef.current;
+        if (!dragState || !pointer) return;
+        updateFrame({
+          ...dragState.frame,
+          x: dragState.frame.x + pointer.clientX - dragState.pointerX,
+          y: dragState.frame.y + pointer.clientY - dragState.pointerY
+        });
       });
     };
 
@@ -468,6 +498,8 @@ const CallRoom = ({ callSession, credentials, onLeave, onEnd, onRetry, onConnect
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", stopDragging);
       window.removeEventListener("pointercancel", stopDragging);
+      if (pointerFrameRef.current) window.cancelAnimationFrame(pointerFrameRef.current);
+      pointerFrameRef.current = null;
     };
   }, [isDragging, updateFrame]);
 
@@ -475,13 +507,18 @@ const CallRoom = ({ callSession, credentials, onLeave, onEnd, onRetry, onConnect
     if (!isResizing) return undefined;
 
     const handlePointerMove = (event) => {
-      const resizeState = resizeStateRef.current;
-      if (!resizeState) return;
-
-      updateFrame({
-        ...resizeState.frame,
-        width: resizeState.frame.width + event.clientX - resizeState.pointerX,
-        height: resizeState.frame.height + event.clientY - resizeState.pointerY
+      latestPointerRef.current = event;
+      if (pointerFrameRef.current) return;
+      pointerFrameRef.current = window.requestAnimationFrame(() => {
+        pointerFrameRef.current = null;
+        const resizeState = resizeStateRef.current;
+        const pointer = latestPointerRef.current;
+        if (!resizeState || !pointer) return;
+        updateFrame({
+          ...resizeState.frame,
+          width: resizeState.frame.width + pointer.clientX - resizeState.pointerX,
+          height: resizeState.frame.height + pointer.clientY - resizeState.pointerY
+        });
       });
     };
 
@@ -498,6 +535,8 @@ const CallRoom = ({ callSession, credentials, onLeave, onEnd, onRetry, onConnect
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", stopResizing);
       window.removeEventListener("pointercancel", stopResizing);
+      if (pointerFrameRef.current) window.cancelAnimationFrame(pointerFrameRef.current);
+      pointerFrameRef.current = null;
     };
   }, [isResizing, updateFrame]);
 
@@ -513,8 +552,15 @@ const CallRoom = ({ callSession, credentials, onLeave, onEnd, onRetry, onConnect
     };
   }, [isDragging, isResizing]);
 
+  useEffect(() => {
+    if (!isMobile || !callSession || !credentials) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, [callSession, credentials, isMobile]);
+
   const handleDragStart = useCallback((event) => {
-    if (isExpanded || isBrowserFullscreen || event.button !== 0) return;
+    if (isMobile || isExpanded || isBrowserFullscreen || event.button !== 0) return;
 
     const target = event.target instanceof Element ? event.target : null;
     if (target?.closest("button,a,input,textarea,select,[data-no-drag='true']")) return;
@@ -526,10 +572,10 @@ const CallRoom = ({ callSession, credentials, onLeave, onEnd, onRetry, onConnect
     };
     setIsDragging(true);
     event.preventDefault();
-  }, [frame, isBrowserFullscreen, isExpanded]);
+  }, [frame, isBrowserFullscreen, isExpanded, isMobile]);
 
   const handleResizeStart = useCallback((event) => {
-    if (isExpanded || isBrowserFullscreen || event.button !== 0) return;
+    if (isMobile || isExpanded || isBrowserFullscreen || event.button !== 0) return;
 
     resizeStateRef.current = {
       frame,
@@ -539,7 +585,7 @@ const CallRoom = ({ callSession, credentials, onLeave, onEnd, onRetry, onConnect
     setIsResizing(true);
     event.preventDefault();
     event.stopPropagation();
-  }, [frame, isBrowserFullscreen, isExpanded]);
+  }, [frame, isBrowserFullscreen, isExpanded, isMobile]);
 
   const handleToggleFullscreen = useCallback(async () => {
     if (typeof document === "undefined") {
@@ -580,8 +626,6 @@ const CallRoom = ({ callSession, credentials, onLeave, onEnd, onRetry, onConnect
   }, [callSession?.share_url]);
 
   const startedAt = callSession?.started_at || callSession?.created_at;
-  const durationSeconds = startedAt ? Math.max(0, Math.floor((durationNow - new Date(startedAt).getTime()) / 1000)) : 0;
-  const durationText = `${String(Math.floor(durationSeconds / 60)).padStart(2, "0")}:${String(durationSeconds % 60).padStart(2, "0")}`;
   const joinedCount = callSession?.participants?.filter((participant) => participant.status === "joined").length || 0;
 
   if (!callSession || !credentials?.server_url || !credentials?.participant_token) return null;
@@ -594,7 +638,7 @@ const CallRoom = ({ callSession, credentials, onLeave, onEnd, onRetry, onConnect
       : callSession.status === "ringing"
         ? "Ringing participants"
         : "Connecting";
-  const isFullView = isExpanded || isBrowserFullscreen;
+  const isFullView = isMobile || isExpanded || isBrowserFullscreen;
 
   const content = (
     <div className={`flex h-full min-h-0 flex-col overflow-hidden border border-slate-200 bg-white text-slate-900 shadow-[0_28px_80px_-34px_rgba(15,23,42,0.55)] dark:border-zinc-800 dark:bg-zinc-950 dark:text-white ${isFullView ? "rounded-none" : "rounded-2xl"}`}>
@@ -611,22 +655,24 @@ const CallRoom = ({ callSession, credentials, onLeave, onEnd, onRetry, onConnect
               {isAudioOnly ? "Voice call" : "Video call"}
             </p>
             <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-              {statusText} · {joinedCount} joined · {durationText}
+              {statusText} · {joinedCount} joined · <CallDuration startedAt={startedAt} />
             </p>
           </div>
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          <button
-            type="button"
-            onClick={handleCopyLink}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-700 transition hover:bg-blue-100 dark:bg-sky-950/60 dark:text-sky-200"
-            title="Copy meeting link"
-            aria-label="Copy meeting link"
-          >
-            <Copy className="h-4 w-4" />
-          </button>
-          {!isFullView && (
+          {!isMobile && (
+            <button
+              type="button"
+              onClick={handleCopyLink}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-700 transition hover:bg-blue-100 dark:bg-sky-950/60 dark:text-sky-200"
+              title="Copy meeting link"
+              aria-label="Copy meeting link"
+            >
+              <Copy className="h-4 w-4" />
+            </button>
+          )}
+          {!isMobile && !isFullView && (
             <button
               type="button"
               onClick={() => setIsMinimized((value) => !value)}
@@ -637,7 +683,7 @@ const CallRoom = ({ callSession, credentials, onLeave, onEnd, onRetry, onConnect
               {isMinimized ? <Maximize2 className="h-4 w-4" /> : <Minus className="h-4 w-4" />}
             </button>
           )}
-          {!isExpanded && (
+          {!isMobile && !isExpanded && (
             <div className="hidden h-9 w-9 items-center justify-center rounded-xl text-slate-300 md:flex" aria-hidden="true">
               <GripHorizontal className="h-4 w-4" />
             </div>
@@ -653,24 +699,28 @@ const CallRoom = ({ callSession, credentials, onLeave, onEnd, onRetry, onConnect
               <RefreshCcw className="h-4 w-4" />
             </button>
           )}
-          <button
-            type="button"
-            onClick={handleToggleFullscreen}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-700 transition hover:bg-blue-100 dark:bg-sky-950/60 dark:text-sky-200 dark:hover:bg-sky-900/70"
-            title={isFullView ? "Exit full screen" : "Full screen"}
-            aria-label={isFullView ? "Exit full screen" : "Full screen"}
-          >
-            {isFullView ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-          </button>
-          <button
-            type="button"
-            onClick={onLeave}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-red-500 text-white transition hover:bg-red-600"
-            title="Leave call"
-            aria-label="Leave call"
-          >
-            <PhoneOff className="h-4 w-4" />
-          </button>
+          {!isMobile && (
+            <button
+              type="button"
+              onClick={handleToggleFullscreen}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-700 transition hover:bg-blue-100 dark:bg-sky-950/60 dark:text-sky-200 dark:hover:bg-sky-900/70"
+              title={isFullView ? "Exit full screen" : "Full screen"}
+              aria-label={isFullView ? "Exit full screen" : "Full screen"}
+            >
+              {isFullView ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </button>
+          )}
+          {!isMobile && (
+            <button
+              type="button"
+              onClick={onLeave}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-red-500 text-white transition hover:bg-red-600"
+              title="Leave call"
+              aria-label="Leave call"
+            >
+              <PhoneOff className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -725,7 +775,7 @@ const CallRoom = ({ callSession, credentials, onLeave, onEnd, onRetry, onConnect
   return (
     <div
       ref={callFrameRef}
-      className={isFullView ? "fixed inset-0 z-[60] bg-white dark:bg-zinc-950" : "fixed z-[60]"}
+      className={isFullView ? "call-room-mobile-frame fixed inset-0 z-[120] bg-white dark:bg-zinc-950" : "fixed z-[75]"}
       style={isFullView ? undefined : {
         height: isMinimized ? 76 : frame.height,
         left: 0,
@@ -735,7 +785,7 @@ const CallRoom = ({ callSession, credentials, onLeave, onEnd, onRetry, onConnect
       }}
     >
       {content}
-      {!isFullView && !isMinimized && (
+      {!isMobile && !isFullView && !isMinimized && (
         <button
           type="button"
           data-no-drag="true"

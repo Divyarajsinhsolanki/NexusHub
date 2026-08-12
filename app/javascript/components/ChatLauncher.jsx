@@ -1,10 +1,10 @@
-import React, { useContext, useEffect, useState } from "react";
+import React, { Suspense, useContext, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { MessageCircle, Phone, PhoneOff, Video } from "lucide-react";
 import { acknowledgeCallRing, declineCall, endCall, fetchConversations, joinCall, leaveCall, updateConversationReceipt } from "./api";
 import { subscribeToUserChat } from "../lib/chatCable";
 import { AuthContext } from "../context/AuthContext";
-import CallRoom from "./chat/CallRoom";
+import CallRoom, { preloadCallRoom } from "./chat/LazyCallRoom";
 import { isLiveCall } from "../utils/chatCalls";
 
 const getCallParticipantStatus = (callSession, userId) => (
@@ -29,6 +29,7 @@ const ChatLauncher = () => {
   const [callCredentials, setCallCredentials] = useState(null);
   const [isCallConnecting, setIsCallConnecting] = useState(false);
   const [callError, setCallError] = useState("");
+  const isChatRoute = location.pathname.startsWith("/chat");
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -36,6 +37,14 @@ const ChatLauncher = () => {
       setIncomingCall(null);
       setActiveCall(null);
       setCallCredentials(null);
+      return undefined;
+    }
+
+    // Chat owns its conversation and call subscription. Keeping the global
+    // launcher alive here duplicates the initial summary request and every
+    // user-channel event handled by the page.
+    if (isChatRoute) {
+      setUnreadCount(0);
       return undefined;
     }
 
@@ -55,11 +64,18 @@ const ChatLauncher = () => {
         updateConversationReceipt(payload.conversation_id, payload.message.id, "delivered").catch(() => {});
       }
 
-      if (["conversation_refresh", "conversation_hidden", "conversation_deleted"].includes(payload?.type)) {
+      if (["conversation_refresh", "conversation_hidden", "conversation_removed", "conversation_deleted"].includes(payload?.type)) {
         load();
       }
 
+      if (payload?.type === "conversation_removed") {
+        setActiveCall((previous) => Number(previous?.conversation_id) === Number(payload.conversation_id) ? null : previous);
+        setIncomingCall((previous) => Number(previous?.conversation_id) === Number(payload.conversation_id) ? null : previous);
+        setCallCredentials(null);
+      }
+
       if (payload?.type === "call_ringing" || ["call_started", "call_participant_joined"].includes(payload?.type)) {
+        preloadCallRoom();
         const personalizedCall = { ...payload.call_session, can_end: Number(payload.call_session?.initiator_id) === Number(user?.id) };
         if (shouldSurfaceIncomingCall(personalizedCall, user?.id)) {
           setIncomingCall(personalizedCall);
@@ -68,7 +84,7 @@ const ChatLauncher = () => {
         }
       }
 
-      if (["call_started", "call_participant_joined", "call_participant_left", "call_missed", "call_ended"].includes(payload?.type)) {
+      if (["call_started", "call_participants_invited", "call_participant_joined", "call_participant_left", "call_missed", "call_ended"].includes(payload?.type)) {
         const personalizedCall = { ...payload.call_session, can_end: Number(payload.call_session?.initiator_id) === Number(user?.id) };
         if (isLiveCall(personalizedCall)) {
           setActiveCall(personalizedCall);
@@ -81,15 +97,15 @@ const ChatLauncher = () => {
     });
 
     return () => subscription.unsubscribe();
-  }, [isAuthenticated, location.pathname, user?.id]);
+  }, [isAuthenticated, isChatRoute, user?.id]);
 
-  const isChatRoute = location.pathname.startsWith("/chat");
   const showGlobalCallUi = isAuthenticated && !isChatRoute;
 
   const handleJoinCall = async (callSession = incomingCall || activeCall) => {
     if (!callSession || isCallConnecting) return;
 
     try {
+      preloadCallRoom();
       setIsCallConnecting(true);
       setCallError("");
       const { data } = await joinCall(callSession.id);
@@ -153,7 +169,7 @@ const ChatLauncher = () => {
   return (
     <>
       {showGlobalCallUi && incomingCall && (
-        <div className="fixed inset-0 z-[58] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm">
           <div className="w-full max-w-sm rounded-3xl border border-white/70 bg-white p-5 text-center shadow-[0_35px_90px_-45px_rgba(15,23,42,0.8)] dark:border-zinc-800 dark:bg-zinc-950">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-200">
               {incomingCall.call_type === "audio" ? <Phone className="h-8 w-8" /> : <Video className="h-8 w-8" />}
@@ -195,15 +211,17 @@ const ChatLauncher = () => {
       )}
 
       {showGlobalCallUi && (
-        <CallRoom
-          callSession={activeCall}
-          credentials={callCredentials}
-          onLeave={handleLeaveCall}
-          onEnd={handleEndCall}
-          onRetry={() => handleJoinCall(activeCall)}
-          onConnectionError={(message) => setCallError(message)}
-          onConnected={() => setCallError("")}
-        />
+        <Suspense fallback={null}>
+          <CallRoom
+            callSession={activeCall}
+            credentials={callCredentials}
+            onLeave={handleLeaveCall}
+            onEnd={handleEndCall}
+            onRetry={() => handleJoinCall(activeCall)}
+            onConnectionError={(message) => setCallError(message)}
+            onConnected={() => setCallError("")}
+          />
+        </Suspense>
       )}
 
       {!isChatRoute && (

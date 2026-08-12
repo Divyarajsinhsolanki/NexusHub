@@ -1,966 +1,705 @@
-import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
-import { Link, NavLink, useLocation, useMatch } from "react-router-dom";
-import { motion, AnimatePresence, useScroll, useMotionValueEvent } from "framer-motion";
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
-  FiAward,
+  FiActivity,
+  FiArchive,
+  FiBell,
   FiBook,
-  FiBriefcase,
   FiCalendar,
-  FiChevronDown,
+  FiCheckCircle,
+  FiChevronLeft,
+  FiChevronRight,
   FiClock,
   FiFileText,
+  FiFolder,
   FiGrid,
+  FiHome,
   FiLayers,
   FiLogOut,
   FiMenu,
   FiMessageSquare,
+  FiMoreHorizontal,
+  FiRefreshCw,
   FiSearch,
   FiSettings,
-  FiUser,
+  FiSliders,
   FiUsers,
   FiX,
   FiZap,
 } from "react-icons/fi";
 
 import { AuthContext } from "../context/AuthContext";
-import { fetchProjects } from "./api";
+import { useWorkspaceData } from "../context/WorkspaceDataContext";
+import { fetchCalendarEvents, getIssues, SchedulerAPI } from "./api";
 import NotificationCenter from "./NotificationCenter";
 import logo from "../images/logo.webp";
-import { portfolioEnabled } from "../config/features";
 import { buildAvatarStyle, getAvatarInitial, normalizeAvatarColor } from "../utils/avatar";
+import { clearSelectionFromSearch, getBreadcrumbs, getRouteLayout, getSelectionFromSearch } from "./shell/routeLayout";
 
-const useNavbarEffects = () => {
-  const [scrolled, setScrolled] = useState(false);
-  const { scrollY } = useScroll();
-
-  useMotionValueEvent(scrollY, "change", (latest) => {
-    setScrolled(latest > 10);
-  });
-
-  return { scrolled };
-};
-
-const resolveSection = (pathname) => {
-  const sections = [
-    {
-      match: (value) => value.startsWith("/my-work"),
-      label: "My Work",
-      caption: "Assignments, deadlines, meetings, and recent activity",
-    },
-    {
-      match: (value) => value === "/" || value.startsWith("/calendar"),
-      label: "Planning Deck",
-      caption: "Schedules, reminders, and deadlines",
-    },
-    {
-      match: (value) => value.startsWith("/momentum"),
-      label: "Momentum Hub",
-      caption: "Daily priorities, reflection, and learning cadence",
-    },
-    {
-      match: (value) => value.startsWith("/knowledge"),
-      label: "Knowledge Grid",
-      caption: "Curated learning and external signals",
-    },
-    {
-      match: (value) => value.startsWith("/projects"),
-      label: "Project Control",
-      caption: "Delivery lanes and project visibility",
-    },
-    {
-      match: (value) => value.startsWith("/teams"),
-      label: "Team Network",
-      caption: "Collaboration, roles, and team health",
-    },
-    {
-      match: (value) => value.startsWith("/worklog"),
-      label: "Work Log",
-      caption: "Session detail, delivery notes, and log history",
-    },
-    {
-      match: (value) => value.startsWith("/vault"),
-      label: "Asset Vault",
-      caption: "Knowledge, files, and reference material",
-    },
-    {
-      match: (value) => value.startsWith("/chat"),
-      label: "Conversation Deck",
-      caption: "Live threads, mentions, and follow-ups",
-    },
-    {
-      match: (value) => value.startsWith("/notifications"),
-      label: "Signal Feed",
-      caption: "Alerts, updates, and unread activity",
-    },
-    {
-      match: (value) => value.startsWith("/pdf"),
-      label: "PDF Master",
-      caption: "Focused PDF editing, markup, and export",
-    },
-    {
-      match: (value) => value.startsWith("/settings"),
-      label: "Preferences",
-      caption: "Workspace tuning and profile settings",
-    },
-    {
-      match: (value) => value.startsWith("/admin"),
-      label: "Admin Console",
-      caption: "Operations, access, and control",
-    },
-  ];
-
-  return sections.find((section) => section.match(pathname)) || {
+const navigationGroups = [
+  {
     label: "Workspace",
-    caption: "Focused delivery across the product",
-  };
+    items: [
+      { to: "/my-work", label: "My Work", icon: FiHome },
+      { to: "/projects", label: "Projects", icon: FiFolder },
+    ],
+  },
+  {
+    label: "Planning",
+    items: [
+      { to: "/calendar", label: "Calendar", icon: FiCalendar },
+      { to: "/momentum", label: "Momentum", icon: FiZap },
+      { to: "/worklog", label: "Work Log", icon: FiClock },
+    ],
+  },
+  {
+    label: "Collaboration",
+    items: [
+      { to: "/posts", label: "Posts", icon: FiActivity },
+      { to: "/teams", label: "Teams", icon: FiUsers },
+      { to: "/chat", label: "Chat", icon: FiMessageSquare },
+      { to: "/departments", label: "Departments", icon: FiGrid },
+    ],
+  },
+  {
+    label: "Knowledge",
+    items: [
+      { to: "/knowledge", label: "Knowledge", icon: FiBook },
+      { to: "/vault", label: "Vault", icon: FiArchive },
+      { to: "/pdf-master", label: "Documents", icon: FiFileText },
+    ],
+  },
+];
+
+const contextLinks = {
+  planning: [
+    ["/calendar", "Calendar", FiCalendar],
+    ["/momentum", "Momentum Hub", FiZap],
+    ["/worklog", "Work Log", FiClock],
+    ["/vault", "Personal Vault", FiArchive],
+  ],
+  collaboration: [
+    ["/posts", "Posts and updates", FiActivity],
+    ["/teams", "Teams", FiUsers],
+    ["/users", "People", FiUsers],
+    ["/departments", "Departments", FiGrid],
+    ["/chat", "Chat", FiMessageSquare],
+    ["/notifications", "Notifications", FiBell],
+  ],
+  knowledge: [
+    ["/knowledge", "Knowledge grid", FiBook],
+    ["/vault", "Asset vault", FiArchive],
+    ["/pdf-master", "PDF Master", FiFileText],
+  ],
+  admin: [
+    ["/settings", "Preferences", FiSettings],
+    ["/admin", "System admin", FiSliders],
+    ["/users", "User management", FiUsers],
+    ["/departments", "Departments", FiGrid],
+  ],
 };
 
-const roleLabel = (user) => user?.roles?.[0]?.name?.replace(/_/g, " ") || "Member";
+const labelForContext = {
+  planning: ["Planning", "Schedule, focus, and work records"],
+  collaboration: ["Collaboration", "People, updates, and communication"],
+  knowledge: ["Knowledge", "Reference material and documents"],
+  admin: ["Administration", "Workspace access and preferences"],
+};
 
-const menuItemClass =
-  "group flex w-full items-center gap-3 rounded-[20px] px-4 py-3 text-sm font-medium text-shell-muted-strong hover:bg-surface-card-hover hover:text-shell-text-strong";
-const menuIconClass =
-  "flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-shell-border bg-muted-soft text-theme transition group-hover:bg-shell-text-strong group-hover:text-white";
+const normalizeCollection = (value) => {
+  if (Array.isArray(value)) return value;
+  if (Array.isArray(value?.data)) return value.data;
+  return [];
+};
 
-const HolographicAvatar = ({ user }) => {
-  const [angle, setAngle] = useState(135);
-  const [imageFailed, setImageFailed] = useState(false);
-  const avatarRef = useRef(null);
-  const displayName = [user?.first_name, user?.last_name].filter(Boolean).join(" ") || user?.email || "User";
-  const hasValidImage = user?.profile_picture && user.profile_picture !== "null" && !imageFailed;
+const formatDate = (value, options = {}) => {
+  if (!value) return "Not set";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", ...options }).format(date);
+};
+
+const useMobileViewport = () => {
+  const [isMobile, setIsMobile] = useState(() => (
+    typeof window !== "undefined" && typeof window.matchMedia === "function"
+      ? window.matchMedia("(max-width: 767px)").matches
+      : false
+  ));
 
   useEffect(() => {
-    const handleMove = (event) => {
-      if (!avatarRef.current) return;
-
-      const rect = avatarRef.current.getBoundingClientRect();
-      const centerX = rect.left + rect.width / 2;
-      const centerY = rect.top + rect.height / 2;
-      const nextAngle = Math.atan2(event.clientY - centerY, event.clientX - centerX) * (180 / Math.PI);
-      setAngle(nextAngle);
-    };
-
-    window.addEventListener("mousemove", handleMove);
-    return () => window.removeEventListener("mousemove", handleMove);
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return undefined;
+    const media = window.matchMedia("(max-width: 767px)");
+    const update = () => setIsMobile(media.matches);
+    update();
+    media.addEventListener?.("change", update);
+    return () => media.removeEventListener?.("change", update);
   }, []);
 
-  useEffect(() => {
-    setImageFailed(false);
-  }, [user?.profile_picture]);
+  return isMobile;
+};
+
+const UserAvatar = ({ user, size = "md" }) => {
+  const [failed, setFailed] = useState(false);
+  const displayName = [user?.first_name, user?.last_name].filter(Boolean).join(" ") || user?.name || user?.email || "User";
+  const dimension = size === "sm" ? "nexus-avatar-sm" : "nexus-avatar";
+
+  if (user?.profile_picture && user.profile_picture !== "null" && !failed) {
+    return <img src={user.profile_picture} alt="" className={dimension} onError={() => setFailed(true)} />;
+  }
 
   return (
-    <div
-      ref={avatarRef}
-      className="group relative h-11 w-11 overflow-hidden rounded-[18px] border border-white/70 shadow-[0_18px_30px_rgb(15_23_42_/_0.16)]"
-    >
-      <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.94),rgba(226,237,255,0.72))]" />
-      {hasValidImage ? (
-        <img
-          src={user.profile_picture}
-          alt={`${displayName}'s avatar`}
-          className="relative z-10 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-          loading="lazy"
-          onError={() => setImageFailed(true)}
-        />
-      ) : (
-        <div
-          className="relative z-10 flex h-full w-full items-center justify-center text-sm font-bold transition-transform duration-500 group-hover:scale-105"
-          style={buildAvatarStyle(normalizeAvatarColor(user?.avatar_color))}
-          aria-label={`${displayName}'s initials`}
-        >
-          {getAvatarInitial(displayName)}
-        </div>
-      )}
-      <div className="absolute inset-0 z-20 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.35),transparent_55%)]" />
-      <div
-        className="absolute inset-0 z-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-        style={{
-          background: `linear-gradient(${angle}deg, rgba(103, 232, 249, 0.42), transparent 38%, rgba(52, 109, 255, 0.38) 72%, rgba(255, 255, 255, 0.12))`,
-        }}
-      />
-    </div>
+    <span className={dimension} style={buildAvatarStyle(normalizeAvatarColor(user?.avatar_color))} aria-label={`${displayName}'s initials`}>
+      {getAvatarInitial(displayName)}
+    </span>
   );
 };
 
-const AnimatedNavLink = ({ to, label, icon: Icon, onClick, fullWidth = false }) => {
-  const match = useMatch({ path: to, end: to === "/" });
-  const isActive = !!match;
-  const layoutId = fullWidth ? "mobile-nav-active-bg" : "desktop-nav-active-bg";
-  const frameClass = fullWidth ? "rounded-[18px]" : "rounded-[16px]";
-  const contentClass = fullWidth
-    ? "gap-2.5 rounded-[18px] px-3 py-2.5 text-sm"
-    : "gap-1.5 rounded-[16px] px-2.5 py-1.5 text-[12px] xl:text-[12.5px]";
-  const iconClass = fullWidth ? "h-7 w-7 rounded-[14px]" : "h-6 w-6 rounded-[12px]";
-  const glyphClass = fullWidth ? "h-3.5 w-3.5" : "h-[13px] w-[13px]";
-
+const RailLink = ({ item, collapsed, onNavigate }) => {
+  const Icon = item.icon;
   return (
-    <NavLink to={to} onClick={onClick} className={`group relative ${fullWidth ? "w-full" : "shrink-0"}`}>
-      {isActive ? (
-        <motion.span
-          layoutId={layoutId}
-          className={`absolute inset-0 border border-white/85 bg-white/92 shadow-[0_16px_34px_rgb(15_23_42_/_0.12)] ${frameClass}`}
-          transition={{ type: "spring", bounce: 0.2, duration: 0.55 }}
-        />
-      ) : (
-        <span className={`absolute inset-0 border border-transparent transition group-hover:border-white/70 group-hover:bg-white/48 ${frameClass}`} />
-      )}
-
-      <span
-        className={`relative z-10 flex items-center font-semibold ${
-          isActive ? "text-shell-text-strong" : "text-shell-muted"
-        } ${contentClass}`}
-      >
-        {Icon ? (
-          <span
-            className={`flex shrink-0 items-center justify-center ${
-              isActive
-                ? "bg-shell-text-strong text-white shadow-[0_14px_26px_rgb(15_23_42_/_0.18)]"
-                : "border border-white/70 bg-white/70 text-theme group-hover:bg-white group-hover:text-shell-text-strong"
-            } ${iconClass}`}
-          >
-            <Icon className={glyphClass} />
-          </span>
-        ) : null}
-        <span className={fullWidth ? "truncate" : ""}>{label}</span>
-      </span>
+    <NavLink
+      to={item.to}
+      onClick={onNavigate}
+      title={collapsed ? item.label : undefined}
+      className={({ isActive }) => `nexus-rail-link ${isActive ? "nexus-rail-link-active" : ""}`}
+    >
+      <Icon aria-hidden="true" />
+      <span>{item.label}</span>
     </NavLink>
   );
 };
 
-const ProjectsDropdown = ({ projects, onItemClick, active }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef(null);
+const GlobalRail = ({ collapsed, onToggle, onOpenMobile, mobileOpen }) => (
+  <aside className={`nexus-global-rail ${collapsed ? "nexus-global-rail-collapsed" : ""}`} aria-label="Primary navigation">
+    <div className="nexus-rail-brand-row">
+      <Link to="/my-work" className="nexus-rail-brand" aria-label="NexusHub home">
+        <img src={logo} alt="" />
+        <span>NexusHub</span>
+      </Link>
+      <button type="button" onClick={onToggle} className="nexus-icon-button nexus-desktop-only" aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}>
+        {collapsed ? <FiChevronRight /> : <FiChevronLeft />}
+      </button>
+      <button type="button" onClick={onOpenMobile} className="nexus-icon-button nexus-mobile-only" aria-label="Open navigation menu" aria-expanded={mobileOpen} aria-controls="mobile-navigation">
+        <FiMenu />
+      </button>
+    </div>
+
+    <nav className="nexus-rail-navigation">
+      {navigationGroups.map((group) => (
+        <div className="nexus-rail-group" key={group.label}>
+          <p>{group.label}</p>
+          {group.items.map((item) => <RailLink key={item.to} item={item} collapsed={collapsed} />)}
+        </div>
+      ))}
+    </nav>
+
+  </aside>
+);
+
+const OverlayDrawer = ({ open, onClose, side = "left", label, id, className = "", children }) => {
+  const drawerRef = useRef(null);
 
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsOpen(false);
+    if (!open) return undefined;
+    const previouslyFocused = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
+    const drawer = drawerRef.current;
+    const focusableSelector = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const getFocusable = () => Array.from(drawer?.querySelectorAll(focusableSelector) || []);
+    document.body.style.overflow = "hidden";
+    window.requestAnimationFrame(() => (getFocusable()[0] || drawer)?.focus?.());
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = getFocusable();
+      if (!focusable.length) {
+        event.preventDefault();
+        drawer?.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
       }
     };
 
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previouslyFocused?.focus?.();
+    };
+  }, [onClose, open]);
 
+  if (!open) return null;
   return (
-    <div className="relative shrink-0" ref={dropdownRef}>
-      <button
-        onClick={() => setIsOpen((value) => !value)}
-        type="button"
-        className={`group relative flex items-center gap-1.5 rounded-[16px] px-2.5 py-1.5 text-[12px] font-semibold xl:text-[12.5px] ${
-          active || isOpen ? "text-shell-text-strong" : "text-shell-muted"
-        }`}
-        aria-expanded={isOpen}
-        aria-haspopup="menu"
+    <div className="nexus-drawer-backdrop" role="presentation" onMouseDown={onClose}>
+      <aside
+        ref={drawerRef}
+        id={id}
+        tabIndex={-1}
+        className={`nexus-overlay-drawer nexus-overlay-drawer-${side} ${className}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label={label}
+        onMouseDown={(event) => event.stopPropagation()}
       >
-        <span
-          className={`absolute inset-0 rounded-[16px] border ${
-            active || isOpen
-              ? "border-white/85 bg-white/90 shadow-[0_16px_34px_rgb(15_23_42_/_0.12)]"
-              : "border-transparent group-hover:border-white/70 group-hover:bg-white/48"
-          }`}
-        />
-        <span
-          className={`relative z-10 flex h-6 w-6 items-center justify-center rounded-[12px] ${
-            active || isOpen
-              ? "bg-shell-text-strong text-white shadow-[0_14px_26px_rgb(15_23_42_/_0.18)]"
-              : "border border-white/70 bg-white/70 text-theme group-hover:bg-white group-hover:text-shell-text-strong"
-          }`}
-        >
-          <FiLayers className="h-[13px] w-[13px]" />
-        </span>
-        <span className="relative z-10">Projects</span>
-        {projects.length > 0 ? (
-          <span className="relative z-10 inline-flex rounded-full bg-shell-text-strong px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.16em] text-white">
-            {projects.length}
-          </span>
-        ) : null}
-        <FiChevronDown
-          className={`relative z-10 h-4 w-4 transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`}
-        />
-      </button>
-
-      <AnimatePresence>
-        {isOpen ? (
-          <motion.div
-            initial={{ opacity: 0, y: 14, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 12, scale: 0.97 }}
-            transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-            className="shell-panel shell-panel-floating shell-panel-strong absolute right-0 top-full z-50 mt-3 w-[min(19rem,calc(100vw-1.5rem))] overflow-hidden rounded-[28px] p-2"
-          >
-            <div className="rounded-[22px] bg-[linear-gradient(135deg,rgba(255,255,255,0.92),rgba(235,242,255,0.74))] p-4">
-              <div className="mb-3 flex items-center justify-between">
-                <div>
-                  <p className="text-[0.66rem] font-semibold uppercase tracking-[0.28em] text-shell-muted">
-                    Project Access
-                  </p>
-                  <p className="mt-1 text-sm font-semibold text-shell-text-strong">Dashboards and boards</p>
-                </div>
-                <span className="shell-chip">
-                  <span className="shell-chip-dot" />
-                  Live
-                </span>
-              </div>
-
-              <div className="space-y-1">
-                <NavLink
-                  to="/projects"
-                  onClick={() => {
-                    onItemClick();
-                    setIsOpen(false);
-                  }}
-                  className="group flex items-center gap-3 rounded-[18px] px-3 py-3 text-sm font-medium text-shell-muted-strong hover:bg-surface-card-hover hover:text-shell-text-strong"
-                >
-                  <span className="flex h-9 w-9 items-center justify-center rounded-2xl border border-shell-border bg-surface-card text-theme transition group-hover:bg-shell-text-strong group-hover:text-white">
-                    <FiGrid className="h-4 w-4" />
-                  </span>
-                  <span className="truncate">All projects</span>
-                </NavLink>
-
-                {projects.length > 0 ? <div className="my-2 shell-grid-divider" /> : null}
-
-                {projects.map((project) => (
-                  <NavLink
-                    key={project.to}
-                    to={project.to}
-                    onClick={() => {
-                      onItemClick();
-                      setIsOpen(false);
-                    }}
-                    className="group flex items-center gap-3 rounded-[18px] px-3 py-3 text-sm font-medium text-shell-muted-strong hover:bg-surface-card-hover hover:text-shell-text-strong"
-                  >
-                    <span className="flex h-9 w-9 items-center justify-center rounded-2xl border border-shell-border bg-surface-card text-theme transition group-hover:bg-shell-text-strong group-hover:text-white">
-                      <FiZap className="h-4 w-4" />
-                    </span>
-                    <span className="truncate">{project.label}</span>
-                  </NavLink>
-                ))}
-              </div>
-            </div>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
+        {children}
+      </aside>
     </div>
   );
 };
 
-const AreaDropdown = ({ label, icon: Icon, links, active }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef(null);
+const ProjectContext = ({ projects, activeProjectId, onNavigate }) => {
+  const location = useLocation();
+  const activeProject = projects.find((project) => String(project.id) === String(activeProjectId));
+  const currentTab = new URLSearchParams(location.search).get("tab") || (location.pathname.endsWith("/issues") ? "issues" : "overview");
+  const dashboardTabs = activeProject ? [
+    ["overview", "Overview", FiHome],
+    ["scheduler", "Scheduler", FiCalendar],
+    ["todo", "Todo", FiCheckCircle],
+    ["statistics", "Statistics", FiActivity],
+    ["issues", "Issue Tracker", FiLayers],
+    ["vault", "Vault", FiArchive],
+    ["settings", "Settings", FiSettings],
+  ] : [];
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) setIsOpen(false);
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  const projectTabPath = (tab) => {
+    const next = new URLSearchParams(location.search);
+    next.set("tab", tab);
+    return `/projects/${activeProject.id}/dashboard?${next.toString()}`;
+  };
 
   return (
-    <div className="relative shrink-0" ref={dropdownRef}>
-      <button
-        type="button"
-        onClick={() => setIsOpen((value) => !value)}
-        className={`group relative flex items-center gap-1.5 rounded-[16px] px-2.5 py-1.5 text-[12px] font-semibold xl:text-[12.5px] ${
-          active || isOpen ? "text-shell-text-strong" : "text-shell-muted"
-        }`}
-        aria-expanded={isOpen}
-        aria-haspopup="menu"
-      >
-        <span
-          className={`absolute inset-0 rounded-[16px] border ${
-            active || isOpen
-              ? "border-white/85 bg-white/90 shadow-[0_16px_34px_rgb(15_23_42_/_0.12)]"
-              : "border-transparent group-hover:border-white/70 group-hover:bg-white/48"
-          }`}
-        />
-        <span
-          className={`relative z-10 flex h-6 w-6 items-center justify-center rounded-[12px] ${
-            active || isOpen
-              ? "bg-shell-text-strong text-white"
-              : "border border-white/70 bg-white/70 text-theme"
-          }`}
-        >
-          <Icon className="h-[13px] w-[13px]" />
-        </span>
-        <span className="relative z-10">{label}</span>
-        <FiChevronDown className={`relative z-10 h-4 w-4 transition ${isOpen ? "rotate-180" : ""}`} />
-      </button>
+    <>
+      <div className="nexus-context-heading">
+        <span>{activeProject ? "Project" : "Portfolio"}</span>
+        <h2>{activeProject?.name || "Projects"}</h2>
+        <p>{activeProject?.description || "Manage delivery plans, members, schedules, and project health."}</p>
+      </div>
 
-      <AnimatePresence>
-        {isOpen ? (
-          <motion.div
-            initial={{ opacity: 0, y: 14, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 12, scale: 0.97 }}
-            className="shell-panel shell-panel-floating shell-panel-strong absolute right-0 top-full z-50 mt-3 w-[min(18rem,calc(100vw-1.5rem))] rounded-[28px] p-2"
+      {activeProject ? (
+        <nav className="nexus-context-links" aria-label="Project navigation">
+          {dashboardTabs.map(([tab, label, Icon]) => (
+            <Link key={tab} to={projectTabPath(tab)} onClick={onNavigate} className={currentTab === tab ? "active" : ""}>
+              <Icon />
+              <span>{label}</span>
+            </Link>
+          ))}
+        </nav>
+      ) : null}
+
+      <div className="nexus-context-section-title">
+        <span>{activeProject ? "Switch project" : "Your projects"}</span>
+        <Link to="/projects">View all</Link>
+      </div>
+      <div className="nexus-project-switcher">
+        {projects.slice(0, 12).map((project) => (
+          <Link
+            key={project.id}
+            to={`/projects/${project.id}/dashboard`}
+            onClick={onNavigate}
+            className={String(project.id) === String(activeProjectId) ? "active" : ""}
           >
-            <div className="rounded-[22px] bg-white/75 p-3">
-              <p className="px-3 pb-2 text-[0.66rem] font-semibold uppercase tracking-[0.25em] text-shell-muted">
-                {label}
-              </p>
-              {links.map((link) => {
-                const LinkIcon = link.icon;
-                return (
-                  <NavLink
-                    key={link.to}
-                    to={link.to}
-                    onClick={() => setIsOpen(false)}
-                    className={menuItemClass}
-                  >
-                    <span className={menuIconClass}>
-                      <LinkIcon className="h-4 w-4" />
-                    </span>
-                    {link.label}
-                  </NavLink>
-                );
-              })}
-            </div>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
+            <span className="nexus-project-mark">{project.name?.slice(0, 2).toUpperCase()}</span>
+            <span><strong>{project.name}</strong><small>{project.status || "Running"}</small></span>
+          </Link>
+        ))}
+        {!projects.length ? <p className="nexus-context-empty">No projects available.</p> : null}
+      </div>
+    </>
+  );
+};
+
+const StandardContext = ({ type, onNavigate }) => {
+  const [title, description] = labelForContext[type] || ["Workspace", "Navigate your NexusHub workspace"];
+  return (
+    <>
+      <div className="nexus-context-heading">
+        <span>NexusHub</span>
+        <h2>{title}</h2>
+        <p>{description}</p>
+      </div>
+      <nav className="nexus-context-links" aria-label={`${title} navigation`}>
+        {(contextLinks[type] || []).map(([to, label, Icon]) => (
+          <NavLink key={to} to={to} onClick={onNavigate} className={({ isActive }) => isActive ? "active" : ""}>
+            <Icon />
+            <span>{label}</span>
+          </NavLink>
+        ))}
+      </nav>
+      <div className="nexus-context-tip">
+        <FiSearch />
+        <div><strong>Find anything</strong><p>Use Ctrl K to search projects, tasks, people, posts, and documents.</p></div>
+      </div>
+    </>
+  );
+};
+
+const ContextPanel = ({ layout, projects, open, onClose }) => {
+  if (!layout.context) return null;
+  return (
+    <OverlayDrawer open={open} onClose={onClose} id="workspace-context-drawer" label="Context navigation" className="nexus-context-panel">
+      <button type="button" className="nexus-context-close" onClick={onClose} aria-label="Close context panel"><FiX /></button>
+      {layout.context === "projects" || layout.context === "project" ? (
+        <ProjectContext projects={projects} activeProjectId={layout.projectId} onNavigate={onClose} />
+      ) : (
+        <StandardContext type={layout.context} onNavigate={onClose} />
+      )}
+    </OverlayDrawer>
+  );
+};
+
+const ActivityInspector = ({ activity, events, error, onRefresh, projectId, title = "Workspace pulse" }) => {
+  const items = (activity?.items || []).filter((item) => !projectId || item.path?.includes(`/projects/${projectId}/`)).slice(0, 6);
+  const eventItems = events.filter((event) => !projectId || String(event.project_id) === String(projectId)).slice(0, 4);
+  const summary = activity?.summary || {};
+
+  return (
+    <div className="nexus-inspector-content">
+      <div className="nexus-inspector-heading">
+        <div><span>Live context</span><h2>{title}</h2></div>
+        <button type="button" onClick={onRefresh} className="nexus-icon-button" aria-label="Refresh workspace context"><FiRefreshCw /></button>
+      </div>
+      {error ? <p className="nexus-inline-error">{error}</p> : null}
+      <div className="nexus-inspector-stats">
+        <div><strong>{summary.open_assignments ?? 0}</strong><span>Open</span></div>
+        <div><strong>{summary.overdue_assignments ?? 0}</strong><span>Overdue</span></div>
+        <div><strong>{summary.upcoming_events ?? 0}</strong><span>Upcoming</span></div>
+        <div><strong>{summary.unread_notifications ?? 0}</strong><span>Unread</span></div>
+      </div>
+
+      <section className="nexus-inspector-section">
+        <div className="nexus-section-row"><h3>Upcoming</h3><Link to="/calendar">Calendar</Link></div>
+        {eventItems.map((event) => (
+          <Link key={event.id} to={`/calendar?event_id=${event.id}`} className="nexus-upcoming-row">
+            <span>{formatDate(event.start_at)}</span>
+            <div><strong>{event.title}</strong><small>{formatDate(event.start_at, { hour: "numeric", minute: "2-digit" })}</small></div>
+          </Link>
+        ))}
+        {!eventItems.length ? <p className="nexus-inspector-empty">No upcoming dates.</p> : null}
+      </section>
+
+      <section className="nexus-inspector-section">
+        <div className="nexus-section-row"><h3>Recent activity</h3><Link to="/notifications">View all</Link></div>
+        {items.map((item) => (
+          <Link key={`${item.kind}-${item.id}`} to={item.path} className="nexus-activity-row">
+            <span className="nexus-activity-icon">{item.kind?.slice(0, 1).toUpperCase()}</span>
+            <div><strong>{item.title}</strong><small>{item.subtitle || item.kind}</small></div>
+          </Link>
+        ))}
+        {!items.length ? <p className="nexus-inspector-empty">No recent activity.</p> : null}
+      </section>
     </div>
+  );
+};
+
+const SelectionInspector = ({ layout, search, events, fallback }) => {
+  const params = useMemo(() => new URLSearchParams(search), [search]);
+  const selection = useMemo(() => {
+    if (params.get("log_id")) return ["log", params.get("log_id")];
+    if (params.get("task_id")) return ["task", params.get("task_id")];
+    if (params.get("issue_id")) return ["issue", params.get("issue_id")];
+    if (params.get("event_id")) return ["event", params.get("event_id")];
+    return null;
+  }, [params]);
+  const [state, setState] = useState({ loading: false, item: null, error: "" });
+
+  useEffect(() => {
+    let active = true;
+    if (!selection) {
+      setState({ loading: false, item: null, error: "" });
+      return undefined;
+    }
+
+    const [type, id] = selection;
+    setState({ loading: true, item: null, error: "" });
+
+    const request = async () => {
+      if (type === "task") {
+        const response = await SchedulerAPI.getTasks({ project_id: layout.projectId });
+        return normalizeCollection(response.data).find((item) => String(item.id) === String(id) || String(item.task_id) === String(id));
+      }
+      if (type === "log") {
+        const response = await SchedulerAPI.getTaskLogs({ project_id: layout.projectId });
+        return normalizeCollection(response.data).find((item) => String(item.id) === String(id));
+      }
+      if (type === "issue") {
+        const response = await getIssues(layout.projectId);
+        return normalizeCollection(response.data).find((item) => String(item.id) === String(id));
+      }
+      const existing = events.find((event) => String(event.id) === String(id));
+      if (existing) return existing;
+      const response = await fetchCalendarEvents();
+      return normalizeCollection(response.data?.events || response.data).find((event) => String(event.id) === String(id));
+    };
+
+    request()
+      .then((item) => active && setState({ loading: false, item: item || null, error: item ? "" : "Selected item was not found." }))
+      .catch(() => active && setState({ loading: false, item: null, error: "Selected item could not be loaded." }));
+
+    return () => { active = false; };
+  }, [events, layout.projectId, selection?.[0], selection?.[1]]);
+
+  if (!selection) return fallback;
+  const [type, id] = selection;
+  const item = state.item;
+  const title = item?.title || item?.task?.title || item?.task_id || item?.issue_key || `${type} ${id}`;
+
+  return (
+    <div className="nexus-inspector-content">
+      <div className="nexus-inspector-heading">
+        <div><span>Selected {type}</span><h2>{title}</h2></div>
+        <FiLayers />
+      </div>
+      {state.loading ? <p className="nexus-inspector-empty">Loading details…</p> : null}
+      {state.error ? <p className="nexus-inline-error">{state.error}</p> : null}
+      {item ? (
+        <div className="nexus-detail-list">
+          <div><span>Status</span><strong>{item.status || item.task?.status || "Open"}</strong></div>
+          <div><span>Assignee</span><strong>{item.developer?.name || item.assigned_user?.name || item.assignee_name || "Unassigned"}</strong></div>
+          <div><span>Date</span><strong>{formatDate(item.log_date || item.start_at || item.start_date || item.end_date)}</strong></div>
+          <div><span>Hours</span><strong>{item.hours_logged ?? item.estimated_hours ?? item.total_hours ?? "—"}</strong></div>
+          <div><span>Type</span><strong>{item.type || item.event_type || item.priority || "—"}</strong></div>
+          {(item.description || item.issue_description || item.task?.description) ? (
+            <div className="nexus-detail-description"><span>Description</span><p>{item.description || item.issue_description || item.task?.description}</p></div>
+          ) : null}
+          {(item.task_url || item.task?.task_url) ? <a className="nexus-primary-action" href={item.task_url || item.task?.task_url} target="_blank" rel="noreferrer">Open linked work</a> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
+const InspectorPanel = ({ layout, open, onClose, location }) => {
+  const { activity, events, error, refreshWorkspaceData } = useWorkspaceData();
+  if (!layout.inspector) return null;
+  const activityPanel = (
+    <ActivityInspector
+      activity={activity}
+      events={events}
+      error={error}
+      onRefresh={refreshWorkspaceData}
+      projectId={layout.projectId}
+      title={layout.mode === "profile" ? "Personal workspace" : layout.projectId ? "Project pulse" : "Workspace pulse"}
+    />
+  );
+
+  return (
+    <OverlayDrawer open={open} onClose={onClose} side="right" id="workspace-inspector-drawer" label="Workspace inspector" className="nexus-inspector-panel">
+      <button type="button" className="nexus-context-close" onClick={onClose} aria-label="Close inspector"><FiX /></button>
+      {layout.inspector === "selection" ? (
+        <SelectionInspector layout={layout} search={location.search} events={events} fallback={activityPanel} />
+      ) : activityPanel}
+    </OverlayDrawer>
+  );
+};
+
+const MobileDrawer = ({ open, onClose, onLogout, user, hasAdminRole }) => {
+  return (
+    <OverlayDrawer open={open} onClose={onClose} id="mobile-navigation" label="Mobile navigation" className="nexus-mobile-drawer">
+        <div className="nexus-mobile-drawer-head">
+          <div><UserAvatar user={user} /><span><strong>{user?.first_name || "NexusHub"}</strong><small>{user?.email}</small></span></div>
+          <button type="button" className="nexus-icon-button" onClick={onClose} aria-label="Close navigation menu"><FiX /></button>
+        </div>
+        {navigationGroups.map((group) => (
+          <div className="nexus-mobile-group" key={group.label}>
+            <p>{group.label}</p>
+            {group.items.map((item) => <RailLink key={item.to} item={item} onNavigate={onClose} />)}
+          </div>
+        ))}
+        <div className="nexus-mobile-group">
+          <p>Account</p>
+          <RailLink item={{ to: "/profile", label: "Profile", icon: FiUsers }} onNavigate={onClose} />
+          <RailLink item={{ to: "/settings", label: "Settings", icon: FiSettings }} onNavigate={onClose} />
+          {hasAdminRole ? <RailLink item={{ to: "/admin", label: "Admin", icon: FiSliders }} onNavigate={onClose} /> : null}
+          <button type="button" className="nexus-mobile-account-action" onClick={onLogout}><FiLogOut />Sign out</button>
+        </div>
+    </OverlayDrawer>
+  );
+};
+
+const BottomNavigation = ({ onMore }) => {
+  const items = [
+    ["/my-work", "My Work", FiHome],
+    ["/projects", "Projects", FiFolder],
+    ["/calendar", "Calendar", FiCalendar],
+    ["/chat", "Chat", FiMessageSquare],
+  ];
+  return (
+    <nav className="nexus-bottom-navigation" aria-label="Mobile primary navigation">
+      {items.map(([to, label, Icon]) => (
+        <NavLink key={to} to={to} className={({ isActive }) => isActive ? "active" : ""}><Icon /><span>{label}</span></NavLink>
+      ))}
+      <button type="button" onClick={onMore}><FiMoreHorizontal /><span>More</span></button>
+    </nav>
   );
 };
 
 const Navbar = () => {
   const { user, handleLogout } = useContext(AuthContext);
-  const [projects, setProjects] = useState([]);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const profileRef = useRef(null);
-  const { scrolled } = useNavbarEffects();
+  const { projects, refreshWorkspaceData } = useWorkspaceData();
   const location = useLocation();
-  const currentSection = useMemo(() => resolveSection(location.pathname), [location.pathname]);
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (profileRef.current && !profileRef.current.contains(event.target)) {
-        setIsProfileOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    setIsMobileMenuOpen(false);
-    setIsProfileOpen(false);
-  }, [location.pathname, location.search]);
-
-  useEffect(() => {
-    let isActive = true;
-
-    if (!user) {
-      setProjects([]);
-      return undefined;
-    }
-
-    fetchProjects()
-      .then(({ data }) => {
-        if (!isActive) return;
-
-        const userProjects = Array.isArray(data)
-          ? data.filter((project) => project.users.some((member) => member.id === user.id))
-          : [];
-
-        setProjects(
-          userProjects.map((project) => ({
-            to: `/projects/${project.id}/dashboard`,
-            label: project.name,
-          }))
-        );
-      })
-      .catch(() => {
-        if (isActive) setProjects([]);
-      });
-
-    return () => {
-      isActive = false;
-    };
-  }, [user]);
-
-  const navLinks = [
-    { to: "/my-work", label: "My Work", icon: FiBriefcase, visible: !!user },
-    { to: "/knowledge", label: "Knowledge", icon: FiBook, visible: !!user },
-    { to: "/pdf-master", label: "PDF Master", icon: FiFileText, visible: !!user },
-  ];
-  const planningLinks = [
-    { to: "/calendar", label: "Calendar", icon: FiCalendar },
-    { to: "/momentum", label: "Momentum Hub", icon: FiZap },
-    { to: "/worklog", label: "Work Log", icon: FiClock },
-    { to: "/vault", label: "Vault", icon: FiMenu },
-  ];
-  const collaborationLinks = [
-    { to: "/posts", label: "Posts and Updates", icon: FiMessageSquare },
-    { to: "/teams", label: "Teams", icon: FiUsers },
-    { to: "/chat", label: "Chat", icon: FiMessageSquare },
-    { to: "/departments", label: "Departments", icon: FiGrid },
-    { to: "/notifications", label: "Notifications", icon: FiAward },
-  ];
+  const navigate = useNavigate();
+  const isMobileViewport = useMobileViewport();
+  const layout = useMemo(() => getRouteLayout(location.pathname), [location.pathname]);
+  const breadcrumbs = useMemo(() => getBreadcrumbs(location.pathname, projects), [location.pathname, projects]);
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return window.localStorage.getItem("nexus:shell:nav-collapsed") === "true"; } catch { return false; }
+  });
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [contextOpen, setContextOpen] = useState(false);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileTriggerRef = useRef(null);
+  const profileMenuRef = useRef(null);
+  const selection = useMemo(() => getSelectionFromSearch(location.search), [location.search]);
 
   const hasAdminRole = user?.roles?.some((role) => ["owner", "admin"].includes(role.name));
-  const isOwner = user?.roles?.some((role) => role.name === "owner");
-  const profileLinks = [
-    user?.site_admin && portfolioEnabled ? { to: "/admin/portfolio", label: "Portfolio Editor", icon: FiBriefcase } : null,
-    hasAdminRole ? { to: "/admin", label: "System Admin", icon: FiGrid } : null,
-    { to: "/profile", label: "My Profile", icon: FiUser },
-    { to: "/users", label: "User Management", icon: FiUsers },
-    { to: "/departments", label: "Departments", icon: FiGrid },
-    isOwner ? { to: "/admin/login-as-user", label: "Login as User", icon: FiLogOut } : null,
-    { to: "/settings", label: "Settings", icon: FiSettings },
-  ].filter(Boolean);
 
-  const isProjectsSection = location.pathname.startsWith("/projects");
-  const isPlanningSection = planningLinks.some((link) => location.pathname.startsWith(link.to));
-  const isCollaborationSection = collaborationLinks.some((link) => location.pathname.startsWith(link.to));
+  useEffect(() => {
+    document.documentElement.dataset.nexusNav = collapsed ? "collapsed" : "expanded";
+    try { window.localStorage.setItem("nexus:shell:nav-collapsed", String(collapsed)); } catch { /* storage is optional */ }
+  }, [collapsed]);
+
+  useEffect(() => {
+    setMobileOpen(false);
+    setContextOpen(false);
+    setInspectorOpen(false);
+    setProfileOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (layout.inspector === "selection" && selection) setInspectorOpen(true);
+  }, [layout.inspector, selection?.key, selection?.id]);
+
+  useEffect(() => {
+    if (!profileOpen) return undefined;
+    const menu = profileMenuRef.current;
+    const getItems = () => Array.from(menu?.querySelectorAll('[role="menuitem"]') || []);
+    window.requestAnimationFrame(() => getItems()[0]?.focus());
+
+    const handlePointerDown = (event) => {
+      if (!menu?.contains(event.target) && !profileTriggerRef.current?.contains(event.target)) setProfileOpen(false);
+    };
+    const handleKeyDown = (event) => {
+      const items = getItems();
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setProfileOpen(false);
+        profileTriggerRef.current?.focus();
+      } else if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key) && items.length) {
+        event.preventDefault();
+        const currentIndex = items.indexOf(document.activeElement);
+        const nextIndex = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : event.key === "ArrowDown" ? (currentIndex + 1) % items.length : (currentIndex <= 0 ? items.length : currentIndex) - 1;
+        items[nextIndex].focus();
+      }
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [profileOpen]);
+
+  const closeContext = useCallback(() => setContextOpen(false), []);
+  const closeMobile = useCallback(() => setMobileOpen(false), []);
+
+  const closeInspector = useCallback(() => {
+    setInspectorOpen(false);
+    if (!selection) return;
+    navigate({ pathname: location.pathname, search: clearSelectionFromSearch(location.search) }, { replace: true });
+  }, [location.pathname, location.search, navigate, selection]);
+
+  const openContext = useCallback(() => {
+    setInspectorOpen(false);
+    setMobileOpen(false);
+    setProfileOpen(false);
+    setContextOpen(true);
+    if (["project", "projects"].includes(layout.context)) refreshWorkspaceData(["projects"]);
+  }, [layout.context, refreshWorkspaceData]);
+
+  const openInspector = useCallback(() => {
+    setContextOpen(false);
+    setMobileOpen(false);
+    setProfileOpen(false);
+    setInspectorOpen(true);
+    refreshWorkspaceData();
+  }, [refreshWorkspaceData]);
+
+  const openMobile = useCallback(() => {
+    setContextOpen(false);
+    setInspectorOpen(false);
+    setProfileOpen(false);
+    setMobileOpen(true);
+  }, []);
+
+  const dispatchPrimaryAction = () => {
+    if (location.pathname === "/projects") window.dispatchEvent(new Event("nexus:new-project"));
+    else window.dispatchEvent(new Event("nexus:open-search"));
+  };
+
+  if (isMobileViewport && layout.mobileChrome === "thread") return null;
 
   return (
-    <motion.header
-      className="sticky top-0 z-50 px-3 pt-3 sm:px-4 lg:px-6"
-      initial={{ opacity: 0, y: -18 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.48, ease: [0.22, 1, 0.36, 1] }}
-    >
-      <motion.div
-        className="shell-panel shell-panel-strong relative mx-auto flex max-w-[1600px] items-center gap-2 overflow-visible rounded-[32px] px-2.5 py-2.5 sm:px-3.5"
-        animate={{ y: scrolled ? -2 : 0, scale: scrolled ? 0.996 : 1 }}
-        transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-        style={{ boxShadow: scrolled ? "var(--shell-shadow-lg)" : "var(--shell-shadow-md)" }}
-      >
-        <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white to-transparent opacity-80" />
-        <div className="pointer-events-none absolute inset-y-4 left-[18%] hidden w-px bg-gradient-to-b from-transparent via-white/60 to-transparent opacity-75 lg:block" />
+    <>
+      <GlobalRail
+        collapsed={collapsed}
+        onToggle={() => setCollapsed((value) => !value)}
+        onOpenMobile={openMobile}
+        mobileOpen={mobileOpen}
+      />
 
-        <Link
-          to="/posts"
-          className="group flex min-w-0 items-center gap-2 rounded-[26px] px-1 py-1"
-          onClick={() => setIsMobileMenuOpen(false)}
-        >
-          <span className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[20px] border border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(229,238,255,0.75))] shadow-[0_18px_38px_rgb(15_23_42_/_0.12)]">
-            <span className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.95),transparent_68%)]" />
-            <img
-              src={logo}
-              alt="NexusHub logo"
-              className="relative z-10 h-8 w-auto transition-transform duration-500 group-hover:scale-110"
-            loading="lazy" />
-          </span>
-          <div className="min-w-0">
-            <p className="text-[0.58rem] font-semibold uppercase tracking-[0.34em] text-shell-muted">Nexus Shell</p>
-            <motion.h1
-              className="truncate text-lg font-semibold tracking-[-0.04em] text-shell-text-strong sm:text-xl"
-              initial={{ opacity: 0, x: -6 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.32 }}
-            >
-              Nexus<span className="text-theme">Hub</span>
-            </motion.h1>
-            <p className="hidden max-w-[13rem] truncate text-xs font-medium text-shell-muted min-[1480px]:block">
-              {currentSection.caption}
-            </p>
-          </div>
-        </Link>
-
-        <nav className="hidden min-w-0 flex-1 items-center lg:flex">
-          <div className="scrollbar-hide flex w-full items-center justify-start gap-0.5 overflow-x-auto rounded-[24px] border border-white/60 bg-white/52 p-1 shadow-[inset_0_1px_0_rgb(255_255_255_/_0.82)] xl:justify-center xl:overflow-visible">
-            {user ? (
-              <>
-                <AnimatedNavLink to="/my-work" label="My Work" icon={FiBriefcase} />
-                <ProjectsDropdown
-                  projects={projects}
-                  active={isProjectsSection}
-                  onItemClick={() => setIsMobileMenuOpen(false)}
-                />
-                <AreaDropdown label="Planning" icon={FiCalendar} links={planningLinks} active={isPlanningSection} />
-                <AreaDropdown
-                  label="Collaboration"
-                  icon={FiUsers}
-                  links={collaborationLinks}
-                  active={isCollaborationSection}
-                />
-                <AnimatedNavLink to="/knowledge" label="Knowledge" icon={FiBook} />
-                <AnimatedNavLink to="/pdf-master" label="Documents" icon={FiFileText} />
-              </>
-            ) : null}
-          </div>
-        </nav>
-
-        <div className="ml-auto shrink-0 flex items-center gap-2 sm:gap-3">
-          {user ? (
-            <button
-              type="button"
-              onClick={() => window.dispatchEvent(new Event("nexus:open-search"))}
-              className="hidden items-center gap-2 rounded-full border border-shell-border bg-surface-card px-3 py-2 text-xs font-semibold text-shell-muted shadow-[0_14px_28px_rgb(15_23_42_/_0.08)] hover:bg-surface-card-hover lg:flex"
-              aria-label="Search workspace"
-            >
-              <FiSearch className="h-4 w-4" />
-              <span className="hidden min-[1450px]:inline">Search</span>
-              <kbd className="hidden rounded border border-shell-border bg-shell-soft px-1.5 py-0.5 font-mono text-[10px] min-[1550px]:inline">
-                Ctrl K
-              </kbd>
-            </button>
-          ) : null}
-          {user ? (
-            <span className="shell-chip hidden min-[1720px]:inline-flex">
-              <span className="shell-chip-dot" />
-              {roleLabel(user)}
-            </span>
-          ) : (
-            <span className="shell-chip hidden md:inline-flex">
-              <span className="shell-chip-dot" />
-              Team Workspace
-            </span>
-          )}
-
-          {user ? (
-            <div className="rounded-full border border-white/65 bg-white/62 p-1 shadow-[0_14px_28px_rgb(15_23_42_/_0.08)]">
-              <NotificationCenter />
-            </div>
-          ) : null}
-
-          {user ? (
-            <div className="relative" ref={profileRef}>
-              <button
-                type="button"
-                onClick={() => setIsProfileOpen((value) => !value)}
-                className="group relative rounded-[22px] border border-white/65 bg-white/58 p-1 shadow-[0_18px_34px_rgb(15_23_42_/_0.08)] hover:bg-white/82"
-                aria-label="Open profile menu"
-                aria-expanded={isProfileOpen}
-                aria-haspopup="menu"
-              >
-                <HolographicAvatar user={user} />
-                {hasAdminRole ? (
-                  <div className="absolute -right-1.5 -top-1.5 z-20 rounded-full border-2 border-white bg-shell-primary p-1 text-white shadow-lg shadow-theme/25">
-                    <FiAward className="h-3 w-3" />
-                  </div>
-                ) : null}
-              </button>
-
-              <AnimatePresence>
-                {isProfileOpen ? (
-                  <motion.div
-                    initial={{ opacity: 0, y: 14, scale: 0.96 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 12, scale: 0.97 }}
-                    transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-                    className="shell-panel shell-panel-floating shell-panel-strong absolute right-0 top-full z-50 mt-4 w-[min(19rem,calc(100vw-1.5rem))] overflow-hidden rounded-[30px] p-2"
-                  >
-                    <div className="rounded-[24px] bg-[linear-gradient(135deg,rgba(255,255,255,0.92),rgba(235,242,255,0.74))] p-4">
-                      <div className="flex items-start gap-3">
-                        <HolographicAvatar user={user} />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold text-shell-text-strong">
-                            {user.first_name} {user.last_name}
-                          </p>
-                          <p className="mt-1 truncate text-xs text-shell-muted">{user.email}</p>
-                          <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-shell-border bg-surface-card px-3 py-1.5 text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-shell-muted">
-                            <span className="h-2 w-2 rounded-full bg-success shadow-[0_0_16px_rgb(var(--color-success-rgb)_/_0.45)]" />
-                            {roleLabel(user)}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="my-4 shell-grid-divider" />
-
-                      <div className="space-y-1">
-                        {profileLinks.map((link) => {
-                          const Icon = link.icon;
-
-                          return (
-                            <NavLink
-                              key={link.to}
-                              to={link.to}
-                              onClick={() => setIsProfileOpen(false)}
-                              className={menuItemClass}
-                            >
-                              <span className={menuIconClass}>
-                                <Icon className="h-4 w-4" />
-                              </span>
-                              {link.label}
-                            </NavLink>
-                          );
-                        })}
-                      </div>
-
-                      <div className="my-4 shell-grid-divider" />
-
-                      <button
-                        onClick={() => {
-                          handleLogout();
-                          setIsProfileOpen(false);
-                        }}
-                        className="group flex w-full items-center gap-3 rounded-[20px] px-4 py-3 text-sm font-medium text-rose-600 hover:bg-rose-50"
-                      >
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-rose-100 bg-rose-50 text-rose-500 transition group-hover:bg-rose-600 group-hover:text-white">
-                          <FiLogOut className="h-4 w-4" />
-                        </span>
-                        Sign Out
-                      </button>
-                    </div>
-                  </motion.div>
-                ) : null}
-              </AnimatePresence>
-            </div>
-          ) : (
-            <div className="hidden items-center gap-2 lg:flex">
-              <Link
-                to="/login"
-                className="rounded-full border border-shell-border bg-surface-card px-4 py-2.5 text-sm font-semibold text-shell-muted-strong shadow-[0_14px_24px_rgb(15_23_42_/_0.06)] hover:bg-surface-card-hover"
-              >
-                Login
-              </Link>
-              <Link
-                to="/signup"
-                className="rounded-full border border-white/75 bg-shell-primary px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-theme/20 hover:brightness-110"
-              >
-                Get Started
-              </Link>
-            </div>
-          )}
-
-          <button
-            type="button"
-            onClick={() => setIsMobileMenuOpen(true)}
-            className="flex h-11 w-11 items-center justify-center rounded-[18px] border border-white/65 bg-white/58 p-2.5 shadow-[0_14px_24px_rgb(15_23_42_/_0.06)] hover:bg-white/82 lg:hidden"
-            aria-label="Open navigation menu"
-            aria-expanded={isMobileMenuOpen}
-            aria-controls="mobile-navigation"
-          >
-            <div className="space-y-1.5">
-              <motion.span
-                animate={{ width: isMobileMenuOpen ? 22 : 18 }}
-                className="ml-auto block h-0.5 w-5 rounded-full bg-shell-text"
-              />
-              <motion.span
-                animate={{ width: isMobileMenuOpen ? 22 : 24 }}
-                className="block h-0.5 w-6 rounded-full bg-shell-text"
-              />
-            </div>
-          </button>
+      <header className="nexus-top-command-bar">
+        <div className="nexus-topbar-left">
+          {layout.context ? <button type="button" className="nexus-icon-button nexus-context-trigger" onClick={openContext} aria-label="Open context navigation" aria-haspopup="dialog" aria-expanded={contextOpen} aria-controls="workspace-context-drawer"><FiLayers /></button> : null}
+          <nav className="nexus-breadcrumbs" aria-label="Breadcrumb">
+            {breadcrumbs.map((crumb, index) => (
+              <React.Fragment key={`${crumb.label}-${index}`}>
+                {index ? <FiChevronRight /> : null}
+                {crumb.to ? <Link to={crumb.to}>{crumb.label}</Link> : <span>{crumb.label}</span>}
+              </React.Fragment>
+            ))}
+          </nav>
         </div>
-      </motion.div>
-
-      <AnimatePresence>
-        {isMobileMenuOpen ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-50 bg-shell-text-strong/20 px-2 py-2 backdrop-blur-md sm:px-3 sm:py-3 lg:hidden"
-          >
-            <motion.div
-              id="mobile-navigation"
-              initial={{ x: 24, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={{ x: 24, opacity: 0 }}
-              transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-              className="shell-panel shell-panel-strong relative ml-auto flex h-full w-full max-w-md flex-col overflow-hidden rounded-[24px] bg-white/86 sm:rounded-[32px]"
-            >
-              <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(103,232,249,0.42),transparent_68%)]" />
-              <div className="pointer-events-none absolute -bottom-16 -left-10 h-48 w-48 rounded-full bg-[radial-gradient(circle,rgba(52,109,255,0.18),transparent_72%)]" />
-
-              <div className="relative flex items-center justify-between px-5 pb-4 pt-5">
-                <div className="min-w-0">
-                  <p className="text-[0.58rem] font-semibold uppercase tracking-[0.34em] text-shell-muted">Current Lane</p>
-                  <p className="truncate text-lg font-semibold text-shell-text-strong">{currentSection.label}</p>
-                  <p className="mt-1 text-sm text-shell-muted">{currentSection.caption}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="flex h-11 w-11 items-center justify-center rounded-full border border-shell-border bg-surface-card-hover p-2 text-shell-muted-strong shadow-[0_12px_22px_rgb(15_23_42_/_0.08)] hover:text-shell-text-strong"
-                  aria-label="Close navigation menu"
-                >
-                  <FiX className="h-5 w-5" />
-                </button>
-              </div>
-
-              <div className="shell-grid-divider mx-5" />
-
-              <nav className="scrollbar-hide flex-1 overflow-y-auto px-4 py-4">
-                <div className="space-y-2">
-                  {user ? (
-                    <>
-                      {navLinks.map((link, index) =>
-                        link.visible ? (
-                          <motion.div
-                            key={link.to}
-                            initial={{ x: 16, opacity: 0 }}
-                            animate={{ x: 0, opacity: 1 }}
-                            transition={{ delay: 0.04 * index }}
-                          >
-                            <AnimatedNavLink
-                              to={link.to}
-                              label={link.label}
-                              icon={link.icon}
-                              fullWidth
-                              onClick={() => setIsMobileMenuOpen(false)}
-                            />
-                          </motion.div>
-                        ) : null
-                      )}
-
-                      <motion.div
-                        initial={{ x: 16, opacity: 0 }}
-                        animate={{ x: 0, opacity: 1 }}
-                        transition={{ delay: 0.2 }}
-                        className="pt-4"
-                      >
-                        <div className="mb-3 flex items-center justify-between px-2">
-                          <p className="text-[0.66rem] font-semibold uppercase tracking-[0.28em] text-shell-muted">
-                            Projects
-                          </p>
-                          <span className="shell-chip">
-                            <span className="shell-chip-dot" />
-                            {projects.length > 0 ? projects.length : "Hub"}
-                          </span>
-                        </div>
-
-                        <div className="space-y-1">
-                          <NavLink
-                            to="/projects"
-                            onClick={() => setIsMobileMenuOpen(false)}
-                            className="group flex items-center gap-3 rounded-[20px] px-4 py-3 text-sm font-medium text-shell-muted-strong hover:bg-surface-card-hover hover:text-shell-text-strong"
-                          >
-                            <span className="flex h-9 w-9 items-center justify-center rounded-2xl border border-shell-border bg-surface-card text-theme transition group-hover:bg-shell-text-strong group-hover:text-white">
-                              <FiGrid className="h-4 w-4" />
-                            </span>
-                            <span className="truncate">All projects</span>
-                          </NavLink>
-
-                          {projects.map((project) => (
-                            <NavLink
-                              key={project.to}
-                              to={project.to}
-                              onClick={() => setIsMobileMenuOpen(false)}
-                              className="group flex items-center gap-3 rounded-[20px] px-4 py-3 text-sm font-medium text-shell-muted-strong hover:bg-surface-card-hover hover:text-shell-text-strong"
-                            >
-                              <span className="flex h-9 w-9 items-center justify-center rounded-2xl border border-shell-border bg-surface-card text-theme transition group-hover:bg-shell-text-strong group-hover:text-white">
-                                <FiLayers className="h-4 w-4" />
-                              </span>
-                              <span className="truncate">{project.label}</span>
-                            </NavLink>
-                          ))}
-                        </div>
-                      </motion.div>
-
-                      {[
-                        ["Planning and focus", planningLinks],
-                        ["Collaboration", collaborationLinks],
-                      ].map(([label, links], sectionIndex) => (
-                        <motion.div
-                          key={label}
-                          initial={{ x: 16, opacity: 0 }}
-                          animate={{ x: 0, opacity: 1 }}
-                          transition={{ delay: 0.24 + sectionIndex * 0.04 }}
-                          className="pt-4"
-                        >
-                          <p className="mb-2 px-2 text-[0.66rem] font-semibold uppercase tracking-[0.28em] text-shell-muted">
-                            {label}
-                          </p>
-                          <div className="space-y-1">
-                            {links.map((link) => {
-                              const Icon = link.icon;
-                              return (
-                                <NavLink
-                                  key={link.to}
-                                  to={link.to}
-                                  onClick={() => setIsMobileMenuOpen(false)}
-                                  className={menuItemClass}
-                                >
-                                  <span className={menuIconClass}>
-                                    <Icon className="h-4 w-4" />
-                                  </span>
-                                  {link.label}
-                                </NavLink>
-                              );
-                            })}
-                          </div>
-                        </motion.div>
-                      ))}
-                    </>
-                  ) : (
-                    <div className="space-y-2 pt-2">
-                      <Link
-                        to="/login"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                        className="flex items-center justify-center rounded-[20px] border border-shell-border bg-surface-card-hover px-4 py-3 text-base font-semibold text-shell-text shadow-[0_14px_24px_rgb(15_23_42_/_0.06)]"
-                      >
-                        Login
-                      </Link>
-                      <Link
-                        to="/signup"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                        className="flex items-center justify-center rounded-[20px] bg-shell-primary px-4 py-3 text-base font-semibold text-white shadow-lg shadow-theme/20"
-                      >
-                        Get Started
-                      </Link>
-                    </div>
-                  )}
-                </div>
-
-                {user ? (
-                  <motion.div
-                    initial={{ opacity: 0, y: 18 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.24 }}
-                    className="mt-6 rounded-[26px] border border-white/75 bg-white/74 p-4 shadow-[0_18px_40px_rgb(15_23_42_/_0.08)]"
-                  >
-                    <div className="flex items-center gap-3">
-                      <HolographicAvatar user={user} />
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-shell-text-strong">
-                          {user.first_name} {user.last_name}
-                        </p>
-                        <p className="truncate text-xs text-shell-muted">{user.email}</p>
-                      </div>
-                    </div>
-
-                    <div className="my-4 shell-grid-divider" />
-
-                    <div className="space-y-1">
-                      {profileLinks.map((link) => {
-                        const Icon = link.icon;
-
-                        return (
-                          <NavLink
-                            key={link.to}
-                            to={link.to}
-                            onClick={() => setIsMobileMenuOpen(false)}
-                            className={menuItemClass}
-                          >
-                            <span className={menuIconClass}>
-                              <Icon className="h-4 w-4" />
-                            </span>
-                            {link.label}
-                          </NavLink>
-                        );
-                      })}
-
-                      <button
-                        onClick={() => {
-                          handleLogout();
-                          setIsMobileMenuOpen(false);
-                        }}
-                        className="group flex w-full items-center gap-3 rounded-[20px] px-4 py-3 text-left text-sm font-medium text-rose-600 hover:bg-rose-50"
-                      >
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-rose-100 bg-rose-50 text-rose-500 transition group-hover:bg-rose-600 group-hover:text-white">
-                          <FiLogOut className="h-4 w-4" />
-                        </span>
-                        Sign Out
-                      </button>
-                    </div>
-                  </motion.div>
-                ) : null}
-              </nav>
-            </motion.div>
-          </motion.div>
+        <div className="nexus-topbar-actions">
+          <button type="button" className="nexus-search-trigger" onClick={() => window.dispatchEvent(new Event("nexus:open-search"))} aria-label="Search workspace">
+            <FiSearch /><span>Search projects, tasks, people…</span><kbd>Ctrl K</kbd>
+          </button>
+          <button type="button" className="nexus-primary-action nexus-topbar-primary" onClick={dispatchPrimaryAction}>
+            {location.pathname === "/projects" ? "New project" : "Quick search"}
+          </button>
+          {layout.inspector ? <button type="button" className="nexus-icon-button nexus-inspector-trigger" onClick={openInspector} aria-label="Open inspector" aria-haspopup="dialog" aria-expanded={inspectorOpen} aria-controls="workspace-inspector-drawer"><FiActivity /></button> : null}
+          {!isMobileViewport ? <NotificationCenter /> : null}
+          <button ref={profileTriggerRef} type="button" className="nexus-topbar-avatar" onClick={() => setProfileOpen((value) => !value)} aria-label="Open account menu" aria-haspopup="menu" aria-expanded={profileOpen} aria-controls="nexus-account-menu"><UserAvatar user={user} size="sm" /></button>
+        </div>
+        {profileOpen ? (
+          <div ref={profileMenuRef} id="nexus-account-menu" className="nexus-profile-menu" role="menu" aria-label="Account">
+            <div><UserAvatar user={user} /><span><strong>{user?.first_name} {user?.last_name}</strong><small>{user?.email}</small></span></div>
+            <Link to="/profile" role="menuitem"><FiUsers />Profile</Link>
+            <Link to="/settings" role="menuitem"><FiSettings />Settings</Link>
+            {hasAdminRole ? <Link to="/admin" role="menuitem"><FiSliders />Admin console</Link> : null}
+            <button type="button" onClick={handleLogout} role="menuitem"><FiLogOut />Sign out</button>
+          </div>
         ) : null}
-      </AnimatePresence>
-    </motion.header>
+      </header>
+
+      <ContextPanel layout={layout} projects={projects} open={contextOpen} onClose={closeContext} />
+      <InspectorPanel layout={layout} open={inspectorOpen} onClose={closeInspector} location={location} />
+      <MobileDrawer open={mobileOpen} onClose={closeMobile} onLogout={handleLogout} user={user} hasAdminRole={hasAdminRole} />
+      <BottomNavigation onMore={openMobile} />
+    </>
   );
 };
 

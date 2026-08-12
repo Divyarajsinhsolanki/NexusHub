@@ -1,14 +1,17 @@
 import React, { useEffect, useState, useContext, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { fetchProjects, createProject, updateProject, deleteProject, addProjectUser, updateProjectUser, deleteProjectUser, leaveProject, SchedulerAPI } from "../components/api";
 import UserMultiSelect from "../components/UserMultiSelect";
 import { AuthContext } from "../context/AuthContext";
+import { notifyWorkspaceMutation } from "../context/WorkspaceDataContext";
 import projectsEmptyIllustration from "../images/nexus/projects-empty.webp";
 import {
     FiPlus, FiEdit2, FiTrash2, FiUsers, FiSearch, FiUserPlus,
     FiChevronRight, FiX, FiCheck, FiInfo, FiLoader, FiCalendar,
     FiLink, FiFolder, FiAlertTriangle, FiTrendingUp, FiActivity,
-    FiCheckCircle, FiXCircle, FiPhone, FiExternalLink, FiMail, FiBriefcase
+    FiCheckCircle, FiXCircle, FiPhone, FiExternalLink, FiMail, FiBriefcase,
+    FiGrid, FiList
 } from 'react-icons/fi';
 
 const asRecordArray = (value) =>
@@ -417,6 +420,7 @@ const DEFAULT_MEMBER_FORM = {
 
 const Projects = () => {
     const { user } = useContext(AuthContext);
+    const [searchParams, setSearchParams] = useSearchParams();
     const canEdit = user?.roles?.some((r) => ["owner", "project_manager"].includes(r.name));
     const canManageMembers = user?.roles?.some((r) => ["owner", "project_manager", "admin"].includes(r.name));
 
@@ -425,7 +429,13 @@ const Projects = () => {
     const [selectedProjectId, setSelectedProjectId] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false); // For form submission loading
-    const [searchQuery, setSearchQuery] = useState("");
+    const [searchQuery, setSearchQuery] = useState(() => searchParams.get("q") || "");
+    const [statusFilter, setStatusFilter] = useState(() => searchParams.get("status") || "all");
+    const [collectionView, setCollectionView] = useState(() => {
+        const requested = searchParams.get("view");
+        if (["grid", "list"].includes(requested)) return requested;
+        try { return window.localStorage.getItem("nexus:projects:view") === "list" ? "list" : "grid"; } catch { return "grid"; }
+    });
     const [projectTasks, setProjectTasks] = useState([]);
     const [projectTaskStats, setProjectTaskStats] = useState(() => ({ ...INITIAL_TASK_STATS }));
     const [isProjectTasksLoading, setIsProjectTasksLoading] = useState(false);
@@ -488,6 +498,17 @@ const Projects = () => {
     useEffect(() => {
         loadProjects();
     }, [loadProjects]);
+
+    useEffect(() => {
+        setSearchParams((current) => {
+            const next = new URLSearchParams(current);
+            if (searchQuery) next.set("q", searchQuery); else next.delete("q");
+            if (statusFilter !== "all") next.set("status", statusFilter); else next.delete("status");
+            next.set("view", collectionView);
+            return next;
+        }, { replace: true });
+        try { window.localStorage.setItem("nexus:projects:view", collectionView); } catch { /* optional */ }
+    }, [collectionView, searchQuery, setSearchParams, statusFilter]);
 
     useEffect(() => {
         if (!selectedProjectId) {
@@ -707,6 +728,7 @@ const Projects = () => {
             }
             resetAndCloseForms();
             await loadProjects(); // Reload to get the latest data
+            notifyWorkspaceMutation();
             setNotification({ message: `Project ${editingId ? 'updated' : 'created'} successfully!`, type: "success" });
         } catch (err) {
             console.error("Failed to save project:", err);
@@ -768,6 +790,12 @@ const Projects = () => {
         setNotification(null);
     }
 
+    useEffect(() => {
+        const openCreateProject = () => handleNewClick();
+        window.addEventListener("nexus:new-project", openCreateProject);
+        return () => window.removeEventListener("nexus:new-project", openCreateProject);
+    }, []);
+
     const confirmDeleteProject = (id) => {
         setProjectToDeleteId(id);
         setShowDeleteConfirm(true);
@@ -784,6 +812,7 @@ const Projects = () => {
                 setSelectedProjectId(null);
             }
             await loadProjects();
+            notifyWorkspaceMutation();
             setNotification({ message: "Project deleted successfully!", type: "success" });
         } catch (err) {
             console.error("Failed to delete project:", err);
@@ -818,6 +847,7 @@ const Projects = () => {
             setSelectedUsersToAdd([]);
             setMemberForm(DEFAULT_MEMBER_FORM);
             await loadProjects();
+            notifyWorkspaceMutation();
             setNotification({ message: "Member(s) added successfully!", type: "success" });
         } catch (err) {
             console.error("Failed to add member:", err);
@@ -850,6 +880,7 @@ const Projects = () => {
         try {
             await updateProjectUser(projectUserId, editingMemberData);
             await loadProjects();
+            notifyWorkspaceMutation();
             setNotification({ message: "Member updated successfully!", type: "success" });
             setEditingMemberId(null);
         } catch (err) {
@@ -873,6 +904,7 @@ const Projects = () => {
         try {
             await deleteProjectUser(projectUserId);
             await loadProjects();
+            notifyWorkspaceMutation();
             setNotification({ message: `${memberName} removed from project.`, type: "success" });
         } catch (err) {
             console.error("Failed to remove member:", err);
@@ -890,6 +922,7 @@ const Projects = () => {
         try {
             await leaveProject(selectedProjectId);
             await loadProjects();
+            notifyWorkspaceMutation();
             setNotification({ message: 'You have left the project.', type: 'success' });
         } catch (err) {
             console.error('Failed to leave project:', err);
@@ -903,9 +936,11 @@ const Projects = () => {
     // Derived State for rendering
     const filteredProjects = projects.filter((p) => {
         const projectUsers = usersForProject(p);
-        return `${p?.name || ""} ${p?.description || ""} ${projectUsers.map((u) => u.name || "").join(" ")}`
+        const matchesQuery = `${p?.name || ""} ${p?.description || ""} ${projectUsers.map((u) => u.name || "").join(" ")}`
             .toLowerCase()
             .includes(searchQuery.toLowerCase());
+        const matchesStatus = statusFilter === "all" || `${p.status || "running"}`.toLowerCase() === statusFilter;
+        return matchesQuery && matchesStatus;
     });
 
     const groupedProjects = filteredProjects.reduce((acc, project) => {
@@ -943,9 +978,9 @@ const Projects = () => {
 
     // Render UI
     return (
-        <div className="flex min-h-screen flex-col bg-zinc-50 text-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 lg:h-screen lg:flex-row">
+        <div className="nexus-projects-page flex min-h-screen flex-col text-zinc-800 dark:text-zinc-200 lg:flex-row">
             {/* Sidebar */}
-            <aside className="flex max-h-[42dvh] w-full flex-shrink-0 flex-col border-b border-zinc-100 bg-white dark:border-zinc-700 dark:bg-zinc-800 lg:max-h-none lg:w-80 lg:border-b-0 lg:border-r">
+            <aside className="legacy-projects-sidebar flex max-h-[42dvh] w-full flex-shrink-0 flex-col border-b border-zinc-100 bg-white dark:border-zinc-700 dark:bg-zinc-800 lg:max-h-none lg:w-80 lg:border-b-0 lg:border-r">
                 <div className="p-5 border-b border-zinc-100 dark:border-zinc-700 bg-gradient-to-r from-violet-600 to-purple-600">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -1047,7 +1082,46 @@ const Projects = () => {
 
             {/* Main Content Area */}
             <main className="min-w-0 flex-1 overflow-y-auto">
-                <div className="p-4 sm:p-6 lg:p-8">
+                <div className="nexus-projects-main p-3 sm:p-5">
+                    <section className="nexus-page-heading">
+                        <div>
+                            <span className="nexus-page-eyebrow">Project portfolio</span>
+                            <h1>Projects</h1>
+                            <p>Plan delivery, track progress, and keep every team aligned.</p>
+                        </div>
+                        {canEdit && (
+                            <button type="button" onClick={handleNewClick} className="nexus-primary-action">
+                                <FiPlus /> New project
+                            </button>
+                        )}
+                    </section>
+
+                    <section className="nexus-project-summary" aria-label="Project summary">
+                        <div><span>Total projects</span><strong>{projects.length}</strong><FiFolder /></div>
+                        <div><span>Running</span><strong>{projects.filter((project) => (project.status || "running") === "running").length}</strong><FiActivity /></div>
+                        <div><span>Completed</span><strong>{projects.filter((project) => project.status === "completed").length}</strong><FiCheckCircle /></div>
+                        <div><span>Team members</span><strong>{new Set(projects.flatMap((project) => usersForProject(project).map((member) => member.id))).size}</strong><FiUsers /></div>
+                    </section>
+
+                    {!isFormVisible && !selectedProject ? (
+                        <section className="nexus-project-toolbar" aria-label="Project filters">
+                            <label>
+                                <FiSearch />
+                                <span className="sr-only">Search projects</span>
+                                <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search projects, members, or descriptions…" />
+                            </label>
+                            <div className="nexus-status-filters">
+                                {["all", "running", "upcoming", "completed"].map((status) => (
+                                    <button type="button" key={status} onClick={() => setStatusFilter(status)} className={statusFilter === status ? "active" : ""}>{status}</button>
+                                ))}
+                            </div>
+                            <div className="nexus-view-toggle" aria-label="Project view">
+                                <button type="button" onClick={() => setCollectionView("grid")} className={collectionView === "grid" ? "active" : ""} aria-label="Grid view"><FiGrid /></button>
+                                <button type="button" onClick={() => setCollectionView("list")} className={collectionView === "list" ? "active" : ""} aria-label="List view"><FiList /></button>
+                            </div>
+                        </section>
+                    ) : null}
+
                     {isFormVisible ? (
                         // Create / Edit Project Form
                         <div className="animate-fadeInUp">
@@ -1690,18 +1764,11 @@ const Projects = () => {
                         // Show introductory message or all project cards
                         <div>
                             {projects.length > 0 ? (
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fadeIn">
-                                    <div className="md:col-span-full bg-[rgb(var(--theme-color-rgb)/0.1)] border border-[var(--theme-color)] rounded-xl p-6 mb-4 flex items-center gap-4 shadow-sm">
-                                        <FiInfo className="text-[var(--theme-color)] text-3xl" />
-                                        <div>
-                                            <h2 className="text-xl font-semibold text-[var(--theme-color)]">Select a Project to View Details</h2>
-                                            <p className="text-[var(--theme-color)] text-sm">Click on any project in the sidebar to manage its members and edit its information.</p>
-                                        </div>
-                                    </div>
-                                    {projects.map((project) => {
+                                <div className={`nexus-project-collection ${collectionView === "list" ? "nexus-project-collection-list" : ""} animate-fadeIn`}>
+                                    {filteredProjects.map((project) => {
                                         const projectUsers = usersForProject(project);
                                         return (
-                                            <div key={project.id} className="border border-gray-200 rounded-xl shadow-md p-6 bg-white flex flex-col justify-between transform transition-all duration-200 hover:scale-[1.02] hover:shadow-lg cursor-pointer"
+                                            <article key={project.id} className="nexus-project-card"
                                                 onClick={() => handleSelectProject(project.id)}
                                             >
                                                 <div className="mb-4">
@@ -1733,12 +1800,13 @@ const Projects = () => {
                                                         <span className="text-sm text-gray-500 italic">No members yet</span>
                                                     )}
                                                 </div>
-                                                <button className="self-start text-base text-[var(--theme-color)] hover:underline flex items-center gap-1">
+                                                <button className="nexus-project-card-action">
                                                     View Details <FiChevronRight className="w-4 h-4" />
                                                 </button>
-                                            </div>
+                                            </article>
                                         );
                                     })}
+                                    {!filteredProjects.length ? <div className="nexus-empty-panel"><FiSearch /><h2>No matching projects</h2><p>Change the search or status filter to see more results.</p></div> : null}
                                 </div>
                             ) : (
                                 <div className="text-center h-full flex flex-col items-center justify-center min-h-[70vh]">

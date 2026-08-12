@@ -5,6 +5,7 @@ import { toast } from "react-hot-toast";
 import { SparklesIcon, ClipboardDocumentListIcon, LinkIcon, ShieldExclamationIcon, ExclamationTriangleIcon, CheckCircleIcon, ListBulletIcon, Squares2X2Icon, VideoCameraIcon, BellIcon, ClockIcon, BoltIcon, FireIcon, TrashIcon, UserGroupIcon, FunnelIcon } from "@heroicons/react/24/outline";
 import { motion, AnimatePresence } from "framer-motion";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
+import { useParams, useSearchParams } from "react-router-dom";
 import issuesEmptyIllustration from "../images/nexus/issues-empty.webp";
 
 
@@ -1211,7 +1212,10 @@ const IssueForm = ({ tasks, sprints, initial, onSave, onCancel }) => {
   );
 };
 
-const IssueTracker = ({ projectId, sprint, standalone = false }) => {
+const IssueTracker = ({ projectId: providedProjectId, sprint, standalone = false }) => {
+  const { projectId: routeProjectId } = useParams();
+  const projectId = providedProjectId || routeProjectId;
+  const [, setSearchParams] = useSearchParams();
   const [issues, setIssues] = useState([]);
   const [editing, setEditing] = useState(null);
   const [tasks, setTasks] = useState([]);
@@ -1239,6 +1243,15 @@ const IssueTracker = ({ projectId, sprint, standalone = false }) => {
   const handleManualAction = useCallback((text, type = "update") => {
     setMockActivities(prev => [{ user: "You", text, time: "Just now", type }, ...prev]);
   }, []);
+
+  const inspectAndEditIssue = useCallback((issue) => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set("issue_id", issue.id);
+      return next;
+    }, { replace: true });
+    setEditing(issue);
+  }, [setSearchParams]);
   const pageSize = 8;
 
   const uniqueValues = useMemo(() => {
@@ -1731,7 +1744,7 @@ const IssueTracker = ({ projectId, sprint, standalone = false }) => {
                     <IssueCard
                       key={issue.id}
                       issue={issue}
-                      onEdit={setEditing}
+                      onEdit={inspectAndEditIssue}
                       onDelete={handleDelete}
                       isSelected={selectedIssues.includes(issue.id)}
                       onSelect={handleSelectIssue}
@@ -1773,7 +1786,7 @@ const IssueTracker = ({ projectId, sprint, standalone = false }) => {
               >
                 <KanbanBoard
                   issues={filteredIssues}
-                  onEdit={setEditing}
+                  onEdit={inspectAndEditIssue}
                   onDragEnd={onDragEnd}
                   selectedIssues={selectedIssues}
                   onSelectIssue={handleSelectIssue}

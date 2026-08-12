@@ -962,8 +962,8 @@ const AddTaskModal = ({ developers, users, onClose, onCreate, projectId, viewMod
 };
 
 // Main Component
-const SprintOverview = ({ sprintId, onSprintChange, projectId, sheetIntegrationEnabled, projectMembers, viewMode = 'combined' }) => {
-    const [sprints, setSprints] = useState([]);
+const SprintOverview = ({ sprintId, onSprintChange, projectId, sheetIntegrationEnabled, projectMembers, viewMode = 'combined', availableSprints = null }) => {
+    const [sprints, setSprints] = useState(() => Array.isArray(availableSprints) ? availableSprints : []);
     const [developers, setDevelopers] = useState([]);
     const [users, setUsers] = useState([]);
     const [tasks, setTasks] = useState([]);
@@ -1059,30 +1059,36 @@ const SprintOverview = ({ sprintId, onSprintChange, projectId, sheetIntegrationE
             SchedulerAPI.getDevelopers().then(res => setDevelopers(res.data));
             getUsers().then(res => setUsers(Array.isArray(res.data) ? res.data : []));
         }
+        const applySprints = (list) => {
+            setSprints(list);
+            if (list.length) {
+                const today = new Date();
+                const current = list.find(s => {
+                    const start = new Date(s.start_date);
+                    const end = new Date(s.end_date);
+                    return today >= start && today <= end;
+                }) || list[0];
+                setSelectedSprintId(prev => {
+                    if (prev !== null) return prev;
+                    if (onSprintChange) onSprintChange(current.id);
+                    return current.id;
+                });
+            } else {
+                setSelectedSprintId(null);
+                if (onSprintChange) onSprintChange(null);
+            }
+        };
+
+        if (Array.isArray(availableSprints)) {
+            applySprints(availableSprints);
+            return;
+        }
+
         const query = projectId ? `?project_id=${projectId}` : '';
         fetch(`/api/sprints.json${query}`)
             .then(res => res.json())
-            .then(data => {
-                const list = Array.isArray(data) ? data : [];
-                setSprints(list);
-                if (list.length) {
-                    const today = new Date();
-                    const current = list.find(s => {
-                        const start = new Date(s.start_date);
-                        const end = new Date(s.end_date);
-                        return today >= start && today <= end;
-                    }) || list[0];
-                    setSelectedSprintId(prev => {
-                        if (prev !== null) return prev;
-                        if (onSprintChange) onSprintChange(current.id);
-                        return current.id;
-                    });
-                } else {
-                    setSelectedSprintId(null);
-                    if (onSprintChange) onSprintChange(null);
-                }
-            });
-    }, [projectId, sprintId, projectMembers]);
+            .then(data => applySprints(Array.isArray(data) ? data : []));
+    }, [availableSprints, projectId, projectMembers]);
 
     useEffect(() => {
         if (!sprintId && onSprintChange && selectedSprintId !== null) {

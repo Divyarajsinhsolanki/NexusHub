@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   FiBell,
   FiCalendar,
@@ -174,6 +175,7 @@ const minutesBetween = (start, end) => {
 };
 
 const Calendar = () => {
+  const [, setSearchParams] = useSearchParams();
   const now = new Date();
   const defaultStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 10, 0);
   const defaultEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 11, 0);
@@ -550,14 +552,21 @@ const Calendar = () => {
         .calendar-deadline-pulse { animation: calendar-deadline-glow 2.5s ease-in-out infinite; }
         .calendar-rail::-webkit-scrollbar { height: 10px; }
         .calendar-rail::-webkit-scrollbar-thumb { background: rgba(125, 211, 252, 0.35); border-radius: 999px; }
+        @media (max-width: 767px), (prefers-reduced-motion: reduce) {
+          .calendar-orbit,
+          .calendar-orbit > svg,
+          .calendar-deadline-pulse { animation: none; }
+          .calendar-depth-card:hover,
+          .calendar-drag-lift { transform: none !important; }
+        }
       `}</style>
       <section className="relative overflow-hidden rounded-[1.5rem] border border-white/20 bg-slate-950 p-5 text-white shadow-2xl shadow-blue-950/30 sm:rounded-[2.4rem] sm:p-8 lg:p-10">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(59,130,246,0.38),transparent_32%),radial-gradient(circle_at_80%_8%,rgba(168,85,247,0.34),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.95),rgba(30,41,59,0.9))]" />
         <div className="pointer-events-none absolute -right-20 top-8 h-72 w-72 rounded-full border border-cyan-300/20 bg-cyan-300/10 blur-sm" />
-        <div className="relative grid gap-6 xl:grid-cols-[1.05fr_1.4fr]">
-          <div className="flex flex-col justify-between gap-6">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
+        <div className="relative grid min-w-0 gap-6 xl:grid-cols-[1.05fr_1.4fr]">
+          <div className="flex min-w-0 flex-col justify-between gap-6">
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
+              <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.35em] text-cyan-200">Temporal command center</p>
                 <h1 className="mt-2 text-[clamp(2rem,8vw,3rem)] font-black tracking-tight sm:text-5xl">Calendar workspace</h1>
                 <p className="mt-3 max-w-2xl text-base leading-7 text-slate-300">A dimensional planning surface for meetings, deadlines, reminders, focus blocks, and sprint ceremonies.</p>
@@ -610,7 +619,7 @@ const Calendar = () => {
             </div>
           </div>
 
-          <div className="rounded-[2rem] border border-white/10 bg-white/[0.07] p-4 shadow-2xl shadow-black/20 backdrop-blur-xl">
+          <div className="min-w-0 rounded-[2rem] border border-white/10 bg-white/[0.07] p-4 shadow-2xl shadow-black/20 backdrop-blur-xl">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-xs uppercase tracking-[0.25em] text-cyan-200">3D timeline rail</p>
@@ -621,7 +630,7 @@ const Calendar = () => {
               ) : null}
             </div>
 
-            <div className="calendar-rail mt-6 overflow-x-auto pb-4">
+            <div className="calendar-rail mt-6 min-w-0 max-w-full overflow-x-auto pb-4">
               <div className="relative flex min-h-[310px] min-w-[760px] items-center gap-5 px-3" style={{ perspective: "1200px" }}>
                 <div className="absolute left-4 right-4 top-1/2 h-2 -translate-y-1/2 rounded-full bg-gradient-to-r from-cyan-300/15 via-white/35 to-fuchsia-300/15 shadow-[0_0_34px_rgba(125,211,252,0.25)]" />
                 <div className="absolute left-1/2 top-6 bottom-6 w-px bg-cyan-200/30" />
@@ -802,6 +811,11 @@ const Calendar = () => {
                         <article
                           key={event.id}
                           draggable
+                          onClick={() => setSearchParams((current) => {
+                            const next = new URLSearchParams(current);
+                            next.set("event_id", event.id);
+                            return next;
+                          }, { replace: true })}
                           onDragStart={() => setDraggingEventId(event.id)}
                           onDragEnd={() => setDraggingEventId(null)}
                           className={`calendar-depth-card relative rounded-2xl border p-4 transition duration-300 hover:-translate-y-1 hover:rotate-[0.4deg] dark:border-zinc-700 ${draggingEventId === event.id ? "calendar-drag-lift border-cyan-300 bg-cyan-50/80 dark:bg-cyan-950/30" : "border-zinc-200 bg-zinc-50/80 dark:bg-zinc-800/60"} ${urgency === "critical" ? "calendar-deadline-pulse shadow-[0_0_30px_rgba(251,113,133,0.35)]" : urgency === "hot" ? "shadow-[0_0_22px_rgba(251,191,36,0.22)]" : ""}`}

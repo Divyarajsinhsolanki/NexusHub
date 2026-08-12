@@ -10,7 +10,7 @@ const ProgressPieChart = ({ columns }) => {
 
   const renderLegend = () => {
     return (
-      <div className="mt-6 flex justify-center gap-x-6 gap-y-3 flex-wrap">
+      <div className="mt-5 flex flex-wrap justify-center gap-x-4 gap-y-3 sm:mt-6 sm:gap-x-6">
         {data.map((entry) => {
           let Icon;
           switch (entry.name) {
@@ -34,7 +34,7 @@ const ProgressPieChart = ({ columns }) => {
   };
 
   return (
-    <div className="bg-white p-6 shadow-lg rounded-xl border border-gray-100 h-full flex flex-col">
+    <div className="flex h-full min-w-0 flex-col rounded-xl border border-gray-100 bg-white p-4 shadow-sm sm:p-6">
       <div className="flex items-center mb-4">
         <FiPieChart className="text-theme mr-3" size={24} />
         <h3 className="text-xl font-bold text-gray-800">Progress Overview</h3>

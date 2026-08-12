@@ -192,6 +192,12 @@ export const importIssuesFromSheet = (projectId, sheet = null) =>
 
 // POST ENDPOINTS (existing)
 export const fetchPosts = (id) => withNormalizedCollection(api.get('/posts', { params: id ? { user_id: id } : {} }));
+export const fetchPostFeed = (params = {}) =>
+  api.get('/posts', { params }).then((response) => ({
+    ...response,
+    data: normalizeCollectionResponse(response?.data),
+    meta: response?.data?.meta || {},
+  }));
 export const createPost = (d) =>
   api.post("/posts", d, { headers: { "Content-Type": "multipart/form-data" } });
 export const updatePost = (i, d) =>
@@ -232,7 +238,18 @@ export const createLearningCheckpoint = (data) => api.post('/learning_checkpoint
 export const updateLearningCheckpoint = (id, data) => api.patch(`/learning_checkpoints/${id}.json`, { learning_checkpoint: data });
 
 // PROJECT ENDPOINTS
-export const fetchProjects = (params = {}) => withNormalizedCollection(api.get('/projects.json', { params: collectionParams(params) }));
+const inflightProjectRequests = new Map();
+export const fetchProjects = (params = {}) => {
+  const normalizedParams = collectionParams(params);
+  const requestKey = JSON.stringify(Object.entries(normalizedParams).sort(([left], [right]) => left.localeCompare(right)));
+  const existing = inflightProjectRequests.get(requestKey);
+  if (existing) return existing;
+
+  const request = withNormalizedCollection(api.get('/projects.json', { params: normalizedParams }))
+    .finally(() => inflightProjectRequests.delete(requestKey));
+  inflightProjectRequests.set(requestKey, request);
+  return request;
+};
 export const createProject = (data) => api.post('/projects.json', { project: data });
 export const updateProject = (id, data) => api.patch(`/projects/${id}.json`, { project: data });
 export const deleteProject = (id) => api.delete(`/projects/${id}.json`);
@@ -320,6 +337,11 @@ export const fetchConversations = (params = {}) => api.get('/conversations.json'
 export const fetchConversation = (id) => api.get(`/conversations/${id}.json`);
 export const fetchConversationSummary = (id) => api.get(`/conversations/${id}/summary.json`);
 export const createConversation = (data) => api.post('/conversations.json', { conversation: data, participant_ids: data.participant_ids || [] });
+export const updateConversation = (id, data) => api.patch(`/conversations/${id}`, { conversation: data });
+export const addConversationParticipants = (id, participantIds) =>
+  api.post(`/conversations/${id}/participants`, { participant_ids: participantIds });
+export const removeConversationParticipant = (id, userId) => api.delete(`/conversations/${id}/participants/${userId}`);
+export const leaveConversation = (id) => api.delete(`/conversations/${id}/leave`);
 export const startDirectConversation = (userId) => api.post('/conversations/start_direct', { user_id: userId });
 export const deleteConversation = (id) => api.delete(`/conversations/${id}`);
 export const deleteConversationForEveryone = (id, confirmation) =>

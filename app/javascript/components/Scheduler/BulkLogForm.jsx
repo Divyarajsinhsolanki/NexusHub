@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  DEFAULT_DAILY_CAPACITY,
   EMPTY_ARRAY,
   buildDistributionPlan,
   buildTaskStageRows,
@@ -8,6 +9,16 @@ import {
   resolveDefaultLogDate,
   validateStageSelection,
 } from './bulkLogPlanner';
+
+const STAGE_TONES = {
+  Code: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300',
+  'Code review': 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300',
+  'Dev to QA': 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-300',
+  Testing: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300',
+  'Automation QA': 'border-cyan-200 bg-cyan-50 text-cyan-700 dark:border-cyan-800 dark:bg-cyan-950/40 dark:text-cyan-300',
+};
+
+const stageTone = (logType) => STAGE_TONES[logType] || 'border-slate-200 bg-slate-50 text-slate-700';
 
 export default function BulkLogForm({
   tasks,
@@ -23,7 +34,7 @@ export default function BulkLogForm({
   const safeDevelopers = useMemo(() => Array.isArray(developers) ? developers : EMPTY_ARRAY, [developers]);
   const safeDates = useMemo(() => Array.isArray(dates) ? dates : EMPTY_ARRAY, [dates]);
   const [logDate, setLogDate] = useState('');
-  const [maxHoursPerDay, setMaxHoursPerDay] = useState('8');
+  const [maxHoursPerDay, setMaxHoursPerDay] = useState(String(DEFAULT_DAILY_CAPACITY));
   const [applyDeveloperId, setApplyDeveloperId] = useState('');
   const [showOnlyRemaining, setShowOnlyRemaining] = useState(true);
   const [rows, setRows] = useState([]);
@@ -38,7 +49,7 @@ export default function BulkLogForm({
       viewMode,
     }));
     setLogDate(resolveDefaultLogDate(safeDates));
-    setMaxHoursPerDay('8');
+    setMaxHoursPerDay(String(DEFAULT_DAILY_CAPACITY));
     setApplyDeveloperId(safeDevelopers[0] ? String(safeDevelopers[0].id) : '');
     setShowOnlyRemaining(true);
     setError('');
@@ -73,6 +84,35 @@ export default function BulkLogForm({
   const remainingTaskCount = useMemo(
     () => new Set(rows.filter((row) => row.remainingHours > 0).map((row) => row.taskId)).size,
     [rows]
+  );
+
+  const scheduledHoursTotal = useMemo(
+    () => distributionPreview.entries.reduce((sum, entry) => sum + numberOrZero(entry.hours_logged), 0),
+    [distributionPreview.entries]
+  );
+
+  const memberNameById = useMemo(
+    () => safeDevelopers.reduce((names, developer) => {
+      names[String(developer.id)] = developer.name || developer.email || `Member ${developer.id}`;
+      return names;
+    }, {}),
+    [safeDevelopers]
+  );
+
+  const taskLabelById = useMemo(
+    () => rows.reduce((labels, row) => {
+      labels[String(row.taskId)] = row.taskKey || row.title || `Task ${row.taskId}`;
+      return labels;
+    }, {}),
+    [rows]
+  );
+
+  const previewEntries = useMemo(
+    () => [...distributionPreview.entries].sort((left, right) => (
+      left.log_date.localeCompare(right.log_date) ||
+      String(memberNameById[String(left.developer_id)] || '').localeCompare(String(memberNameById[String(right.developer_id)] || ''))
+    )),
+    [distributionPreview.entries, memberNameById]
   );
 
   const updateRow = (rowId, updater) => {
@@ -253,8 +293,8 @@ export default function BulkLogForm({
           <div className="mt-2 text-2xl font-bold text-slate-900">{selectedRows.length}</div>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-4">
-          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Selected Hours</div>
-          <div className="mt-2 text-2xl font-bold text-slate-900">{formatHours(selectedHoursTotal)}</div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Scheduled / Selected</div>
+          <div className="mt-2 text-2xl font-bold text-slate-900">{formatHours(scheduledHoursTotal)} <span className="text-base font-semibold text-slate-400">/ {formatHours(selectedHoursTotal)}</span></div>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-4">
           <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Generated Log Rows</div>
@@ -263,12 +303,35 @@ export default function BulkLogForm({
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-        Bulk log starts from <span className="font-semibold text-slate-800">{logDate ? new Date(logDate).toLocaleDateString() : 'the selected date'}</span>, creates task stages from the task hour fields, and fills each working day up to <span className="font-semibold text-slate-800">{formatHours(maxHoursPerDay)}</span> per member. Review, Dev to QA, and QA stages start after the previous stage's last logged day; last sprint day overflow is added there for manual adjustment.
+        Bulk log starts from <span className="font-semibold text-slate-800">{logDate ? new Date(logDate).toLocaleDateString() : 'the selected date'}</span> and fills each member up to <span className="font-semibold text-slate-800">{formatHours(maxHoursPerDay)}</span> per day. Normally each handoff starts on the next sprint day. On the final sprint day only, Code Review and then Dev to QA may follow completion on the same day when their assigned members have capacity.
       </div>
 
-      {distributionPreview.overflowHours > 0 && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          {formatHours(distributionPreview.overflowHours)} could not fit within the daily limit for {distributionPreview.overflowTasks} stage{distributionPreview.overflowTasks === 1 ? '' : 's'} and will be added on the last sprint day so you can adjust manually.
+      {distributionPreview.finalDayHandoffCount > 0 && (
+        <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
+          Final-day handoff applied to {distributionPreview.finalDayHandoffCount} stage{distributionPreview.finalDayHandoffCount === 1 ? '' : 's'}. Daily member limits are still respected.
+        </div>
+      )}
+
+      {distributionPreview.unallocatedHours > 0 && (
+        <div role="status" className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+          <div className="font-semibold">{formatHours(distributionPreview.unallocatedHours)} will remain pending.</div>
+          <div className="mt-1">You can create the {distributionPreview.entries.length} safely scheduled rows now. Final-day Code Review and Dev to QA are included when capacity exists; other pending stages can be logged after adjusting the sprint or assignments.</div>
+          <ul className="mt-3 space-y-1 border-t border-amber-200 pt-2 dark:border-amber-800/60">
+            {distributionPreview.unallocatedStages.slice(0, 6).map((stage) => (
+              <li key={stage.rowId} className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                <span className="font-medium">
+                  {stage.taskKey || `Task ${stage.taskId}`} · {stage.stageLabel}
+                </span>
+                <span>
+                  {formatHours(stage.hours)} · {stage.reason === 'outside_sprint' && stage.requiredAfterDate
+                    ? `needs a sprint day after ${new Date(`${stage.requiredAfterDate}T00:00:00`).toLocaleDateString()}`
+                    : stage.reason === 'dependency'
+                      ? `waiting for ${stage.blockedBy || 'previous stage'}`
+                      : 'member capacity is full'}
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
@@ -352,7 +415,11 @@ export default function BulkLogForm({
                       <div className="mt-1 text-sm text-slate-600">{row.title}</div>
                     </div>
                   </td>
-                  <td className="px-3 py-3 align-top text-sm font-semibold text-slate-700">{row.stageLabel}</td>
+                  <td className="px-3 py-3 align-top text-sm font-semibold text-slate-700">
+                    <span className={`inline-flex rounded-full border px-2 py-1 text-xs font-semibold ${stageTone(row.logType)}`}>
+                      {row.stageLabel}
+                    </span>
+                  </td>
                   <td className="px-3 py-3 text-center text-sm text-slate-700">{formatHours(row.plannedHours)}</td>
                   <td className="px-3 py-3 text-center text-sm text-slate-700">{formatHours(row.loggedHours)}</td>
                   <td className={`px-3 py-3 text-center text-sm font-semibold ${remainingTone}`}>{formatHours(row.remainingHours)}</td>
@@ -385,6 +452,38 @@ export default function BulkLogForm({
         </table>
       </div>
 
+      {previewEntries.length > 0 && (
+        <details className="rounded-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900" open>
+          <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-800 dark:text-slate-100">
+            Schedule preview · {previewEntries.length} log row{previewEntries.length === 1 ? '' : 's'}
+          </summary>
+          <div className="max-h-64 overflow-auto border-t border-slate-200 dark:border-slate-700">
+            <table className="min-w-full divide-y divide-slate-200 text-sm dark:divide-slate-700">
+              <thead className="sticky top-0 bg-slate-50 dark:bg-slate-800">
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-slate-500">Date</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-slate-500">Task</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-slate-500">Member</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-slate-500">Stage</th>
+                  <th className="px-4 py-2 text-right text-xs font-semibold uppercase text-slate-500">Hours</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {previewEntries.map((entry, index) => (
+                  <tr key={`${entry.task_id}-${entry.developer_id}-${entry.log_date}-${entry.type}-${index}`}>
+                    <td className="whitespace-nowrap px-4 py-2 text-slate-700 dark:text-slate-200">{new Date(`${entry.log_date}T00:00:00`).toLocaleDateString()}</td>
+                    <td className="whitespace-nowrap px-4 py-2 font-semibold text-slate-700 dark:text-slate-200">{taskLabelById[String(entry.task_id)] || `Task ${entry.task_id}`}</td>
+                    <td className="px-4 py-2 text-slate-700 dark:text-slate-200">{memberNameById[String(entry.developer_id)] || `Member ${entry.developer_id}`}</td>
+                    <td className="px-4 py-2"><span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${stageTone(entry.type)}`}>{entry.type}</span></td>
+                    <td className="px-4 py-2 text-right font-semibold text-slate-800 dark:text-slate-100">{formatHours(entry.hours_logged)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      )}
+
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
@@ -401,9 +500,12 @@ export default function BulkLogForm({
         </button>
         <button
           type="submit"
-          className="rounded-lg bg-theme px-4 py-2 text-sm font-semibold text-white hover:brightness-110"
+          disabled={distributionPreview.entries.length === 0}
+          className="rounded-lg bg-theme px-4 py-2 text-sm font-semibold text-white hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Create Bulk Logs
+          {distributionPreview.entries.length > 0
+            ? `Create ${distributionPreview.entries.length} Scheduled Log${distributionPreview.entries.length === 1 ? '' : 's'}`
+            : 'Create Bulk Logs'}
         </button>
       </div>
     </form>

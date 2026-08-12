@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import React, { Suspense, useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { format, formatDistanceToNow, isSameDay, isThisYear, isToday, isYesterday } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
@@ -26,6 +26,8 @@ import {
   FiSmile,
   FiTrash2,
   FiUploadCloud,
+  FiUserMinus,
+  FiUserPlus,
   FiWifiOff,
   FiUsers,
   FiVideo,
@@ -34,6 +36,7 @@ import {
 } from "react-icons/fi";
 import {
   SchedulerAPI,
+  addConversationParticipants,
   addMessageReaction,
   acknowledgeCallRing,
   createConversation,
@@ -48,17 +51,20 @@ import {
   fetchConversations,
   getUsers,
   joinCall,
+  leaveConversation,
   leaveCall,
   muteConversation,
+  removeConversationParticipant,
   removeMessageReaction,
   sendMessage,
   startDirectConversation,
   unmuteConversation,
+  updateConversation,
   updateConversationReceipt,
   updatePresence
 } from "../components/api";
 import { AuthContext } from "../context/AuthContext";
-import CallRoom from "../components/chat/CallRoom";
+import CallRoom, { preloadCallRoom } from "../components/chat/LazyCallRoom";
 import { ensureCableConnection, sendToConversation, subscribeToCableStatus, subscribeToConversationChat, subscribeToPresence, subscribeToUserChat } from "../lib/chatCable";
 import {
   applyComposerEntity,
@@ -463,6 +469,7 @@ const RichMessageText = ({ text = "", isMe, searchQuery, mentionLookups }) => {
 const Avatar = ({ name, src, size = "md", className = "" }) => {
   const [imageFailed, setImageFailed] = useState(false);
   const sizeClasses = {
+    xs: "h-6 w-6 text-[10px]",
     sm: "h-8 w-8 text-xs",
     md: "h-11 w-11 text-sm",
     lg: "h-14 w-14 text-base",
@@ -519,7 +526,7 @@ const StatCard = ({ icon, label, value, accentClass }) => (
   </div>
 );
 
-const ConversationItem = ({ conversation, currentUserId, isActive, searchQuery, previewText, presenceNow, onSelect, onHide, onDeleteForEveryone, onMute, onUnmute }) => {
+const ConversationItem = React.memo(({ conversation, currentUserId, isActive, searchQuery, previewText, presenceNow, onSelect, onHide, onDeleteForEveryone, onMute, onUnmute }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef(null);
   const isUnread = conversation.unread_count > 0;
@@ -692,7 +699,7 @@ const ConversationItem = ({ conversation, currentUserId, isActive, searchQuery, 
       )}
     </div>
   );
-};
+});
 
 const MessageAttachmentCard = ({ attachment, isMe, searchQuery }) => {
   const isImage = attachment.content_type?.startsWith("image/");
@@ -770,7 +777,7 @@ const MessageAttachmentCard = ({ attachment, isMe, searchQuery }) => {
   );
 };
 
-const MessageBubble = ({ message, isMe, showAvatar, onToggleReaction, participants, conversationType, searchQuery, mentionLookups }) => {
+const MessageBubble = React.memo(({ message, isMe, showAvatar, onToggleReaction, participants, conversationType, searchQuery, mentionLookups }) => {
   const [isReactionPickerOpen, setIsReactionPickerOpen] = useState(false);
   const [isReactionPickerExpanded, setIsReactionPickerExpanded] = useState(false);
   const [customReactionEmoji, setCustomReactionEmoji] = useState("");
@@ -803,11 +810,7 @@ const MessageBubble = ({ message, isMe, showAvatar, onToggleReaction, participan
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={`group/bubble flex w-full ${isMe ? "justify-end" : "justify-start"}`}
-    >
+    <div className={`group/bubble flex w-full ${isMe ? "justify-end" : "justify-start"}`}>
       <div className={`flex max-w-[92%] gap-2 md:max-w-[74%] ${isMe ? "flex-row-reverse" : "flex-row"}`}>
         {!isMe && (
           <div className="flex w-8 shrink-0 items-end justify-center">
@@ -943,9 +946,9 @@ const MessageBubble = ({ message, isMe, showAvatar, onToggleReaction, participan
 
         </div>
       </div>
-    </motion.div>
+    </div>
   );
-};
+});
 
 const MentionSuggestions = ({ suggestions, activeIndex, onSelect }) => {
   if (!suggestions.length) return null;
@@ -1008,10 +1011,30 @@ const MentionSuggestions = ({ suggestions, activeIndex, onSelect }) => {
   );
 };
 
+const useMobileChatLayout = () => {
+  const [isMobile, setIsMobile] = useState(() => (
+    typeof window !== "undefined" && typeof window.matchMedia === "function"
+      ? window.matchMedia("(max-width: 767px)").matches
+      : false
+  ));
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return undefined;
+    const media = window.matchMedia("(max-width: 767px)");
+    const update = () => setIsMobile(media.matches);
+    update();
+    media.addEventListener?.("change", update);
+    return () => media.removeEventListener?.("change", update);
+  }, []);
+
+  return isMobile;
+};
+
 const Chat = ({ embedded = false, initialConversationId = null }) => {
   const { conversationId: routeConversationId } = useParams();
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
+  const isMobileLayout = useMobileChatLayout();
   const [embeddedConversationId, setEmbeddedConversationId] = useState(initialConversationId);
   const conversationId = embedded ? embeddedConversationId : routeConversationId;
 
@@ -1032,6 +1055,17 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   const receiptAcksRef = useRef({ delivered: new Map(), read: new Map() });
   const previousConversationIdRef = useRef(null);
   const olderMessagesRequestRef = useRef(false);
+  const usersRequestRef = useRef(null);
+  const tasksRequestRef = useRef(null);
+  const addMembersDialogRef = useRef(null);
+  const addMembersPreviousFocusRef = useRef(null);
+  const typingStateRef = useRef({ active: false, conversationId: null });
+  const reconciliationTimerRef = useRef(null);
+  const reconciliationInFlightRef = useRef(false);
+  const conversationDetailInFlightRef = useRef(null);
+  const lastConversationDetailLoadedRef = useRef({ id: null, at: 0 });
+  const lastCableStatusRef = useRef(null);
+  const summarizedMessageIdsRef = useRef(new Set());
 
   const [conversations, setConversations] = useState({ direct: [], group: [] });
   const [conversationListMeta, setConversationListMeta] = useState(null);
@@ -1044,6 +1078,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   const [olderMessagesError, setOlderMessagesError] = useState("");
   const [hasUnreadBelow, setHasUnreadBelow] = useState(false);
   const [users, setUsers] = useState([]);
+  const [isUsersLoading, setIsUsersLoading] = useState(false);
   const [tasks, setTasks] = useState([]);
 
   const [messageBody, setMessageBody] = useState("");
@@ -1068,6 +1103,13 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedUserIds, setSelectedUserIds] = useState([]);
   const [newGroupTitle, setNewGroupTitle] = useState("");
+  const [isAddMembersOpen, setIsAddMembersOpen] = useState(false);
+  const [groupMemberSearch, setGroupMemberSearch] = useState("");
+  const [selectedGroupMemberIds, setSelectedGroupMemberIds] = useState([]);
+  const [isEditingGroupName, setIsEditingGroupName] = useState(false);
+  const [groupNameDraft, setGroupNameDraft] = useState("");
+  const [groupActionPending, setGroupActionPending] = useState("");
+  const [groupActionError, setGroupActionError] = useState("");
   const [incomingCall, setIncomingCall] = useState(null);
   const [activeCall, setActiveCall] = useState(null);
   const [callCredentials, setCallCredentials] = useState(null);
@@ -1078,6 +1120,71 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   useEffect(() => {
     if (embedded) setEmbeddedConversationId(initialConversationId);
   }, [embedded, initialConversationId]);
+
+  useEffect(() => {
+    setIsAddMembersOpen(false);
+    setGroupMemberSearch("");
+    setSelectedGroupMemberIds([]);
+    setIsEditingGroupName(false);
+    setGroupNameDraft(activeConversation?.title || "");
+    setGroupActionPending("");
+    setGroupActionError("");
+  }, [activeConversation?.id]);
+
+  useEffect(() => {
+    if (!isAddMembersOpen || typeof document === "undefined") return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setIsAddMembersOpen(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const focusable = Array.from(addMembersDialogRef.current?.querySelectorAll(
+        'button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
+      ) || []);
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+      addMembersPreviousFocusRef.current?.focus?.();
+    };
+  }, [isAddMembersOpen]);
+
+  useEffect(() => {
+    if (embedded || !conversationId || typeof window === "undefined") return undefined;
+    const root = document.documentElement;
+    const viewport = window.visualViewport;
+    const updateViewportHeight = () => {
+      const height = viewport?.height || window.innerHeight;
+      root.style.setProperty("--nexus-visual-viewport-height", `${Math.round(height)}px`);
+    };
+    updateViewportHeight();
+    viewport?.addEventListener("resize", updateViewportHeight);
+    viewport?.addEventListener("scroll", updateViewportHeight);
+    window.addEventListener("orientationchange", updateViewportHeight);
+    return () => {
+      viewport?.removeEventListener("resize", updateViewportHeight);
+      viewport?.removeEventListener("scroll", updateViewportHeight);
+      window.removeEventListener("orientationchange", updateViewportHeight);
+      root.style.removeProperty("--nexus-visual-viewport-height");
+    };
+  }, [conversationId, embedded]);
 
   const openConversation = useCallback((id) => {
     if (!id) return;
@@ -1176,6 +1283,13 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     conversationCacheRef.current = nextCache;
 
     if (Number(conversationId) === Number(targetConversationId)) {
+      setActiveCall((previous) => (
+        Number(previous?.conversation_id) === Number(targetConversationId) ? null : previous
+      ));
+      setIncomingCall((previous) => (
+        Number(previous?.conversation_id) === Number(targetConversationId) ? null : previous
+      ));
+      setCallCredentials(null);
       setActiveConversation(null);
       setShowInfo(false);
       setIsThreadActionsOpen(false);
@@ -1325,9 +1439,6 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
         ));
       }
 
-      if (Number(activeConversationRef.current?.id) === Number(targetConversationId)) {
-        syncActiveConversationMessages(targetConversationId);
-      }
     } catch (error) {
       if (error?.response?.status === 404) {
         removeConversationLocally(targetConversationId);
@@ -1336,7 +1447,70 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
 
       console.error("Failed to refresh conversation summary", error);
     }
-  }, [removeConversationLocally, syncActiveConversationMessages]);
+  }, [removeConversationLocally]);
+
+  const applyRealtimeMessageSummary = useCallback((targetConversationId, message) => {
+    if (!targetConversationId || !message) return;
+    const messageKey = `${targetConversationId}:${message.id}`;
+    if (summarizedMessageIdsRef.current.has(messageKey)) return;
+    summarizedMessageIdsRef.current.add(messageKey);
+    if (summarizedMessageIdsRef.current.size > 500) {
+      summarizedMessageIdsRef.current.delete(summarizedMessageIdsRef.current.values().next().value);
+    }
+
+    const isCurrentConversation = Number(targetConversationId) === Number(conversationId);
+    const isIncoming = Number(message.user_id) !== Number(user?.id);
+    const lastMessage = message.body?.trim() || (message.attachments?.length ? "Sent an attachment" : "New message");
+    const patchConversation = (conversation) => {
+      if (Number(conversation.id) !== Number(targetConversationId)) return conversation;
+      return {
+        ...conversation,
+        last_message: lastMessage,
+        last_message_at: message.created_at,
+        last_message_id: message.id,
+        updated_at: message.created_at,
+        unread_count: isIncoming && !isCurrentConversation ? (conversation.unread_count || 0) + 1 : conversation.unread_count
+      };
+    };
+
+    setConversations((previous) => {
+      const existing = [...(previous.direct || []), ...(previous.group || [])].find((conversation) => Number(conversation.id) === Number(targetConversationId));
+      if (!existing) return previous;
+      return mergeConversationGroups(previous, [patchConversation(existing)], false);
+    });
+    setActiveConversation((previous) => {
+      if (!previous || Number(previous.id) !== Number(targetConversationId)) return previous;
+      const nextConversation = patchConversation(previous);
+      conversationCacheRef.current = { ...conversationCacheRef.current, [String(targetConversationId)]: nextConversation };
+      return nextConversation;
+    });
+    if (isIncoming && !isCurrentConversation) {
+      setConversationListMeta((previous) => previous ? { ...previous, unread_count: (previous.unread_count || 0) + 1 } : previous);
+    }
+  }, [conversationId, user?.id]);
+
+  const scheduleActiveConversationReconciliation = useCallback((targetConversationId = conversationId) => {
+    if (!targetConversationId) return;
+    if (reconciliationTimerRef.current) window.clearTimeout(reconciliationTimerRef.current);
+    reconciliationTimerRef.current = window.setTimeout(async () => {
+      reconciliationTimerRef.current = null;
+      if (Number(conversationDetailInFlightRef.current) === Number(targetConversationId)) return;
+      if (
+        Number(lastConversationDetailLoadedRef.current.id) === Number(targetConversationId) &&
+        Date.now() - lastConversationDetailLoadedRef.current.at < 1500
+      ) return;
+      if (reconciliationInFlightRef.current) return;
+      reconciliationInFlightRef.current = true;
+      try {
+        await Promise.all([
+          refreshConversationSummary(targetConversationId),
+          syncActiveConversationMessages(targetConversationId)
+        ]);
+      } finally {
+        reconciliationInFlightRef.current = false;
+      }
+    }, 160);
+  }, [conversationId, refreshConversationSummary, syncActiveConversationMessages]);
 
   const loadConversation = useCallback(async (id) => {
     if (!id) return;
@@ -1349,6 +1523,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       setActiveConversation(null);
     }
     setIsConversationLoading(true);
+    conversationDetailInFlightRef.current = id;
 
     try {
       const { data } = await fetchConversation(id);
@@ -1365,6 +1540,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
         ...conversationCacheRef.current,
         [String(id)]: data
       };
+      lastConversationDetailLoadedRef.current = { id, at: Date.now() };
       setConversations((previous) => mergeConversationGroups(previous, [data], false));
     } catch (error) {
       if (error?.response?.status === 404) {
@@ -1376,6 +1552,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       setActiveConversation(null);
       setMessagePageMeta(null);
     } finally {
+      if (Number(conversationDetailInFlightRef.current) === Number(id)) conversationDetailInFlightRef.current = null;
       setIsConversationLoading(false);
     }
   }, [removeConversationLocally]);
@@ -1460,6 +1637,44 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     setIsNewChatModalOpen(true);
   }, [resetNewChatModal]);
 
+  const loadUsers = useCallback(() => {
+    if (users.length) return Promise.resolve(users);
+    if (usersRequestRef.current) return usersRequestRef.current;
+    setIsUsersLoading(true);
+    usersRequestRef.current = getUsers()
+      .then(({ data }) => {
+        const nextUsers = Array.isArray(data) ? data : [];
+        setUsers(nextUsers);
+        return nextUsers;
+      })
+      .catch((error) => {
+        console.error("Failed to load users", error);
+        return [];
+      })
+      .finally(() => {
+        usersRequestRef.current = null;
+        setIsUsersLoading(false);
+      });
+    return usersRequestRef.current;
+  }, [users]);
+
+  const loadTasks = useCallback(() => {
+    if (tasks.length) return Promise.resolve(tasks);
+    if (tasksRequestRef.current) return tasksRequestRef.current;
+    tasksRequestRef.current = SchedulerAPI.getTasks()
+      .then(({ data }) => {
+        const nextTasks = Array.isArray(data) ? data : [];
+        setTasks(nextTasks);
+        return nextTasks;
+      })
+      .catch((error) => {
+        console.error("Failed to load tasks for chat mentions", error);
+        return [];
+      })
+      .finally(() => { tasksRequestRef.current = null; });
+    return tasksRequestRef.current;
+  }, [tasks]);
+
   const sendTyping = useCallback((isTyping, targetConversationId = conversationId) => {
     if (!targetConversationId) return;
 
@@ -1469,33 +1684,46 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     });
   }, [conversationId]);
 
+  const stopTyping = useCallback(() => {
+    if (typingTimeoutRef.current) window.clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = null;
+    if (!typingStateRef.current.active || !typingStateRef.current.conversationId) return;
+    sendTyping(false, typingStateRef.current.conversationId);
+    typingStateRef.current = { active: false, conversationId: null };
+  }, [sendTyping]);
+
+  const announceTyping = useCallback(() => {
+    if (!conversationId) return;
+    if (!typingStateRef.current.active || Number(typingStateRef.current.conversationId) !== Number(conversationId)) {
+      if (typingStateRef.current.active) sendTyping(false, typingStateRef.current.conversationId);
+      sendTyping(true, conversationId);
+      typingStateRef.current = { active: true, conversationId };
+    }
+    if (typingTimeoutRef.current) window.clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = window.setTimeout(stopTyping, 1800);
+  }, [conversationId, sendTyping, stopTyping]);
+
+  const shouldLoadConversationList = embedded || !conversationId || !isMobileLayout;
   useEffect(() => {
-    fetchAllData();
-    getUsers()
-      .then(({ data }) => setUsers(Array.isArray(data) ? data : []))
-      .catch((error) => console.error("Failed to load users", error));
-    SchedulerAPI.getTasks()
-      .then(({ data }) => setTasks(Array.isArray(data) ? data : []))
-      .catch((error) => console.error("Failed to load tasks for chat mentions", error));
-  }, [fetchAllData]);
+    if (shouldLoadConversationList) fetchAllData();
+  }, [fetchAllData, shouldLoadConversationList]);
 
   useEffect(() => {
     const subscription = subscribeToCableStatus((status) => {
       setCableStatus(status);
-
-      if (status === "connected" && conversationId) {
-        refreshConversationSummary(conversationId);
-      }
+      const previousStatus = lastCableStatusRef.current;
+      lastCableStatusRef.current = status;
+      if (status === "connected" && previousStatus && previousStatus !== "connected") scheduleActiveConversationReconciliation(conversationId);
     });
 
     return () => subscription.unsubscribe();
-  }, [conversationId, refreshConversationSummary]);
+  }, [conversationId, scheduleActiveConversationReconciliation]);
 
   useEffect(() => {
     const resyncActiveConversation = () => {
       ensureCableConnection();
       if (conversationId) {
-        refreshConversationSummary(conversationId);
+        scheduleActiveConversationReconciliation(conversationId);
         const latestMessage = activeConversationRef.current?.messages?.slice(-1)[0];
         if (latestMessage && isAtLatestMessagesRef.current) {
           acknowledgeReceipt(conversationId, latestMessage.id, "read");
@@ -1516,10 +1744,13 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       window.removeEventListener("online", resyncActiveConversation);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [acknowledgeReceipt, conversationId, refreshConversationSummary]);
+  }, [acknowledgeReceipt, conversationId, scheduleActiveConversationReconciliation]);
 
   useEffect(() => {
+    if (user?.demo_account) return undefined;
+
     const publishPresence = () => {
+      if (document.visibilityState === "hidden" || navigator.onLine === false) return;
       updatePresence()
         .then(({ data }) => {
           if (!user?.id) return;
@@ -1542,12 +1773,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     publishPresence();
     const timer = window.setInterval(publishPresence, 30000);
     return () => window.clearInterval(timer);
-  }, [user?.id]);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setPresenceNow(Date.now()), 30000);
-    return () => window.clearInterval(timer);
-  }, []);
+  }, [user?.demo_account, user?.id]);
 
   useEffect(() => {
     const subscription = subscribeToPresence((payload) => {
@@ -1577,6 +1803,10 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (isNewChatModalOpen) loadUsers();
+  }, [isNewChatModalOpen, loadUsers]);
 
   useEffect(() => {
     if (!isThreadActionsOpen) return undefined;
@@ -1790,6 +2020,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   const handleIncomingCall = useCallback((callSession) => {
     if (!shouldSurfaceIncomingCall(callSession, user?.id)) return;
 
+    preloadCallRoom();
     setIncomingCall(callSession);
     applyCallSessionUpdate(callSession);
     if (!acknowledgedCallIdsRef.current.has(Number(callSession.id))) {
@@ -1804,6 +2035,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     if (!callSession || isCallConnecting) return;
 
     try {
+      preloadCallRoom();
       setIsCallConnecting(true);
       setCallError("");
       const { data } = await joinCall(callSession.id);
@@ -1840,6 +2072,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     if (!conversationId || isCallConnecting) return;
 
     try {
+      preloadCallRoom();
       setIsCallConnecting(true);
       setCallError("");
       const { data } = await createCall(conversationId, callType);
@@ -1935,9 +2168,120 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     }
   }, []);
 
+  const commitConversationChange = useCallback((nextConversation) => {
+    if (!nextConversation) return;
+
+    setConversations((previous) => mergeConversationGroups(previous, [nextConversation], false));
+    setActiveConversation((previous) => {
+      if (!previous || Number(previous.id) !== Number(nextConversation.id)) return previous;
+      const mergedConversation = mergeConversationSummary(previous, nextConversation);
+      conversationCacheRef.current = {
+        ...conversationCacheRef.current,
+        [String(nextConversation.id)]: mergedConversation
+      };
+      return mergedConversation;
+    });
+    if (nextConversation.active_call) applyCallSessionUpdate(nextConversation.active_call);
+  }, [applyCallSessionUpdate]);
+
+  const handleOpenAddMembers = useCallback(() => {
+    if (!activeConversation?.can_manage_members) return;
+    addMembersPreviousFocusRef.current = document.activeElement;
+    setGroupMemberSearch("");
+    setSelectedGroupMemberIds([]);
+    setGroupActionError("");
+    setIsAddMembersOpen(true);
+    loadUsers();
+  }, [activeConversation?.can_manage_members, loadUsers]);
+
+  const handleToggleGroupMember = useCallback((participantId) => {
+    const normalizedId = Number(participantId);
+    setSelectedGroupMemberIds((previous) => (
+      previous.some((currentId) => Number(currentId) === normalizedId)
+        ? previous.filter((currentId) => Number(currentId) !== normalizedId)
+        : [...previous, normalizedId]
+    ));
+  }, []);
+
+  const handleAddGroupMembers = useCallback(async () => {
+    if (!activeConversation?.id || selectedGroupMemberIds.length === 0 || groupActionPending) return;
+
+    try {
+      setGroupActionPending("add");
+      setGroupActionError("");
+      const { data } = await addConversationParticipants(activeConversation.id, selectedGroupMemberIds);
+      commitConversationChange(data);
+      setIsAddMembersOpen(false);
+      setSelectedGroupMemberIds([]);
+      setGroupMemberSearch("");
+    } catch (error) {
+      console.error("Failed to add group members", error);
+      setGroupActionError(error?.response?.data?.message || "Could not add those teammates. Please try again.");
+    } finally {
+      setGroupActionPending("");
+    }
+  }, [activeConversation?.id, commitConversationChange, groupActionPending, selectedGroupMemberIds]);
+
+  const handleRenameGroup = useCallback(async () => {
+    const nextTitle = groupNameDraft.trim();
+    if (!activeConversation?.id || !nextTitle || groupActionPending) return;
+
+    try {
+      setGroupActionPending("rename");
+      setGroupActionError("");
+      const { data } = await updateConversation(activeConversation.id, { title: nextTitle });
+      commitConversationChange(data);
+      setGroupNameDraft(data.title || nextTitle);
+      setIsEditingGroupName(false);
+    } catch (error) {
+      console.error("Failed to rename group", error);
+      setGroupActionError(error?.response?.data?.errors?.join?.(", ") || "Could not rename this group.");
+    } finally {
+      setGroupActionPending("");
+    }
+  }, [activeConversation?.id, commitConversationChange, groupActionPending, groupNameDraft]);
+
+  const handleRemoveGroupMember = useCallback(async (participant) => {
+    if (!activeConversation?.id || !participant || groupActionPending) return;
+    const groupName = getConversationDisplayName(activeConversation, user?.id);
+    if (!window.confirm(`Remove ${participant.name} from ${groupName}? They will immediately lose access to this group and its active call.`)) return;
+
+    try {
+      setGroupActionPending(`remove-${participant.id}`);
+      setGroupActionError("");
+      const { data } = await removeConversationParticipant(activeConversation.id, participant.id);
+      commitConversationChange(data);
+    } catch (error) {
+      console.error("Failed to remove group member", error);
+      setGroupActionError(error?.response?.data?.message || "Could not remove this member.");
+    } finally {
+      setGroupActionPending("");
+    }
+  }, [activeConversation, commitConversationChange, groupActionPending, user?.id]);
+
+  const handleLeaveGroup = useCallback(async () => {
+    if (!activeConversation?.id || !activeConversation?.can_leave_group || groupActionPending) return;
+    const groupName = getConversationDisplayName(activeConversation, user?.id);
+    if (!window.confirm(`Leave ${groupName}? You will lose access to its messages and any active call.`)) return;
+
+    const leavingConversationId = activeConversation.id;
+    try {
+      setGroupActionPending("leave");
+      setGroupActionError("");
+      await leaveConversation(leavingConversationId);
+      removeConversationLocally(leavingConversationId);
+    } catch (error) {
+      console.error("Failed to leave group", error);
+      setGroupActionError(error?.response?.data?.message || "Could not leave this group.");
+    } finally {
+      setGroupActionPending("");
+    }
+  }, [activeConversation, groupActionPending, removeConversationLocally, user?.id]);
+
   useEffect(() => {
     const userSub = subscribeToUserChat((payload) => {
       if (payload?.type === "message_created" && payload.message) {
+        applyRealtimeMessageSummary(payload.conversation_id, payload.message);
         if (Number(payload.message.user_id) !== Number(user?.id)) {
           acknowledgeReceipt(payload.conversation_id, payload.message.id, "delivered");
         }
@@ -1955,7 +2299,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
         applyReceiptUpdate(payload);
       }
 
-      if (payload?.type === "conversation_hidden" || payload?.type === "conversation_deleted") {
+      if (["conversation_hidden", "conversation_removed", "conversation_deleted"].includes(payload?.type)) {
         removeConversationLocally(payload.conversation_id);
       }
 
@@ -1963,7 +2307,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
         handleIncomingCall(payload.call_session);
       }
 
-      if (["call_started", "call_participant_joined", "call_participant_left", "call_missed", "call_ended"].includes(payload?.type)) {
+      if (["call_started", "call_participants_invited", "call_participant_joined", "call_participant_left", "call_missed", "call_ended"].includes(payload?.type)) {
         applyCallSessionUpdate(payload.call_session);
         if (["call_started", "call_participant_joined"].includes(payload?.type)) {
           handleIncomingCall(payload.call_session);
@@ -1972,7 +2316,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     });
 
     return () => userSub.unsubscribe();
-  }, [acknowledgeReceipt, applyCallSessionUpdate, applyReactionUpdate, applyReceiptUpdate, conversationId, handleIncomingCall, refreshConversationSummary, removeConversationLocally, user?.id]);
+  }, [acknowledgeReceipt, applyCallSessionUpdate, applyReactionUpdate, applyReceiptUpdate, applyRealtimeMessageSummary, conversationId, handleIncomingCall, refreshConversationSummary, removeConversationLocally, user?.id]);
 
   useEffect(() => {
     if (!conversationId) return undefined;
@@ -1980,6 +2324,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     const convSub = subscribeToConversationChat(conversationId, (payload) => {
       if (payload?.type === "message_created" && Number(payload.conversation_id) === Number(conversationId)) {
         const shouldFollowMessage = isAtLatestMessagesRef.current;
+        applyRealtimeMessageSummary(conversationId, payload.message);
         mergeMessagesIntoActiveConversation(conversationId, [payload.message]);
         acknowledgeReceipt(conversationId, payload.message.id, "delivered");
         if (shouldFollowMessage) {
@@ -1990,7 +2335,6 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
         } else {
           setHasUnreadBelow(true);
         }
-        refreshConversationSummary(conversationId);
       }
 
       if (payload?.type === "conversation_deleted" && Number(payload.conversation_id) === Number(conversationId)) {
@@ -2054,7 +2398,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
         applyReceiptUpdate(payload);
       }
 
-      if (["call_started", "call_participant_joined", "call_participant_left", "call_missed", "call_ended"].includes(payload?.type) && Number(payload.conversation_id) === Number(conversationId)) {
+      if (["call_started", "call_participants_invited", "call_participant_joined", "call_participant_left", "call_missed", "call_ended"].includes(payload?.type) && Number(payload.conversation_id) === Number(conversationId)) {
         applyCallSessionUpdate(payload.call_session);
         if (["call_started", "call_participant_joined"].includes(payload?.type)) {
           handleIncomingCall(payload.call_session);
@@ -2063,13 +2407,14 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     });
 
     return () => convSub.unsubscribe();
-  }, [acknowledgeReceipt, applyCallSessionUpdate, applyReactionUpdate, applyReceiptUpdate, conversationId, handleIncomingCall, mergeMessagesIntoActiveConversation, refreshConversationSummary, removeConversationLocally, scrollMessagesToBottom, user?.id]);
+  }, [acknowledgeReceipt, applyCallSessionUpdate, applyReactionUpdate, applyReceiptUpdate, applyRealtimeMessageSummary, conversationId, handleIncomingCall, mergeMessagesIntoActiveConversation, removeConversationLocally, scrollMessagesToBottom, user?.id]);
 
   useEffect(() => () => {
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    stopTyping();
+    if (reconciliationTimerRef.current) window.clearTimeout(reconciliationTimerRef.current);
     if (ringtoneTimerRef.current) window.clearInterval(ringtoneTimerRef.current);
     ringtoneAudioContextRef.current?.close?.();
-  }, []);
+  }, [stopTyping]);
 
   const activeConversationMessages = useMemo(() => {
     const messages = activeConversation?.messages || [];
@@ -2118,6 +2463,15 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     if (isLiveCall(activeCall) && Number(activeCall.conversation_id) === Number(activeConversation?.id)) return activeCall;
     return null;
   }, [activeCall, activeConversation?.active_call, activeConversation?.id]);
+
+  const visibleCallParticipants = useMemo(() => (
+    (visibleCall?.participants || []).map((callParticipant) => {
+      const conversationParticipant = (activeConversation?.participants || []).find((participant) => (
+        Number(participant.id) === Number(callParticipant.user_id)
+      ));
+      return { ...conversationParticipant, ...callParticipant, id: callParticipant.user_id };
+    })
+  ), [activeConversation?.participants, visibleCall?.participants]);
 
   const typingNames = useMemo(
     () => Object.values(typingUsers).map((entry) => entry.name),
@@ -2190,6 +2544,11 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     () => getComposerEntityQuery(messageBody, composerSelection.start),
     [composerSelection.start, messageBody]
   );
+
+  useEffect(() => {
+    if (activeComposerEntity?.trigger === "@") loadUsers();
+    if (activeComposerEntity?.trigger === "#") loadTasks();
+  }, [activeComposerEntity?.trigger, loadTasks, loadUsers]);
 
   const userMentionSuggestions = useMemo(() => {
     if (activeComposerEntity?.trigger !== "@") return [];
@@ -2346,6 +2705,21 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     });
   }, [availableUsers, deferredUserSearchTerm]);
 
+  const availableGroupMembers = useMemo(() => {
+    const participantIds = new Set((activeConversation?.participants || []).map((participant) => Number(participant.id)));
+    const normalizedQuery = groupMemberSearch.trim().toLowerCase();
+
+    return availableUsers.filter((candidate) => {
+      if (participantIds.has(Number(candidate.id))) return false;
+      if (!normalizedQuery) return true;
+      return [getFullUserName(candidate), candidate.email, candidate.job_title]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(normalizedQuery);
+    });
+  }, [activeConversation?.participants, availableUsers, groupMemberSearch]);
+
   const selectedUsers = useMemo(
     () => availableUsers.filter((candidate) => selectedUserIds.includes(candidate.id)),
     [availableUsers, selectedUserIds]
@@ -2474,14 +2848,13 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       setAttachments([]);
       setComposerSelection({ start: 0, end: 0 });
       setActiveMentionIndex(0);
-      refreshConversationSummary(conversationId);
+      applyRealtimeMessageSummary(conversationId, newMessage);
       if (shouldFollowMessage) scrollMessagesToBottom(40);
       else setHasUnreadBelow(true);
     } catch (error) {
       console.error("Failed to send message", error);
     } finally {
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      sendTyping(false);
+      stopTyping();
       setIsSending(false);
     }
   };
@@ -2539,7 +2912,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     }
   };
 
-  const handleHideConversation = async (conversation) => {
+  const handleHideConversation = useCallback(async (conversation) => {
     if (!conversation) return;
 
     const displayName = getConversationDisplayName(conversation, user?.id);
@@ -2552,9 +2925,9 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       console.error("Failed to hide conversation", error);
       fetchAllData();
     }
-  };
+  }, [fetchAllData, removeConversationLocally, user?.id]);
 
-  const handleDeleteConversationForEveryone = async (conversation) => {
+  const handleDeleteConversationForEveryone = useCallback(async (conversation) => {
     if (!conversation?.can_delete_for_everyone) return;
 
     const confirmation = `DELETE ${conversation.id}`;
@@ -2571,7 +2944,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       console.error("Failed to delete conversation", error);
       fetchAllData();
     }
-  };
+  }, [fetchAllData, removeConversationLocally]);
 
   const threadStatusLabel = typingNames.length > 0
     ? `${typingNames.join(", ")} ${typingNames.length === 1 ? "is" : "are"} typing...`
@@ -2584,11 +2957,11 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   const sidebarEmpty = !isConversationListLoading && filteredConversations.direct.length === 0 && filteredConversations.group.length === 0;
 
   return (
-    <div className="flex h-full min-h-0 w-full overflow-hidden bg-[linear-gradient(135deg,#eef6ff_0%,#f8fbff_45%,#f8f5ff_100%)] p-1.5 md:p-3 dark:bg-[linear-gradient(135deg,#09090b_0%,#111827_55%,#09090b_100%)]">
-      <div className="relative flex min-h-0 h-full w-full overflow-hidden rounded-[24px] border border-white/70 bg-white/30 shadow-[0_35px_90px_-45px_rgba(15,23,42,0.55)] backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-950/60">
+    <div className="nexus-chat-page flex h-full min-h-0 w-full overflow-hidden bg-slate-100 p-1.5 md:p-3 dark:bg-zinc-950">
+      <div className="nexus-chat-surface relative flex min-h-0 h-full w-full overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(125,211,252,0.24),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(96,165,250,0.14),transparent_24%)]" />
 
-        <aside className={`relative z-10 flex min-h-0 w-full flex-col border-r border-white/60 bg-white/82 backdrop-blur-2xl dark:border-zinc-800 dark:bg-zinc-950/82 md:w-[20rem] xl:w-[22rem] ${conversationId ? "hidden md:flex" : "flex"}`}>
+        <aside className={`nexus-chat-sidebar relative z-10 flex min-h-0 w-full flex-col border-r border-slate-200 bg-white dark:border-zinc-800 dark:bg-zinc-950 md:w-[20rem] xl:w-[22rem] ${conversationId ? "hidden md:flex" : "flex"}`}>
           <div className="border-b border-white/70 px-3 py-2 dark:border-zinc-800">
             <div className="flex items-center gap-2">
               <h1 className="text-base font-semibold tracking-tight text-slate-950 dark:text-white">Messages</h1>
@@ -2764,7 +3137,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
           </div>
         </aside>
 
-        <main className={`relative z-10 flex min-h-0 min-w-0 flex-1 flex-col ${!conversationId ? "hidden md:flex" : "flex"}`}>
+        <main className={`nexus-chat-thread relative z-10 flex min-h-0 min-w-0 flex-1 flex-col ${!conversationId ? "hidden md:flex" : "flex"}`}>
           {showThreadLoadingState ? (
             <div className="relative flex flex-1 items-center justify-center p-6 md:p-10">
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(125,211,252,0.22),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.6),rgba(248,250,252,0.72))] dark:bg-[linear-gradient(180deg,rgba(9,9,11,0.72),rgba(17,24,39,0.82))]" />
@@ -2824,9 +3197,9 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
             </div>
           ) : (
             <>
-              <header className="relative z-20 border-b border-white/70 bg-white/70 px-4 py-3 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-950/72 md:px-6">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex min-w-0 items-center gap-3">
+              <header className="chat-thread-header relative z-20 border-b border-slate-200 bg-white px-3 py-2.5 dark:border-zinc-800 dark:bg-zinc-950 sm:px-4 md:px-6 md:py-3">
+                <div className="flex items-center justify-between gap-2 sm:gap-4">
+                  <div className="flex min-w-0 items-center gap-2 sm:gap-3">
                     {embedded ? (
                       <button
                         type="button"
@@ -2845,7 +3218,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                     )}
 
                     {activeConversation.conversation_type === "direct" ? (
-                      <div className="relative shrink-0">
+                      <div className="chat-thread-avatar relative shrink-0">
                         <Avatar name={activeConversationName} src={activeConversationImage} size="lg" />
                         <span
                           className={`absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white dark:border-zinc-950 ${activeDirectParticipantOnline ? "bg-emerald-500" : "bg-slate-300 dark:bg-zinc-600"}`}
@@ -2853,32 +3226,32 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                         />
                       </div>
                     ) : (
-                      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-sky-100 to-cyan-50 text-sky-700 ring-2 ring-white/90 dark:from-sky-950/60 dark:to-cyan-950/40 dark:text-sky-200">
+                      <div className="chat-thread-avatar flex h-10 w-10 items-center justify-center rounded-full bg-sky-100 text-sky-700 sm:h-14 sm:w-14 dark:bg-sky-950/60 dark:text-sky-200">
                         <FiUsers className="h-6 w-6" />
                       </div>
                     )}
 
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h2 className="truncate text-xl font-semibold tracking-tight text-slate-950 dark:text-white">
+                        <h2 className="truncate text-base font-semibold tracking-tight text-slate-950 sm:text-xl dark:text-white">
                           {activeConversationName}
                         </h2>
-                        <span className="rounded-full bg-blue-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-blue-700 dark:bg-sky-950/70 dark:text-sky-200">
+                        <span className="hidden rounded-full bg-blue-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-blue-700 sm:inline-flex dark:bg-sky-950/70 dark:text-sky-200">
                           {activeConversation.conversation_type === "group" ? "Group" : "Direct"}
                         </span>
                       </div>
-                      <p className={`mt-1 truncate text-sm ${typingNames.length > 0 ? "text-emerald-500" : "text-slate-500 dark:text-slate-400"}`}>
+                      <p className={`mt-0.5 truncate text-xs sm:mt-1 sm:text-sm ${typingNames.length > 0 ? "text-emerald-500" : "text-slate-500 dark:text-slate-400"}`}>
                         {isConversationLoading ? "Syncing conversation..." : threadStatusLabel}
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
                     <button
                       type="button"
                       onClick={() => handleStartCall("audio")}
                       disabled={isCallConnecting || Boolean(visibleCall)}
-                      className="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 disabled:opacity-40 dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-300 dark:hover:bg-zinc-800"
+                      className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:opacity-40 sm:h-10 sm:w-10 sm:rounded-2xl dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-300 dark:hover:bg-zinc-800"
                       title="Start voice call"
                     >
                       <FiPhone className="h-4.5 w-4.5" />
@@ -2888,7 +3261,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                       type="button"
                       onClick={() => handleStartCall("video")}
                       disabled={isCallConnecting || Boolean(visibleCall)}
-                      className="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 disabled:opacity-40 dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-300 dark:hover:bg-zinc-800"
+                      className="hidden h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 disabled:opacity-40 sm:flex dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-300 dark:hover:bg-zinc-800"
                       title="Start video call"
                     >
                       <FiVideo className="h-4.5 w-4.5" />
@@ -2900,7 +3273,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                         setIsThreadSearchOpen((previous) => !previous);
                         if (isThreadSearchOpen) setThreadSearchQuery("");
                       }}
-                      className={`flex h-10 w-10 items-center justify-center rounded-2xl transition ${
+                      className={`hidden h-10 w-10 items-center justify-center rounded-2xl transition sm:flex ${
                         isThreadSearchOpen
                           ? "bg-blue-600 text-white dark:bg-sky-200 dark:text-sky-950"
                           : "border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-300 dark:hover:bg-zinc-800"
@@ -2913,7 +3286,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                     <button
                       type="button"
                       onClick={() => setShowInfo((previous) => !previous)}
-                      className={`flex h-10 w-10 items-center justify-center rounded-2xl transition ${
+                      className={`hidden h-10 w-10 items-center justify-center rounded-2xl transition sm:flex ${
                         showInfo
                           ? "bg-blue-600 text-white dark:bg-sky-200 dark:text-sky-950"
                           : "border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-300 dark:hover:bg-zinc-800"
@@ -2927,7 +3300,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                       <button
                         type="button"
                         onClick={() => setIsThreadActionsOpen((previous) => !previous)}
-                        className={`hidden h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-300 dark:hover:bg-zinc-800 md:flex ${isThreadActionsOpen ? "ring-2 ring-sky-100 dark:ring-sky-950/60" : ""}`}
+                        className={`flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 sm:h-10 sm:w-10 sm:rounded-2xl dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-300 dark:hover:bg-zinc-800 ${isThreadActionsOpen ? "ring-2 ring-sky-100 dark:ring-sky-950/60" : ""}`}
                         title="More actions"
                       >
                         <FiMoreVertical className="h-4.5 w-4.5" />
@@ -2935,6 +3308,28 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
 
                       {isThreadActionsOpen && (
                         <div className="absolute right-0 top-12 z-40 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 text-slate-700 shadow-xl dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-100">
+                          <button
+                            type="button"
+                            onClick={() => { setIsThreadActionsOpen(false); handleStartCall("video"); }}
+                            disabled={isCallConnecting || Boolean(visibleCall)}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium hover:bg-slate-50 disabled:opacity-40 sm:hidden dark:hover:bg-zinc-800"
+                          >
+                            <FiVideo className="h-4 w-4" />Video call
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setIsThreadActionsOpen(false); setIsThreadSearchOpen(true); }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium hover:bg-slate-50 sm:hidden dark:hover:bg-zinc-800"
+                          >
+                            <FiSearch className="h-4 w-4" />Search messages
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setIsThreadActionsOpen(false); setShowInfo(true); }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium hover:bg-slate-50 sm:hidden dark:hover:bg-zinc-800"
+                          >
+                            <FiInfo className="h-4 w-4" />Conversation details
+                          </button>
                           <button
                             type="button"
                             onClick={() => {
@@ -3070,7 +3465,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                   <div
                     ref={messageListRef}
                     onScroll={handleMessageListScroll}
-                    className="scrollbar-hide relative flex-1 overflow-y-auto px-4 py-4 md:px-5 md:py-4"
+                    className="nexus-chat-message-list scrollbar-hide relative flex-1 overflow-y-auto px-3 py-3 sm:px-4 sm:py-4 md:px-5"
                     style={{
                       backgroundImage: "radial-gradient(circle at top, rgba(96,165,250,0.12), transparent 28%), radial-gradient(circle at bottom right, rgba(56,189,248,0.14), transparent 24%), linear-gradient(180deg, rgba(255,255,255,0.55), rgba(248,250,252,0.78))"
                     }}
@@ -3204,7 +3599,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                     )}
                   </AnimatePresence>
 
-                  <div className="border-t border-white/70 bg-white/76 px-4 py-2 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-950/76 md:px-6">
+                  <div className="nexus-chat-composer shrink-0 border-t border-slate-200 bg-white px-3 py-2 dark:border-zinc-800 dark:bg-zinc-950 sm:px-4 md:px-6">
                     <div className="mx-auto max-w-4xl">
                       {attachments.length > 0 && (
                         <div className="scrollbar-hide mb-4 flex gap-3 overflow-x-auto pb-1">
@@ -3299,12 +3694,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                               onChange={(event) => {
                                 setMessageBody(event.target.value);
                                 syncComposerSelection(event);
-                                sendTyping(true);
-
-                                if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-                                typingTimeoutRef.current = window.setTimeout(() => {
-                                  sendTyping(false);
-                                }, 1800);
+                                announceTyping();
                               }}
                               onKeyDown={(event) => {
                                 if (activeMentionSuggestions.length > 0) {
@@ -3426,7 +3816,51 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                               </div>
                             )}
 
-                            <h4 className="mt-4 text-xl font-semibold tracking-tight text-slate-950 dark:text-white">{activeConversationName}</h4>
+                            {isEditingGroupName ? (
+                              <form
+                                className="mt-4 flex items-center gap-2"
+                                onSubmit={(event) => { event.preventDefault(); handleRenameGroup(); }}
+                              >
+                                <input
+                                  value={groupNameDraft}
+                                  onChange={(event) => setGroupNameDraft(event.target.value)}
+                                  maxLength={120}
+                                  className="min-w-0 flex-1 rounded-xl border border-sky-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none ring-4 ring-sky-100 dark:border-sky-700 dark:bg-zinc-950 dark:text-white dark:ring-sky-950/50"
+                                  aria-label="Group name"
+                                  autoFocus
+                                />
+                                <button
+                                  type="submit"
+                                  disabled={!groupNameDraft.trim() || groupActionPending === "rename"}
+                                  className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-white disabled:opacity-40"
+                                  title="Save group name"
+                                >
+                                  <FiCheck className="h-4 w-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => { setIsEditingGroupName(false); setGroupNameDraft(activeConversationName); }}
+                                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 dark:border-zinc-700 dark:bg-zinc-900"
+                                  title="Cancel rename"
+                                >
+                                  <FiX className="h-4 w-4" />
+                                </button>
+                              </form>
+                            ) : (
+                              <div className="mt-4 flex items-center justify-center gap-2">
+                                <h4 className="text-xl font-semibold tracking-tight text-slate-950 dark:text-white">{activeConversationName}</h4>
+                                {activeConversation.can_edit_group && (
+                                  <button
+                                    type="button"
+                                    onClick={() => { setGroupNameDraft(activeConversationName); setGroupActionError(""); setIsEditingGroupName(true); }}
+                                    className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-blue-600 dark:hover:bg-zinc-800 dark:hover:text-sky-300"
+                                    title="Rename group"
+                                  >
+                                    <FiEdit className="h-4 w-4" />
+                                  </button>
+                                )}
+                              </div>
+                            )}
                             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
                               {activeConversation.conversation_type === "group"
                                 ? "Shared room for ongoing collaboration"
@@ -3440,12 +3874,30 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                             </div>
                           </div>
 
+                          {groupActionError && (
+                            <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200">
+                              {groupActionError}
+                            </div>
+                          )}
+
                           <section className="mt-6">
-                            <div className="mb-3 flex items-center gap-2">
-                              <FiUsers className="h-4 w-4 text-slate-400" />
-                              <p className="text-[11px] font-medium uppercase tracking-[0.28em] text-slate-400 dark:text-slate-500">
-                                Members ({activeConversation.participants?.length || 0})
-                              </p>
+                            <div className="mb-3 flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-2">
+                                <FiUsers className="h-4 w-4 text-slate-400" />
+                                <p className="text-[11px] font-medium uppercase tracking-[0.28em] text-slate-400 dark:text-slate-500">
+                                  Members ({activeConversation.participants?.length || 0})
+                                </p>
+                              </div>
+                              {activeConversation.can_manage_members && (
+                                <button
+                                  type="button"
+                                  onClick={handleOpenAddMembers}
+                                  className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-700 dark:bg-sky-200 dark:text-sky-950"
+                                >
+                                  <FiUserPlus className="h-3.5 w-3.5" />
+                                  Add
+                                </button>
+                              )}
                             </div>
 
                             <div className="space-y-3">
@@ -3456,11 +3908,28 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                                 >
                                   <Avatar name={participant.name} src={participant.profile_picture} size="sm" />
                                   <div className="min-w-0 flex-1">
-                                    <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{participant.name}</p>
+                                    <div className="flex min-w-0 items-center gap-2">
+                                      <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{participant.name}</p>
+                                      {participant.is_creator && (
+                                        <span className="shrink-0 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-700 dark:bg-violet-950/50 dark:text-violet-200">Creator</span>
+                                      )}
+                                    </div>
                                     <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                                       {formatParticipantStatus(participant, user?.id)}
                                     </p>
                                   </div>
+                                  {activeConversation.can_manage_members && !participant.is_creator && Number(participant.id) !== Number(user?.id) && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveGroupMember(participant)}
+                                      disabled={Boolean(groupActionPending)}
+                                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-40 dark:hover:bg-red-950/30 dark:hover:text-red-300"
+                                      title={`Remove ${participant.name}`}
+                                      aria-label={`Remove ${participant.name} from group`}
+                                    >
+                                      <FiUserMinus className="h-4 w-4" />
+                                    </button>
+                                  )}
                                 </div>
                               ))}
                             </div>
@@ -3495,6 +3964,46 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                                 </button>
                               </div>
 
+                              {visibleCall && (
+                                <div className="rounded-2xl border border-sky-200 bg-white p-3 dark:border-sky-900/60 dark:bg-zinc-900">
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                      <p className="text-xs font-bold text-slate-900 dark:text-white">
+                                        {visibleCall.call_type === "audio" ? "Voice call" : "Video call"} in progress
+                                      </p>
+                                      <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                                        {visibleCallParticipants.filter((participant) => participant.status === "joined").length} joined · {visibleCallParticipants.filter((participant) => participant.status === "ringing").length} invited
+                                      </p>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCopyCallLink(visibleCall)}
+                                      className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-1.5 text-[11px] font-semibold text-slate-600 dark:bg-zinc-800 dark:text-slate-200"
+                                    >
+                                      <FiCopy className="h-3 w-3" /> Link
+                                    </button>
+                                  </div>
+
+                                  <div className="mt-3 space-y-2">
+                                    {visibleCallParticipants.map((participant) => (
+                                      <div key={participant.user_id} className="flex items-center gap-2">
+                                        <Avatar name={participant.name} src={participant.profile_picture} size="xs" />
+                                        <span className="min-w-0 flex-1 truncate text-xs font-medium text-slate-700 dark:text-slate-200">{participant.name}</span>
+                                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold capitalize ${
+                                          participant.status === "joined"
+                                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200"
+                                            : participant.status === "ringing"
+                                              ? "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-200"
+                                              : "bg-slate-100 text-slate-500 dark:bg-zinc-800 dark:text-slate-300"
+                                        }`}>
+                                          {participant.status}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
                               {activeConversation.muted ? (
                                 <button
                                   type="button"
@@ -3520,6 +4029,22 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                               )}
                             </div>
                           </section>
+
+                          {activeConversation.can_leave_group && (
+                            <section className="mt-6 rounded-2xl border border-red-200 bg-red-50/70 p-3 dark:border-red-900/50 dark:bg-red-950/20">
+                              <p className="text-xs font-semibold text-red-800 dark:text-red-200">Leave this group</p>
+                              <p className="mt-1 text-xs leading-5 text-red-600 dark:text-red-300/80">You will lose access to its messages, files, and active calls.</p>
+                              <button
+                                type="button"
+                                onClick={handleLeaveGroup}
+                                disabled={Boolean(groupActionPending)}
+                                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-100 disabled:opacity-40 dark:border-red-900/60 dark:bg-zinc-950 dark:text-red-300"
+                              >
+                                <FiArrowLeft className="h-4 w-4" />
+                                {groupActionPending === "leave" ? "Leaving…" : "Leave group"}
+                              </button>
+                            </section>
+                          )}
 
                           <section className="mt-6">
                             <div className="mb-3 flex items-center gap-2">
@@ -3587,7 +4112,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
 
       <AnimatePresence>
         {incomingCall && (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -3640,15 +4165,144 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
         )}
       </AnimatePresence>
 
-      <CallRoom
-        callSession={activeCall}
-        credentials={callCredentials}
-        onLeave={handleLeaveCall}
-        onEnd={handleEndActiveCall}
-        onRetry={handleRetryCallConnection}
-        onConnectionError={handleCallConnectionError}
-        onConnected={handleCallConnected}
-      />
+      <Suspense fallback={null}>
+        <CallRoom
+          callSession={activeCall}
+          credentials={callCredentials}
+          onLeave={handleLeaveCall}
+          onEnd={handleEndActiveCall}
+          onRetry={handleRetryCallConnection}
+          onConnectionError={handleCallConnectionError}
+          onConnected={handleCallConnected}
+        />
+      </Suspense>
+
+      <AnimatePresence>
+        {isAddMembersOpen && (
+          <div className="fixed inset-0 z-[90] flex items-center justify-center p-3 sm:p-4">
+            <motion.button
+              type="button"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => { if (!groupActionPending) setIsAddMembersOpen(false); }}
+              className="absolute inset-0 bg-slate-950/55"
+              aria-label="Close add members dialog"
+            />
+
+            <motion.section
+              ref={addMembersDialogRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="add-group-members-title"
+              initial={{ opacity: 0, scale: 0.97, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.97, y: 12 }}
+              className="relative z-10 flex max-h-[min(84dvh,720px)] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-950"
+            >
+              <header className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 dark:border-zinc-800">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-sky-600 dark:text-sky-300">Group access</p>
+                  <h2 id="add-group-members-title" className="mt-1 text-xl font-semibold text-slate-950 dark:text-white">Add people to {activeConversationName}</h2>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                    New members can read this group and will be invited to its active call.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsAddMembersOpen(false)}
+                  disabled={Boolean(groupActionPending)}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-500 disabled:opacity-40 dark:border-zinc-700 dark:text-slate-300"
+                  aria-label="Close"
+                >
+                  <FiX className="h-4 w-4" />
+                </button>
+              </header>
+
+              <div className="border-b border-slate-200 px-5 py-4 dark:border-zinc-800">
+                <div className="relative">
+                  <FiSearch className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    value={groupMemberSearch}
+                    onChange={(event) => setGroupMemberSearch(event.target.value)}
+                    placeholder="Search workspace people"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm text-slate-800 outline-none transition focus:border-sky-400 focus:bg-white focus:ring-4 focus:ring-sky-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-100 dark:focus:border-sky-700 dark:focus:ring-sky-950/50"
+                    autoFocus
+                  />
+                </div>
+                <p className="mt-2 text-xs font-medium text-slate-500 dark:text-slate-400">
+                  {selectedGroupMemberIds.length === 0 ? "Select one or more teammates" : `${selectedGroupMemberIds.length} selected`}
+                </p>
+              </div>
+
+              <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">
+                {isUsersLoading ? (
+                  <div className="grid gap-2" aria-label="Loading people">
+                    {[0, 1, 2].map((item) => <div key={item} className="h-16 animate-pulse rounded-xl bg-slate-100 dark:bg-zinc-900" />)}
+                  </div>
+                ) : availableGroupMembers.length > 0 ? (
+                  <div className="grid gap-2">
+                    {availableGroupMembers.map((candidate) => {
+                      const selected = selectedGroupMemberIds.some((candidateId) => Number(candidateId) === Number(candidate.id));
+                      return (
+                        <button
+                          key={candidate.id}
+                          type="button"
+                          onClick={() => handleToggleGroupMember(candidate.id)}
+                          className={`flex items-center gap-3 rounded-xl border px-3 py-3 text-left transition ${selected
+                            ? "border-blue-300 bg-blue-50 dark:border-sky-700 dark:bg-sky-950/40"
+                            : "border-slate-200 bg-white hover:border-sky-200 hover:bg-slate-50 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-zinc-700 dark:hover:bg-zinc-900"
+                          }`}
+                        >
+                          <Avatar name={getFullUserName(candidate)} src={candidate.profile_picture} size="sm" />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-semibold text-slate-900 dark:text-white">{getFullUserName(candidate)}</span>
+                            <span className="mt-0.5 block truncate text-xs text-slate-500 dark:text-slate-400">{candidate.job_title || candidate.email}</span>
+                          </span>
+                          <span className={`flex h-7 w-7 items-center justify-center rounded-full border ${selected ? "border-blue-600 bg-blue-600 text-white" : "border-slate-200 text-transparent dark:border-zinc-700"}`}>
+                            <FiCheck className="h-3.5 w-3.5" />
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center dark:border-zinc-800">
+                    <FiUsers className="mx-auto h-6 w-6 text-slate-300 dark:text-zinc-600" />
+                    <p className="mt-3 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                      {groupMemberSearch ? "No teammates match this search" : "Everyone is already in this group"}
+                    </p>
+                  </div>
+                )}
+
+                {groupActionError && (
+                  <p role="alert" className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:bg-red-950/30 dark:text-red-200">{groupActionError}</p>
+                )}
+              </div>
+
+              <footer className="flex items-center justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 dark:border-zinc-800 dark:bg-zinc-900/60">
+                <button
+                  type="button"
+                  onClick={() => setIsAddMembersOpen(false)}
+                  disabled={Boolean(groupActionPending)}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 disabled:opacity-40 dark:border-zinc-700 dark:bg-zinc-950 dark:text-slate-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddGroupMembers}
+                  disabled={selectedGroupMemberIds.length === 0 || Boolean(groupActionPending)}
+                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-40 dark:bg-sky-200 dark:text-sky-950"
+                >
+                  <FiUserPlus className="h-4 w-4" />
+                  {groupActionPending === "add" ? "Adding…" : `Add${selectedGroupMemberIds.length ? ` ${selectedGroupMemberIds.length}` : ""}`}
+                </button>
+              </footer>
+            </motion.section>
+          </div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {isNewChatModalOpen && (

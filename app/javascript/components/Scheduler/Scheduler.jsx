@@ -1,14 +1,17 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useSearchParams } from 'react-router-dom';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { SchedulerAPI } from '../api';
 import { toast } from 'react-hot-toast';
 import SpinnerOverlay from '../ui/SpinnerOverlay';
 import { getVisibleMembersForView } from '../../utils/sprintViewUtils';
+import { notifyWorkspaceMutation } from '../../context/WorkspaceDataContext';
 
 // Assuming these are your existing form components
 import AddTaskForm from '../Scheduler/AddTaskForm';
 import BulkLogForm from '../Scheduler/BulkLogForm';
+import { DEFAULT_DAILY_CAPACITY } from '../Scheduler/bulkLogPlanner';
 import EditTaskForm from '../Scheduler/EditTaskForm';
 
 import {
@@ -31,6 +34,9 @@ import { CheckCircleIcon as CheckCircleSolidIcon } from '@heroicons/react/24/sol
 const getTaskTypeParam = (viewMode) => (
   viewMode === 'qa' ? 'qa' : viewMode === 'dev' ? 'Code' : null
 );
+
+const SCHEDULER_DATE_COLUMN_WIDTH = 140;
+const SCHEDULER_MEMBER_COLUMN_MIN_WIDTH = 300;
 
 const isStructuredTask = (task) => ['Code', 'qa'].includes(task?.type);
 
@@ -106,25 +112,28 @@ function Modal({ isOpen, onClose, title, children, panelClassName = 'max-w-2xl' 
 
 // --- Main Scheduler Components ---
 
-function TaskCard({ task, index, onEdit, onTaskUpdate, onDuplicate }) {
+function TaskCard({ task, index, onEdit, onTaskUpdate, onDuplicate, onInspect }) {
   const [copied, setCopied] = useState(false);
+  const restingSizeRef = useRef(null);
 
   const typeColors = {
-    'Code': 'bg-green-50 border-green-300 text-green-800',
-    'Code review': 'bg-blue-50 border-blue-300 text-blue-800',
-    'Dev to QA': 'bg-purple-50 border-purple-300 text-purple-800',
-    'Testing': 'bg-amber-50 border-amber-300 text-amber-800',
-    'Automation QA': 'bg-cyan-50 border-cyan-300 text-cyan-800',
-    'Default': 'bg-gray-50 border-gray-300 text-gray-800'
+    'code': 'nexus-log-code',
+    'code review': 'nexus-log-code-review',
+    'dev to qa': 'nexus-log-dev-to-qa',
+    'testing': 'nexus-log-testing',
+    'automation qa': 'nexus-log-automation-qa',
+    'default': 'nexus-log-default'
   };
-  const cardColor = typeColors[task.type] || typeColors['Default'];
+  const cardColor = typeColors[String(task.type || '').trim().toLowerCase()] || typeColors.default;
 
-  const toggleStrike = async () => {
+  const toggleStrike = async (event) => {
+    event.stopPropagation();
     const newStatus = task.status === 'completed' ? 'todo' : 'completed';
     onTaskUpdate({ ...task, status: newStatus });
     try {
       const { data: updated } = await SchedulerAPI.updateTaskLog(task.id, { status: newStatus });
       onTaskUpdate(updated);
+      notifyWorkspaceMutation();
     } catch (error) {
       console.error("Error updating status:", error);
       onTaskUpdate({ ...task, status: task.status });
@@ -132,10 +141,12 @@ function TaskCard({ task, index, onEdit, onTaskUpdate, onDuplicate }) {
     }
   };
 
-  const deleteTask = async () => {
+  const deleteTask = async (event) => {
+    event.stopPropagation();
     onTaskUpdate({ ...task, deleted: true });
     try {
       await SchedulerAPI.deleteTaskLog(task.id);
+      notifyWorkspaceMutation();
     } catch (error) {
       console.error("Error deleting task:", error);
       onTaskUpdate({ ...task, deleted: false });
@@ -143,7 +154,8 @@ function TaskCard({ task, index, onEdit, onTaskUpdate, onDuplicate }) {
     }
   };
 
-  const duplicateTask = async () => {
+  const duplicateTask = async (event) => {
+    event.stopPropagation();
     if (!onDuplicate) return;
     const formData = {
       task_id: task.task_id || task.task?.id,
@@ -172,13 +184,28 @@ function TaskCard({ task, index, onEdit, onTaskUpdate, onDuplicate }) {
   return (
     <Draggable draggableId={String(task.id)} index={index}>
       {(provided, snapshot) => {
+        const setCardRef = (node) => {
+          provided.innerRef(node);
+          if (node && !snapshot.isDragging) {
+            const bounds = node.getBoundingClientRect();
+            restingSizeRef.current = { width: bounds.width, height: bounds.height };
+          }
+        };
         const card = (
           <div
-            ref={provided.innerRef}
+            ref={setCardRef}
             {...provided.draggableProps}
-            className={`p-2.5 mb-2 border rounded-lg shadow-sm hover:shadow-md transition-shadow duration-150 ${cardColor} ${task.status === 'completed' ? 'opacity-70' : ''}`}
+            onClick={() => onInspect?.(task)}
+            className={`nexus-scheduler-log p-2.5 mb-2 border rounded-lg transition-shadow duration-150 ${cardColor} ${snapshot.isDragging ? 'nexus-scheduler-log-dragging' : ''} ${task.status === 'completed' ? 'opacity-70' : ''}`}
             style={{
               ...provided.draggableProps.style,
+              width: snapshot.isDragging && restingSizeRef.current
+                ? `${restingSizeRef.current.width}px`
+                : provided.draggableProps.style?.width,
+              height: snapshot.isDragging && restingSizeRef.current
+                ? `${restingSizeRef.current.height}px`
+                : provided.draggableProps.style?.height,
+              boxSizing: 'border-box',
               zIndex: snapshot.isDragging ? 9999 : provided.draggableProps.style?.zIndex,
               opacity: snapshot.isDragging ? 0.92 : 1,
               pointerEvents: snapshot.isDragging ? 'none' : provided.draggableProps.style?.pointerEvents,
@@ -189,7 +216,7 @@ function TaskCard({ task, index, onEdit, onTaskUpdate, onDuplicate }) {
           >
             <div className="flex items-start justify-between">
               <div className="flex items-start min-w-0">
-                <span {...provided.dragHandleProps} className="cursor-move p-1 mr-2 text-gray-400 hover:text-gray-700" title="Drag task">
+                <span {...provided.dragHandleProps} onClick={(event) => event.stopPropagation()} className="cursor-move p-1 mr-2 text-gray-400 hover:text-gray-700" title="Drag task">
                   <Bars3Icon className="h-5 w-5" />
                 </span>
                 <div>
@@ -209,10 +236,10 @@ function TaskCard({ task, index, onEdit, onTaskUpdate, onDuplicate }) {
                       {task.task?.task_id || task.task_id}
                     </span>
                   )}
-                  <div className="text-xs text-gray-500 mt-0.5">
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
                     <span>{task.hours_logged}h</span>
-                    <span className="mx-1">|</span>
-                    <span>{task.type}</span>
+                    <span aria-hidden="true">·</span>
+                    <span className="nexus-log-type-badge">{task.type}</span>
                   </div>
                 </div>
               </div>
@@ -248,10 +275,10 @@ function TaskCard({ task, index, onEdit, onTaskUpdate, onDuplicate }) {
 }
 
 
-function TaskCell({ date, devId, tasksInCell, setEditingTask, handleTaskUpdate, totalHoursInCell, onDuplicate }) {
+function TaskCell({ date, devId, tasksInCell, setEditingTask, handleTaskUpdate, totalHoursInCell, onDuplicate, onInspect }) {
   const droppableId = `${date}:${devId}`;
 
-  const cellCapacity = 8;
+  const cellCapacity = DEFAULT_DAILY_CAPACITY;
   const hoursPercentage = Math.min((totalHoursInCell / cellCapacity) * 100, 100);
   let capacityColor = 'bg-green-100';
   if (totalHoursInCell > cellCapacity) capacityColor = 'bg-red-100';
@@ -266,7 +293,7 @@ function TaskCell({ date, devId, tasksInCell, setEditingTask, handleTaskUpdate, 
         <td
           ref={provided.innerRef}
           {...provided.droppableProps}
-          className={`p-2 border border-gray-200 align-top min-w-[200px] relative transition-colors duration-150 ease-in-out ${snapshot.isDraggingOver ? 'bg-theme/10 outline outline-2 outline-theme' : 'bg-white hover:bg-gray-50'}`}
+          className={`nexus-scheduler-cell p-2 border border-gray-200 align-top relative transition-colors duration-150 ease-in-out ${snapshot.isDraggingOver ? 'nexus-scheduler-cell-over bg-theme/10 outline outline-2 outline-theme' : 'bg-white hover:bg-gray-50'}`}
           style={{ minHeight: '100px' }}
         >
           <div className={`absolute bottom-0 left-0 right-0 h-1 ${capacityColor} opacity-70 transition-all duration-300`} style={{ width: `${hoursPercentage}%` }} title={`${totalHoursInCell}h / ${cellCapacity}h`}></div>
@@ -278,6 +305,7 @@ function TaskCell({ date, devId, tasksInCell, setEditingTask, handleTaskUpdate, 
               onEdit={() => setEditingTask(task)}
               onTaskUpdate={handleTaskUpdate}
               onDuplicate={onDuplicate}
+              onInspect={onInspect}
             />
           ))}
           {provided.placeholder}
@@ -291,6 +319,7 @@ function TaskCell({ date, devId, tasksInCell, setEditingTask, handleTaskUpdate, 
 }
 
 function Scheduler({ sprintId, projectId, sheetIntegrationEnabled, projectMembers = [], viewMode = 'combined' }) {
+  const [, setSearchParams] = useSearchParams();
   const [sprint, setSprint] = useState(null);
   const [developers, setDevelopers] = useState([]);
   const [tasks, setTasks] = useState([]); // will hold task logs
@@ -319,6 +348,19 @@ function Scheduler({ sprintId, projectId, sheetIntegrationEnabled, projectMember
   const memberColumnLabel = viewMode === 'qa' ? 'QA' : viewMode === 'combined' ? 'Member' : 'Developer';
   const dailyHoursLabel = viewMode === 'qa' ? 'Daily QA Hours' : viewMode === 'combined' ? 'Daily Team Hours' : 'Daily Hours';
   const formDevelopers = visibleDevelopers.length ? visibleDevelopers : developers;
+  const schedulerTableMinWidth = useMemo(
+    () => SCHEDULER_DATE_COLUMN_WIDTH + (Math.max(visibleDevelopers.length, 1) * SCHEDULER_MEMBER_COLUMN_MIN_WIDTH),
+    [visibleDevelopers.length]
+  );
+
+  const inspectLog = useCallback((log) => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set('log_id', log.id);
+      next.delete('task_id');
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
 
   // Ref for the main header
   const mainHeaderRef = useCallback(node => {
@@ -438,6 +480,7 @@ function Scheduler({ sprintId, projectId, sheetIntegrationEnabled, projectMember
     try {
       const { data: created } = await SchedulerAPI.createTaskLog({ ...formData });
       setTasks(prev => prev.map(t => t.id === tempId ? created : t));
+      notifyWorkspaceMutation();
     } catch (error) {
       console.error("Error adding task:", error);
       setTasks(prev => prev.filter(t => t.id !== tempId));
@@ -454,6 +497,7 @@ function Scheduler({ sprintId, projectId, sheetIntegrationEnabled, projectMember
       const { data: created } = await SchedulerAPI.createTaskLog(formData);
       setTasks(prev => prev.map(t => t.id === tempId ? created : t));
       toast.success('Log copied');
+      notifyWorkspaceMutation();
     } catch (error) {
       console.error('Error copying task:', error);
       setTasks(prev => prev.filter(t => t.id !== tempId));
@@ -469,6 +513,7 @@ function Scheduler({ sprintId, projectId, sheetIntegrationEnabled, projectMember
     try {
       const { data: updated } = await SchedulerAPI.updateTaskLog(taskId, formData);
       setTasks(prev => prev.map(t => t.id === taskId ? updated : t));
+      notifyWorkspaceMutation();
     } catch (error) {
       console.error("Error updating task:", error);
       toast.error(`Error: Could not update task. ${error.message}`);
@@ -495,6 +540,7 @@ function Scheduler({ sprintId, projectId, sheetIntegrationEnabled, projectMember
       setTasks(prev => sortSchedulerLogs([...prev, ...createdList]));
       setIsBulkLogModalOpen(false);
       toast.success(`Created ${createdList.length || entries.length} logs`);
+      notifyWorkspaceMutation();
     } catch (error) {
       const message = error?.response?.data?.errors?.join(', ') || error?.message || 'Could not create bulk logs.';
       toast.error(`Error: ${message}`);
@@ -518,6 +564,7 @@ function Scheduler({ sprintId, projectId, sheetIntegrationEnabled, projectMember
       const deletedCount = data?.deleted_count ?? visibleLogCount;
       setTasks([]);
       toast.success(`Deleted ${deletedCount} sprint log${deletedCount === 1 ? '' : 's'}`);
+      notifyWorkspaceMutation();
     } catch (error) {
       const message = error?.response?.data?.errors?.join(', ') || error?.message || 'Could not delete sprint logs.';
       toast.error(`Error: ${message}`);
@@ -552,6 +599,7 @@ function Scheduler({ sprintId, projectId, sheetIntegrationEnabled, projectMember
     try {
       const { data: moved } = await SchedulerAPI.updateTaskLog(taskId, { log_date: newDate, developer_id: newDevId });
       setTasks(prev => prev.map(t => String(t.id) === taskId ? moved : t));
+      notifyWorkspaceMutation();
     } catch (error) {
       console.error("Error moving task:", error);
       setTasks(prev => prev.map(t => String(t.id) === taskId ? originalTask : t));
@@ -656,12 +704,12 @@ function Scheduler({ sprintId, projectId, sheetIntegrationEnabled, projectMember
 
   return (
     <DragDropContext onDragEnd={handleDragEnd}>
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-sky-100 flex flex-col">
+      <div className="nexus-scheduler min-h-screen flex flex-col">
         {processing && <SpinnerOverlay />}
-        <main className="flex-grow container mx-auto p-4 lg:p-6">
-          <section className="mb-8 bg-white/70 backdrop-blur-md shadow-xl rounded-xl overflow-hidden border border-gray-200">
-            <header ref={mainHeaderRef} className="bg-white/80 backdrop-blur-md shadow-sm top-0 z-40">
-              <div className="container mx-auto px-4 py-3"> {/* Added some padding for better click area */}
+        <main className="nexus-scheduler-main flex-grow">
+          <section className="nexus-scheduler-table-panel mb-5 overflow-hidden border border-gray-200">
+            <header ref={mainHeaderRef} className="nexus-scheduler-header top-0 z-40">
+              <div className="px-4 py-3">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-3">
                     <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-[var(--theme-color)] to-[var(--theme-color)] flex items-center">
@@ -712,8 +760,15 @@ function Scheduler({ sprintId, projectId, sheetIntegrationEnabled, projectMember
                 </div>
               </div>
             </header>
-            <div className="overflow-x-auto relative">
-              <table className="min-w-full divide-y divide-gray-200 border-collapse">
+            <div className="nexus-scheduler-scroll overflow-x-auto relative">
+              <table
+                className="nexus-scheduler-grid w-full divide-y divide-gray-200 border-collapse table-fixed"
+                style={{ minWidth: `${schedulerTableMinWidth}px` }}
+              >
+                <colgroup>
+                  <col style={{ width: `${SCHEDULER_DATE_COLUMN_WIDTH}px` }} />
+                  {visibleDevelopers.map((developer) => <col key={developer.id} />)}
+                </colgroup>
                 {/* **FIX 3: Adjusted sticky top position dynamically** */}
                 <thead className="bg-gray-50/80 backdrop-blur-sm sticky z-30" >
                   <tr>
@@ -752,6 +807,7 @@ function Scheduler({ sprintId, projectId, sheetIntegrationEnabled, projectMember
                           setEditingTask={setEditingTask}
                           handleTaskUpdate={handleTaskUpdate}
                           onDuplicate={duplicateLog}
+                          onInspect={inspectLog}
                           totalHoursInCell={dailyTotalsPerDev[dev.id]?.[date] || 0}
                         />
                       ))}

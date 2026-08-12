@@ -40,12 +40,12 @@ const getTaskTypeParam = (viewMode) => (
 
 const isStructuredTask = (task) => ['Code', 'qa'].includes(task?.type);
 
-export default function TodoBoard({ sprintId, projectId, onSprintChange, viewMode = 'combined' }) {
+export default function TodoBoard({ sprintId, projectId, onSprintChange, viewMode = 'combined', availableSprints = null }) {
   const { user } = useContext(AuthContext);
   const [columns, setColumns] = useState(initialData);
   const [searchTerm, setSearchTerm] = useState("");
   const [showForm, setShowForm] = useState(false);
-  const [sprints, setSprints] = useState([]);
+  const [sprints, setSprints] = useState(() => Array.isArray(availableSprints) ? availableSprints : []);
   const [selectedSprintId, setSelectedSprintId] = useState(sprintId || null);
   const [taskView, setTaskView] = useState('all');
   const taskTypeParam = getTaskTypeParam(viewMode);
@@ -57,24 +57,33 @@ export default function TodoBoard({ sprintId, projectId, onSprintChange, viewMod
   // --- DATA FETCHING & INITIALIZATION ---
   useEffect(() => {
     if (!projectId) return;
+    const applySprints = (list) => {
+      setSprints(list);
+      if (!sprintId && list.length) {
+        const today = new Date();
+        const current =
+          list.find(s => {
+            const start = new Date(s.start_date);
+            const end = new Date(s.end_date);
+            return today >= start && today <= end;
+          }) || list[0];
+        setSelectedSprintId(current.id);
+        onSprintChange && onSprintChange(current.id);
+      }
+    };
+
+    if (Array.isArray(availableSprints)) {
+      applySprints(availableSprints);
+      return;
+    }
+
     SchedulerAPI.getSprints(projectId)
       .then(res => {
         const list = Array.isArray(res.data) ? res.data : [];
-        setSprints(list);
-        if (!sprintId && list.length) {
-          const today = new Date();
-          const current =
-            list.find(s => {
-              const start = new Date(s.start_date);
-              const end = new Date(s.end_date);
-              return today >= start && today <= end;
-            }) || list[0];
-          setSelectedSprintId(current.id);
-          onSprintChange && onSprintChange(current.id);
-        }
+        applySprints(list);
       })
       .catch(() => toast.error("Could not load sprints"));
-  }, [projectId, sprintId]);
+  }, [availableSprints, projectId, sprintId]);
 
   useEffect(() => {
     if (!selectedSprintId) {
@@ -278,8 +287,8 @@ export default function TodoBoard({ sprintId, projectId, onSprintChange, viewMod
   }, {});
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-sky-100 px-4 pb-6 pt-2 font-sans text-gray-800 sm:px-6 sm:pb-8 lg:px-8">
-      <div className="mx-auto w-full max-w-[1600px] rounded-xl bg-white p-4 shadow-lg">
+    <div className="min-w-0 bg-transparent pb-4 pt-1 font-sans text-gray-800 sm:pb-6">
+      <div className="mx-auto min-w-0 w-full max-w-[1600px] rounded-xl border border-slate-200 bg-white p-3 shadow-none sm:p-4">
         <header className="mb-4">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
             <div className="mb-4 sm:mb-0 flex items-center gap-3">
@@ -333,7 +342,7 @@ export default function TodoBoard({ sprintId, projectId, onSprintChange, viewMod
           <TaskForm onAddTask={handleAddTask} onCancel={() => setShowForm(false)} defaultType={viewMode === 'qa' ? 'qa' : 'Code'} />
         </Modal>
 
-        <div className="grid md:grid-cols-2 gap-6 mb-8">
+        <div className="mb-6 grid min-w-0 gap-4 md:grid-cols-2 sm:mb-8 sm:gap-6">
           <Heatmap columns={columns} view={taskView} onViewChange={setTaskView} sprint={currentSprint} />
           <ProgressPieChart columns={applyView(columns)} />
         </div>

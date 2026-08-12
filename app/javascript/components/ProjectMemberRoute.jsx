@@ -1,14 +1,17 @@
-import React, { useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 import { Navigate, useParams } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import { fetchProjects } from "./api";
 import PageLoader from "./ui/PageLoader";
 import AccessDeniedRedirect from "./AccessDeniedRedirect";
 
+export const ProjectRouteContext = createContext(null);
+
 const ProjectMemberRoute = ({ children }) => {
   const { projectId } = useParams();
   const { isAuthenticated, initializing, user } = useContext(AuthContext);
   const [isMember, setIsMember] = useState(null);
+  const [project, setProject] = useState(null);
 
   useEffect(() => {
     if (!isAuthenticated || !projectId) return;
@@ -18,9 +21,17 @@ const ProjectMemberRoute = ({ children }) => {
         const projects = Array.isArray(data) ? data : [];
         const project = projects.find((p) => p.id === Number(projectId));
         const member = project?.users?.some((u) => u.id === user?.id);
-        if (mounted) setIsMember(!!member);
+        if (mounted) {
+          setProject(member ? project : null);
+          setIsMember(!!member);
+        }
       })
-      .catch(() => mounted && setIsMember(false));
+      .catch(() => {
+        if (mounted) {
+          setProject(null);
+          setIsMember(false);
+        }
+      });
     return () => {
       mounted = false;
     };
@@ -30,7 +41,7 @@ const ProjectMemberRoute = ({ children }) => {
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (isMember === null) return <PageLoader title="Project access" message="Verifying project permissions…" />;
   if (!isMember) return <AccessDeniedRedirect />;
-  return children;
+  return <ProjectRouteContext.Provider value={{ project }}>{children}</ProjectRouteContext.Provider>;
 };
 
 export default ProjectMemberRoute;

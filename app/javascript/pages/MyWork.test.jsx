@@ -7,6 +7,15 @@ vi.mock("../components/api", () => ({
   fetchActivity: vi.fn(() => new Promise(() => {})),
 }));
 
+vi.mock("../context/WorkspaceDataContext", () => ({
+  useWorkspaceData: () => ({
+    activity: { summary: {}, items: [] },
+    error: "",
+    loading: false,
+    refreshWorkspaceData: vi.fn(),
+  }),
+}));
+
 import MyWork from "./MyWork";
 
 describe("MyWork", () => {

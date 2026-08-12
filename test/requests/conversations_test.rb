@@ -137,7 +137,116 @@ class ConversationsTest < ActionDispatch::IntegrationTest
     assert_empty Notification.unscoped.where("metadata ->> 'conversation_id' = ?", @conversation.id.to_s)
   end
 
+  test "group creator can rename the group and add workspace members" do
+    group = create_group(@creator, @participant)
+    newcomer = create_test_user(workspace: @workspace, email: "chat-newcomer@example.test")
+    login(@creator)
+
+    patch "/api/conversations/#{group.id}", params: { conversation: { title: "Launch room" } }
+
+    assert_response :success
+    assert_equal "Launch room", group.reload.title
+
+    post "/api/conversations/#{group.id}/participants", params: { participant_ids: [newcomer.id] }
+
+    assert_response :created
+    payload = JSON.parse(response.body)
+    assert_equal true, payload.fetch("can_manage_members")
+    assert_equal [@creator.id, @participant.id, newcomer.id].sort, payload.fetch("participants").pluck("id").sort
+    assert_equal true, payload.fetch("participants").find { |participant| participant.fetch("id") == @creator.id }.fetch("is_creator")
+  end
+
+  test "regular group members cannot rename or add people" do
+    group = create_group(@creator, @participant)
+    newcomer = create_test_user(workspace: @workspace, email: "chat-blocked-newcomer@example.test")
+    login(@participant)
+
+    patch "/api/conversations/#{group.id}", params: { conversation: { title: "Not allowed" } }
+    assert_response :forbidden
+
+    post "/api/conversations/#{group.id}/participants", params: { participant_ids: [newcomer.id] }
+    assert_response :forbidden
+    assert_not group.participant_ids.include?(newcomer.id)
+  end
+
+  test "adding a group member invites them to an active call" do
+    group = create_group(@creator, @participant)
+    newcomer = create_test_user(workspace: @workspace, email: "chat-call-newcomer@example.test")
+    call_session = create_active_call(group, initiator: @creator)
+    login(@creator)
+
+    post "/api/conversations/#{group.id}/participants", params: { participant_ids: [newcomer.id] }
+
+    assert_response :created
+    call_participant = call_session.call_participants.find_by!(user: newcomer)
+    assert_equal "ringing", call_participant.status
+    assert_nil call_participant.joined_at
+    assert_nil call_participant.left_at
+  end
+
+  test "removing a member revokes their active call access" do
+    group = create_group(@creator, @participant)
+    call_session = create_active_call(group, initiator: @creator)
+    login(@creator)
+
+    delete "/api/conversations/#{group.id}/participants/#{@participant.id}"
+
+    assert_response :success
+    assert_not group.reload.participant_ids.include?(@participant.id)
+    removed_call_participant = call_session.call_participants.find_by!(user: @participant)
+    assert_equal "left", removed_call_participant.reload.status
+    assert removed_call_participant.left_at.present?
+
+    login(@participant)
+    post "/api/calls/#{call_session.id}/join"
+    assert_response :unprocessable_entity
+    assert_equal "You no longer have access to this group call", JSON.parse(response.body).fetch("message")
+  end
+
+  test "a non-creator can leave a group but the creator must delete it" do
+    group = create_group(@creator, @participant)
+    login(@participant)
+
+    delete "/api/conversations/#{group.id}/leave"
+
+    assert_response :success
+    assert_not group.reload.participant_ids.include?(@participant.id)
+
+    login(@creator)
+    delete "/api/conversations/#{group.id}/leave"
+    assert_response :unprocessable_entity
+    assert_equal "creator_required", JSON.parse(response.body).fetch("error")
+  end
+
   private
+
+  def create_group(creator, *participants)
+    group = Conversation.create!(workspace: @workspace, creator: creator, conversation_type: "group", title: "Delivery room")
+    ([creator] + participants).each do |participant|
+      group.conversation_participants.create!(workspace: @workspace, user: participant)
+    end
+    group
+  end
+
+  def create_active_call(conversation, initiator:)
+    call_session = conversation.call_sessions.create!(
+      workspace: @workspace,
+      initiator: initiator,
+      call_type: "video",
+      status: "active",
+      livekit_room_name: "test-room-#{SecureRandom.hex(6)}",
+      started_at: Time.current
+    )
+    conversation.participants.each do |participant|
+      call_session.call_participants.create!(
+        workspace: @workspace,
+        user: participant,
+        status: participant.id == initiator.id ? "joined" : "ringing",
+        joined_at: (Time.current if participant.id == initiator.id)
+      )
+    end
+    call_session
+  end
 
   def login(user)
     post "/api/login", params: { auth: { email: user.email, password: "Password!42" } }

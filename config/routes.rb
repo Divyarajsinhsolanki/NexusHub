@@ -156,10 +156,13 @@ Rails.application.routes.draw do
       end
       resources :knowledge_prompt_runs, controller: "/api/knowledge_prompt_runs", only: [:index]
 
-      resources :conversations, controller: "/api/conversations", only: [:index, :show, :create, :destroy] do
+      resources :conversations, controller: "/api/conversations", only: [:index, :show, :create, :update, :destroy] do
         collection { post :start_direct }
         member do
           get :summary
+          post :participants, action: :add_participants
+          delete "participants/:user_id", action: :remove_participant, as: :participant
+          delete :leave
           patch :mute
           delete :mute, action: :unmute
           delete :for_everyone
@@ -355,12 +358,15 @@ Rails.application.routes.draw do
     end
     resources :event_reminders, only: [:update, :destroy]
 
-    resources :conversations, only: [:index, :show, :create, :destroy] do
+    resources :conversations, only: [:index, :show, :create, :update, :destroy] do
       collection do
         post :start_direct
       end
       member do
         get :summary
+        post :participants, action: :add_participants
+        delete "participants/:user_id", action: :remove_participant, as: :participant
+        delete :leave
         patch :mute
         delete :mute, action: :unmute
         delete :for_everyone

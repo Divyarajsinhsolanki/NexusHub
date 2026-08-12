@@ -73,6 +73,13 @@ module Chat
         })
       end
 
+      def broadcast_conversation_removed(conversation, user_id)
+        broadcast(user_stream(conversation.workspace_id, user_id), {
+          type: "conversation_removed",
+          conversation_id: conversation.id
+        })
+      end
+
       def broadcast_conversation_deleted(workspace_id, conversation_id, participant_ids)
         participant_ids.each do |participant_id|
           broadcast(user_stream(workspace_id, participant_id), {
@@ -112,14 +119,18 @@ module Chat
 
       def broadcast_call_ringing(call_session)
         call_session.call_participants.includes(:user).where.not(user_id: call_session.initiator_id).find_each do |participant|
-          membership = call_session.conversation.conversation_participants.find_by(user_id: participant.user_id)
-          next if membership&.muted?
-
-          broadcast(user_stream(call_session.workspace_id, participant.user_id), {
-            type: "call_ringing",
-            call_session: serialize_call(call_session, current_user: participant.user)
-          })
+          broadcast_call_ringing_to(call_session, participant.user)
         end
+      end
+
+      def broadcast_call_ringing_to(call_session, user)
+        membership = call_session.conversation.conversation_participants.find_by(user_id: user.id)
+        return if membership&.muted?
+
+        broadcast(user_stream(call_session.workspace_id, user.id), {
+          type: "call_ringing",
+          call_session: serialize_call(call_session, current_user: user)
+        })
       end
 
       def broadcast_call_event(call_session, event_type, extra_payload = {})
