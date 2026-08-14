@@ -5,6 +5,14 @@ import appJson from './app.json';
 
 export default ({ config }: ConfigContext): ExpoConfig => {
   const base = appJson.expo as ExpoConfig;
+  const buildProfile = process.env.EAS_BUILD_PROFILE;
+  const developmentBuild = buildProfile
+    ? buildProfile === 'development'
+    : process.env.NODE_ENV !== 'production';
+  const appName = developmentBuild ? 'Nexus Hub Dev' : base.name;
+  const appScheme = developmentBuild ? 'nexushub-dev' : base.scheme;
+  const androidPackage = developmentBuild ? 'com.nexushub.mobile.dev' : base.android?.package;
+  const iosBundleIdentifier = developmentBuild ? 'com.nexushub.mobile.dev' : base.ios?.bundleIdentifier;
   const configuredProjectId = (base.extra?.eas as { projectId?: string } | undefined)?.projectId;
   const easProjectId = process.env.EAS_PROJECT_ID || configuredProjectId;
   const webUrl = process.env.EXPO_PUBLIC_WEB_URL;
@@ -23,12 +31,13 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       : undefined;
 
   const apiUrl = process.env.EXPO_PUBLIC_API_URL;
-  const developmentBuild = process.env.EAS_BUILD_PROFILE === 'development' || process.env.NODE_ENV !== 'production';
   const allowDevelopmentCleartext = Boolean(developmentBuild && process.env.EXPO_PUBLIC_ALLOW_INSECURE_DEV === 'true' && apiUrl?.startsWith('http://'));
 
   return withAndroidManifest({
     ...config,
     ...base,
+    name: appName,
+    scheme: appScheme,
     extra: {
       ...base.extra,
       eas: easProjectId ? { projectId: easProjectId } : undefined,
@@ -37,6 +46,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     plugins: googlePlugin ? [...plugins, googlePlugin] : plugins,
     ios: {
       ...base.ios,
+      bundleIdentifier: iosBundleIdentifier,
       associatedDomains: webHost ? [`applinks:${webHost}`] : undefined,
       googleServicesFile: googleServiceInfoPlist || base.ios?.googleServicesFile,
       infoPlist: {
@@ -46,6 +56,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     android: {
       ...base.android,
+      package: androidPackage,
       googleServicesFile: googleServicesJson || base.android?.googleServicesFile,
       intentFilters: webHost ? [{
         action: 'VIEW',

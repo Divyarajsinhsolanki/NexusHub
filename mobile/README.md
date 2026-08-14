@@ -34,8 +34,8 @@ Nexus Hub uses native Google account selection, Firebase authentication, and the
 In the existing `temppdfmodifier` Firebase project:
 
 1. Enable Google under Authentication > Sign-in method.
-2. Register Android package `com.nexushub.mobile`, add the SHA-1 and SHA-256 fingerprints from the EAS Android signing credential, and download a fresh `google-services.json`.
-3. Register iOS bundle ID `com.nexushub.mobile` and download `GoogleService-Info.plist`.
+2. Register Android package `com.nexushub.mobile` for Preview/Production and `com.nexushub.mobile.dev` for Development. Add each EAS signing credential's SHA-1 and SHA-256 fingerprints, then download a separate `google-services.json` for each package.
+3. Register iOS bundle ID `com.nexushub.mobile` for Preview/Production and `com.nexushub.mobile.dev` for Development, then download the matching `GoogleService-Info.plist` files.
 4. Copy the Web OAuth client ID and iOS OAuth client ID from Firebase/Google Cloud. The iOS URL scheme is the plist `REVERSED_CLIENT_ID` value.
 
 Set these public values in `.env.local` and in each EAS environment:
@@ -46,14 +46,16 @@ EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=...apps.googleusercontent.com
 GOOGLE_IOS_URL_SCHEME=com.googleusercontent.apps....
 ```
 
-Upload the downloaded files as EAS project variables with file type and secret visibility:
+Upload the package-matched files as EAS project variables with file type and secret visibility. The variable name stays the same because each EAS environment stores its own value:
 
 ```bash
+eas env:create --name GOOGLE_SERVICES_JSON --type file --value ./google-services.dev.json --visibility secret --environment development
+eas env:create --name GOOGLE_SERVICE_INFO_PLIST --type file --value ./GoogleService-Info.dev.plist --visibility secret --environment development
 eas env:create --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --visibility secret --environment preview
 eas env:create --name GOOGLE_SERVICE_INFO_PLIST --type file --value ./GoogleService-Info.plist --visibility secret --environment preview
 ```
 
-Repeat the variables for `development` and `production`. Keep both files outside Git; local files can be placed in `mobile/.firebase/` and referenced by `GOOGLE_SERVICES_JSON` and `GOOGLE_SERVICE_INFO_PLIST` in `.env.local`. Render must define `FIREBASE_PROJECT_ID=temppdfmodifier` so Rails verifies the Firebase token audience.
+Repeat the Preview values for `production`. Keep all files outside Git; local development files can be placed in `mobile/.firebase/` and referenced by `GOOGLE_SERVICES_JSON` and `GOOGLE_SERVICE_INFO_PLIST` in `.env.local`. Render must define `FIREBASE_PROJECT_ID=temppdfmodifier` so Rails verifies the Firebase token audience.
 
 After adding native credentials, create a new binary:
 
@@ -88,6 +90,13 @@ maestro test .maestro/mobile-smoke.yml
 Additional flows cover recovery, project administration, collaboration, PDF/admin access, sessions, and impersonation in `.maestro/`.
 
 ## Internal Builds
+
+Development and Preview are deliberately separate installable apps:
+
+- Development resolves to `Nexus Hub Dev`, package/bundle ID `com.nexushub.mobile.dev`, and URL scheme `nexushub-dev`.
+- Preview and Production resolve to `Nexus Hub`, package/bundle ID `com.nexushub.mobile`, and URL scheme `nexushub`.
+
+This allows both Android APKs (and both iOS internal builds) to remain installed at the same time. Their secure storage, sessions, cached data, notification registrations, and deep links are isolated.
 
 Install and authenticate EAS CLI, then create an internal build:
 
