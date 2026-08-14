@@ -7,6 +7,8 @@ import {
   statusCodes,
 } from '@react-native-google-signin/google-signin';
 
+import { isGoogleAuthConfigured } from './googleAuthConfig';
+
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -15,14 +17,6 @@ const firebaseConfig = {
   messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
 };
-
-export const googleAuthConfigured = Boolean(
-  firebaseConfig.apiKey
-    && firebaseConfig.authDomain
-    && firebaseConfig.projectId
-    && firebaseConfig.appId
-    && process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-);
 
 export class GoogleSignInCancelledError extends Error {
   constructor() {
@@ -34,7 +28,7 @@ export class GoogleSignInCancelledError extends Error {
 let nativeConfigured = false;
 
 export async function getFirebaseTokenFromGoogle() {
-  if (!googleAuthConfigured) throw new Error('Google sign-in is not configured for this build.');
+  if (!isGoogleAuthConfigured()) throw new Error('Google sign-in configuration is unavailable for this build.');
 
   configureNativeGoogle();
   try {
@@ -79,7 +73,7 @@ export async function clearGoogleSession() {
 }
 
 function configureNativeGoogle() {
-  if (nativeConfigured || !googleAuthConfigured) return;
+  if (nativeConfigured || !isGoogleAuthConfigured()) return;
   GoogleSignin.configure({
     webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
     iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,

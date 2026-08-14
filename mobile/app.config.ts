@@ -5,10 +5,11 @@ import appJson from './app.json';
 
 export default ({ config }: ConfigContext): ExpoConfig => {
   const base = appJson.expo as ExpoConfig;
-  const buildProfile = process.env.EAS_BUILD_PROFILE;
-  const developmentBuild = buildProfile
-    ? buildProfile === 'development'
-    : process.env.NODE_ENV !== 'production';
+  // APP_VARIANT is declared on every EAS profile. EAS resolves native
+  // credentials before EAS_BUILD_PROFILE is guaranteed to be available, so
+  // using NODE_ENV here can select the development keystore for a preview APK.
+  const appVariant = process.env.APP_VARIANT || process.env.EAS_BUILD_PROFILE || 'development';
+  const developmentBuild = appVariant === 'development';
   const appName = developmentBuild ? 'Nexus Hub Dev' : base.name;
   const appScheme = developmentBuild ? 'nexushub-dev' : base.scheme;
   const androidPackage = developmentBuild ? 'com.nexushub.mobile.dev' : base.android?.package;
@@ -41,6 +42,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     extra: {
       ...base.extra,
       eas: easProjectId ? { projectId: easProjectId } : undefined,
+      googleNativeAuth: {
+        android: Boolean(googleServicesJson),
+        ios: Boolean(googleServiceInfoPlist && googleIosUrlScheme),
+      },
     },
     updates: easProjectId ? { url: `https://u.expo.dev/${easProjectId}` } : undefined,
     plugins: googlePlugin ? [...plugins, googlePlugin] : plugins,

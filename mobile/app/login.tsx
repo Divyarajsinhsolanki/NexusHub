@@ -1,13 +1,15 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import * as Sentry from '@sentry/react-native';
 import { Controller, useForm } from 'react-hook-form';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, Eye, EyeOff, PlayCircle } from 'lucide-react-native';
+import { ArrowLeft, CircleAlert, Eye, EyeOff, PlayCircle } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { z } from 'zod';
 
-import { apiErrorMessage } from '@/src/api/client';
+import { authErrorFeedback, AuthFeedback, shouldReportAuthError } from '@/src/auth/authErrorFeedback';
 import { useAuth } from '@/src/auth/AuthProvider';
+import { isGoogleAuthConfigured } from '@/src/auth/googleAuthConfig';
 import { AuthScaffold } from '@/src/components/AuthScaffold';
 import { PrimaryButton } from '@/src/components/PrimaryButton';
 import { useAppTheme } from '@/src/theme';
@@ -18,13 +20,6 @@ const schema = z.object({
 });
 
 type LoginFields = z.infer<typeof schema>;
-const googleAuthConfigured = Boolean(
-  process.env.EXPO_PUBLIC_FIREBASE_API_KEY
-    && process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN
-    && process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID
-    && process.env.EXPO_PUBLIC_FIREBASE_APP_ID
-    && process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-);
 
 export default function LoginScreen() {
   const theme = useAppTheme();
@@ -35,28 +30,31 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [demoLoading, setDemoLoading] = useState(false);
+  const [feedback, setFeedback] = useState<AuthFeedback | null>(null);
+  const googleAuthConfigured = isGoogleAuthConfigured();
   const {
     control,
     handleSubmit,
-    setError,
     formState: { errors, isSubmitting },
   } = useForm<LoginFields>({ resolver: zodResolver(schema), defaultValues: { email: '', password: '' } });
 
   const submit = handleSubmit(async ({ email, password }) => {
+    setFeedback(null);
     try {
       await signIn(email, password);
     } catch (error) {
-      setError('root', { message: apiErrorMessage(error) });
+      handleAuthFailure(error, 'credentials', setFeedback);
     }
   });
 
   const google = async () => {
+    setFeedback(null);
     setGoogleLoading(true);
     try {
       await signInWithGoogle();
     } catch (error) {
       if (!(error instanceof Error && error.name === 'GoogleSignInCancelledError')) {
-        setError('root', { message: apiErrorMessage(error) });
+        handleAuthFailure(error, 'google', setFeedback);
       }
     } finally {
       setGoogleLoading(false);
@@ -64,11 +62,12 @@ export default function LoginScreen() {
   };
 
   const demo = async () => {
+    setFeedback(null);
     setDemoLoading(true);
     try {
       await signInDemo();
     } catch (error) {
-      setError('root', { message: apiErrorMessage(error) });
+      handleAuthFailure(error, 'demo', setFeedback);
     } finally {
       setDemoLoading(false);
     }
@@ -94,7 +93,7 @@ export default function LoginScreen() {
             autoComplete="email"
             keyboardType="email-address"
             onBlur={onBlur}
-            onChangeText={onChange}
+            onChangeText={(next) => { setFeedback(null); onChange(next); }}
             placeholder="you@company.com"
             placeholderTextColor={theme.textMuted}
             style={[styles.input, { borderColor: errors.email ? theme.danger : theme.border, color: theme.text, backgroundColor: theme.surface }]}
@@ -119,7 +118,7 @@ export default function LoginScreen() {
               accessibilityLabel="Password"
               autoComplete="password"
               onBlur={onBlur}
-              onChangeText={onChange}
+              onChangeText={(next) => { setFeedback(null); onChange(next); }}
               placeholder="Password"
               placeholderTextColor={theme.textMuted}
               secureTextEntry={!showPassword}
@@ -133,7 +132,15 @@ export default function LoginScreen() {
         </Pressable>
       </View>
       {errors.password ? <Text style={[styles.error, { color: theme.danger }]}>{errors.password.message}</Text> : null}
-      {errors.root ? <Text accessibilityRole="alert" style={[styles.rootError, { color: theme.danger }]}>{errors.root.message}</Text> : null}
+      {feedback ? (
+        <View accessibilityLiveRegion="polite" accessibilityRole="alert" style={[styles.feedback, { backgroundColor: theme.surfaceMuted, borderColor: theme.danger }]}>
+          <CircleAlert color={theme.danger} size={20} />
+          <View style={styles.feedbackCopy}>
+            <Text style={[styles.feedbackTitle, { color: theme.text }]}>{feedback.title}</Text>
+            <Text style={[styles.feedbackMessage, { color: theme.textMuted }]}>{feedback.message}</Text>
+          </View>
+        </View>
+      ) : null}
       <PrimaryButton label="Sign in" loading={isSubmitting} onPress={submit} />
 
       {googleAuthConfigured ? (
@@ -171,7 +178,10 @@ const styles = StyleSheet.create({
   passwordHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginTop: 17 },
   forgot: { fontSize: 13, fontWeight: '700', marginBottom: 8 },
   error: { fontSize: 12, marginTop: 5 },
-  rootError: { fontSize: 13, lineHeight: 18, marginBottom: 14, marginTop: 14 },
+  feedback: { alignItems: 'flex-start', borderRadius: 8, borderWidth: 1, flexDirection: 'row', gap: 10, marginBottom: 14, marginTop: 14, padding: 12 },
+  feedbackCopy: { flex: 1 },
+  feedbackTitle: { fontSize: 13, fontWeight: '800' },
+  feedbackMessage: { fontSize: 12, lineHeight: 17, marginTop: 3 },
   dividerRow: { alignItems: 'center', flexDirection: 'row', marginVertical: 22 },
   divider: { flex: 1, height: 1 },
   dividerText: { fontSize: 13, marginHorizontal: 12 },
@@ -190,3 +200,11 @@ const styles = StyleSheet.create({
   portfolioLink: { alignItems: 'center', flexDirection: 'row', gap: 5, minHeight: 44 },
   portfolioLabel: { fontSize: 12, fontWeight: '800' },
 });
+
+function handleAuthFailure(error: unknown, action: 'credentials' | 'google' | 'demo', setFeedback: (feedback: AuthFeedback) => void) {
+  if (__DEV__) console.warn(`[auth:${action}] failed`, error);
+  if (shouldReportAuthError(error, action)) {
+    Sentry.captureException(error, { tags: { area: 'authentication', action } });
+  }
+  setFeedback(authErrorFeedback(error, action));
+}

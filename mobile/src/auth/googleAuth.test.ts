@@ -24,6 +24,10 @@ jest.mock('@react-native-google-signin/google-signin', () => ({
   },
 }));
 
+jest.mock('./googleAuthConfig', () => ({
+  isGoogleAuthConfigured: () => true,
+}));
+
 jest.mock('firebase/app', () => ({
   getApp: jest.fn(() => ({ name: 'nexus-test' })),
   getApps: jest.fn(() => []),
