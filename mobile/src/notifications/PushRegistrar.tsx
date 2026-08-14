@@ -2,7 +2,7 @@ import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -15,6 +15,7 @@ export function PushRegistrar() {
   const { user } = useAuth();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const handledResponse = useRef<string | null>(null);
 
   useEffect(() => {
     if (!user || Platform.OS === 'web') return;
@@ -27,6 +28,14 @@ export function PushRegistrar() {
           importance: Notifications.AndroidImportance.DEFAULT,
           vibrationPattern: [0, 180],
           lightColor: '#2563eb',
+        });
+        await Notifications.setNotificationChannelAsync('calls', {
+          name: 'Incoming calls',
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 350, 180, 350],
+          lightColor: '#16a34a',
+          lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+          sound: 'default',
         });
       }
 
@@ -56,13 +65,25 @@ export function PushRegistrar() {
 
   useEffect(() => {
     if (!user) return;
+    const openNotification = (response: Notifications.NotificationResponse) => {
+      const request = response.notification.request;
+      const deepLink = normalizeMobileDeepLink(request.content.data?.deep_link);
+      const responseKey = request.identifier || deepLink;
+      if (!deepLink || (responseKey && handledResponse.current === responseKey)) return;
+      handledResponse.current = responseKey || null;
+      router.push(deepLink as never);
+    };
     const receivedSubscription = Notifications.addNotificationReceivedListener((notification) => {
       void refreshCachesForDeepLink(queryClient, notification.request.content.data?.deep_link);
     });
     const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
-      const deepLink = normalizeMobileDeepLink(response.notification.request.content.data?.deep_link);
-      if (deepLink) router.push(deepLink as never);
+      openNotification(response);
     });
+    void Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (!response) return;
+      openNotification(response);
+      void Notifications.clearLastNotificationResponseAsync();
+    }).catch(() => undefined);
     return () => {
       receivedSubscription.remove();
       subscription.remove();

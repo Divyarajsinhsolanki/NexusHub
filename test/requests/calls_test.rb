@@ -52,6 +52,7 @@ class CallsTest < ActionDispatch::IntegrationTest
     assert_match(/\A[0-9a-f-]{36}\z/, call_payload.fetch("public_id"))
     assert_match(%r{/meet/#{call_payload.fetch("public_id")}\z}, call_payload.fetch("share_url"))
     assert_equal true, call_payload.fetch("can_end")
+    assert_enqueued_with(job: CallRingingPushNotificationJob, args: [call_payload.fetch("id"), @recipient.id])
 
     post "/api/conversations/#{@conversation.id}/calls", params: { call_type: "audio" }
     assert_response :conflict

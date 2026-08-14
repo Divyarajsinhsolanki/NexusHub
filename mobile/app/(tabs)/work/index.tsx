@@ -1,8 +1,8 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus } from 'lucide-react-native';
+import { Plus, Search } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, FlatList, StyleSheet, View } from 'react-native';
+import { Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { apiErrorMessage } from '@/src/api/client';
 import { endpoints } from '@/src/api/endpoints';
@@ -20,6 +20,7 @@ import { useAppTheme } from '@/src/theme';
 import { useAuth } from '@/src/auth/AuthProvider';
 
 type Mode = 'tasks' | 'logs';
+type TaskFilter = 'all' | TaskStatus;
 
 export default function WorkScreen() {
   const theme = useAppTheme();
@@ -28,6 +29,8 @@ export default function WorkScreen() {
   const { user } = useAuth();
   const writable = !user?.demo_account;
   const [mode, setMode] = useState<Mode>('tasks');
+  const [search, setSearch] = useState('');
+  const [taskFilter, setTaskFilter] = useState<TaskFilter>('all');
   const [editing, setEditing] = useState<WorkLog | null | undefined>(undefined);
   const taskStatus = useTaskStatus();
   const tasks = useInfiniteQuery({
@@ -35,16 +38,26 @@ export default function WorkScreen() {
     initialPageParam: 1,
     queryFn: ({ pageParam }) => endpoints.tasks({ mine: true, page: pageParam, per_page: 30 }),
     getNextPageParam: (page) => page.meta?.next_page ?? undefined,
+    enabled: mode === 'tasks',
   });
   const workLogs = useInfiniteQuery({
     queryKey: ['work-logs'],
     initialPageParam: 1,
     queryFn: ({ pageParam }) => endpoints.workLogs(pageParam),
     getNextPageParam: (page) => page.meta?.next_page ?? undefined,
+    enabled: mode === 'logs',
   });
   const options = useQuery({ queryKey: ['work-options'], queryFn: endpoints.workOptions, enabled: editing !== undefined });
   const taskData = useMemo(() => tasks.data?.pages.flatMap((page) => page.data) || [], [tasks.data]);
   const logData = useMemo(() => workLogs.data?.pages.flatMap((page) => page.data) || [], [workLogs.data]);
+  const filteredTasks = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return taskData.filter((task) => (taskFilter === 'all' || task.status === taskFilter) && (!query || task.title.toLowerCase().includes(query) || String(task.task_id || '').toLowerCase().includes(query)));
+  }, [search, taskData, taskFilter]);
+  const filteredLogs = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return query ? logData.filter((log) => log.title.toLowerCase().includes(query) || String(log.description || '').toLowerCase().includes(query)) : logData;
+  }, [logData, search]);
 
   const saveLog = useMutation({
     mutationFn: ({ input, id }: { input: WorkLogInput; id?: number }) => (id ? endpoints.updateWorkLog(id, input) : endpoints.createWorkLog(input)),
@@ -94,14 +107,16 @@ export default function WorkScreen() {
         />
       }>
       <View style={styles.segmentWrap}>
-        <SegmentedControl<Mode> options={[{ value: 'tasks', label: 'Tasks' }, { value: 'logs', label: 'Work logs' }]} value={mode} onChange={setMode} />
+        <SegmentedControl<Mode> options={[{ value: 'tasks', label: 'Tasks' }, { value: 'logs', label: 'Work logs' }]} value={mode} onChange={(next) => { setMode(next); setSearch(''); }} />
+        <View style={[styles.search, { backgroundColor: theme.surface, borderColor: theme.border }]}><Search color={theme.textMuted} size={18} /><TextInput accessibilityLabel={`Search ${mode}`} onChangeText={setSearch} placeholder={mode === 'tasks' ? 'Search tasks or IDs' : 'Search work logs'} placeholderTextColor={theme.textMuted} style={[styles.searchInput, { color: theme.text }]} value={search} /></View>
+        {mode === 'tasks' ? <View accessibilityRole="tablist" style={styles.filters}>{(['all', 'todo', 'inprogress', 'completed'] as TaskFilter[]).map((filter) => <Pressable accessibilityRole="tab" accessibilityState={{ selected: taskFilter === filter }} key={filter} onPress={() => setTaskFilter(filter)} style={[styles.filter, { backgroundColor: taskFilter === filter ? theme.primarySoft : theme.surface, borderColor: taskFilter === filter ? theme.primary : theme.border }]}><Text style={{ color: taskFilter === filter ? theme.primary : theme.textMuted, fontSize: 11, fontWeight: '800' }}>{filter === 'inprogress' ? 'In progress' : filter[0].toUpperCase() + filter.slice(1)}</Text></Pressable>)}</View> : null}
       </View>
       {activeQuery.isLoading ? <LoadingState /> : null}
       {activeQuery.isError ? <ErrorState message={apiErrorMessage(activeQuery.error)} onRetry={() => activeQuery.refetch()} /> : null}
       {mode === 'tasks' && !tasks.isLoading ? (
         <FlatList
           contentContainerStyle={styles.list}
-          data={taskData}
+          data={filteredTasks}
           initialNumToRender={10}
           keyExtractor={(item) => String(item.id)}
           maxToRenderPerBatch={12}
@@ -125,7 +140,7 @@ export default function WorkScreen() {
       {mode === 'logs' && !workLogs.isLoading ? (
         <FlatList
           contentContainerStyle={styles.list}
-          data={logData}
+          data={filteredLogs}
           initialNumToRender={10}
           keyExtractor={(item) => String(item.id)}
           maxToRenderPerBatch={12}
@@ -154,6 +169,10 @@ export default function WorkScreen() {
 
 const styles = StyleSheet.create({
   addButton: { alignItems: 'center', borderRadius: 8, elevation: 1, height: 42, justifyContent: 'center', shadowOffset: { height: 2, width: 0 }, shadowOpacity: 0.1, shadowRadius: 5, width: 42 },
-  segmentWrap: { paddingHorizontal: 20, paddingTop: 14 },
-  list: { flexGrow: 1, gap: 10, padding: 20, paddingBottom: 36 },
+  segmentWrap: { gap: 10, paddingHorizontal: 16, paddingTop: 12 },
+  search: { alignItems: 'center', borderRadius: 9, borderWidth: 1, flexDirection: 'row', minHeight: 44, paddingHorizontal: 12 },
+  searchInput: { flex: 1, fontSize: 14, minHeight: 42, paddingHorizontal: 9, paddingVertical: 8 },
+  filters: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+  filter: { borderRadius: 16, borderWidth: 1, minHeight: 32, paddingHorizontal: 11, justifyContent: 'center' },
+  list: { flexGrow: 1, gap: 9, padding: 16, paddingBottom: 32 },
 });

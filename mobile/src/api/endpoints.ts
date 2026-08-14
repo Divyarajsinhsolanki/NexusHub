@@ -388,9 +388,38 @@ export const endpoints = {
     return unwrapData(response.data);
   },
   conversations(page = 1) { return collection<Conversation>('/conversations', { page, per_page: 30 }); },
+  createConversation(input: { title: string; participant_ids: number[] }) {
+    return create<Conversation>('/conversations', {
+      conversation: { title: input.title, conversation_type: 'group' },
+      participant_ids: input.participant_ids,
+    });
+  },
   async conversation(id: number) {
     const response = await api.get<ApiEnvelope<Conversation>>(`/conversations/${id}`);
     return unwrapData(response.data);
+  },
+  async conversationSummary(id: number) {
+    const response = await api.get<ApiEnvelope<Conversation>>(`/conversations/${id}/summary`);
+    return unwrapData(response.data);
+  },
+  updateConversation(id: number, title: string) {
+    return update<Conversation>(`/conversations/${id}`, { conversation: { title } });
+  },
+  addConversationParticipants(id: number, participantIds: number[]) {
+    return create<Conversation>(`/conversations/${id}/participants`, { participant_ids: participantIds });
+  },
+  async removeConversationParticipant(id: number, userId: number) {
+    const response = await api.delete<ApiEnvelope<Conversation> | Conversation>(`/conversations/${id}/participants/${userId}`);
+    return unwrapData(response.data);
+  },
+  async leaveConversation(id: number) {
+    await api.delete(`/conversations/${id}/leave`);
+  },
+  async hideConversation(id: number) {
+    await api.delete(`/conversations/${id}`);
+  },
+  async deleteConversationForEveryone(id: number, confirmation: string) {
+    await api.delete(`/conversations/${id}/for_everyone`, { data: { confirmation } });
   },
   messages(conversationId: number, before?: number) {
     return collection<Message>(`/conversations/${conversationId}/messages`, { limit: 50, ...(before ? { before_id: before } : {}) });

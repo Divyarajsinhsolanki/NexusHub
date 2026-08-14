@@ -9,11 +9,17 @@ import {
   applyConversationReceipt,
   mobileQueryKeys,
   prependNotification,
+  removeConversationFromCache,
   refreshCachesForDeepLink,
+  updateCachedMessage,
+  updateConversationCaches,
   updateConversationPreview,
 } from '../cache/mobileCache';
 import { normalizeMobileDeepLink } from '../navigation/deepLinks';
 import { type ChatEvent, useChatRealtime } from './useChatRealtime';
+
+const recentMessageEvents = new Map<number, number>();
+const deliveredMessages = new Map<number, number>();
 
 export function MobileRealtimeSync() {
   const { user } = useAuth();
@@ -46,14 +52,23 @@ export async function handleMobileRealtimeEvent(queryClient: QueryClient, event:
     if (conversationId && message) {
       appendIncomingMessage(queryClient, conversationId, message);
       updateConversationPreview(queryClient, conversationId, message);
-      void endpoints.updateConversationReceipt(conversationId, message.id, 'delivered').catch(() => undefined);
+      recentMessageEvents.set(conversationId, Date.now());
+      void markDeliveredOnce(conversationId, message.id);
     }
-    await refreshConversationCaches(queryClient, conversationId);
     return;
   }
 
-  if (event.type === 'conversation_refresh' || event.type === 'message_reactions_updated') {
-    await refreshConversationCaches(queryClient, conversationId);
+  if (event.type === 'message_reactions_updated') {
+    const messageId = numericId(event.message_id);
+    if (conversationId && messageId && isRecord(event.reactions)) {
+      updateCachedMessage(queryClient, conversationId, messageId, (message) => ({ ...message, reactions: event.reactions as Record<string, number> }));
+    }
+    return;
+  }
+
+  if (event.type === 'conversation_refresh') {
+    if (conversationId && Date.now() - Number(recentMessageEvents.get(conversationId) || 0) < 750) return;
+    await refreshConversationCaches(queryClient, conversationId, false);
     return;
   }
 
@@ -68,39 +83,41 @@ export async function handleMobileRealtimeEvent(queryClient: QueryClient, event:
     return;
   }
 
-  if (event.type === 'conversation_hidden' || event.type === 'conversation_deleted') {
-    if (conversationId) {
-      queryClient.setQueryData(mobileQueryKeys.conversations, (previous: unknown) => {
-        if (!previous || typeof previous !== 'object' || !Array.isArray((previous as { data?: unknown }).data)) return previous;
-        return {
-          ...(previous as Record<string, unknown>),
-          data: (previous as { data: Array<{ id: number }> }).data.filter((conversation) => Number(conversation.id) !== conversationId),
-        };
-      });
-      queryClient.removeQueries({ queryKey: mobileQueryKeys.messages(conversationId) });
-      queryClient.removeQueries({ queryKey: mobileQueryKeys.conversation(conversationId) });
-    }
-    await queryClient.invalidateQueries({ queryKey: mobileQueryKeys.conversations });
+  if (event.type === 'conversation_hidden' || event.type === 'conversation_removed' || event.type === 'conversation_deleted') {
+    if (conversationId) removeConversationFromCache(queryClient, conversationId);
     return;
   }
 
   if (event.type?.startsWith('call_')) {
-    await refreshConversationCaches(queryClient, conversationId);
+    if (conversationId) {
+      const call = isRecord(event.call_session) ? event.call_session as never : null;
+      updateConversationCaches(queryClient, conversationId, (conversation) => ({ ...conversation, active_call: event.type === 'call_ended' ? null : call || conversation.active_call }));
+    }
     await queryClient.invalidateQueries({ queryKey: mobileQueryKeys.home });
   }
 }
 
-async function refreshConversationCaches(queryClient: QueryClient, conversationId?: number) {
+async function refreshConversationCaches(queryClient: QueryClient, conversationId?: number, includeMessages = true) {
   const tasks: Array<Promise<unknown>> = [
     queryClient.invalidateQueries({ queryKey: mobileQueryKeys.conversations }),
   ];
 
   if (conversationId) {
     tasks.push(queryClient.invalidateQueries({ queryKey: mobileQueryKeys.conversation(conversationId) }));
-    tasks.push(queryClient.invalidateQueries({ queryKey: mobileQueryKeys.messages(conversationId) }));
+    if (includeMessages) tasks.push(queryClient.invalidateQueries({ queryKey: mobileQueryKeys.messages(conversationId) }));
   }
 
   await Promise.all(tasks);
+}
+
+async function markDeliveredOnce(conversationId: number, messageId: number) {
+  if (Number(deliveredMessages.get(conversationId) || 0) >= messageId) return;
+  deliveredMessages.set(conversationId, messageId);
+  try {
+    await endpoints.updateConversationReceipt(conversationId, messageId, 'delivered');
+  } catch {
+    if (deliveredMessages.get(conversationId) === messageId) deliveredMessages.delete(conversationId);
+  }
 }
 
 function normalizeRealtimeMessage(value: unknown): Message | null {

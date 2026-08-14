@@ -69,7 +69,7 @@ describe('handleMobileRealtimeEvent', () => {
 
     expect(messages?.pages[0].data.map((item) => item.id)).toEqual([1, 2]);
     expect(conversations?.data[0]).toMatchObject({ id: 7, last_message: { id: 2 } });
-    expect(queryClient.getQueryState(mobileQueryKeys.conversations)?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(mobileQueryKeys.conversations)?.isInvalidated).toBe(false);
   });
 
   test('refreshes conversation caches for lightweight conversation events', async () => {
@@ -82,7 +82,7 @@ describe('handleMobileRealtimeEvent', () => {
 
     expect(queryClient.getQueryState(mobileQueryKeys.conversations)?.isInvalidated).toBe(true);
     expect(queryClient.getQueryState(mobileQueryKeys.conversation(3))?.isInvalidated).toBe(true);
-    expect(queryClient.getQueryState(mobileQueryKeys.messages(3))?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(mobileQueryKeys.messages(3))?.isInvalidated).toBe(false);
   });
 });
 

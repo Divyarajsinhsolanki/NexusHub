@@ -34,14 +34,11 @@ export default function TabLayout() {
         tabBarStyle: {
           backgroundColor: theme.tabBar,
           borderTopColor: theme.border,
-          elevation: 8,
-          height: 70,
-          paddingBottom: 9,
-          paddingTop: 7,
-          shadowColor: theme.shadow,
-          shadowOffset: { height: -3, width: 0 },
-          shadowOpacity: 0.12,
-          shadowRadius: 10,
+          elevation: 0,
+          height: 66,
+          paddingBottom: 8,
+          paddingTop: 6,
+          shadowOpacity: 0,
         },
       }}>
       <Tabs.Screen name="today" options={{ title: 'Today', tabBarIcon: ({ color, focused, size }) => <LayoutDashboard color={color} size={focused ? size + 2 : size} strokeWidth={focused ? 2.6 : 2.1} /> }} />

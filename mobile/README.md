@@ -19,7 +19,13 @@ Set `EXPO_PUBLIC_API_URL` for the device running the app:
 - Android emulator: `http://10.0.2.2:3000/api/v1`
 - Physical device: `http://<computer-lan-ip>:3000/api/v1`
 
-For a physical device, run Rails on an accessible interface and permit the development host in the Rails host configuration. Production builds must use an HTTPS API URL.
+For a physical device, use the same LAN host for the mobile API and Rails `LIVEKIT_URL`, then run Rails on an accessible interface:
+
+```bash
+bin/rails server -b 0.0.0.0
+```
+
+Set `EXPO_PUBLIC_ALLOW_INSECURE_DEV=true` only in the local development environment so Android permits HTTP/WS. Preview and production builds reject HTTP, WS, and loopback hosts and must use HTTPS/WSS. If the computer changes networks, update both LAN URLs before reloading the development client.
 
 ## Firebase Google Sign-In
 

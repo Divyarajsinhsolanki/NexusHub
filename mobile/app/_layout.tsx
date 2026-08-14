@@ -2,7 +2,7 @@ import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useGlobalSearchParams, u
 import * as Notifications from 'expo-notifications';
 import * as Sentry from '@sentry/react-native';
 import * as SplashScreen from 'expo-splash-screen';
-import { ActivityIndicator, Platform, StyleSheet, useColorScheme, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, useColorScheme, View } from 'react-native';
 import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
@@ -12,6 +12,8 @@ import { authRedirectTarget } from '@/src/auth/authRedirect';
 import { AppProviders } from '@/src/providers/AppProviders';
 import { PushRegistrar } from '@/src/notifications/PushRegistrar';
 import { useAppTheme } from '@/src/theme';
+import { EnvironmentGate } from '@/src/components/EnvironmentGate';
+import { IncomingCallCoordinator } from '@/src/calls/IncomingCallCoordinator';
 
 Sentry.init({
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
@@ -20,8 +22,8 @@ Sentry.init({
 });
 
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldPlaySound: false,
+  handleNotification: async (notification) => ({
+    shouldPlaySound: notification.request.content.data?.type === 'call_ringing',
     shouldSetBadge: true,
     shouldShowBanner: true,
     shouldShowList: true,
@@ -43,16 +45,15 @@ SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
   useEffect(() => {
     SplashScreen.hideAsync();
-    if (Platform.OS !== 'web') {
-      void import('@livekit/react-native').then(({ registerGlobals }) => registerGlobals());
-    }
   }, []);
 
   return (
     <GestureHandlerRootView style={styles.root}>
-      <AppProviders>
-        <RootLayoutNav />
-      </AppProviders>
+      <EnvironmentGate>
+        <AppProviders>
+          <RootLayoutNav />
+        </AppProviders>
+      </EnvironmentGate>
     </GestureHandlerRootView>
   );
 }
@@ -71,8 +72,11 @@ function RootLayoutNav() {
         <Stack.Screen name="reset-password" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="search" options={{ animation: 'fade_from_bottom' }} />
         <Stack.Screen name="create" options={{ animation: 'slide_from_bottom', presentation: 'modal' }} />
-        <Stack.Screen name="meet/[publicId]" options={{ animation: 'fade' }} />
+        <Stack.Screen name="chat/[id]" options={{ animation: 'none', gestureEnabled: true }} />
+        <Stack.Screen name="call/[id]" options={{ animation: 'none', gestureEnabled: false }} />
+        <Stack.Screen name="meet/[publicId]" options={{ animation: 'none' }} />
       </Stack>
+      <IncomingCallCoordinator />
       <PushRegistrar />
       <AuthGate />
     </ThemeProvider>

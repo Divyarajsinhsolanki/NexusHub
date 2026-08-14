@@ -960,6 +960,149 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/conversations/start_direct": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["startDirectConversation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/conversations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get: operations["getConversation"];
+        put?: never;
+        post?: never;
+        delete: operations["hideConversation"];
+        options?: never;
+        head?: never;
+        patch: operations["updateConversation"];
+        trace?: never;
+    };
+    "/conversations/{id}/participants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["addConversationParticipants"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/conversations/{id}/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get: operations["getConversationSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/conversations/{id}/participants/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["removeConversationParticipant"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/conversations/{id}/leave": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["leaveConversation"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/conversations/{id}/mute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["unmuteConversation"];
+        options?: never;
+        head?: never;
+        patch: operations["muteConversation"];
+        trace?: never;
+    };
+    "/conversations/{id}/for_everyone": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteConversationForEveryone"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/conversations/{id}/messages": {
         parameters: {
             query?: never;
@@ -1026,6 +1169,42 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["joinCall"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/calls/{id}/ack_ring": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["acknowledgeCallRing"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/calls/{id}/decline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["declineCall"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2916,6 +3095,159 @@ export interface operations {
             201: components["responses"]["GenericSuccess"];
         };
     };
+    startDirectConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    getConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    hideConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    updateConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    addConversationParticipants: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: components["responses"]["GenericSuccess"];
+        };
+    };
+    getConversationSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    removeConversationParticipant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    leaveConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    unmuteConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    muteConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    deleteConversationForEveryone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
     listConversationMessages: {
         parameters: {
             query?: {
@@ -2996,6 +3328,34 @@ export interface operations {
         };
     };
     joinCall: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    acknowledgeCallRing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    declineCall: {
         parameters: {
             query?: never;
             header?: never;

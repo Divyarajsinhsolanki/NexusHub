@@ -1,7 +1,7 @@
 import { QueryClient, type InfiniteData } from '@tanstack/react-query';
 import { afterEach, describe, expect, test } from '@jest/globals';
 
-import type { CollectionResult, Message, Post } from '../api/types';
+import type { CollectionResult, Conversation, Message, Post } from '../api/types';
 import {
   appendIncomingMessage,
   applyConversationReceipt,
@@ -12,7 +12,9 @@ import {
   mobileQueryKeys,
   shouldPersistMobileQuery,
   trimInfinitePages,
+  replaceCachedMessage,
   updatePostInFeed,
+  updateConversationPreview,
 } from './mobileCache';
 
 let clients: QueryClient[] = [];
@@ -58,6 +60,21 @@ describe('mobile cache data helpers', () => {
     expect(cached?.pages[0].data.map((item) => item.id)).toEqual([1, 2]);
   });
 
+  test('reconciles an optimistic message when realtime arrives before the HTTP response', () => {
+    const queryClient = testQueryClient();
+    queryClient.setQueryData<InfiniteData<CollectionResult<Message>>>(mobileQueryKeys.messages(5), {
+      pageParams: [undefined],
+      pages: [{ data: [message(-10, 'Sending')] }],
+    });
+    appendIncomingMessage(queryClient, 5, message(22, 'Sent'));
+
+    replaceCachedMessage(queryClient, 5, -10, message(22, 'Sent'));
+
+    const cached = queryClient.getQueryData<InfiniteData<CollectionResult<Message>>>(mobileQueryKeys.messages(5));
+    expect(cached?.pages[0].data.map((item) => item.id)).toEqual([22]);
+    expect(cached?.pages[0].data[0].send_state).toBe('sent');
+  });
+
   test('keeps all active history pages and trims only when a chat becomes inactive', () => {
     const queryClient = testQueryClient();
     const pages = Array.from({ length: 5 }, (_, index) => ({ data: [message(index + 1, `Page ${index + 1}`)] }));
@@ -99,6 +116,23 @@ describe('mobile cache data helpers', () => {
       [2, 2, false],
       [1, 3, true],
     ]);
+  });
+
+  test('updates infinite conversation previews without changing cache shape', () => {
+    const queryClient = testQueryClient();
+    queryClient.setQueryData<InfiniteData<CollectionResult<Conversation>>>(mobileQueryKeys.conversations, {
+      pageParams: [1, 2],
+      pages: [
+        { data: [{ id: 1, title: 'First' }] },
+        { data: [{ id: 7, title: 'Active' }] },
+      ],
+    });
+
+    updateConversationPreview(queryClient, 7, message(8, 'Realtime'));
+
+    const cached = queryClient.getQueryData<InfiniteData<CollectionResult<Conversation>>>(mobileQueryKeys.conversations);
+    expect(cached?.pages[0].data[0]).toMatchObject({ id: 7, last_message: { id: 8 } });
+    expect(cached?.pages).toHaveLength(2);
   });
 });
 

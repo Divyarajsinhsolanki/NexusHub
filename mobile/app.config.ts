@@ -1,4 +1,5 @@
 import type { ConfigContext, ExpoConfig } from 'expo/config';
+import { AndroidConfig, withAndroidManifest } from '@expo/config-plugins';
 
 import appJson from './app.json';
 
@@ -21,7 +22,11 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       ? ['@react-native-google-signin/google-signin', { iosUrlScheme: googleIosUrlScheme }]
       : undefined;
 
-  return {
+  const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+  const developmentBuild = process.env.EAS_BUILD_PROFILE === 'development' || process.env.NODE_ENV !== 'production';
+  const allowDevelopmentCleartext = Boolean(developmentBuild && process.env.EXPO_PUBLIC_ALLOW_INSECURE_DEV === 'true' && apiUrl?.startsWith('http://'));
+
+  return withAndroidManifest({
     ...config,
     ...base,
     extra: {
@@ -52,7 +57,11 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         ],
       }] : undefined,
     },
-  };
+  }, (androidConfig) => {
+    const application = AndroidConfig.Manifest.getMainApplicationOrThrow(androidConfig.modResults);
+    application.$['android:usesCleartextTraffic'] = allowDevelopmentCleartext ? 'true' : 'false';
+    return androidConfig;
+  });
 };
 
 function safeHost(url: string) {

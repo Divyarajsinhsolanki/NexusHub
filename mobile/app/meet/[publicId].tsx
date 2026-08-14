@@ -1,17 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Camera, CameraOff, Mic, MicOff, Share2, Video, Phone } from 'lucide-react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { lazy, Suspense, useCallback, useRef, useState } from 'react';
 import { Alert, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 
 import { apiErrorMessage } from '@/src/api/client';
 import { endpoints } from '@/src/api/endpoints';
 import type { CallSession, LiveKitCredentials } from '@/src/api/types';
-import { MobileCallRoom } from '@/src/components/call/MobileCallRoom';
+import { requestCallMediaPermissions } from '@/src/calls/mediaPermissions';
 import { PrimaryButton } from '@/src/components/PrimaryButton';
 import { ErrorState, LoadingState } from '@/src/components/StateView';
 import { useCallRealtime } from '@/src/realtime/useCallRealtime';
 import { useAppTheme } from '@/src/theme';
+import { validateLiveKitEnvironment } from '@/src/config/runtimeEnvironment';
+
+const LazyMobileCallRoom = lazy(() => import('@/src/components/call/MobileCallRoom').then((module) => ({ default: module.MobileCallRoom })));
 
 export default function MeetingScreen() {
   const { publicId } = useLocalSearchParams<{ publicId: string }>();
@@ -21,8 +24,16 @@ export default function MeetingScreen() {
   const [microphone, setMicrophone] = useState(true);
   const [camera, setCamera] = useState(true);
   const [credentials, setCredentials] = useState<LiveKitCredentials | null>(null);
+  const endingRef = useRef(false);
   const meeting = useQuery({ queryKey: ['meeting', publicId], queryFn: () => endpoints.meeting(publicId), enabled: Boolean(publicId), retry: false });
-  const join = useMutation({ mutationFn: () => endpoints.joinMeeting(publicId), onSuccess: setCredentials, onError: (error) => Alert.alert('Unable to join', apiErrorMessage(error)) });
+  const join = useMutation({ mutationFn: async () => {
+    const permission = await requestCallMediaPermissions(Boolean(meeting.data?.call_session.call_type === 'video' && camera));
+    if (!permission.microphone || !permission.camera) throw new Error('Allow the required microphone and camera permissions before joining.');
+    const result = await endpoints.joinMeeting(publicId);
+    const issue = validateLiveKitEnvironment(result.server_url);
+    if (issue) throw new Error(`${issue.title}. ${issue.detail}`);
+    return result;
+  }, onSuccess: setCredentials, onError: (error) => Alert.alert('Unable to join', apiErrorMessage(error)) });
   const call = credentials?.call_session || meeting.data?.call_session;
   const close = useCallback(() => router.replace('/(tabs)/inbox' as never), [router]);
 
@@ -35,17 +46,20 @@ export default function MeetingScreen() {
   });
 
   const leave = async () => {
+    if (endingRef.current) return;
+    endingRef.current = true;
     if (credentials) {
       try { await endpoints.callAction(credentials.call_session.id, 'leave'); } catch { /* Closing the room still releases media. */ }
     }
     close();
   };
   const end = async () => {
-    if (!credentials) return;
-    try { await endpoints.callAction(credentials.call_session.id, 'end'); close(); } catch (error) { Alert.alert('Unable to end call', apiErrorMessage(error)); }
+    if (!credentials || endingRef.current) return;
+    endingRef.current = true;
+    try { await endpoints.callAction(credentials.call_session.id, 'end'); close(); } catch (error) { endingRef.current = false; Alert.alert('Unable to end call', apiErrorMessage(error)); }
   };
 
-  if (credentials) return <MobileCallRoom credentials={credentials} initialAudio={microphone} initialVideo={camera} onEnd={end} onLeave={leave} />;
+  if (credentials) return <Suspense fallback={<View style={styles.state}><LoadingState label="Starting secure media" /></View>}><LazyMobileCallRoom credentials={credentials} initialAudio={microphone} initialVideo={camera} onEnd={end} onLeave={leave} /></Suspense>;
   if (meeting.isLoading) return <View style={[styles.state, { backgroundColor: theme.background }]}><LoadingState label="Checking meeting link" /></View>;
   if (meeting.isError || !call) return <View style={[styles.state, { backgroundColor: theme.background }]}><ErrorState message={apiErrorMessage(meeting.error)} onRetry={() => meeting.refetch()} /></View>;
 

@@ -17,7 +17,7 @@ import { endpoints } from '../api/endpoints';
 import { normalizeMobileDeepLink } from '../navigation/deepLinks';
 
 export const MOBILE_CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
-export const MOBILE_CACHE_BUSTER = 'mobile-cache-v2';
+export const MOBILE_CACHE_BUSTER = 'mobile-cache-v3';
 export const MOBILE_CACHE_PAGE_LIMIT = 3;
 
 const LONG_STALE_TIME = 5 * 60 * 1000;
@@ -180,20 +180,67 @@ export function appendIncomingMessage(
   );
 }
 
+export function updateCachedMessage(
+  queryClient: QueryClient,
+  conversationId: number,
+  messageId: number,
+  updater: (message: Message) => Message,
+) {
+  queryClient.setQueryData<InfiniteData<CollectionResult<Message>>>(mobileQueryKeys.messages(conversationId), (previous) => {
+    if (!previous) return previous;
+    let changed = false;
+    const pages = previous.pages.map((page) => ({
+      ...page,
+      data: page.data.map((message) => {
+        if (Number(message.id) !== Number(messageId)) return message;
+        changed = true;
+        return updater(message);
+      }),
+    }));
+    return changed ? { ...previous, pages } : previous;
+  });
+}
+
+export function replaceCachedMessage(queryClient: QueryClient, conversationId: number, temporaryId: number, message: Message) {
+  queryClient.setQueryData<InfiniteData<CollectionResult<Message>>>(mobileQueryKeys.messages(conversationId), (previous) => {
+    if (!previous?.pages.length) return previous;
+    const pages = previous.pages.map((page) => ({
+      ...page,
+      data: page.data.filter((cached) => Number(cached.id) !== Number(temporaryId) && Number(cached.id) !== Number(message.id)),
+    }));
+    pages[0] = { ...pages[0], data: [...pages[0].data, { ...message, send_state: 'sent' }] };
+    return { ...previous, pages };
+  });
+}
+
+export function removeCachedMessage(queryClient: QueryClient, conversationId: number, messageId: number) {
+  queryClient.setQueryData<InfiniteData<CollectionResult<Message>>>(mobileQueryKeys.messages(conversationId), (previous) => previous ? {
+    ...previous,
+    pages: previous.pages.map((page) => ({ ...page, data: page.data.filter((message) => Number(message.id) !== Number(messageId)) })),
+  } : previous);
+}
+
 export function updateConversationPreview(
   queryClient: QueryClient,
   conversationId: number,
   incoming: Message,
 ) {
-  queryClient.setQueryData<CollectionResult<Conversation>>(mobileQueryKeys.conversations, (previous) => {
-    if (!previous) return previous;
-    const index = previous.data.findIndex((conversation) => Number(conversation.id) === Number(conversationId));
-    if (index === -1) return previous;
+  queryClient.setQueryData<ConversationCache>(mobileQueryKeys.conversations, (previous) => transformConversationCache(previous, (rows) => {
+    const existing = rows.find((conversation) => Number(conversation.id) === Number(conversationId));
+    if (!existing) return rows;
+    return [{ ...existing, last_message: incoming, last_message_at: incoming.created_at }, ...rows.filter((item) => Number(item.id) !== Number(conversationId))];
+  }, true));
+}
 
-    const conversation = { ...previous.data[index], last_message: incoming };
-    const rest = previous.data.filter((item) => Number(item.id) !== Number(conversationId));
-    return { ...previous, data: [conversation, ...rest] };
-  });
+export function updateConversationCaches(queryClient: QueryClient, conversationId: number, updater: (conversation: Conversation) => Conversation) {
+  queryClient.setQueryData<Conversation>(mobileQueryKeys.conversation(conversationId), (previous) => previous ? updater(previous) : previous);
+  queryClient.setQueryData<ConversationCache>(mobileQueryKeys.conversations, (previous) => transformConversationCache(previous, (rows) => rows.map((conversation) => Number(conversation.id) === Number(conversationId) ? updater(conversation) : conversation)));
+}
+
+export function removeConversationFromCache(queryClient: QueryClient, conversationId: number) {
+  queryClient.setQueryData<ConversationCache>(mobileQueryKeys.conversations, (previous) => transformConversationCache(previous, (rows) => rows.filter((conversation) => Number(conversation.id) !== Number(conversationId))));
+  queryClient.removeQueries({ queryKey: mobileQueryKeys.messages(conversationId) });
+  queryClient.removeQueries({ queryKey: mobileQueryKeys.conversation(conversationId) });
 }
 
 export function applyConversationReceipt(
@@ -229,10 +276,7 @@ export function applyConversationReceipt(
   };
 
   queryClient.setQueryData<Conversation>(mobileQueryKeys.conversation(conversationId), (previous) => previous ? update(previous) : previous);
-  queryClient.setQueryData<CollectionResult<Conversation>>(mobileQueryKeys.conversations, (previous) => previous ? {
-    ...previous,
-    data: previous.data.map(update),
-  } : previous);
+  queryClient.setQueryData<ConversationCache>(mobileQueryKeys.conversations, (previous) => transformConversationCache(previous, (rows) => rows.map(update)));
 }
 
 export function prependNotification(
@@ -298,11 +342,17 @@ export async function warmMobileCache(queryClient: QueryClient) {
   await Promise.allSettled([
     queryClient.prefetchQuery({ queryKey: mobileQueryKeys.home, queryFn: endpoints.home }),
     queryClient.prefetchQuery({ queryKey: mobileQueryKeys.posts, queryFn: () => endpoints.posts() }),
-    queryClient.prefetchQuery({ queryKey: mobileQueryKeys.conversations, queryFn: () => endpoints.conversations() }),
     queryClient.prefetchInfiniteQuery({
-    queryKey: mobileQueryKeys.notifications,
-    initialPageParam: 1,
-    queryFn: ({ pageParam }) => endpoints.notifications(Number(pageParam || 1)),
+      queryKey: mobileQueryKeys.conversations,
+      initialPageParam: 1,
+      queryFn: ({ pageParam }) => endpoints.conversations(Number(pageParam)),
+      getNextPageParam: (page: CollectionResult<Conversation>) => page.meta?.next_page ?? undefined,
+      maxPages: MOBILE_CACHE_PAGE_LIMIT,
+    }),
+    queryClient.prefetchInfiniteQuery({
+      queryKey: mobileQueryKeys.notifications,
+      initialPageParam: 1,
+      queryFn: ({ pageParam }) => endpoints.notifications(Number(pageParam || 1)),
       getNextPageParam: (page: ApiEnvelope<Notification[]>) => page.meta?.next_page ?? undefined,
       maxPages: MOBILE_CACHE_PAGE_LIMIT,
     }),
@@ -359,4 +409,21 @@ function queryKeyPrefix(queryKey: QueryKey) {
 
 function hasMessage(data: InfiniteData<CollectionResult<Message>>, messageId: number) {
   return data.pages.some((page) => page.data.some((message) => Number(message.id) === Number(messageId)));
+}
+
+type ConversationCache = CollectionResult<Conversation> | InfiniteData<CollectionResult<Conversation>>;
+
+function transformConversationCache(previous: ConversationCache | undefined, transform: (rows: Conversation[]) => Conversation[], moveAcrossPages = false): ConversationCache | undefined {
+  if (!previous) return previous;
+  if (!('pages' in previous)) return { ...previous, data: transform(previous.data) };
+  if (!moveAcrossPages) return { ...previous, pages: previous.pages.map((page) => ({ ...page, data: transform(page.data) })) };
+
+  const transformed = transform(previous.pages.flatMap((page) => page.data));
+  let offset = 0;
+  const pages = previous.pages.map((page) => {
+    const data = transformed.slice(offset, offset + page.data.length);
+    offset += page.data.length;
+    return { ...page, data };
+  });
+  return { ...previous, pages };
 }

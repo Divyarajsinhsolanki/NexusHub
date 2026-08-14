@@ -131,6 +131,9 @@ module Chat
           type: "call_ringing",
           call_session: serialize_call(call_session, current_user: user)
         })
+        # Give a foreground client time to acknowledge the realtime ring before
+        # falling back to a system notification for background/terminated apps.
+        CallRingingPushNotificationJob.set(wait: 3.seconds).perform_later(call_session.id, user.id)
       end
 
       def broadcast_call_event(call_session, event_type, extra_payload = {})

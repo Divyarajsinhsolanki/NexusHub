@@ -1,7 +1,8 @@
 import NetInfo from '@react-native-community/netinfo';
-import { QueryClient, onlineManager } from '@tanstack/react-query';
+import { focusManager, QueryClient, onlineManager } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { PropsWithChildren, useEffect, useState } from 'react';
+import { AppState, Platform } from 'react-native';
 
 import { AuthProvider } from '../auth/AuthProvider';
 import {
@@ -12,6 +13,7 @@ import {
 } from '../cache/mobileCache';
 import { MobileCacheWarmup } from '../cache/MobileCacheWarmup';
 import { MobileRealtimeSync } from '../realtime/MobileRealtimeSync';
+import { RealtimeProvider } from '../realtime/RealtimeProvider';
 import { queryPersister } from '../storage/queryPersister';
 import { AppThemeProvider } from '../theme';
 
@@ -26,6 +28,14 @@ export function AppProviders({ children }: PropsWithChildren) {
     [],
   );
 
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    const subscription = AppState.addEventListener('change', (status) => {
+      focusManager.setFocused(status === 'active');
+    });
+    return () => subscription.remove();
+  }, []);
+
   return (
     <PersistQueryClientProvider
       client={queryClient}
@@ -37,9 +47,11 @@ export function AppProviders({ children }: PropsWithChildren) {
       }}>
       <AuthProvider>
         <AppThemeProvider>
-          <MobileCacheWarmup />
-          <MobileRealtimeSync />
-          {children}
+          <RealtimeProvider>
+            <MobileCacheWarmup />
+            <MobileRealtimeSync />
+            {children}
+          </RealtimeProvider>
         </AppThemeProvider>
       </AuthProvider>
     </PersistQueryClientProvider>

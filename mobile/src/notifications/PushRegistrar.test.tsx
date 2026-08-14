@@ -33,6 +33,8 @@ jest.mock('expo-notifications', () => {
     addNotificationReceivedListener: jestGlobals.fn(),
     addNotificationResponseReceivedListener: jestGlobals.fn(),
     getExpoPushTokenAsync: jestGlobals.fn(),
+    getLastNotificationResponseAsync: jestGlobals.fn(async () => null),
+    clearLastNotificationResponseAsync: jestGlobals.fn(async () => undefined),
     getPermissionsAsync: jestGlobals.fn(),
     requestPermissionsAsync: jestGlobals.fn(),
     setNotificationChannelAsync: jestGlobals.fn(),
@@ -103,6 +105,20 @@ test('refreshes cached counters on foreground push and normalizes tap navigation
   responseCallback?.({ notification: { request: { content: { data: { deep_link: '/notifications' } } } } });
 
   expect(mockPush).toHaveBeenCalledWith('/inbox/notifications');
+  cleanup();
+  queryClient.clear();
+});
+
+test('opens the last call notification after a terminated Android launch', async () => {
+  (Notifications.getLastNotificationResponseAsync as jest.MockedFunction<typeof Notifications.getLastNotificationResponseAsync>).mockResolvedValue({
+    notification: { request: { identifier: 'incoming-call-11', content: { data: { deep_link: '/call/11?type=video' } } } },
+  } as never);
+  const queryClient = new QueryClient({ defaultOptions: { queries: { gcTime: Infinity, retry: false } } });
+
+  render(<QueryClientProvider client={queryClient}><PushRegistrar /></QueryClientProvider>);
+
+  await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/call/11?type=video'));
+  expect(Notifications.clearLastNotificationResponseAsync).toHaveBeenCalled();
   cleanup();
   queryClient.clear();
 });

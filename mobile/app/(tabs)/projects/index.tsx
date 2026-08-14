@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronRight, FolderKanban, Plus, Trash2, X } from 'lucide-react-native';
+import { ChevronRight, FolderKanban, Plus, Search, Trash2, X } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { apiErrorMessage } from '@/src/api/client';
@@ -21,20 +21,27 @@ export default function ProjectsScreen() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const [editing, setEditing] = useState<Project | null | undefined>(undefined);
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState<'all' | Project['status']>('all');
   const [form, setForm] = useState({ name: '', description: '', start_date: '', end_date: '' });
   const projects = useQuery({ queryKey: mobileQueryKeys.projects, queryFn: endpoints.projects });
   const canManage = !user?.demo_account && user?.permissions?.includes('projects.manage');
+  const visibleProjects = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return (projects.data || []).filter((project) => (status === 'all' || project.status === status) && (!query || project.name.toLowerCase().includes(query) || String(project.description || '').toLowerCase().includes(query)));
+  }, [projects.data, search, status]);
   const openEditor = (project: Project | null) => { setForm({ name: project?.name || '', description: project?.description || '', start_date: project?.start_date || '', end_date: project?.end_date || '' }); setEditing(project); };
   const save = useMutation({ mutationFn: () => editing ? endpoints.updateProject(editing.id, form) : endpoints.createProject(form), onSuccess: async () => { setEditing(undefined); await queryClient.invalidateQueries({ queryKey: ['projects'] }); }, onError: (error) => Alert.alert('Unable to save project', apiErrorMessage(error)) });
   const remove = useMutation({ mutationFn: (id: number) => endpoints.deleteProject(id), onSuccess: async () => { setEditing(undefined); await queryClient.invalidateQueries({ queryKey: ['projects'] }); }, onError: (error) => Alert.alert('Unable to delete project', apiErrorMessage(error)) });
   return (
     <Screen header={<PageHeader title="Projects" subtitle="Workspace delivery overview" action={canManage ? <TouchableScale accessibilityLabel="Create project" accessibilityRole="button" haptic="light" onPress={() => openEditor(null)} style={[styles.add, { backgroundColor: theme.primary, shadowColor: theme.shadow }]}><Plus color="#ffffff" size={21} /></TouchableScale> : undefined} />}>
+      <View style={styles.toolbar}><View style={[styles.search, { backgroundColor: theme.surface, borderColor: theme.border }]}><Search color={theme.textMuted} size={18} /><TextInput accessibilityLabel="Search projects" onChangeText={setSearch} placeholder="Search projects" placeholderTextColor={theme.textMuted} style={[styles.searchInput, { color: theme.text }]} value={search} /></View><ScrollView horizontal showsHorizontalScrollIndicator={false}>{(['all', 'running', 'upcoming', 'completed'] as const).map((value) => <Pressable accessibilityRole="tab" accessibilityState={{ selected: status === value }} key={value} onPress={() => setStatus(value)} style={[styles.filter, { backgroundColor: status === value ? theme.primarySoft : theme.surface, borderColor: status === value ? theme.primary : theme.border }]}><Text style={{ color: status === value ? theme.primary : theme.textMuted, fontSize: 11, fontWeight: '800' }}>{value[0].toUpperCase() + value.slice(1)}</Text></Pressable>)}</ScrollView></View>
       {projects.isPending && !projects.data ? <LoadingState label="Loading projects" /> : null}
       {projects.isError && !projects.data ? <ErrorState message={apiErrorMessage(projects.error)} onRetry={() => projects.refetch()} /> : null}
       {projects.data ? (
         <FlatList
           contentContainerStyle={styles.list}
-          data={projects.data}
+          data={visibleProjects}
           initialNumToRender={10}
           keyExtractor={(item) => String(item.id)}
           maxToRenderPerBatch={12}
@@ -79,7 +86,11 @@ function ProjectRow({ project, onEdit }: { project: Project; onEdit?: () => void
 function ProjectField({ label, value, onChangeText, multiline, placeholder }: { label: string; value: string; onChangeText: (value: string) => void; multiline?: boolean; placeholder?: string }) { const theme = useAppTheme(); return <View><Text style={[styles.label, { color: theme.text }]}>{label}</Text><TextInput accessibilityLabel={label} multiline={multiline} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor={theme.textMuted} style={[styles.field, multiline && styles.multiline, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }]} value={value} /></View>; }
 
 const styles = StyleSheet.create({
-  list: { flexGrow: 1, gap: 10, padding: 20, paddingBottom: 36 },
+  toolbar: { gap: 9, paddingHorizontal: 16, paddingTop: 12 },
+  search: { alignItems: 'center', borderRadius: 9, borderWidth: 1, flexDirection: 'row', minHeight: 44, paddingHorizontal: 12 },
+  searchInput: { flex: 1, fontSize: 14, minHeight: 42, paddingHorizontal: 9, paddingVertical: 8 },
+  filter: { borderRadius: 16, borderWidth: 1, justifyContent: 'center', marginRight: 7, minHeight: 32, paddingHorizontal: 12 },
+  list: { flexGrow: 1, gap: 9, padding: 16, paddingBottom: 32 },
   add: { alignItems: 'center', borderRadius: 8, elevation: 1, height: 42, justifyContent: 'center', shadowOffset: { height: 2, width: 0 }, shadowOpacity: 0.1, shadowRadius: 5, width: 42 },
   card: { alignItems: 'center', borderRadius: 8, borderWidth: 1, elevation: 1, flexDirection: 'row', gap: 12, padding: 14, shadowOffset: { height: 3, width: 0 }, shadowOpacity: 0.08, shadowRadius: 8 },
   icon: { alignItems: 'center', borderRadius: 6, height: 42, justifyContent: 'center', width: 42 },

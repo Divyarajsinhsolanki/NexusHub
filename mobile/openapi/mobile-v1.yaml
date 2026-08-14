@@ -598,6 +598,76 @@ paths:
       operationId: createConversation
       responses:
         "201": { $ref: "#/components/responses/GenericSuccess" }
+  /conversations/start_direct:
+    post:
+      operationId: startDirectConversation
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /conversations/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      operationId: getConversation
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+    patch:
+      operationId: updateConversation
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+    delete:
+      operationId: hideConversation
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /conversations/{id}/participants:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      operationId: addConversationParticipants
+      responses:
+        "201": { $ref: "#/components/responses/GenericSuccess" }
+  /conversations/{id}/summary:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      operationId: getConversationSummary
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /conversations/{id}/participants/{user_id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+      - name: user_id
+        in: path
+        required: true
+        schema: { type: integer }
+    delete:
+      operationId: removeConversationParticipant
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /conversations/{id}/leave:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    delete:
+      operationId: leaveConversation
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /conversations/{id}/mute:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    patch:
+      operationId: muteConversation
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+    delete:
+      operationId: unmuteConversation
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /conversations/{id}/for_everyone:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    delete:
+      operationId: deleteConversationForEveryone
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
   /conversations/{id}/messages:
     parameters:
       - $ref: "#/components/parameters/Id"
@@ -656,6 +726,20 @@ paths:
       - $ref: "#/components/parameters/Id"
     post:
       operationId: joinCall
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /calls/{id}/ack_ring:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      operationId: acknowledgeCallRing
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /calls/{id}/decline:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      operationId: declineCall
       responses:
         "200": { $ref: "#/components/responses/GenericSuccess" }
   /calls/{id}/leave:

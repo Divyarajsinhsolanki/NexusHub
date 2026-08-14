@@ -401,10 +401,20 @@ export type Comment = EntityRecord & {
 export type Conversation = EntityRecord & {
   name?: string;
   title?: string;
-  conversation_type?: string;
+  conversation_type?: 'direct' | 'group';
+  creator_id?: number;
+  can_delete_for_everyone?: boolean;
+  can_manage_members?: boolean;
+  can_edit_group?: boolean;
+  can_leave_group?: boolean;
+  hidden_at?: string | null;
+  muted_at?: string | null;
+  muted_until?: string | null;
   muted?: boolean;
   unread_count?: number;
-  last_message?: EntityRecord | null;
+  last_message?: Message | string | null;
+  last_message_at?: string | null;
+  last_message_id?: number | null;
   participants?: ConversationParticipant[];
   active_call?: CallSession | null;
 };
@@ -413,12 +423,14 @@ export type ConversationParticipant = {
   id: number;
   name: string;
   profile_picture?: string | null;
+  last_seen_at?: string | null;
   joined_at?: string | null;
   last_delivered_at?: string | null;
   last_read_at?: string | null;
   last_delivered_message_id?: number | null;
   last_read_message_id?: number | null;
   online?: boolean;
+  is_creator?: boolean;
 };
 
 export type ConversationReceipt = {
@@ -442,6 +454,8 @@ export type Message = EntityRecord & {
   attachments?: EntityRecord[];
   reactions?: Record<string, number> | EntityRecord[];
   reacted_emojis?: string[];
+  client_id?: string;
+  send_state?: 'sending' | 'failed' | 'sent';
 };
 
 export type CallSession = {
