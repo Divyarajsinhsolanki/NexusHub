@@ -5,7 +5,7 @@ module Chat
     class InvalidTransition < Error; end
     class HostRequired < Error; end
 
-    RING_TIMEOUT = 60.seconds
+    RING_TIMEOUT = 30.seconds
 
     def initialize(user:)
       @user = user
@@ -141,7 +141,13 @@ module Chat
         return call_session unless call_session.live?
 
         participant.update!(status: "left", left_at: Time.current)
-        end_call!(call_session, "ended", "left") unless joined_participants(call_session).exists?
+        if call_session.conversation.direct?
+          call_session.call_participants.where(status: "ringing").update_all(status: "missed", left_at: Time.current, updated_at: Time.current)
+          call_session.call_participants.where(status: "joined").where.not(user_id: user.id).update_all(status: "left", left_at: Time.current, updated_at: Time.current)
+          end_call!(call_session, "ended", "left")
+        else
+          end_call!(call_session, "ended", "left") unless joined_participants(call_session).exists?
+        end
       end
 
       call_session.reload

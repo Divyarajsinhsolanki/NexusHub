@@ -11,7 +11,7 @@ import {
 } from '@livekit/react-native';
 import { Camera, CameraOff, Mic, MicOff, PhoneOff, RefreshCw, Share2, ShieldCheck, Users, Volume2, X } from 'lucide-react-native';
 import { ConnectionState, Track } from 'livekit-client';
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, FlatList, Modal, Pressable, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -29,6 +29,14 @@ type Props = {
 
 export function MobileCallRoom({ credentials, initialAudio = true, initialVideo = true, onEnd, onLeave }: Props) {
   const [connectionIssue, setConnectionIssue] = useState<string | null>(null);
+  const disconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearDisconnectTimer = useCallback(() => {
+    if (disconnectTimerRef.current) clearTimeout(disconnectTimerRef.current);
+    disconnectTimerRef.current = null;
+  }, []);
+
+  useEffect(() => clearDisconnectTimer, [clearDisconnectTimer]);
 
   useEffect(() => {
     void AudioSession.startAudioSession();
@@ -40,15 +48,21 @@ export function MobileCallRoom({ credentials, initialAudio = true, initialVideo 
       audio={initialAudio}
       connect
       onConnected={() => {
+        clearDisconnectTimer();
         setConnectionIssue(null);
         recordCallBreadcrumb('connect', { call_id: credentials.call_session.id, connected: true });
       }}
       onDisconnected={() => {
-        // A transport disconnect is not a user leave. LiveKit owns reconnection.
         setConnectionIssue('Connection interrupted. Reconnecting media…');
         recordCallBreadcrumb('reconnect', { call_id: credentials.call_session.id });
+        clearDisconnectTimer();
+        disconnectTimerRef.current = setTimeout(() => {
+          recordCallBreadcrumb('leave', { call_id: credentials.call_session.id, connection_lost: true });
+          void onLeave();
+        }, 20_000);
       }}
       onError={(error) => {
+        clearDisconnectTimer();
         setConnectionIssue('Unable to connect media. Check the network and LiveKit host.');
         captureCallError(error, 'connect', { call_id: credentials.call_session.id });
       }}
