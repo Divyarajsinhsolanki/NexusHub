@@ -1,6 +1,15 @@
 class Api::V1::MobileDevicesController < Api::V1::BaseController
   def upsert
-    attributes = params.require(:device).permit(:expo_push_token, :platform, :device_identifier, :device_name, :app_version)
+    attributes = params.require(:device).permit(
+      :expo_push_token,
+      :platform,
+      :device_identifier,
+      :device_name,
+      :app_version,
+      :push_schema_version,
+      :app_variant,
+      :native_build_version
+    )
     device = MobileDevice.find_or_initialize_by(expo_push_token: attributes[:expo_push_token])
     device.assign_attributes(
       attributes.merge(
@@ -34,6 +43,9 @@ class Api::V1::MobileDevicesController < Api::V1::BaseController
       platform: device.platform,
       device_name: device.device_name,
       app_version: device.app_version,
+      push_schema_version: device.push_schema_version,
+      app_variant: device.app_variant,
+      native_build_version: device.native_build_version,
       active: device.active,
       last_seen_at: device.last_seen_at
     }

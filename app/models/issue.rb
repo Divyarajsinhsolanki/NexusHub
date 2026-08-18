@@ -55,10 +55,52 @@ class Issue < ApplicationRecord
   end
 
   def notify_assignment_or_status_change
-    return unless saved_change_to_assignee? || saved_change_to_status?
+    return unless saved_change_to_assignee? || saved_change_to_assignee_user_id? || saved_change_to_status?
 
     previous_status = saved_change_to_status? ? saved_change_to_status.first : nil
     previous_assignee = saved_change_to_assignee? ? saved_change_to_assignee.first : nil
     IssueNotifierJob.perform_later(id, previous_status, previous_assignee)
+    notify_mobile_recipients(previous_status)
+  end
+
+  def notify_mobile_recipients(previous_status)
+    actor = Current.user
+    return unless actor
+
+    assignment_changed = saved_change_to_assignee_user_id?
+    if assignment_changed && assignee_user && assignee_user_id != actor.id
+      Notification.create(
+        recipient: assignee_user,
+        actor: actor,
+        action: "issue_assigned",
+        notifiable: self,
+        metadata: issue_notification_metadata
+      )
+    end
+
+    return if previously_new_record? || !saved_change_to_status?
+
+    [reporter, assignee_user].compact.uniq.each do |recipient|
+      next if recipient.id == actor.id
+      next if assignment_changed && recipient.id == assignee_user_id
+
+      Notification.create(
+        recipient: recipient,
+        actor: actor,
+        action: "issue_updated",
+        notifiable: self,
+        metadata: issue_notification_metadata.merge(previous_status: previous_status, status: status)
+      )
+    end
+  end
+
+  def issue_notification_metadata
+    {
+      issue_id: id,
+      issue_key: issue_key,
+      issue_title: title,
+      project_id: project_id,
+      status: status
+    }
   end
 end

@@ -27,6 +27,12 @@ class Api::MessagesController < Api::BaseController
   end
 
   def create
+    client_id = params.dig(:message, :client_id).presence
+    if client_id
+      existing = @conversation.messages.find_by(user: current_user, client_id: client_id)
+      return render json: serialize_message(existing), status: :ok if existing
+    end
+
     message = @conversation.messages.new(message_params)
     message.user = current_user
 
@@ -41,6 +47,9 @@ class Api::MessagesController < Api::BaseController
     else
       render json: { errors: message.errors.full_messages }, status: :unprocessable_entity
     end
+  rescue ActiveRecord::RecordNotUnique
+    existing = @conversation.messages.find_by!(user: current_user, client_id: client_id)
+    render json: serialize_message(existing), status: :ok
   end
 
   private
@@ -50,7 +59,7 @@ class Api::MessagesController < Api::BaseController
   end
 
   def message_params
-    params.require(:message).permit(:body, attachments: [])
+    params.require(:message).permit(:body, :client_id, attachments: [])
   end
 
   def requested_limit
@@ -62,6 +71,7 @@ class Api::MessagesController < Api::BaseController
   def serialize_message(message)
     {
       id: message.id,
+      client_id: message.client_id,
       body: message.body,
       user_id: message.user_id,
       user_name: message.user.full_name,

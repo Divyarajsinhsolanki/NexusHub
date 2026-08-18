@@ -1302,6 +1302,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/notifications/read_all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["readAllNotifications"];
+        trace?: never;
+    };
+    "/notifications/{id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["readNotification"];
+        trace?: never;
+    };
     "/mobile_sessions": {
         parameters: {
             query?: never;
@@ -1788,6 +1822,61 @@ export interface components {
             preferences?: {
                 [key: string]: unknown;
             };
+            push_notification_settings?: components["schemas"]["PushNotificationSettings"];
+        };
+        PushNotificationSettings: {
+            enabled: boolean;
+            previews: boolean;
+            categories: {
+                chat: boolean;
+                audio_calls: boolean;
+                video_calls: boolean;
+                work: boolean;
+                social: boolean;
+                reminders: boolean;
+            };
+            quiet_hours: {
+                enabled: boolean;
+                start: string;
+                end: string;
+                timezone: string;
+                allow_calls: boolean;
+            };
+        };
+        MobileDeviceRegistration: {
+            expo_push_token: string;
+            /** @enum {string} */
+            platform: "android" | "ios";
+            device_identifier?: string | null;
+            device_name?: string | null;
+            app_version?: string | null;
+            native_build_version?: string | null;
+            push_schema_version: number;
+            /** @enum {string} */
+            app_variant: "development" | "preview" | "production" | "legacy";
+        };
+        Notification: {
+            id: number;
+            action: string;
+            event_type: string;
+            /** @enum {string} */
+            category: "chat" | "audio_calls" | "video_calls" | "work" | "social" | "reminders";
+            title: string;
+            message: string;
+            actor: {
+                id: number;
+                name: string;
+                avatar_color?: string | null;
+                profile_picture?: string | null;
+            };
+            /** Format: date-time */
+            read_at?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            notifiable_type: string;
+            notifiable_id: number;
+            deep_link: string;
+            group_key?: string | null;
         };
         AuthSession: {
             user: components["schemas"]["User"];
@@ -2074,7 +2163,15 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": {
+                    auth: {
+                        push_notification_settings?: components["schemas"]["PushNotificationSettings"];
+                    };
+                };
+            };
+        };
         responses: {
             200: components["responses"]["GenericSuccess"];
         };
@@ -3273,7 +3370,16 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": {
+                    message: {
+                        body: string;
+                        client_id?: string;
+                    };
+                };
+            };
+        };
         responses: {
             201: components["responses"]["GenericSuccess"];
         };
@@ -3455,6 +3561,45 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description Paginated visible in-app notifications */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["Notification"][];
+                        meta?: components["schemas"]["PaginationMeta"] & {
+                            unread_count?: number;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    readAllNotifications: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    readNotification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
             200: components["responses"]["GenericSuccess"];
         };
     };
@@ -3516,7 +3661,13 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": {
+                    device: components["schemas"]["MobileDeviceRegistration"];
+                };
+            };
+        };
         responses: {
             200: components["responses"]["GenericSuccess"];
         };

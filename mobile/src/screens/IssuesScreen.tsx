@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { AlertTriangle, ArrowDownToLine, ArrowLeft, Camera, FileSpreadsheet, ImagePlus, Pencil, Plus, Trash2, X } from 'lucide-react-native';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { absoluteAssetUrl, apiErrorMessage } from '../api/client';
@@ -23,7 +23,7 @@ type Draft = { title: string; issue_description: string; status: string; severit
 const initialDraft = (): Draft => ({ title: '', issue_description: '', status: 'New', severity: 'Medium', category: '', module_name: '', repro_steps: '', actual_result: '', expected_result: '', due_date: '', assignee_user_id: 0 });
 
 export function IssuesScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, issueId } = useLocalSearchParams<{ id: string; issueId?: string }>();
   const projectId = Number(id);
   const theme = useAppTheme();
   const router = useRouter();
@@ -32,12 +32,20 @@ export function IssuesScreen() {
   const writable = !user?.demo_account;
   const [mode, setMode] = useState<Mode>('active');
   const [editing, setEditing] = useState<EntityRecord | null | undefined>(undefined);
+  const dismissedSelection = useRef<string | undefined>(undefined);
   const issues = useQuery({ queryKey: ['issues', projectId], queryFn: () => endpoints.issues(projectId), enabled: Number.isFinite(projectId) });
   const project = useQuery({ queryKey: ['project', projectId], queryFn: () => endpoints.project(projectId), enabled: Number.isFinite(projectId) });
   const people = useQuery({ queryKey: ['users', 'issue-assignee'], queryFn: () => endpoints.users(), enabled: editing !== undefined });
   const rows = useMemo(() => (issues.data?.data || []).filter((issue) => mode === 'all' || (mode === 'resolved' ? ['Resolved', 'Not an issue', 'Not Reproducible'].includes(String(issue.status)) : !['Resolved', 'Not an issue', 'Not Reproducible'].includes(String(issue.status)))), [issues.data, mode]);
-  const refresh = async () => { setEditing(undefined); await queryClient.invalidateQueries({ queryKey: ['issues', projectId] }); };
+  const closeEditor = () => { dismissedSelection.current = issueId; setEditing(undefined); if (issueId) router.setParams({ issueId: undefined }); };
+  const refresh = async () => { closeEditor(); await queryClient.invalidateQueries({ queryKey: ['issues', projectId] }); };
   const importSheet = useMutation({ mutationFn: () => endpoints.importIssues(projectId), onSuccess: async (result) => { await refresh(); Alert.alert('Issues imported', importSummary(result)); }, onError: (error) => Alert.alert('Issue import failed', apiErrorMessage(error)) });
+
+  useEffect(() => {
+    if (!issueId || dismissedSelection.current === issueId || !issues.data || editing !== undefined) return;
+    const selected = issues.data.data.find((issue) => issue.id === Number(issueId));
+    if (selected) setEditing(selected);
+  }, [editing, issueId, issues.data]);
 
   return <Screen header={<PageHeader leading={<Pressable accessibilityLabel="Back" onPress={() => router.back()} style={styles.iconButton}><ArrowLeft color={theme.text} size={22} /></Pressable>} title="Issues" subtitle={project.data?.name || 'Triage and delivery status'} action={writable ? <Pressable accessibilityLabel="Create issue" onPress={() => setEditing(null)} style={[styles.add, { backgroundColor: theme.primary }]}><Plus color="#ffffff" size={21} /></Pressable> : undefined} />}>
     <View style={styles.filters}><SegmentedControl value={mode} onChange={setMode} options={[{ value: 'active', label: 'Active' }, { value: 'resolved', label: 'Resolved' }, { value: 'all', label: 'All' }]} /></View>
@@ -45,7 +53,7 @@ export function IssuesScreen() {
     {issues.isLoading ? <LoadingState label="Loading issues" /> : null}
     {issues.isError ? <ErrorState message={apiErrorMessage(issues.error)} onRetry={() => issues.refetch()} /> : null}
     {issues.data ? <FlatList contentContainerStyle={styles.list} data={rows} keyExtractor={(item) => String(item.id)} onRefresh={() => issues.refetch()} refreshing={issues.isRefetching} ListEmptyComponent={<EmptyState title="No issues here" message={mode === 'active' ? 'New defects and blockers will appear here.' : 'Change the filter to review other issues.'} />} renderItem={({ item }) => <IssueRow editable={writable} issue={item} onEdit={() => setEditing(item)} />} /> : null}
-    <IssueEditor editing={editing} onClose={() => setEditing(undefined)} onSaved={refresh} people={people.data?.data || []} projectId={projectId} />
+    <IssueEditor editing={editing} onClose={closeEditor} onSaved={refresh} people={people.data?.data || []} projectId={projectId} />
   </Screen>;
 }
 

@@ -4,4 +4,5 @@
 const { registerGlobals } = require('@livekit/react-native');
 
 registerGlobals();
+require('./src/notifications/backgroundTask');
 require('expo-router/entry');

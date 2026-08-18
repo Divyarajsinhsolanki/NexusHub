@@ -7,12 +7,21 @@ class Notification < ApplicationRecord
 
   scope :unread, -> { where(read_at: nil) }
   scope :recent, -> { order(created_at: :desc) }
+  scope :visible_in_feed, -> { where(feed_visible: true) }
 
-  before_create :respect_recipient_preferences
   before_validation :assign_recipient_workspace, on: :create
+  before_validation :assign_delivery_metadata, on: :create
 
   def mark_as_read!
     update!(read_at: Time.current)
+  end
+
+  def catalog
+    @catalog ||= NotificationCatalog.for(self)
+  end
+
+  def event_type
+    catalog.event_type
   end
 
   after_create_commit :broadcast_to_channel
@@ -25,17 +34,19 @@ class Notification < ApplicationRecord
   end
 
   def broadcast_to_channel
+    return unless feed_visible?
+
     Chat::Broadcaster.broadcast_notification(self)
   end
 
   def enqueue_mobile_push
-    ExpoPushNotificationJob.perform_later(id)
+    PushNotificationDispatchJob.set(wait: catalog.dispatch_delay).perform_later(id)
   end
 
-  def respect_recipient_preferences
-    return if recipient.blank?
-    return if recipient.notification_preference_enabled?(action)
+  def assign_delivery_metadata
+    return unless recipient
 
-    throw(:abort)
+    self.group_key = catalog.group_key
+    self.feed_visible = recipient.notification_preference_enabled?(catalog.feed_preference_key)
   end
 end

@@ -3,9 +3,9 @@ import { Picker } from '@react-native-picker/picker';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import * as WebBrowser from 'expo-web-browser';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { AlarmClock, ArrowLeft, CalendarPlus, ExternalLink, Pencil, Plus, Trash2, X } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
 import { apiErrorMessage } from '../api/client';
@@ -22,20 +22,29 @@ type Draft = { title: string; description: string; start: Date; end: Date; all_d
 const freshDraft = (): Draft => ({ title: '', description: '', start: new Date(), end: new Date(Date.now() + 60 * 60_000), all_day: false, event_type: 'meeting', visibility: 'personal', status: 'scheduled', recurrence_rule: 'none', location_or_meet_link: '', project_id: null });
 
 export function FullCalendarScreen() {
+  const { eventId } = useLocalSearchParams<{ eventId?: string }>();
   const theme = useAppTheme();
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const writable = !user?.demo_account;
   const [editing, setEditing] = useState<CalendarEvent | null | undefined>(undefined);
+  const dismissedSelection = useRef<string | undefined>(undefined);
   const events = useQuery({ queryKey: ['calendar-events'], queryFn: () => endpoints.calendarEvents() });
-  const remove = useMutation({ mutationFn: (id: number) => endpoints.deleteCalendarEvent(id), onSuccess: async () => { setEditing(undefined); await queryClient.invalidateQueries({ queryKey: ['calendar-events'] }); }, onError: (error) => Alert.alert('Unable to delete event', apiErrorMessage(error)) });
+  const closeEditor = () => { dismissedSelection.current = eventId; setEditing(undefined); if (eventId) router.setParams({ eventId: undefined }); };
+  const remove = useMutation({ mutationFn: (id: number) => endpoints.deleteCalendarEvent(id), onSuccess: async () => { closeEditor(); await queryClient.invalidateQueries({ queryKey: ['calendar-events'] }); }, onError: (error) => Alert.alert('Unable to delete event', apiErrorMessage(error)) });
+
+  useEffect(() => {
+    if (!eventId || dismissedSelection.current === eventId || !events.data || editing !== undefined) return;
+    const selected = events.data.data.find((event) => event.id === Number(eventId));
+    if (selected) setEditing(selected);
+  }, [editing, eventId, events.data]);
 
   return <Screen header={<PageHeader leading={<Pressable accessibilityLabel="Back" onPress={() => router.back()} style={styles.iconButton}><ArrowLeft color={theme.text} size={22} /></Pressable>} title="Calendar" subtitle="Events, recurrence, and schedules" action={writable ? <Pressable accessibilityLabel="Create event" onPress={() => setEditing(null)} style={[styles.add, { backgroundColor: theme.primary }]}><CalendarPlus color="#ffffff" size={20} /></Pressable> : undefined} />}>
     {events.isLoading ? <LoadingState label="Loading calendar" /> : null}
     {events.isError ? <ErrorState message={apiErrorMessage(events.error)} onRetry={() => events.refetch()} /> : null}
     {events.data ? <FlatList contentContainerStyle={styles.list} data={events.data.data} keyExtractor={(item) => String(item.id)} onRefresh={() => events.refetch()} refreshing={events.isRefetching} ListEmptyComponent={<EmptyState title="No upcoming events" message="Create a meeting, focus block, deadline, or reminder." />} renderItem={({ item }) => <EventRow event={item} editable={writable} onEdit={() => setEditing(item)} />} /> : null}
-    <EventEditor editing={editing} onClose={() => setEditing(undefined)} onDelete={(event) => Alert.alert('Delete event?', 'Recurring instances are kept unless removed separately.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => remove.mutate(event.id) }])} onSaved={async () => { setEditing(undefined); await queryClient.invalidateQueries({ queryKey: ['calendar-events'] }); }} />
+    <EventEditor editing={editing} onClose={closeEditor} onDelete={(event) => Alert.alert('Delete event?', 'Recurring instances are kept unless removed separately.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => remove.mutate(event.id) }])} onSaved={async () => { closeEditor(); await queryClient.invalidateQueries({ queryKey: ['calendar-events'] }); }} />
   </Screen>;
 }
 

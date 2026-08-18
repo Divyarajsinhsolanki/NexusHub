@@ -18,7 +18,7 @@ class Comment < ApplicationRecord
     Notification.create(
       recipient: post.user,
       actor: user,
-      action: 'commented',
+      action: 'post_commented',
       notifiable: self,
       metadata: { post_id: post.id, comment_body: body.truncate(50) }
     )

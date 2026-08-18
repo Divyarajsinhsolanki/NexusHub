@@ -43,9 +43,9 @@ class ProjectUser < ApplicationRecord
     Notification.create(
       recipient: user,
       actor_id: actor_id,
-      action: 'assigned',
+      action: 'project_assigned',
       notifiable: self,
-      metadata: { project_name: project.name, role: role }
+      metadata: { project_id: project_id, project_name: project.name, role: role }
     )
   end
 end

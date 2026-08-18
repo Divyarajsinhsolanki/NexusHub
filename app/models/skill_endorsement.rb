@@ -11,6 +11,7 @@ class SkillEndorsement < ApplicationRecord
   validate :cannot_endorse_self
 
   after_commit :refresh_last_endorsed_at, on: :create
+  after_commit :notify_endorsed_user, on: :create
   after_commit :sync_last_endorsed_at, on: :destroy
 
   private
@@ -21,6 +22,23 @@ class SkillEndorsement < ApplicationRecord
 
   def refresh_last_endorsed_at
     user_skill.update_columns(last_endorsed_at: Time.current)
+  end
+
+  def notify_endorsed_user
+    return if user.id == endorser_id
+
+    Notification.create(
+      recipient: user,
+      actor: endorser,
+      action: "skill_endorsed",
+      notifiable: self,
+      metadata: {
+        user_skill_id: user_skill_id,
+        skill_id: skill.id,
+        skill_name: skill.name,
+        team_id: team_id
+      }
+    )
   end
 
   def sync_last_endorsed_at

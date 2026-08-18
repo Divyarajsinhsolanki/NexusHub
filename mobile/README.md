@@ -65,6 +65,14 @@ eas build --platform android --profile preview
 
 An OTA update alone cannot add the native Google configuration.
 
+## Push Notifications
+
+Push schema v2 adds bundled category sounds, Android channels, background actions, and distinct Chat, audio-call, video-call, work, social, and reminder alerts. These are native changes, so build and install a new Development or Preview APK; an OTA update is not sufficient.
+
+Configure FCM v1 credentials for both Android application IDs in EAS, deploy the Rails migration with `PUSH_V2_ENABLED=false`, then install and sign into a new build. Confirm that the device registers `push_schema_version: 2` before enabling `PUSH_V2_ENABLED=true` on the Rails service. Set `EXPO_ACCESS_TOKEN` on Rails only when enhanced Expo push security is enabled. Never place it in `EXPO_PUBLIC_*` variables.
+
+Notification permission is requested only after the in-app explanation. Category switches, privacy-safe previews, quiet hours, and the operating-system settings shortcut are available under More → Settings. The in-app notification feed remains independent from push preferences.
+
 ## Verification
 
 ```bash

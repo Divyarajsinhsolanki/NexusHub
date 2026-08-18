@@ -81,6 +81,24 @@ const ACTION_META = {
   },
 };
 
+Object.assign(ACTION_META, {
+  post_commented: ACTION_META.commented,
+  post_liked: { ...ACTION_META.reacted, label: "Like" },
+  skill_endorsed: { ...ACTION_META.reacted, label: "Endorsement" },
+  chat_mention: ACTION_META.chat_ping,
+  message_reacted: ACTION_META.reacted,
+  project_assigned: ACTION_META.assigned,
+  task_assigned: ACTION_META.assigned,
+  issue_assigned: ACTION_META.assigned,
+  team_member_added: ACTION_META.assigned,
+  task_updated: ACTION_META.update,
+  issue_updated: ACTION_META.update,
+  missed_audio_call: { ...ACTION_META.default, label: "Audio call" },
+  missed_video_call: { ...ACTION_META.default, label: "Video call" },
+  ended_audio_call: { ...ACTION_META.default, label: "Audio call" },
+  ended_video_call: { ...ACTION_META.default, label: "Video call" },
+});
+
 const STATUS_OPTIONS = [
   { value: "all", label: "All" },
   { value: "unread", label: "Unread" },
@@ -215,8 +233,8 @@ const Notifications = () => {
 
   const groupOrder = ["Today", "Yesterday", "Earlier"];
   const todayCount = notifications.filter((notification) => getGroupLabel(notification.created_at) === "Today").length;
-  const mentionsCount = notifications.filter((notification) => notification.action === "chat_ping").length;
-  const assignmentCount = notifications.filter((notification) => notification.action === "assigned").length;
+  const mentionsCount = notifications.filter((notification) => ["chat_ping", "chat_mention"].includes(notification.action)).length;
+  const assignmentCount = notifications.filter((notification) => ["assigned", "project_assigned", "task_assigned", "issue_assigned", "team_member_added"].includes(notification.action)).length;
 
   return (
     <div className="min-h-screen pb-16 text-slate-900">

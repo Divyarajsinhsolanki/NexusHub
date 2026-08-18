@@ -140,6 +140,19 @@ paths:
                     $ref: "#/components/schemas/User"
     patch:
       operationId: updateMe
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [auth]
+              properties:
+                auth:
+                  type: object
+                  properties:
+                    push_notification_settings:
+                      $ref: "#/components/schemas/PushNotificationSettings"
       responses:
         "200":
           $ref: "#/components/responses/GenericSuccess"
@@ -681,6 +694,20 @@ paths:
         "200": { $ref: "#/components/responses/GenericSuccess" }
     post:
       operationId: createConversationMessage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message:
+                  type: object
+                  required: [body]
+                  properties:
+                    body: { type: string, maxLength: 4000 }
+                    client_id: { type: string, maxLength: 100 }
       responses:
         "201": { $ref: "#/components/responses/GenericSuccess" }
   /conversations/{id}/receipt:
@@ -801,7 +828,34 @@ paths:
       operationId: listNotifications
       responses:
         "200":
-          $ref: "#/components/responses/GenericSuccess"
+          description: Paginated visible in-app notifications
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Notification" }
+                  meta:
+                    allOf:
+                      - $ref: "#/components/schemas/PaginationMeta"
+                      - type: object
+                        properties:
+                          unread_count: { type: integer }
+  /notifications/read_all:
+    patch:
+      operationId: readAllNotifications
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /notifications/{id}/read:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    patch:
+      operationId: readNotification
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
   /mobile_sessions:
     get:
       operationId: listMobileSessions
@@ -828,6 +882,16 @@ paths:
   /mobile_device:
     put:
       operationId: registerMobileDevice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [device]
+              properties:
+                device:
+                  $ref: "#/components/schemas/MobileDeviceRegistration"
       responses:
         "200":
           $ref: "#/components/responses/GenericSuccess"
@@ -1168,6 +1232,69 @@ components:
         preferences:
           type: object
           additionalProperties: true
+        push_notification_settings:
+          $ref: "#/components/schemas/PushNotificationSettings"
+    PushNotificationSettings:
+      type: object
+      required: [enabled, previews, categories, quiet_hours]
+      properties:
+        enabled: { type: boolean }
+        previews: { type: boolean }
+        categories:
+          type: object
+          required: [chat, audio_calls, video_calls, work, social, reminders]
+          properties:
+            chat: { type: boolean }
+            audio_calls: { type: boolean }
+            video_calls: { type: boolean }
+            work: { type: boolean }
+            social: { type: boolean }
+            reminders: { type: boolean }
+        quiet_hours:
+          type: object
+          required: [enabled, start, end, timezone, allow_calls]
+          properties:
+            enabled: { type: boolean }
+            start: { type: string, pattern: "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$" }
+            end: { type: string, pattern: "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$" }
+            timezone: { type: string }
+            allow_calls: { type: boolean }
+    MobileDeviceRegistration:
+      type: object
+      required: [expo_push_token, platform, push_schema_version, app_variant]
+      properties:
+        expo_push_token: { type: string }
+        platform: { type: string, enum: [android, ios] }
+        device_identifier: { type: [string, "null"] }
+        device_name: { type: [string, "null"] }
+        app_version: { type: [string, "null"] }
+        native_build_version: { type: [string, "null"] }
+        push_schema_version: { type: integer, minimum: 1 }
+        app_variant: { type: string, enum: [development, preview, production, legacy] }
+    Notification:
+      type: object
+      required: [id, action, event_type, category, title, message, actor, created_at, notifiable_type, notifiable_id, deep_link]
+      properties:
+        id: { type: integer }
+        action: { type: string }
+        event_type: { type: string }
+        category: { type: string, enum: [chat, audio_calls, video_calls, work, social, reminders] }
+        title: { type: string }
+        message: { type: string }
+        actor:
+          type: object
+          required: [id, name]
+          properties:
+            id: { type: integer }
+            name: { type: string }
+            avatar_color: { type: [string, "null"] }
+            profile_picture: { type: [string, "null"] }
+        read_at: { type: [string, "null"], format: date-time }
+        created_at: { type: string, format: date-time }
+        notifiable_type: { type: string }
+        notifiable_id: { type: integer }
+        deep_link: { type: string }
+        group_key: { type: [string, "null"] }
     AuthSession:
       type: object
       required: [user, access_token, refresh_token, access_token_expires_at, refresh_token_expires_at]

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
-import { ArrowLeft, Camera, LogOut, MonitorSmartphone, Pencil, ShieldCheck, StopCircle, UserCog, X } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
+import { ArrowLeft, Camera, LogOut, MonitorSmartphone, Pencil, ShieldCheck, Sparkles, StopCircle, UserCog, X } from 'lucide-react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -17,6 +17,7 @@ import { LoadingState } from '@/src/components/StateView';
 import { useAppTheme } from '@/src/theme';
 
 export default function ProfileScreen() {
+  const { tab } = useLocalSearchParams<{ tab?: string }>();
   const theme = useAppTheme();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -26,6 +27,7 @@ export default function ProfileScreen() {
   const [form, setForm] = useState({ first_name: '', last_name: '', bio: '' });
   const [photo, setPhoto] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const sessions = useQuery({ queryKey: ['mobile-sessions'], queryFn: endpoints.sessions, enabled: Boolean(user) });
+  const skills = useQuery({ queryKey: ['profile-skills'], queryFn: () => endpoints.resource('/user_skills'), enabled: tab === 'skills' });
   const people = useQuery({ queryKey: ['people-for-impersonation'], queryFn: () => endpoints.users(), enabled: peopleOpen });
   const revoke = useMutation({ mutationFn: endpoints.revokeSession, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['mobile-sessions'] }), onError: (error) => Alert.alert('Unable to revoke session', apiErrorMessage(error)) });
   const save = useMutation({
@@ -54,6 +56,7 @@ export default function ProfileScreen() {
     <ScrollView contentContainerStyle={styles.scroll}>
       {user.impersonation?.active ? <View style={[styles.impersonationBanner, { backgroundColor: '#fff7ed', borderColor: '#fdba74' }]}><UserCog color="#c2410c" size={20} /><View style={styles.flex}><Text style={styles.impersonationTitle}>Viewing as {user.full_name}</Text><Text style={styles.impersonationText}>Actions are audited under the owner account.</Text></View><Pressable accessibilityLabel="Stop impersonating" onPress={stopImpersonation}><StopCircle color="#c2410c" size={22} /></Pressable></View> : null}
       <View style={styles.identity}><Avatar color={user.avatar_color} name={user.full_name} size={82} uri={user.profile_picture} /><Text style={[styles.name, { color: theme.text }]}>{user.full_name}</Text><Text style={[styles.job, { color: theme.textMuted }]}>{user.job_title || 'Nexus Hub member'}</Text><Text style={[styles.email, { color: theme.textMuted }]}>{user.email}</Text></View>
+      {tab === 'skills' ? <View accessibilityLiveRegion="polite" style={[styles.skillsPanel, { backgroundColor: theme.surface, borderColor: theme.primary }]}><View style={styles.skillsHeader}><Sparkles color={theme.primary} size={20} /><Text style={[styles.sectionTitleInline, { color: theme.text }]}>Skills and endorsements</Text></View>{skills.isLoading ? <LoadingState label="Loading skills" /> : skills.data?.data.length ? <View style={styles.skillGrid}>{skills.data.data.map((skill) => <View key={skill.id} style={[styles.skillChip, { backgroundColor: theme.surfaceMuted }]}><Text style={[styles.skillName, { color: theme.text }]}>{String(skill.name)}</Text><Text style={[styles.skillMeta, { color: theme.textMuted }]}>{String(skill.proficiency_label || skill.proficiency || 'Listed')} · {Number(skill.endorsements_count || 0)} endorsements</Text></View>)}</View> : <Text style={[styles.bio, { color: theme.textMuted, marginTop: 0 }]}>Your endorsed skills will appear here.</Text>}</View> : null}
       <Text style={[styles.sectionTitle, { color: theme.text }]}>Account</Text><View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}><InfoRow icon={<ShieldCheck color={theme.success} size={20} />} label="Roles" value={user.roles.join(', ') || 'Member'} /><View style={[styles.divider, { backgroundColor: theme.border }]} /><InfoRow icon={<MonitorSmartphone color={theme.primary} size={20} />} label="Workspace" value={user.workspace.name} /></View>
       {user.bio ? <Text style={[styles.bio, { color: theme.textMuted }]}>{user.bio}</Text> : null}
 
@@ -77,5 +80,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1 }, iconButton: { alignItems: 'center', height: 44, justifyContent: 'center', width: 44 }, scroll: { padding: 20, paddingBottom: 40 }, identity: { alignItems: 'center', paddingVertical: 18 }, name: { fontSize: 23, fontWeight: '800', marginTop: 13 }, job: { fontSize: 14, marginTop: 4 }, email: { fontSize: 13, marginTop: 3 }, sectionTitle: { fontSize: 16, fontWeight: '800', marginBottom: 10, marginTop: 22 }, sectionHeader: { alignItems: 'flex-end', flexDirection: 'row', justifyContent: 'space-between' }, sectionHint: { fontSize: 12, marginBottom: 10 }, panel: { borderRadius: 8, borderWidth: 1, overflow: 'hidden', paddingHorizontal: 14 }, infoRow: { alignItems: 'center', flexDirection: 'row', gap: 11, minHeight: 54 }, infoLabel: { flex: 1, fontSize: 14, fontWeight: '600' }, infoValue: { flexShrink: 1, fontSize: 13, maxWidth: '48%' }, divider: { height: StyleSheet.hairlineWidth, marginLeft: 31 }, bio: { fontSize: 14, lineHeight: 21, marginTop: 20 }, signOut: { marginTop: 30 },
   impersonationBanner: { alignItems: 'center', borderRadius: 8, borderWidth: 1, flexDirection: 'row', gap: 10, padding: 12 }, impersonationTitle: { color: '#9a3412', fontSize: 13, fontWeight: '800' }, impersonationText: { color: '#c2410c', fontSize: 11, marginTop: 2 },
   sessionRow: { alignItems: 'center', flexDirection: 'row', gap: 11, minHeight: 65 }, sessionName: { fontSize: 14, fontWeight: '700' }, sessionMeta: { fontSize: 12, marginTop: 3 }, revoke: { alignItems: 'center', height: 44, justifyContent: 'center', width: 40 }, impersonate: { alignItems: 'center', borderRadius: 8, borderWidth: 1, flexDirection: 'row', gap: 11, marginTop: 20, minHeight: 68, padding: 13 },
+  skillsPanel: { borderRadius: 8, borderWidth: 1, padding: 14 }, skillsHeader: { alignItems: 'center', flexDirection: 'row', gap: 9, marginBottom: 12 }, sectionTitleInline: { fontSize: 16, fontWeight: '800' }, skillGrid: { gap: 8 }, skillChip: { borderRadius: 8, padding: 11 }, skillName: { fontSize: 13, fontWeight: '800' }, skillMeta: { fontSize: 11, marginTop: 3, textTransform: 'capitalize' },
   modal: { flex: 1 }, form: { gap: 17, padding: 20 }, photoEditor: { alignSelf: 'center', marginBottom: 8 }, cameraBadge: { alignItems: 'center', borderRadius: 15, bottom: 0, height: 30, justifyContent: 'center', position: 'absolute', right: -3, width: 30 }, label: { fontSize: 13, fontWeight: '700', marginBottom: 7 }, field: { borderRadius: 8, borderWidth: 1, fontSize: 15, minHeight: 46, paddingHorizontal: 12, paddingVertical: 11 }, multiline: { minHeight: 112, textAlignVertical: 'top' }, peopleList: { paddingHorizontal: 20, paddingBottom: 36 }, personRow: { alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', gap: 12, minHeight: 68 },
 });

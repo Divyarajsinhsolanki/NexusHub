@@ -20,6 +20,27 @@ export type UserPreferences = {
   dark_mode?: boolean;
   landing_page?: string;
   notification_preferences?: Record<string, boolean>;
+  push_notification_settings?: PushNotificationSettings;
+};
+
+export type PushNotificationSettings = {
+  enabled: boolean;
+  previews: boolean;
+  categories: {
+    chat: boolean;
+    audio_calls: boolean;
+    video_calls: boolean;
+    work: boolean;
+    social: boolean;
+    reminders: boolean;
+  };
+  quiet_hours: {
+    enabled: boolean;
+    start: string;
+    end: string;
+    timezone: string;
+    allow_calls: boolean;
+  };
 };
 
 export type User = {
@@ -38,6 +59,7 @@ export type User = {
   roles: string[];
   workspace: Workspace;
   preferences?: UserPreferences;
+  push_notification_settings?: PushNotificationSettings;
   permissions?: string[];
   features?: Record<string, boolean>;
   impersonation?: { active: boolean; owner?: Person | null };
@@ -510,6 +532,10 @@ export type Notification = {
   notifiable_type: string;
   notifiable_id: number;
   deep_link: string;
+  event_type?: string;
+  category?: 'chat' | 'audio_calls' | 'video_calls' | 'work' | 'social' | 'reminders';
+  title?: string;
+  group_key?: string;
 };
 
 export type PdfDocument = EntityRecord & {

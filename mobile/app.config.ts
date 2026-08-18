@@ -41,6 +41,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     scheme: appScheme,
     extra: {
       ...base.extra,
+      appVariant,
       eas: easProjectId ? { projectId: easProjectId } : undefined,
       googleNativeAuth: {
         android: Boolean(googleServicesJson),

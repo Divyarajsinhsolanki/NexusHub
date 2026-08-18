@@ -427,6 +427,11 @@ export const endpoints = {
   createMessage(conversationId: number, form: FormData) {
     return create<Message>(`/conversations/${conversationId}/messages`, form);
   },
+  createTextMessage(conversationId: number, body: string, clientId: string) {
+    return create<Message>(`/conversations/${conversationId}/messages`, {
+      message: { body, client_id: clientId },
+    });
+  },
   reactToMessage(conversationId: number, messageId: number, emoji: string) {
     return create<{ reactions: Record<string, number>; reacted_emojis: string[] }>(`/conversations/${conversationId}/messages/${messageId}/reactions`, { message_reaction: { emoji } });
   },

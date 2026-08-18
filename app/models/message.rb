@@ -9,6 +9,7 @@ class Message < ApplicationRecord
   has_many :message_reactions, dependent: :destroy
 
   validate :body_or_attachment_present
+  validates :client_id, uniqueness: { scope: [:conversation_id, :user_id] }, allow_nil: true
 
   after_create :restore_hidden_participants
   after_create_commit :update_conversation_last_message
@@ -74,12 +75,13 @@ class Message < ApplicationRecord
       Notification.create(
         recipient_id: recipient.id,
         actor: user,
-        action: mentioned ? "chat_ping" : "chat_message",
+        action: mentioned ? "chat_mention" : "chat_message",
         notifiable: self,
         metadata: {
           conversation_id: conversation_id,
           conversation_name: conversation.display_name(recipient),
-          mentioned: mentioned
+          mentioned: mentioned,
+          message_preview: body.present? ? body.to_s.truncate(120) : attachment_preview
         }
       )
     end
@@ -105,5 +107,10 @@ class Message < ApplicationRecord
     ].map { |value| value.to_s.downcase.strip.gsub(/\s+/, ".") }
       .reject(&:blank?)
       .uniq
+  end
+
+  def attachment_preview
+    count = attachments.count
+    count > 1 ? "Sent #{count} attachments" : "Sent an attachment"
   end
 end

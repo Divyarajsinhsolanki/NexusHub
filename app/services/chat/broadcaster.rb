@@ -155,37 +155,24 @@ module Chat
       end
 
       def broadcast_notification(notification)
-        metadata = notification.metadata.respond_to?(:with_indifferent_access) ? notification.metadata.with_indifferent_access : {}
-
-        message =
-          case notification.action
-          when "reacted"
-            "#{notification.actor.full_name} reacted with #{metadata[:emoji]} to your message"
-          when "chat_ping"
-            conversation_name = metadata[:conversation_name].presence || "a conversation"
-            "#{notification.actor.full_name} mentioned you in #{conversation_name}"
-          when "chat_message"
-            conversation_name = metadata[:conversation_name].presence || "a conversation"
-            "#{notification.actor.full_name} sent a message in #{conversation_name}"
-          when "missed_call"
-            conversation_name = metadata[:conversation_name].presence || "a conversation"
-            call_type = metadata[:call_type].presence || "call"
-            "Missed #{call_type} call from #{notification.actor.full_name} in #{conversation_name}"
-          else
-            "You have a new notification"
-          end
+        catalog = notification.catalog
 
         payload = {
           type: "notification_received",
           notification: {
             id: notification.id,
             action: notification.action,
-            message: message,
+            event_type: catalog.event_type,
+            category: catalog.category,
+            title: catalog.title,
+            message: catalog.message,
             actor_avatar: notification.actor.profile_picture.attached? ? Rails.application.routes.url_helpers.rails_blob_path(notification.actor.profile_picture, only_path: true) : nil,
             read_at: notification.read_at,
             notifiable_type: notification.notifiable_type,
             notifiable_id: notification.notifiable_id,
             metadata: notification.metadata,
+            group_key: notification.group_key,
+            deep_link: catalog.deep_link,
             created_at: notification.created_at
           }
         }

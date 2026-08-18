@@ -41,6 +41,18 @@ async function initializeDatabase() {
       updated_at INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS drafts_expiry_index ON drafts(expires_at);
+    CREATE TABLE IF NOT EXISTS pending_notification_actions (
+      action_key TEXT PRIMARY KEY NOT NULL,
+      payload TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      attempt_count INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE IF NOT EXISTS processed_notification_actions (
+      action_key TEXT PRIMARY KEY NOT NULL,
+      processed_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS pending_notification_actions_created_index ON pending_notification_actions(created_at);
+    CREATE INDEX IF NOT EXISTS processed_notification_actions_date_index ON processed_notification_actions(processed_at);
   `);
   return database;
 }
@@ -48,5 +60,54 @@ async function initializeDatabase() {
 export async function clearOfflineData() {
   const database = await getDatabase();
   if (!database) return;
-  await database.execAsync('DELETE FROM app_cache; DELETE FROM drafts;');
+  await database.execAsync('DELETE FROM app_cache; DELETE FROM drafts; DELETE FROM pending_notification_actions; DELETE FROM processed_notification_actions;');
+}
+
+export type StoredNotificationAction = {
+  actionKey: string;
+  actionIdentifier: string;
+  data: Record<string, unknown>;
+  userText?: string;
+};
+
+export async function enqueueNotificationAction(action: StoredNotificationAction) {
+  const database = await getDatabase();
+  if (!database) return;
+  await database.runAsync(
+    'INSERT OR REPLACE INTO pending_notification_actions (action_key, payload, created_at, attempt_count) VALUES (?, ?, ?, COALESCE((SELECT attempt_count FROM pending_notification_actions WHERE action_key = ?), 0))',
+    action.actionKey,
+    JSON.stringify(action),
+    Date.now(),
+    action.actionKey,
+  );
+}
+
+export async function pendingNotificationActions(): Promise<StoredNotificationAction[]> {
+  const database = await getDatabase();
+  if (!database) return [];
+  const rows = await database.getAllAsync<{ payload: string }>('SELECT payload FROM pending_notification_actions ORDER BY created_at ASC LIMIT 50');
+  return rows.flatMap((row) => {
+    try { return [JSON.parse(row.payload) as StoredNotificationAction]; } catch { return []; }
+  });
+}
+
+export async function removePendingNotificationAction(actionKey: string) {
+  const database = await getDatabase();
+  if (!database) return;
+  await database.runAsync('DELETE FROM pending_notification_actions WHERE action_key = ?', actionKey);
+}
+
+export async function notificationActionWasProcessed(actionKey: string) {
+  const database = await getDatabase();
+  if (!database) return false;
+  return Boolean(await database.getFirstAsync('SELECT action_key FROM processed_notification_actions WHERE action_key = ? LIMIT 1', actionKey));
+}
+
+export async function markNotificationActionProcessed(actionKey: string) {
+  const database = await getDatabase();
+  if (!database) return;
+  const staleBefore = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  await database.runAsync('INSERT OR REPLACE INTO processed_notification_actions (action_key, processed_at) VALUES (?, ?)', actionKey, Date.now());
+  await database.runAsync('DELETE FROM processed_notification_actions WHERE processed_at < ?', staleBefore);
+  await removePendingNotificationAction(actionKey);
 }

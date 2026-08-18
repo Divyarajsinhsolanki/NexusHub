@@ -9,7 +9,7 @@ export function normalizeMobileDeepLink(deepLink: unknown) {
 
   if (path === '/notifications') return '/inbox/notifications';
   if (path === '/chat') return '/inbox';
-  if (path.startsWith('/chat/')) return `/inbox${path}`;
+  if (path.startsWith('/chat/')) return path;
   if (path === '/posts') return '/inbox';
   if (path.startsWith('/posts/')) return path.replace(/^\/posts\//, '/inbox/post/');
 

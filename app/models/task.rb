@@ -21,6 +21,9 @@ class Task < ApplicationRecord
   before_validation :assign_tail_order, on: :create
   after_commit :notify_assigned_user, on: :create
   after_commit :notify_assigned_user_change, on: :update
+  after_commit :notify_relevant_update, on: :update
+
+  NOTIFIABLE_UPDATE_FIELDS = %w[status priority start_date end_date].freeze
 
   private
 
@@ -54,14 +57,14 @@ class Task < ApplicationRecord
     return unless assigned_user
 
     actor_id = notification_actor_id(created_by)
-    return unless actor_id
+    return unless actor_id && actor_id != assigned_user.id
 
     Notification.create(
       recipient: assigned_user,
       actor_id: actor_id,
-      action: 'assigned',
+      action: 'task_assigned',
       notifiable: self,
-      metadata: { task_title: title || "Task #{task_id}" }
+      metadata: notification_metadata
     )
   end
 
@@ -74,15 +77,49 @@ class Task < ApplicationRecord
     return unless recipient
 
     actor_id = notification_actor_id(updated_by)
-    return unless actor_id
+    return unless actor_id && actor_id != recipient.id
 
     Notification.create(
       recipient: recipient,
       actor_id: actor_id,
-      action: 'assigned',
+      action: 'task_assigned',
       notifiable: self,
-      metadata: { task_title: title || "Task #{task_id}" }
+      metadata: notification_metadata
     )
+  end
+
+  def notify_relevant_update
+    changed_fields = previous_changes.keys & NOTIFIABLE_UPDATE_FIELDS
+    return if changed_fields.empty? || assigned_user.blank? || previous_changes.key?("assigned_to_user")
+
+    actor_id = notification_actor_id(updated_by)
+    return unless actor_id && actor_id != assigned_user.id
+
+    Notification.create(
+      recipient: assigned_user,
+      actor_id: actor_id,
+      action: "task_updated",
+      notifiable: self,
+      metadata: notification_metadata.merge(change_summary: task_change_summary(changed_fields))
+    )
+  end
+
+  def notification_metadata
+    {
+      task_id: id,
+      task_key: task_id,
+      task_title: title.presence || task_id.presence || "Task #{id}",
+      project_id: project_id
+    }
+  end
+
+  def task_change_summary(changed_fields)
+    labels = { "start_date" => "start date", "end_date" => "due date" }
+    changed_fields.map do |field|
+      _previous, current = previous_changes.fetch(field)
+      label = labels.fetch(field, field.humanize.downcase)
+      current.present? ? "#{label} changed to #{current}" : "#{label} cleared"
+    end.join(", ")
   end
 
   def notification_actor_id(default_id)

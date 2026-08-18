@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
+import { useAudioPlayer } from 'expo-audio';
 import { Phone, PhoneOff, Video } from 'lucide-react-native';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { endpoints } from '../api/endpoints';
@@ -58,6 +59,7 @@ export function IncomingCallCoordinator() {
   return (
     <Modal animationType="none" onRequestClose={() => void decline()} transparent visible>
       <View style={styles.backdrop}>
+        <IncomingRingtone callType={incoming.call_type} />
         <View accessibilityRole="alert" style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <View style={[styles.avatar, { backgroundColor: theme.primary }]}>{incoming.call_type === 'video' ? <Video color="#ffffff" size={30} /> : <Phone color="#ffffff" size={30} />}</View>
           <Text style={[styles.eyebrow, { color: theme.primary }]}>INCOMING {incoming.call_type.toUpperCase()} CALL</Text>
@@ -71,6 +73,17 @@ export function IncomingCallCoordinator() {
       </View>
     </Modal>
   );
+}
+
+function IncomingRingtone({ callType }: { callType: 'audio' | 'video' }) {
+  const player = useAudioPlayer(callType === 'video' ? require('../../assets/sounds/nexus_video_call.wav') : require('../../assets/sounds/nexus_audio_call.wav'));
+  useEffect(() => {
+    player.loop = true;
+    player.volume = 0.65;
+    player.play();
+    return () => player.pause();
+  }, [player]);
+  return null;
 }
 
 function CallAction({ color, icon, label, onPress }: { color: string; icon: React.ReactNode; label: string; onPress: () => void }) {

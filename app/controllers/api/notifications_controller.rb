@@ -1,15 +1,23 @@
 class Api::NotificationsController < Api::BaseController
   PAGE_SIZE = 20
+  LEGACY_ACTION_FILTERS = {
+    "assigned" => %w[assigned project_assigned task_assigned issue_assigned team_member_added],
+    "commented" => %w[commented post_commented],
+    "update" => %w[update task_updated issue_updated],
+    "chat_ping" => %w[chat_ping chat_mention],
+    "reacted" => %w[reacted message_reacted],
+    "missed_call" => %w[missed_call missed_audio_call missed_video_call]
+  }.freeze
 
   def index
-    notifications_scope = current_user.notifications.includes(:actor).recent
+    notifications_scope = current_user.notifications.visible_in_feed.includes(:actor, :notifiable).recent
     notifications_scope = apply_status_filter(notifications_scope)
     notifications_scope = apply_action_filter(notifications_scope)
     notifications_scope = apply_notifiable_type_filter(notifications_scope)
 
     current_page = requested_page
     total_count = notifications_scope.count
-    unread_count = current_user.notifications.unread.count
+    unread_count = current_user.notifications.visible_in_feed.unread.count
     notifications = notifications_scope.offset((current_page - 1) * PAGE_SIZE).limit(PAGE_SIZE)
 
     render json: {
@@ -24,6 +32,11 @@ class Api::NotificationsController < Api::BaseController
           read_at: n.read_at,
           created_at: n.created_at,
           metadata: n.metadata,
+          event_type: n.catalog.event_type,
+          category: n.catalog.category,
+          title: n.catalog.title,
+          group_key: n.group_key,
+          deep_link: n.catalog.deep_link,
           message: generate_message(n)
         }
       end,
@@ -36,13 +49,13 @@ class Api::NotificationsController < Api::BaseController
   end
 
   def mark_read
-    notification = current_user.notifications.find(params[:id])
+    notification = current_user.notifications.visible_in_feed.find(params[:id])
     notification.mark_as_read!
     render json: { success: true }
   end
 
   def mark_all_read
-    current_user.notifications.unread.update_all(read_at: Time.current)
+    current_user.notifications.visible_in_feed.unread.update_all(read_at: Time.current)
     render json: { success: true }
   end
 
@@ -58,32 +71,7 @@ class Api::NotificationsController < Api::BaseController
   end
 
   def generate_message(notification)
-    case notification.action
-    when 'assigned'
-      "#{notification.actor.full_name} assigned you a task"
-    when 'commented'
-      "#{notification.actor.full_name} commented on your post"
-    when 'update'
-      "#{notification.actor.full_name} updated a task"
-    when 'calendar_reminder'
-      event_title = notification.metadata&.dig('event_title') || 'an event'
-      "Reminder: #{event_title} is coming up"
-    when 'chat_message'
-      conversation_name = notification.metadata&.dig('conversation_name') || 'a conversation'
-      "#{notification.actor.full_name} sent a message in #{conversation_name}"
-    when 'chat_ping'
-      conversation_name = notification.metadata&.dig('conversation_name') || 'a conversation'
-      "#{notification.actor.full_name} mentioned you in #{conversation_name}"
-    when 'missed_call'
-      conversation_name = notification.metadata&.dig('conversation_name') || 'a conversation'
-      call_type = notification.metadata&.dig('call_type') || 'call'
-      "Missed #{call_type} call from #{notification.actor.full_name} in #{conversation_name}"
-    when 'reacted'
-      emoji = notification.metadata&.dig('emoji')
-      emoji.present? ? "#{notification.actor.full_name} reacted #{emoji} to your message" : "#{notification.actor.full_name} reacted to your message"
-    else
-      "New notification"
-    end
+    notification.catalog.message
   end
 
   def apply_status_filter(scope)
@@ -100,7 +88,7 @@ class Api::NotificationsController < Api::BaseController
   def apply_action_filter(scope)
     return scope if params[:action_type].blank?
 
-    scope.where(action: params[:action_type])
+    scope.where(action: LEGACY_ACTION_FILTERS.fetch(params[:action_type], params[:action_type]))
   end
 
   def apply_notifiable_type_filter(scope)

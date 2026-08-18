@@ -130,7 +130,12 @@ class Api::UsersController < Api::BaseController
       :phone_number,
       :bio,
       social_links: {},
-      notification_preferences: {}
+      notification_preferences: {},
+      push_notification_settings: [
+        :enabled,
+        :previews,
+        { categories: {}, quiet_hours: [:enabled, :start, :end, :timezone, :allow_calls] }
+      ]
     )
   end
 

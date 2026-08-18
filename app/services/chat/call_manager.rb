@@ -127,6 +127,7 @@ module Chat
       call_session.reload
       Chat::Broadcaster.broadcast_call_event(call_session, "call_participant_left", user_id: user.id)
       Chat::Broadcaster.broadcast_call_event(call_session, "call_ended") unless call_session.live?
+      notify_call_ended(call_session) unless call_session.live?
       call_session
     end
 
@@ -146,6 +147,7 @@ module Chat
       call_session.reload
       Chat::Broadcaster.broadcast_call_event(call_session, "call_participant_left", user_id: user.id)
       Chat::Broadcaster.broadcast_call_event(call_session, "call_ended") unless call_session.live?
+      notify_call_ended(call_session) unless call_session.live?
       call_session
     end
 
@@ -165,6 +167,7 @@ module Chat
 
       call_session.reload
       Chat::Broadcaster.broadcast_call_event(call_session, "call_ended")
+      notify_call_ended(call_session)
       call_session
     end
 
@@ -241,7 +244,7 @@ module Chat
       notification = Notification.create(
         recipient: call_participant.user,
         actor: call_session.initiator,
-        action: "missed_call",
+        action: call_session.call_type == "video" ? "missed_video_call" : "missed_audio_call",
         notifiable: call_session,
         metadata: {
           conversation_id: call_session.conversation_id,
@@ -252,6 +255,28 @@ module Chat
       )
 
       CallMailer.missed_call(call_participant.user, call_session).deliver_later if notification.persisted?
+    end
+
+    def notify_call_ended(call_session)
+      action = call_session.call_type == "video" ? "ended_video_call" : "ended_audio_call"
+      call_session.call_participants.includes(:user).where.not(user_id: user.id).find_each do |participant|
+        membership = call_session.conversation.conversation_participants.find_by(user_id: participant.user_id)
+        next if membership&.muted?
+
+        Notification.find_or_create_by!(
+          recipient: participant.user,
+          actor: user,
+          action: action,
+          notifiable: call_session
+        ) do |notification|
+          notification.metadata = {
+            conversation_id: call_session.conversation_id,
+            conversation_name: call_session.conversation.display_name(participant.user),
+            call_session_id: call_session.id,
+            call_type: call_session.call_type
+          }
+        end
+      end
     end
   end
 end

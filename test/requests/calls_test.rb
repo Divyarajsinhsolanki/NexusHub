@@ -143,7 +143,7 @@ class CallsTest < ActionDispatch::IntegrationTest
       CallSessionTimeoutJob.perform_now(call_id)
     end
 
-    assert_empty Notification.unscoped.where(recipient: @recipient, action: "missed_call")
+    assert_empty Notification.unscoped.where(recipient: @recipient, action: "missed_audio_call")
     assert_empty ActionMailer::Base.deliveries
   end
 
@@ -158,7 +158,7 @@ class CallsTest < ActionDispatch::IntegrationTest
       CallSessionTimeoutJob.perform_now(call_id)
     end
 
-    notification = Notification.unscoped.find_by!(recipient: @recipient, action: "missed_call")
+    notification = Notification.unscoped.find_by!(recipient: @recipient, action: "missed_video_call")
     assert_equal call_id, notification.metadata.fetch("call_session_id")
     assert_equal 1, ActionMailer::Base.deliveries.length
     assert_includes ActionMailer::Base.deliveries.last.to, @recipient.email

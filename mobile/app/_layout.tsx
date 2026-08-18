@@ -1,4 +1,4 @@
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useGlobalSearchParams, usePathname, useRouter, useSegments } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useGlobalSearchParams, useLocalSearchParams, usePathname, useRouter, useSegments } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import * as Sentry from '@sentry/react-native';
 import * as SplashScreen from 'expo-splash-screen';
@@ -14,6 +14,7 @@ import { PushRegistrar } from '@/src/notifications/PushRegistrar';
 import { useAppTheme } from '@/src/theme';
 import { EnvironmentGate } from '@/src/components/EnvironmentGate';
 import { IncomingCallCoordinator } from '@/src/calls/IncomingCallCoordinator';
+import { notificationBehavior, setVisibleNotificationRoute } from '@/src/notifications/presentation';
 
 Sentry.init({
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
@@ -22,12 +23,7 @@ Sentry.init({
 });
 
 Notifications.setNotificationHandler({
-  handleNotification: async (notification) => ({
-    shouldPlaySound: notification.request.content.data?.type === 'call_ringing',
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
+  handleNotification: async (notification) => notificationBehavior(notification),
 });
 
 export {
@@ -78,9 +74,17 @@ function RootLayoutNav() {
       </Stack>
       <IncomingCallCoordinator />
       <PushRegistrar />
+      <NotificationRouteTracker />
       <AuthGate />
     </ThemeProvider>
   );
+}
+
+function NotificationRouteTracker() {
+  const pathname = usePathname();
+  const params = useLocalSearchParams();
+  useEffect(() => setVisibleNotificationRoute(pathname, params), [params, pathname]);
+  return null;
 }
 
 function AuthGate() {

@@ -86,6 +86,7 @@ class User < ApplicationRecord
   has_many :calendar_events, dependent: :destroy
   has_many :mobile_sessions, dependent: :destroy
   has_many :mobile_devices, dependent: :destroy
+  has_many :push_deliveries, foreign_key: :recipient_id, dependent: :destroy
   belongs_to :department, optional: true
 
   attr_encrypted :keka_api_key,
@@ -234,6 +235,27 @@ class User < ApplicationRecord
 
   def notification_preference_enabled?(action)
     notification_preferences_with_defaults.fetch(action.to_s, true)
+  end
+
+  def push_notification_settings_with_defaults
+    PushNotificationSettings.normalize(push_notification_settings)
+  end
+
+  def push_notification_enabled_for?(category)
+    settings = push_notification_settings_with_defaults
+    settings["enabled"] && settings.fetch("categories", {}).fetch(category.to_s, true)
+  end
+
+  def push_notification_previews?
+    push_notification_settings_with_defaults["previews"]
+  end
+
+  def push_quiet_period(now: Time.current)
+    PushNotificationSettings.quiet_period(push_notification_settings, now: now)
+  end
+
+  def calls_allowed_during_quiet_hours?
+    push_notification_settings_with_defaults.dig("quiet_hours", "allow_calls")
   end
 
   private

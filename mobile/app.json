@@ -54,9 +54,20 @@
         {
           "icon": "./assets/images/android-icon-monochrome.png",
           "color": "#2563eb",
-          "defaultChannel": "general"
+          "defaultChannel": "nexus_work_v1",
+          "enableBackgroundRemoteNotifications": true,
+          "sounds": [
+            "./assets/sounds/nexus_chat.wav",
+            "./assets/sounds/nexus_audio_call.wav",
+            "./assets/sounds/nexus_video_call.wav",
+            "./assets/sounds/nexus_work.wav",
+            "./assets/sounds/nexus_social.wav",
+            "./assets/sounds/nexus_reminder.wav"
+          ]
         }
       ],
+      "expo-audio",
+      "expo-asset",
       [
         "expo-sqlite",
         {

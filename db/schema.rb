@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2027_07_30_000000) do
+ActiveRecord::Schema[8.1].define(version: 2027_08_18_000000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -431,12 +431,14 @@ ActiveRecord::Schema[8.1].define(version: 2027_07_30_000000) do
 
   create_table "messages", force: :cascade do |t|
     t.text "body"
+    t.string "client_id"
     t.bigint "conversation_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.bigint "workspace_id", null: false
     t.index ["conversation_id", "created_at"], name: "index_messages_on_conversation_id_and_created_at"
+    t.index ["conversation_id", "user_id", "client_id"], name: "idx_messages_conversation_user_client", unique: true, where: "(client_id IS NOT NULL)"
     t.index ["conversation_id"], name: "index_messages_on_conversation_id"
     t.index ["user_id"], name: "index_messages_on_user_id"
     t.index ["workspace_id", "conversation_id", "id"], name: "idx_messages_workspace_conversation_cursor"
@@ -445,6 +447,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_07_30_000000) do
 
   create_table "mobile_devices", force: :cascade do |t|
     t.boolean "active", default: true, null: false
+    t.string "app_variant", default: "legacy", null: false
     t.string "app_version"
     t.datetime "created_at", null: false
     t.string "device_identifier"
@@ -452,7 +455,9 @@ ActiveRecord::Schema[8.1].define(version: 2027_07_30_000000) do
     t.datetime "disabled_at"
     t.string "expo_push_token", null: false
     t.datetime "last_seen_at"
+    t.string "native_build_version"
     t.string "platform", null: false
+    t.integer "push_schema_version", default: 1, null: false
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.bigint "workspace_id", null: false
@@ -486,6 +491,8 @@ ActiveRecord::Schema[8.1].define(version: 2027_07_30_000000) do
     t.string "action"
     t.bigint "actor_id", null: false
     t.datetime "created_at", null: false
+    t.boolean "feed_visible", default: true, null: false
+    t.string "group_key"
     t.jsonb "metadata"
     t.bigint "notifiable_id", null: false
     t.string "notifiable_type", null: false
@@ -496,6 +503,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_07_30_000000) do
     t.index ["actor_id"], name: "index_notifications_on_actor_id"
     t.index ["notifiable_type", "notifiable_id"], name: "index_notifications_on_notifiable"
     t.index ["recipient_id", "action", "created_at"], name: "index_notifications_on_recipient_id_and_action_and_created_at"
+    t.index ["recipient_id", "group_key", "created_at"], name: "idx_notifications_recipient_group_created"
     t.index ["recipient_id", "read_at"], name: "index_notifications_on_recipient_id_and_read_at"
     t.index ["recipient_id"], name: "index_notifications_on_recipient_id"
     t.index ["workspace_id"], name: "index_notifications_on_workspace_id"
@@ -726,6 +734,34 @@ ActiveRecord::Schema[8.1].define(version: 2027_07_30_000000) do
     t.index ["workspace_id"], name: "index_projects_on_workspace_id"
   end
 
+  create_table "push_deliveries", force: :cascade do |t|
+    t.integer "attempt_count", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.string "deduplication_key", null: false
+    t.string "event_type", null: false
+    t.string "expo_ticket_id"
+    t.string "last_error_code"
+    t.string "last_error_message"
+    t.bigint "mobile_device_id", null: false
+    t.bigint "notification_id"
+    t.datetime "receipt_checked_at"
+    t.bigint "recipient_id", null: false
+    t.datetime "sent_at"
+    t.bigint "source_id"
+    t.string "source_type"
+    t.string "status", default: "queued", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "workspace_id", null: false
+    t.index ["deduplication_key"], name: "index_push_deliveries_on_deduplication_key", unique: true
+    t.index ["expo_ticket_id"], name: "index_push_deliveries_on_expo_ticket_id", unique: true, where: "(expo_ticket_id IS NOT NULL)"
+    t.index ["mobile_device_id"], name: "index_push_deliveries_on_mobile_device_id"
+    t.index ["notification_id"], name: "index_push_deliveries_on_notification_id"
+    t.index ["recipient_id"], name: "index_push_deliveries_on_recipient_id"
+    t.index ["source_type", "source_id"], name: "index_push_deliveries_on_source_type_and_source_id"
+    t.index ["status", "created_at"], name: "index_push_deliveries_on_status_and_created_at"
+    t.index ["workspace_id"], name: "index_push_deliveries_on_workspace_id"
+  end
+
   create_table "roles", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "name", null: false
@@ -946,6 +982,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_07_30_000000) do
     t.datetime "last_seen_at"
     t.jsonb "notification_preferences", default: {"digest"=>false, "update"=>true, "assigned"=>true, "commented"=>true}, null: false
     t.string "phone_number"
+    t.jsonb "push_notification_settings", default: {}, null: false
     t.datetime "remember_created_at"
     t.datetime "reset_password_sent_at"
     t.string "reset_password_token"
@@ -1165,6 +1202,10 @@ ActiveRecord::Schema[8.1].define(version: 2027_07_30_000000) do
   add_foreign_key "project_vault_items", "workspaces"
   add_foreign_key "projects", "users", column: "owner_id"
   add_foreign_key "projects", "workspaces"
+  add_foreign_key "push_deliveries", "mobile_devices"
+  add_foreign_key "push_deliveries", "notifications", on_delete: :nullify
+  add_foreign_key "push_deliveries", "users", column: "recipient_id"
+  add_foreign_key "push_deliveries", "workspaces"
   add_foreign_key "skill_endorsements", "teams"
   add_foreign_key "skill_endorsements", "user_skills"
   add_foreign_key "skill_endorsements", "users", column: "endorser_id"

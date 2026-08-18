@@ -75,8 +75,10 @@ class Api::V1::BaseController < Api::BaseController
         color_theme: user.color_theme,
         dark_mode: user.dark_mode,
         landing_page: user.landing_page,
-        notification_preferences: user.notification_preferences_with_defaults
+        notification_preferences: user.notification_preferences_with_defaults,
+        push_notification_settings: user.push_notification_settings_with_defaults
       },
+      push_notification_settings: user.push_notification_settings_with_defaults,
       permissions: mobile_permissions(user),
       features: mobile_features(user),
       impersonation: {
@@ -162,16 +164,21 @@ class Api::V1::BaseController < Api::BaseController
   end
 
   def serialize_notification(notification)
+    catalog = notification.catalog
     {
       id: notification.id,
       action: notification.action,
-      message: notification_message(notification),
+      event_type: catalog.event_type,
+      category: catalog.category,
+      title: catalog.title,
+      message: catalog.message,
       actor: serialize_person(notification.actor),
       read_at: notification.read_at,
       created_at: notification.created_at,
       notifiable_type: notification.notifiable_type,
       notifiable_id: notification.notifiable_id,
-      deep_link: notification_deep_link(notification)
+      group_key: notification.group_key,
+      deep_link: catalog.deep_link
     }
   end
 
@@ -229,32 +236,11 @@ class Api::V1::BaseController < Api::BaseController
   end
 
   def notification_message(notification)
-    actor = notification.actor.full_name
-    case notification.action
-    when "assigned" then "#{actor} assigned you a task"
-    when "commented" then "#{actor} commented on your post"
-    when "update" then "#{actor} updated a task"
-    when "calendar_reminder" then "Reminder: #{notification.metadata&.dig('event_title') || 'an event'} is coming up"
-    when "chat_message" then "#{actor} sent a message"
-    when "chat_ping" then "#{actor} mentioned you"
-    when "missed_call" then "Missed call from #{actor}"
-    when "reacted" then "#{actor} reacted to your message"
-    else "New notification"
-    end
+    notification.catalog.message
   end
 
   def notification_deep_link(notification)
-    notifiable = notification.notifiable
-    task = notifiable if notifiable.is_a?(Task)
-    project = notifiable if notifiable.is_a?(Project)
-    project ||= task&.project
-
-    return "/projects/#{project.id}?taskId=#{task.id}" if project && task
-    return "/projects/#{project.id}" if project
-
-    "/notifications"
-  rescue ActiveRecord::RecordNotFound
-    "/notifications"
+    notification.catalog.deep_link
   end
 
   def handle_unauthorized

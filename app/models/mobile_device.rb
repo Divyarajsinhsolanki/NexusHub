@@ -3,9 +3,11 @@ class MobileDevice < ApplicationRecord
 
   belongs_to :user
   belongs_to :workspace
+  has_many :push_deliveries, dependent: :destroy
 
   validates :expo_push_token, presence: true, uniqueness: true
   validates :platform, inclusion: { in: PLATFORMS }
+  validates :push_schema_version, numericality: { only_integer: true, greater_than_or_equal_to: 1 }
   validate :workspace_matches_user
 
   scope :active, -> { where(active: true, disabled_at: nil) }

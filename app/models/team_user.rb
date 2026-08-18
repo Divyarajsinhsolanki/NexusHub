@@ -17,4 +17,21 @@ class TeamUser < ApplicationRecord
     rejected: 'rejected',
     pending: 'pending'
   }, default: 'pending'
+
+  after_create_commit :notify_member
+
+  private
+
+  def notify_member
+    actor = Current.user
+    return unless actor && actor.id != user_id
+
+    Notification.create(
+      recipient: user,
+      actor: actor,
+      action: "team_member_added",
+      notifiable: self,
+      metadata: { team_id: team_id, team_name: team.name, role: role, status: status }
+    )
+  end
 end

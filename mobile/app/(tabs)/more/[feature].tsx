@@ -1,15 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as DocumentPicker from 'expo-document-picker';
+import * as Notifications from 'expo-notifications';
 import * as WebBrowser from 'expo-web-browser';
 import { format } from 'date-fns';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Archive, ArrowLeft, Bookmark, CalendarPlus, CheckCircle2, ChevronRight, ExternalLink, FilePlus2, FileText, Plus, RefreshCw, Search, Settings2, Trash2 } from 'lucide-react-native';
-import { useState } from 'react';
-import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Alert, AppState, FlatList, Linking, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
 import { apiErrorMessage } from '@/src/api/client';
 import { endpoints } from '@/src/api/endpoints';
-import type { CalendarEvent, EntityRecord, PdfDocument } from '@/src/api/types';
+import type { CalendarEvent, EntityRecord, PdfDocument, PushNotificationSettings } from '@/src/api/types';
 import { useAuth } from '@/src/auth/AuthProvider';
 import { EntityCollectionScreen, type EntityField } from '@/src/components/EntityCollectionScreen';
 import { PageHeader } from '@/src/components/PageHeader';
@@ -26,6 +27,7 @@ import { FullCalendarScreen } from '@/src/screens/CalendarScreen';
 import { DepartmentsScreen } from '@/src/screens/DepartmentsScreen';
 import { TeamsScreen } from '@/src/screens/TeamsScreen';
 import { LearningGoalsScreen } from '@/src/screens/LearningGoalsScreen';
+import { registerCurrentPushDevice } from '@/src/notifications/PushRegistrar';
 
 const configs: Record<string, { title: string; subtitle: string; path: string; wrapper: string; primary: string; secondary: string[]; fields: EntityField[]; permission?: string }> = {
   skills: { title: 'Skills', subtitle: 'Your capabilities and proficiency', path: '/user_skills', wrapper: 'user_skill', primary: 'name', secondary: ['proficiency_label', 'endorsements_count'], fields: [{ key: 'name', label: 'Skill name' }, { key: 'proficiency', label: 'Proficiency', placeholder: 'beginner, intermediate, advanced, expert' }] },
@@ -44,6 +46,22 @@ const notificationOptions = [
   { key: 'calendar_reminder', label: 'Calendar reminders', detail: 'Upcoming meetings and reminders' },
   { key: 'digest', label: 'Weekly digest', detail: 'Summary of team activity' },
 ];
+
+const pushCategoryOptions: Array<{ key: keyof PushNotificationSettings['categories']; label: string; detail: string }> = [
+  { key: 'chat', label: 'Chat', detail: 'Messages, mentions, and reactions' },
+  { key: 'audio_calls', label: 'Audio calls', detail: 'Incoming, missed, and ended calls' },
+  { key: 'video_calls', label: 'Video calls', detail: 'Incoming, missed, and ended video calls' },
+  { key: 'work', label: 'Work', detail: 'Projects, tasks, issues, and team changes' },
+  { key: 'social', label: 'Social activity', detail: 'Post likes, comments, and endorsements' },
+  { key: 'reminders', label: 'Reminders', detail: 'Calendar and event reminders' },
+];
+
+const defaultPushSettings: PushNotificationSettings = {
+  enabled: true,
+  previews: true,
+  categories: { chat: true, audio_calls: true, video_calls: true, work: true, social: true, reminders: true },
+  quiet_hours: { enabled: false, start: '22:00', end: '07:00', timezone: 'UTC', allow_calls: true },
+};
 
 const landingPageOptions = [
   { value: 'calendar', label: 'Calendar' },
@@ -174,10 +192,25 @@ function SettingsScreen() {
   const [passwordForm, setPasswordForm] = useState({ current_password: '', password: '', password_confirmation: '' });
   const preferences = user?.preferences || {};
   const prefs = preferences.notification_preferences || {};
+  const pushSettings = user?.push_notification_settings || defaultPushSettings;
+  const [permissionStatus, setPermissionStatus] = useState<string>('checking');
+  const [quietStart, setQuietStart] = useState(pushSettings.quiet_hours.start);
+  const [quietEnd, setQuietEnd] = useState(pushSettings.quiet_hours.end);
   const selectedColor = preferences.color_theme || user?.color_theme || 'blue';
   const selectedLandingPage = preferences.landing_page || 'posts';
   const darkMode = Boolean(preferences.dark_mode ?? user?.dark_mode);
   const readOnly = Boolean(user?.demo_account);
+
+  useEffect(() => {
+    const refreshPermission = () => void Notifications.getPermissionsAsync().then((permission) => setPermissionStatus(permission.status)).catch(() => setPermissionStatus('unavailable'));
+    refreshPermission();
+    const subscription = AppState.addEventListener('change', (state) => { if (state === 'active') refreshPermission(); });
+    return () => subscription.remove();
+  }, []);
+  useEffect(() => {
+    setQuietStart(pushSettings.quiet_hours.start);
+    setQuietEnd(pushSettings.quiet_hours.end);
+  }, [pushSettings.quiet_hours.end, pushSettings.quiet_hours.start]);
 
   const preferenceMutation = useMutation({
     mutationFn: (input: Record<string, unknown>) => endpoints.updateMe(input),
@@ -199,6 +232,26 @@ function SettingsScreen() {
 
   const updatePreference = (input: Record<string, unknown>) => preferenceMutation.mutate(input);
   const updateNotification = (key: string, value: boolean) => updatePreference({ notification_preferences: { ...prefs, [key]: value } });
+  const updatePush = (next: PushNotificationSettings) => updatePreference({ push_notification_settings: next });
+  const updatePushCategory = (key: keyof PushNotificationSettings['categories'], value: boolean) => updatePush({ ...pushSettings, categories: { ...pushSettings.categories, [key]: value } });
+  const requestPushPermission = async () => {
+    try {
+      const permission = await Notifications.requestPermissionsAsync({ android: {}, ios: { allowAlert: true, allowBadge: true, allowSound: true } });
+      setPermissionStatus(permission.status);
+      if (permission.status === 'granted' && user) await registerCurrentPushDevice(user);
+      else if (!permission.canAskAgain) await Linking.openSettings();
+    } catch (error) {
+      Alert.alert('Notifications unavailable', apiErrorMessage(error));
+    }
+  };
+  const saveQuietTime = (key: 'start' | 'end', value: string) => {
+    if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value)) {
+      Alert.alert('Use a valid time', 'Enter quiet hours in 24-hour HH:MM format, for example 22:00.');
+      key === 'start' ? setQuietStart(pushSettings.quiet_hours.start) : setQuietEnd(pushSettings.quiet_hours.end);
+      return;
+    }
+    updatePush({ ...pushSettings, quiet_hours: { ...pushSettings.quiet_hours, [key]: value } });
+  };
   const submitPassword = () => {
     if (passwordForm.password.length < 8) {
       Alert.alert('Password too short', 'Use at least 8 characters.');
@@ -256,6 +309,35 @@ function SettingsScreen() {
           </View>
           <Switch accessibilityLabel={option.label} disabled={preferenceMutation.isPending || readOnly} onValueChange={(value) => updateNotification(option.key, value)} trackColor={{ false: theme.surfaceMuted, true: theme.primary }} value={prefs[option.key] ?? option.key !== 'digest'} />
         </View>)}
+      </View>
+
+      <Text style={[styles.sectionTitle, { color: theme.text }]}>Push notifications</Text>
+      <View style={[styles.settingsPanel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <View style={styles.settingRow}>
+          <View style={styles.flex}>
+            <Text style={[styles.rowTitle, { color: theme.text }]}>Phone permission</Text>
+            <Text style={[styles.rowMeta, { color: theme.textMuted }]}>{humanize(permissionStatus)} · controls whether this phone can show alerts</Text>
+          </View>
+          <Pressable accessibilityRole="button" onPress={() => ['denied', 'granted'].includes(permissionStatus) ? void Linking.openSettings() : void requestPushPermission()} style={[styles.smallButton, { borderColor: theme.border }]}><Text style={[styles.smallButtonText, { color: theme.primary }]}>{permissionStatus === 'granted' ? 'Settings' : 'Enable'}</Text></Pressable>
+        </View>
+        <View style={[styles.settingRow, { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
+          <View style={styles.flex}><Text style={[styles.rowTitle, { color: theme.text }]}>Push notifications</Text><Text style={[styles.rowMeta, { color: theme.textMuted }]}>Master switch for alerts sent to your devices</Text></View>
+          <Switch accessibilityLabel="Push notifications" disabled={preferenceMutation.isPending || readOnly} onValueChange={(enabled) => updatePush({ ...pushSettings, enabled })} trackColor={{ false: theme.surfaceMuted, true: theme.primary }} value={pushSettings.enabled} />
+        </View>
+        <View style={[styles.settingRow, { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
+          <View style={styles.flex}><Text style={[styles.rowTitle, { color: theme.text }]}>Message previews</Text><Text style={[styles.rowMeta, { color: theme.textMuted }]}>Show a short, sanitized preview on the lock screen</Text></View>
+          <Switch accessibilityLabel="Message previews" disabled={preferenceMutation.isPending || readOnly || !pushSettings.enabled} onValueChange={(previews) => updatePush({ ...pushSettings, previews })} trackColor={{ false: theme.surfaceMuted, true: theme.primary }} value={pushSettings.previews} />
+        </View>
+        {pushCategoryOptions.map((option) => <View key={option.key} style={[styles.settingRow, { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}><View style={styles.flex}><Text style={[styles.rowTitle, { color: theme.text }]}>{option.label}</Text><Text style={[styles.rowMeta, { color: theme.textMuted }]}>{option.detail}</Text></View><Switch accessibilityLabel={`${option.label} push notifications`} disabled={preferenceMutation.isPending || readOnly || !pushSettings.enabled} onValueChange={(value) => updatePushCategory(option.key, value)} trackColor={{ false: theme.surfaceMuted, true: theme.primary }} value={pushSettings.categories[option.key]} /></View>)}
+        <View style={[styles.settingRow, { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
+          <View style={styles.flex}><Text style={[styles.rowTitle, { color: theme.text }]}>Quiet hours</Text><Text style={[styles.rowMeta, { color: theme.textMuted }]}>Hold routine alerts and send a summary later</Text></View>
+          <Switch accessibilityLabel="Quiet hours" disabled={preferenceMutation.isPending || readOnly || !pushSettings.enabled} onValueChange={(enabled) => updatePush({ ...pushSettings, quiet_hours: { ...pushSettings.quiet_hours, enabled } })} trackColor={{ false: theme.surfaceMuted, true: theme.primary }} value={pushSettings.quiet_hours.enabled} />
+        </View>
+        {pushSettings.quiet_hours.enabled ? <View style={[styles.preferenceBlock, { borderTopColor: theme.border }]}>
+          <View style={styles.timeFields}><View style={styles.timeField}><SettingsField label="Starts" placeholder="22:00" value={quietStart} onChangeText={setQuietStart} onEndEditing={() => saveQuietTime('start', quietStart)} /></View><View style={styles.timeField}><SettingsField label="Ends" placeholder="07:00" value={quietEnd} onChangeText={setQuietEnd} onEndEditing={() => saveQuietTime('end', quietEnd)} /></View></View>
+          <Text style={[styles.rowMeta, { color: theme.textMuted }]}>Timezone: {pushSettings.quiet_hours.timezone}</Text>
+          <View style={styles.settingRowCompact}><View style={styles.flex}><Text style={[styles.rowTitle, { color: theme.text }]}>Allow calls</Text><Text style={[styles.rowMeta, { color: theme.textMuted }]}>Incoming calls can interrupt quiet hours</Text></View><Switch accessibilityLabel="Allow calls during quiet hours" disabled={preferenceMutation.isPending || readOnly} onValueChange={(allow_calls) => updatePush({ ...pushSettings, quiet_hours: { ...pushSettings.quiet_hours, allow_calls } })} trackColor={{ false: theme.surfaceMuted, true: theme.primary }} value={pushSettings.quiet_hours.allow_calls} /></View>
+        </View> : null}
       </View>
 
       <Text style={[styles.sectionTitle, { color: theme.text }]}>Security</Text>
@@ -341,4 +423,5 @@ const styles = StyleSheet.create({
   knowledgeCard: { borderRadius: 8, borderWidth: 1, marginBottom: 10, padding: 15 }, knowledgeHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }, knowledgeType: { fontSize: 10, fontWeight: '800' }, knowledgeBody: { fontSize: 13, lineHeight: 20, marginTop: 8 }, knowledgeActions: { flexDirection: 'row', gap: 2 }, knowledgeAction: { alignItems: 'center', height: 36, justifyContent: 'center', width: 36 },
   uploading: { alignItems: 'center', flexDirection: 'row', gap: 9, minHeight: 44, paddingHorizontal: 20 }, pdfRow: { alignItems: 'center', borderRadius: 8, borderWidth: 1, flexDirection: 'row', marginBottom: 9, minHeight: 70, padding: 11 }, fileIcon: { alignItems: 'center', borderRadius: 7, height: 42, justifyContent: 'center', marginRight: 12, width: 42 },
   settingsPanel: { borderRadius: 8, borderWidth: 1, marginBottom: 22, overflow: 'hidden' }, settingRow: { alignItems: 'center', flexDirection: 'row', minHeight: 70, paddingHorizontal: 14 }, settingsLink: { alignItems: 'center', borderRadius: 8, borderWidth: 1, flexDirection: 'row', gap: 12, marginBottom: 9, minHeight: 66, padding: 13 }, preferenceBlock: { borderTopWidth: StyleSheet.hairlineWidth, gap: 12, padding: 14 }, colorGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 9, marginTop: 10 }, colorOption: { alignItems: 'center', borderRadius: 8, borderWidth: 1, minHeight: 62, minWidth: 76, padding: 8 }, swatch: { borderRadius: 13, height: 26, width: 26 }, selectedMark: { fontSize: 9, fontWeight: '900', marginTop: 5 }, chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }, chip: { borderRadius: 8, justifyContent: 'center', minHeight: 38, paddingHorizontal: 12 }, passwordPanel: { borderRadius: 8, borderWidth: 1, gap: 12, marginTop: 9, padding: 14 }, label: { fontSize: 13, fontWeight: '800', marginBottom: 7 }, field: { borderRadius: 8, borderWidth: 1, fontSize: 15, minHeight: 46, paddingHorizontal: 12, paddingVertical: 10 }, multiline: { minHeight: 96, textAlignVertical: 'top' }, adminRow: { alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', minHeight: 66 },
+  smallButton: { alignItems: 'center', borderRadius: 8, borderWidth: 1, justifyContent: 'center', marginLeft: 12, minHeight: 38, paddingHorizontal: 12 }, smallButtonText: { fontSize: 12, fontWeight: '900' }, timeFields: { flexDirection: 'row', gap: 10 }, timeField: { flex: 1 }, settingRowCompact: { alignItems: 'center', flexDirection: 'row', minHeight: 58 },
 });

@@ -17,12 +17,14 @@ class MessageReaction < ApplicationRecord
 
   def notify_recipient
     return if user_id == message.user_id
+    membership = message.conversation.conversation_participants.find_by(user_id: message.user_id)
+    return if membership&.muted?
 
     Notification.create!(
       recipient_id: message.user_id,
       actor: user,
       notifiable: self,
-      action: "reacted",
+      action: "message_reacted",
       metadata: {
         emoji: emoji,
         message_id: message_id,
