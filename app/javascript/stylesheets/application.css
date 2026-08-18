@@ -2865,6 +2865,34 @@ html[data-nexus-nav="collapsed"] {
 }
 
 @media (max-width: 767px) {
+  .nexus-shell-mobile-immersive {
+    height: var(--nexus-visual-viewport-height, 100dvh);
+    min-height: var(--nexus-visual-viewport-height, 100dvh);
+  }
+
+  .nexus-shell-mobile-immersive .nexus-top-command-bar,
+  .nexus-shell-mobile-immersive .nexus-bottom-navigation,
+  .nexus-shell-mobile-immersive .nexus-demo-chrome {
+    display: none;
+  }
+
+  .nexus-shell-mobile-immersive .shell-main {
+    height: var(--nexus-visual-viewport-height, 100dvh);
+    min-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+
+  .nexus-shell-mobile-immersive .shell-main-stage.shell-main-stage-immersive {
+    height: 100%;
+    padding: 0;
+  }
+
+  .nexus-shell-mobile-immersive .shell-route-frame,
+  .nexus-shell-mobile-immersive .nexus-pdf-master {
+    height: 100% !important;
+  }
+
   .nexus-shell-chat-thread {
     height: var(--nexus-visual-viewport-height, 100dvh);
     min-height: var(--nexus-visual-viewport-height, 100dvh);
@@ -2889,6 +2917,64 @@ html[data-nexus-nav="collapsed"] {
 
   .nexus-shell-chat-thread .shell-route-frame {
     height: 100%;
+  }
+}
+
+/* PDF Master follows the workspace tokens instead of forcing a light theme. */
+.nexus-pdf-master,
+.nexus-pdf-panel-backdrop > section {
+  color: var(--nexus-text);
+  border-color: var(--nexus-line) !important;
+  background: var(--nexus-panel) !important;
+  box-shadow: none !important;
+}
+
+:is(.nexus-pdf-master, .nexus-pdf-panel-backdrop) .bg-white {
+  background-color: var(--nexus-panel) !important;
+}
+
+:is(.nexus-pdf-master, .nexus-pdf-panel-backdrop) :is(.bg-slate-50, .bg-slate-50\/80) {
+  background-color: var(--nexus-panel-subtle) !important;
+}
+
+:is(.nexus-pdf-master, .nexus-pdf-panel-backdrop) :is(.bg-slate-100, .bg-slate-100\/80) {
+  background-color: var(--nexus-workspace-bg) !important;
+}
+
+:is(.nexus-pdf-master, .nexus-pdf-panel-backdrop) :is(.border-slate-200, .border-slate-300) {
+  border-color: var(--nexus-line) !important;
+}
+
+:is(.nexus-pdf-master, .nexus-pdf-panel-backdrop) :is(.text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600) {
+  color: var(--nexus-text) !important;
+}
+
+:is(.nexus-pdf-master, .nexus-pdf-panel-backdrop) :is(.text-slate-500, .text-slate-400, .text-slate-300) {
+  color: var(--nexus-muted) !important;
+}
+
+:is(.nexus-pdf-master, .nexus-pdf-panel-backdrop) :is(input, textarea, select) {
+  color: var(--nexus-text);
+  border-color: var(--nexus-line);
+  background-color: var(--nexus-panel);
+}
+
+.nexus-pdf-canvas {
+  background: var(--nexus-workspace-bg) !important;
+  overscroll-behavior: contain;
+}
+
+.nexus-pdf-page {
+  background: #fff !important;
+}
+
+@media (max-width: 767px) {
+  .nexus-pdf-master > .grid:last-of-type {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .nexus-pdf-panel-backdrop > section {
+    bottom: max(0.5rem, env(safe-area-inset-bottom));
   }
 }
 

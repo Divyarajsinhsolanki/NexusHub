@@ -49,6 +49,41 @@ class PdfDocumentTest < ActiveSupport::TestCase
     changed&.close!
   end
 
+  test "uses preloaded versions for storage and history summaries" do
+    original = create_test_pdf(text: "original")
+    changed = create_test_pdf(text: "changed")
+    document = PdfDocuments::Manager.create_from_path!(
+      user: @user,
+      path: original.path,
+      filename: "preloaded-history.pdf"
+    )
+    PdfDocuments::Manager.append_version!(
+      document:,
+      created_by: @user,
+      path: changed.path,
+      operation: "changed",
+      base_version_id: document.current_version_id
+    )
+    document = PdfDocument.includes(:current_version, :versions).find(document.id)
+
+    assert document.versions.loaded?
+    queries = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+      queries << payload[:sql] unless payload[:cached] || %w[SCHEMA TRANSACTION].include?(payload[:name])
+    end
+    begin
+      assert_operator document.storage_bytes, :>, 0
+      assert_equal 1, document.undo_version.version_number
+      assert_nil document.redo_version
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber)
+    end
+    assert_empty queries
+  ensure
+    original&.close!
+    changed&.close!
+  end
+
   test "rejects a stale base version" do
     original = create_test_pdf
     changed = create_test_pdf(text: "changed")

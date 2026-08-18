@@ -39,16 +39,30 @@ class PdfDocument < ApplicationRecord
   def undo_version
     return unless current_version
 
+    if versions.loaded?
+      return versions
+        .select { |version| version.version_number < current_version.version_number }
+        .max_by(&:version_number)
+    end
+
     versions.where("version_number < ?", current_version.version_number).reorder(version_number: :desc).first
   end
 
   def redo_version
     return unless current_version
 
+    if versions.loaded?
+      return versions
+        .select { |version| version.version_number > current_version.version_number }
+        .min_by(&:version_number)
+    end
+
     versions.where("version_number > ?", current_version.version_number).reorder(:version_number).first
   end
 
   def storage_bytes
+    return versions.sum { |version| version.byte_size.to_i } if versions.loaded?
+
     versions.sum(:byte_size)
   end
 

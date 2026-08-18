@@ -312,6 +312,7 @@ const AppShell = () => {
   const isAuthRoute = ["/login", "/signup", "/forgot-password", "/reset-password"].includes(location.pathname);
   const routeLayout = getRouteLayout(location.pathname);
   const isChatThreadRoute = routeLayout.mobileChrome === "thread";
+  const isMobileImmersiveRoute = ["thread", "immersive"].includes(routeLayout.mobileChrome);
 
   if (isPublicRoute || isAuthRoute) {
     return <AppRoutes />;
@@ -319,7 +320,7 @@ const AppShell = () => {
 
   return (
     <div
-      className={`shell-app nexus-workspace-shell flex min-h-dvh flex-col ${isImmersiveRoute ? "shell-app-immersive" : ""} ${isChatRoute ? "shell-app-chat" : ""} ${isChatThreadRoute ? "nexus-shell-chat-thread" : ""} ${isProjectMetaverseRoute ? "nexus-shell-chromeless" : ""}`}
+      className={`shell-app nexus-workspace-shell flex min-h-dvh flex-col ${isImmersiveRoute ? "shell-app-immersive" : ""} ${isChatRoute ? "shell-app-chat" : ""} ${isChatThreadRoute ? "nexus-shell-chat-thread" : ""} ${isMobileImmersiveRoute ? "nexus-shell-mobile-immersive" : ""} ${isProjectMetaverseRoute ? "nexus-shell-chromeless" : ""}`}
       data-layout-mode={routeLayout.mode}
       data-density={routeLayout.density}
       data-route={location.pathname}

@@ -49,7 +49,11 @@ export const getRouteLayout = (pathname) => {
       context: null,
       inspector: null,
       panelMode: "drawer",
-      mobileChrome: pathname.startsWith("/chat/") ? "thread" : "default",
+      mobileChrome: pathname.startsWith("/chat/")
+        ? "thread"
+        : pathname.startsWith("/pdf")
+          ? "immersive"
+          : "default",
       density: "compact",
       projectId: getProjectIdFromPath(pathname),
     };

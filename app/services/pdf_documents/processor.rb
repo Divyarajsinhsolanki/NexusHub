@@ -11,12 +11,14 @@ module PdfDocuments
     MAX_SHAPES = 200
     MAX_PEN_POINTS = 2_000
     MAX_REDACTIONS = 100
+    MAX_REPLACEMENT_TEXT_LENGTH = 500
     MAX_TEXT_LENGTH = 5_000
     MAX_PAGES = 2_000
     MAX_TEXT_EXTRACTION_PAGES = 500
     MAX_IMAGE_EXPORT_PAGES = 100
     MAX_ARTIFACT_BYTES = 100.megabytes
     ANNOTATION_TYPES = %w[text watermark highlight rectangle arrow pen].freeze
+    REDACTION_MODES = %w[black blank strike replace].freeze
 
     def initialize(document:, user:)
       @document = document
@@ -494,16 +496,58 @@ module PdfDocuments
           width: image.width * 72.0 / 200.0,
           height: image.height * 72.0 / 200.0
         }
+        normalized_regions = regions.map do |region|
+          validate_rectangle!(region, page_dimensions, label: "Redaction")
+          mode = (region["redaction_mode"] || region[:redaction_mode] || "black").to_s
+          raise ArgumentError, "Unsupported redaction style." unless REDACTION_MODES.include?(mode)
+
+          replacement_text = (region["replacement_text"] || region[:replacement_text]).to_s
+          if mode == "replace"
+            raise ArgumentError, "Replacement text is required." if replacement_text.blank?
+            if replacement_text.length > MAX_REPLACEMENT_TEXT_LENGTH
+              raise ArgumentError, "Replacement text is too long."
+            end
+          end
+
+          color = (region["replacement_color"] || region[:replacement_color] || region["color"] || region[:color] || "#111827").to_s
+          validate_color!(color)
+          font_size = finite_number!(region["font_size"] || region[:font_size] || 14)
+          raise ArgumentError, "Replacement font size must be between 6 and 72." unless font_size.between?(6, 72)
+
+          stroke_width = finite_number!(region["stroke_width"] || region[:stroke_width] || 3)
+          raise ArgumentError, "Strikethrough width must be between 1 and 12." unless stroke_width.between?(1, 12)
+
+          {
+            mode:,
+            x: region.fetch("x", region[:x]).to_f,
+            y: region.fetch("y", region[:y]).to_f,
+            width: region.fetch("width", region[:width]).to_f,
+            height: region.fetch("height", region[:height]).to_f,
+            replacement_text:,
+            color: color.start_with?("#") ? color : "##{color}",
+            font_size:,
+            stroke_width:
+          }
+        end
         image.combine_options do |command|
-          command.fill("black")
-          command.stroke("black")
-          regions.each do |region|
-            validate_rectangle!(region, page_dimensions, label: "Redaction")
-            x1 = region.fetch("x", region[:x]).to_f * scale
-            y1 = region.fetch("y", region[:y]).to_f * scale
-            x2 = x1 + region.fetch("width", region[:width]).to_f * scale
-            y2 = y1 + region.fetch("height", region[:height]).to_f * scale
-            command.draw("rectangle #{x1},#{y1} #{x2},#{y2}")
+          normalized_regions.each do |region|
+            x1 = region[:x] * scale
+            y1 = region[:y] * scale
+            x2 = x1 + region[:width] * scale
+            y2 = y1 + region[:height] * scale
+
+            if region[:mode] == "strike"
+              command.fill("none")
+              command.stroke(region[:color])
+              command.strokewidth(region[:stroke_width] * scale)
+              command.draw("line #{x1},#{(y1 + y2) / 2.0} #{x2},#{(y1 + y2) / 2.0}")
+            else
+              cover_color = region[:mode] == "black" ? "black" : "white"
+              command.fill(cover_color)
+              command.stroke(cover_color)
+              command.strokewidth(1)
+              command.draw("rectangle #{x1},#{y1} #{x2},#{y2}")
+            end
           end
         end
         image.write(image_path)
@@ -513,6 +557,20 @@ module PdfDocuments
         page_pdf = File.join(directory, "page.pdf")
         Prawn::Document.generate(page_pdf, page_size: [page_width, page_height], margin: 0) do |pdf|
           pdf.image image_path, at: [0, page_height], width: page_width, height: page_height
+          normalized_regions.select { |region| region[:mode] == "replace" }.each do |region|
+            padding = 2
+            pdf.fill_color(region[:color].delete_prefix("#"))
+            pdf.text_box(
+              region[:replacement_text],
+              at: [region[:x] + padding, page_height - region[:y] - padding],
+              width: [region[:width] - (padding * 2), 1].max,
+              height: [region[:height] - (padding * 2), 1].max,
+              size: region[:font_size],
+              min_font_size: 6,
+              overflow: :shrink_to_fit,
+              valign: :center
+            )
+          end
         end
         CombinePDF.load(page_pdf).pages.first
       end

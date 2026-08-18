@@ -650,7 +650,7 @@ const Navbar = () => {
     else window.dispatchEvent(new Event("nexus:open-search"));
   };
 
-  if (isMobileViewport && layout.mobileChrome === "thread") return null;
+  if (isMobileViewport && ["thread", "immersive"].includes(layout.mobileChrome)) return null;
 
   return (
     <>

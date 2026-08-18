@@ -17,6 +17,7 @@ describe("workspace route layout metadata", () => {
   it("keeps immersive tools focused and people pages adaptive", () => {
     expect(getRouteLayout("/chat/7")).toMatchObject({ mode: "immersive", context: null, inspector: null });
     expect(getRouteLayout("/meet/room-1")).toMatchObject({ mode: "immersive", density: "compact" });
+    expect(getRouteLayout("/pdf-master")).toMatchObject({ mode: "immersive", mobileChrome: "immersive" });
     expect(getRouteLayout("/teams")).toMatchObject({ mode: "master-detail", context: null, inspector: "activity" });
   });
 

@@ -4,7 +4,9 @@ class Api::PdfDocumentsController < Api::BaseController
   ]
 
   def index
-    documents = current_user.pdf_documents.includes(:current_version, thumbnail_attachment: :blob)
+    # The serializer needs the complete (bounded) version history to calculate
+    # storage and undo/redo state. Preloading it avoids three queries per row.
+    documents = current_user.pdf_documents.includes(:current_version, :versions, thumbnail_attachment: :blob)
       .order(updated_at: :desc)
     if params[:q].present?
       pattern = "%#{ActiveRecord::Base.sanitize_sql_like(params[:q].to_s.strip)}%"

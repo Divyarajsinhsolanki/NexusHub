@@ -38,6 +38,22 @@ const defaultShape = (tool, point, pageNumber) => {
     };
   }
 
+  if (tool === "redact") {
+    return {
+      ...common,
+      type: tool,
+      x: point.x,
+      y: point.y,
+      width: 0,
+      height: 0,
+      redaction_mode: "black",
+      replacement_text: "",
+      replacement_color: "#111827",
+      font_size: 14,
+      stroke_width: 3,
+    };
+  }
+
   return { ...common, type: tool, x: point.x, y: point.y, width: 0, height: 0 };
 };
 
@@ -81,6 +97,20 @@ const Shape = ({ shape, selected, onPointerDown }) => {
   }
 
   const isImage = ["signature", "stamp"].includes(shape.type);
+  const isRedaction = shape.type === "redact";
+  const redactionMode = shape.redaction_mode || "black";
+  const redactionColor = shape.replacement_color || shape.color || "#111827";
+  const replacementFontSize = Math.max(6, Math.min(shape.font_size || 14, Math.max(6, shape.height - 4)));
+  const replacementCharacterLimit = Math.max(1, Math.floor(shape.width / Math.max(4, replacementFontSize * 0.58)));
+  const replacementText = (shape.replacement_text || "").length > replacementCharacterLimit
+    ? `${shape.replacement_text.slice(0, Math.max(1, replacementCharacterLimit - 1))}…`
+    : shape.replacement_text;
+  const redactionFill = redactionMode === "black"
+    ? "#000000"
+    : ["blank", "replace"].includes(redactionMode) ? "#ffffff" : "transparent";
+  const redactionStroke = selected
+    ? "#4f46e5"
+    : redactionMode === "strike" ? redactionColor : redactionMode === "black" ? "#000000" : "#94a3b8";
   return (
     <g {...pointerProps}>
       <rect
@@ -89,19 +119,37 @@ const Shape = ({ shape, selected, onPointerDown }) => {
         width={shape.width}
         height={shape.height}
         rx={shape.type === "highlight" ? 2 : 0}
-        fill={isImage ? "rgba(79,70,229,0.08)" : fill}
+        fill={isImage ? "rgba(79,70,229,0.08)" : isRedaction ? redactionFill : fill}
         fillOpacity={shape.type === "highlight" ? shape.opacity ?? 0.35 : 1}
-        stroke={selected ? "#4f46e5" : stroke}
+        stroke={isRedaction ? redactionStroke : selected ? "#4f46e5" : stroke}
         strokeWidth={selected ? 2 : shape.stroke_width || 3}
-        strokeDasharray={isImage || ["crop", "redact"].includes(shape.type) ? "8 5" : undefined}
+        strokeDasharray={isImage || shape.type === "crop" || (isRedaction && selected) ? "8 5" : undefined}
       />
       {isImage ? (
         <text x={shape.x + 8} y={shape.y + 22} fill="#4338ca" fontSize="13" fontWeight="700">
           {shape.type === "signature" ? "Signature image" : "Stamp image"}
         </text>
       ) : null}
-      {shape.type === "redact" ? (
-        <text x={shape.x + 8} y={shape.y + 22} fill="#dc2626" fontSize="12" fontWeight="700">REDACT</text>
+      {isRedaction && redactionMode === "strike" ? (
+        <line
+          x1={shape.x}
+          y1={shape.y + (shape.height / 2)}
+          x2={shape.x + shape.width}
+          y2={shape.y + (shape.height / 2)}
+          stroke={redactionColor}
+          strokeWidth={shape.stroke_width || 3}
+        />
+      ) : null}
+      {isRedaction && redactionMode === "replace" && replacementText ? (
+        <text
+          x={shape.x + 3}
+          y={shape.y + (shape.height / 2) + (replacementFontSize * 0.34)}
+          fill={redactionColor}
+          fontSize={replacementFontSize}
+          fontWeight="500"
+        >
+          {replacementText}
+        </text>
       ) : null}
     </g>
   );
@@ -348,7 +396,7 @@ const PdfDocumentCanvas = ({
   if (!documentRecord) return null;
 
   return (
-    <div ref={containerRef} className="flex h-full min-h-0 w-full justify-center overflow-auto bg-slate-100/80 p-2 sm:p-4 md:p-8">
+    <div ref={containerRef} className="nexus-pdf-canvas flex h-full min-h-0 w-full justify-center overflow-auto bg-slate-100/80 p-2 sm:p-4 md:p-8">
       {error ? (
         <div className="m-auto rounded-2xl border border-rose-200 bg-rose-50 p-8 text-center text-rose-700">
           <AlertTriangle className="mx-auto mb-3 h-8 w-8" />
@@ -357,7 +405,7 @@ const PdfDocumentCanvas = ({
         </div>
       ) : (
         <div
-          className="relative self-start overflow-hidden bg-white shadow-2xl shadow-slate-900/20"
+          className="nexus-pdf-page relative self-start overflow-hidden bg-white shadow-xl shadow-slate-900/15"
           style={{ width: renderWidth, height: renderHeight }}
         >
           <Document

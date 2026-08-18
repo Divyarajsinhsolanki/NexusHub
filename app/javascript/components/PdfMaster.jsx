@@ -7,7 +7,7 @@ import { toast } from "react-hot-toast";
 import {
   ArrowDownToLine,
   ArrowRight,
-  Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Crop,
@@ -111,6 +111,93 @@ const tools = [
   { id: "crop", label: "Crop", icon: Crop },
   { id: "redact", label: "Redact", icon: Eraser },
 ];
+
+const redactionStyles = [
+  { id: "black", label: "Black", description: "Permanently remove the content and cover it with black." },
+  { id: "blank", label: "Blank", description: "Permanently remove the content and leave a clean white area." },
+  { id: "strike", label: "Strike", description: "Draw a line through the content. The text remains visibly readable." },
+  { id: "replace", label: "Replace", description: "Permanently remove the content and place new text in the area." },
+];
+
+const RedactionOptions = ({ shape, onChange }) => {
+  if (shape?.type !== "redact") return null;
+  const mode = shape.redaction_mode || "black";
+  const selectedStyle = redactionStyles.find((style) => style.id === mode) || redactionStyles[0];
+
+  return (
+    <div className="col-span-2 space-y-2 rounded-lg border border-slate-200 bg-white p-2.5">
+      <label className="block text-[10px] font-bold uppercase text-slate-500">
+        Redaction style
+        <select
+          value={mode}
+          onChange={(event) => onChange({ redaction_mode: event.target.value })}
+          className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-2 text-xs font-bold normal-case text-slate-700"
+        >
+          {redactionStyles.map((style) => <option key={style.id} value={style.id}>{style.label}</option>)}
+        </select>
+      </label>
+      <p className={`text-[11px] leading-4 ${mode === "strike" ? "text-amber-700" : "text-slate-500"}`}>
+        {selectedStyle.description}
+      </p>
+      {mode === "replace" ? (
+        <>
+          <label className="block text-[10px] font-bold uppercase text-slate-500">
+            Replacement text
+            <textarea
+              value={shape.replacement_text || ""}
+              onChange={(event) => onChange({ replacement_text: event.target.value })}
+              maxLength={500}
+              rows={2}
+              placeholder="Enter replacement text"
+              className="mt-1 w-full resize-y rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium normal-case text-slate-700"
+            />
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="text-[10px] font-bold uppercase text-slate-500">
+              Font size
+              <input type="number" min="6" max="72" value={shape.font_size || 14} onChange={(event) => onChange({ font_size: Number(event.target.value) })} className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs" />
+            </label>
+            <label className="text-[10px] font-bold uppercase text-slate-500">
+              Text color
+              <input type="color" value={shape.replacement_color || "#111827"} onChange={(event) => onChange({ replacement_color: event.target.value })} className="mt-1 h-8 w-full rounded-md border border-slate-200 bg-white p-1" />
+            </label>
+          </div>
+        </>
+      ) : null}
+      {mode === "strike" ? (
+        <div className="grid grid-cols-2 gap-2">
+          <label className="text-[10px] font-bold uppercase text-slate-500">
+            Line width
+            <input type="number" min="1" max="12" value={shape.stroke_width || 3} onChange={(event) => onChange({ stroke_width: Number(event.target.value) })} className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs" />
+          </label>
+          <label className="text-[10px] font-bold uppercase text-slate-500">
+            Line color
+            <input type="color" value={shape.replacement_color || "#111827"} onChange={(event) => onChange({ replacement_color: event.target.value })} className="mt-1 h-8 w-full rounded-md border border-slate-200 bg-white p-1" />
+          </label>
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
+const ToolDisclosure = ({ icon: Icon, title, description, badge, danger = false, children }) => (
+  <details className={`pdf-tool-section group overflow-hidden rounded-xl border bg-white ${danger ? "border-rose-200" : "border-slate-200"}`}>
+    <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 px-3 py-2.5 outline-none transition hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500 [&::-webkit-details-marker]:hidden">
+      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${danger ? "bg-rose-50 text-rose-600" : "bg-slate-100 text-slate-600"}`}>
+        <Icon className="h-4 w-4" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className={`block text-xs font-black ${danger ? "text-rose-700" : "text-slate-800"}`}>{title}</span>
+        <span className="mt-0.5 block truncate text-[10px] text-slate-500">{description}</span>
+      </span>
+      {badge ? <span className="shrink-0 rounded-full bg-indigo-50 px-2 py-1 text-[9px] font-black text-indigo-700">{badge}</span> : null}
+      <ChevronDown className={`h-4 w-4 shrink-0 transition-transform duration-200 group-open:rotate-180 ${danger ? "text-rose-400" : "text-slate-400"}`} />
+    </summary>
+    <div className={`space-y-2 border-t p-3 ${danger ? "border-rose-100 bg-rose-50/40" : "border-slate-200 bg-slate-50/50"}`}>
+      {children}
+    </div>
+  </details>
+);
 
 const LazyPageThumbnail = ({ pageNumber }) => {
   const ref = useRef(null);
@@ -229,10 +316,16 @@ const PdfMaster = () => {
   const { user } = useContext(AuthContext);
   const isDemo = Boolean(user?.demo_account);
   const pollTimer = useRef(null);
+  const libraryRequestId = useRef(0);
+  const lastSearchedQuery = useRef("");
+  const mobilePanelRef = useRef(null);
+  const mobilePanelTriggerRef = useRef(null);
   const [documents, setDocuments] = useState(isDemo ? [SAMPLE_DOCUMENT] : []);
   const [usage, setUsage] = useState({ document_count: 0, document_limit: 25, storage_bytes: 0, storage_limit_bytes: 1024 ** 3 });
   const [selectedId, setSelectedId] = useState(isDemo ? SAMPLE_DOCUMENT.id : null);
   const [loading, setLoading] = useState(!isDemo);
+  const [libraryError, setLibraryError] = useState("");
+  const [searching, setSearching] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [search, setSearch] = useState("");
@@ -266,18 +359,30 @@ const PdfMaster = () => {
     [documents, isDemo, search]
   );
 
-  const loadDocuments = useCallback(async (preferredId, query = "") => {
+  const loadDocuments = useCallback(async (preferredId, query = "", { searching: showSearching = false } = {}) => {
     if (isDemo) return;
+    const requestId = ++libraryRequestId.current;
     const trimmedQuery = query.trim();
-    const { data } = await fetchPdfDocuments(trimmedQuery ? { q: trimmedQuery } : {});
-    setDocuments(data.documents || []);
-    setUsage(data.usage || {});
-    setSelectedId((current) => {
-      const candidate = preferredId || current;
-      return data.documents?.some((document) => String(document.id) === String(candidate))
-        ? candidate
-        : data.documents?.[0]?.id || null;
-    });
+    if (showSearching) setSearching(true);
+    try {
+      const { data } = await fetchPdfDocuments(trimmedQuery ? { q: trimmedQuery } : {});
+      if (requestId !== libraryRequestId.current) return false;
+      setDocuments(data.documents || []);
+      setUsage(data.usage || {});
+      setLibraryError("");
+      setSelectedId((current) => {
+        const candidate = preferredId || current;
+        return data.documents?.some((document) => String(document.id) === String(candidate))
+          ? candidate
+          : data.documents?.[0]?.id || null;
+      });
+      return true;
+    } catch (error) {
+      if (requestId !== libraryRequestId.current) return false;
+      throw error;
+    } finally {
+      if (requestId === libraryRequestId.current && showSearching) setSearching(false);
+    }
   }, [isDemo]);
 
   useEffect(() => {
@@ -288,16 +393,24 @@ const PdfMaster = () => {
       // The persistent library does not depend on browser storage.
     }
     loadDocuments()
-      .catch((error) => toast.error(errorMessage(error, "Could not load PDF library.")))
+      .catch((error) => {
+        const message = errorMessage(error, "Could not load PDF library.");
+        setLibraryError(message);
+        toast.error(message);
+      })
       .finally(() => setLoading(false));
-    return () => window.clearTimeout(pollTimer.current);
+    return () => {
+      libraryRequestId.current += 1;
+      window.clearTimeout(pollTimer.current);
+    };
   }, [isDemo, loadDocuments]);
 
   useEffect(() => {
-    if (isDemo || loading) return undefined;
+    if (isDemo || loading || search === lastSearchedQuery.current) return undefined;
 
     const timer = window.setTimeout(() => {
-      loadDocuments(undefined, search)
+      lastSearchedQuery.current = search;
+      loadDocuments(undefined, search, { searching: true })
         .catch((error) => toast.error(errorMessage(error, "Could not search PDF library.")));
     }, 250);
     return () => window.clearTimeout(timer);
@@ -460,6 +573,11 @@ const PdfMaster = () => {
 
   const dropzone = useDropzone({
     onDrop: handleUpload,
+    onDropRejected: (rejections) => {
+      const first = rejections[0];
+      const tooLarge = first?.errors?.some((error) => error.code === "file-too-large");
+      toast.error(tooLarge ? `${first.file.name} is larger than 50MB.` : "Choose a valid PDF file up to 50MB.");
+    },
     accept: { "application/pdf": [".pdf"] },
     maxSize: MAX_UPLOAD_BYTES,
     multiple: true,
@@ -479,8 +597,16 @@ const PdfMaster = () => {
     }
 
     if (redactions.length) {
+      const incompleteReplacement = redactions.find((shape) =>
+        (shape.redaction_mode || "black") === "replace" && !shape.replacement_text?.trim()
+      );
+      if (incompleteReplacement) {
+        setSelectedShapeId(incompleteReplacement.id);
+        toast.error("Enter replacement text for the selected redaction area.");
+        return;
+      }
       const confirmed = window.confirm(
-        "Secure redaction rasterizes affected pages. Searchable text and interactive elements on those pages will be removed. Continue?"
+        "Black, blank, and replacement redactions permanently remove selected content. Strikethrough leaves the content visibly readable. Affected pages are flattened and lose searchable text and interactive elements. Continue?"
       );
       if (!confirmed) return;
       await runOperation("redact", { regions: redactions });
@@ -519,17 +645,73 @@ const PdfMaster = () => {
   };
 
   const storagePercent = Math.min(100, ((usage.storage_bytes || 0) / (usage.storage_limit_bytes || 1)) * 100);
+  const openMobilePanel = (panel, trigger) => {
+    mobilePanelTriggerRef.current = trigger || document.activeElement;
+    setMobilePanel(panel);
+    setMobilePanelOpen(true);
+  };
+
+  useEffect(() => {
+    if (!mobilePanelOpen) return undefined;
+    const panel = mobilePanelRef.current;
+    const previousOverflow = document.body.style.overflow;
+    const focusableSelector = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const getFocusable = () => Array.from(panel?.querySelectorAll(focusableSelector) || []);
+    document.body.style.overflow = "hidden";
+    window.requestAnimationFrame(() => (getFocusable()[0] || panel)?.focus?.());
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMobilePanelOpen(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = getFocusable();
+      if (!focusable.length) {
+        event.preventDefault();
+        panel?.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      mobilePanelTriggerRef.current?.focus?.();
+    };
+  }, [mobilePanelOpen]);
+
+  useEffect(() => {
+    if (!mobilePanelOpen || typeof window.matchMedia !== "function") return undefined;
+    const desktop = window.matchMedia("(min-width: 1280px)");
+    const closeAtDesktop = () => {
+      if (desktop.matches) setMobilePanelOpen(false);
+    };
+    closeAtDesktop();
+    desktop.addEventListener?.("change", closeAtDesktop);
+    return () => desktop.removeEventListener?.("change", closeAtDesktop);
+  }, [mobilePanelOpen]);
 
   if (loading) {
     return (
-      <div className="flex h-full min-h-[70vh] items-center justify-center bg-slate-100">
-        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+      <div className="nexus-pdf-master flex h-[calc(100dvh-var(--nexus-command-height))] min-h-0 items-center justify-center bg-slate-100" aria-busy="true" aria-label="Loading document library">
+        <div className="text-center"><Loader2 className="mx-auto h-8 w-8 animate-spin text-indigo-600" /><p className="mt-3 text-sm font-semibold text-slate-500">Loading documents…</p></div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-[calc(100dvh-4.5rem)] min-h-0 w-full flex-col overflow-hidden rounded-t-2xl border border-white/70 bg-white shadow-2xl shadow-slate-900/10 sm:h-[calc(100dvh-5rem)] sm:rounded-t-3xl">
+    <div className="nexus-pdf-master flex h-[calc(100dvh-var(--nexus-command-height))] min-h-0 w-full flex-col overflow-hidden border border-slate-200 bg-white">
       <header className="flex min-h-16 shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-2 md:flex-nowrap md:gap-3 md:px-5">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white">
@@ -566,6 +748,28 @@ const PdfMaster = () => {
         </div>
       ) : null}
 
+      {libraryError && !documents.length ? (
+        <div className="flex min-h-0 flex-1 items-center justify-center bg-slate-100 p-6" role="alert">
+          <div className="w-full max-w-md rounded-xl border border-rose-200 bg-white p-6 text-center">
+            <ShieldAlert className="mx-auto h-9 w-9 text-rose-500" />
+            <h2 className="mt-3 text-lg font-black text-slate-900">Documents are unavailable</h2>
+            <p className="mt-2 text-sm text-slate-500">{libraryError}</p>
+            <button
+              type="button"
+              onClick={() => {
+                setLoading(true);
+                loadDocuments(undefined, search)
+                  .catch((error) => setLibraryError(errorMessage(error, "Could not load PDF library.")))
+                  .finally(() => setLoading(false));
+              }}
+              className="mt-5 inline-flex min-h-10 items-center justify-center rounded-lg bg-indigo-600 px-4 text-sm font-bold text-white"
+            >
+              <RotateCw className="mr-2 h-4 w-4" />Retry
+            </button>
+          </div>
+        </div>
+      ) : (
+      <>
       <div className="flex min-h-0 flex-1">
         <aside className="hidden w-72 shrink-0 flex-col border-r border-slate-200 bg-slate-50/80 lg:flex">
           <div className="grid grid-cols-2 border-b border-slate-200 bg-white p-2">
@@ -592,15 +796,15 @@ const PdfMaster = () => {
                   <div>
                     <div className="mb-1 flex justify-between text-[10px] font-bold text-slate-500">
                       <span>{usage.document_count || 0}/{usage.document_limit || 25} documents</span>
-                      <span>{bytesLabel(usage.storage_bytes)} / 1 GB</span>
+                      <span>{bytesLabel(usage.storage_bytes)} / {bytesLabel(usage.storage_limit_bytes)}</span>
                     </div>
                     <div className="h-1.5 overflow-hidden rounded-full bg-slate-200">
                       <div className="h-full rounded-full bg-indigo-500" style={{ width: `${storagePercent}%` }} />
                     </div>
                   </div>
                   <label className="relative block">
-                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                    <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search documents" className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-xs outline-none focus:border-indigo-400" />
+                    {searching ? <Loader2 className="absolute left-3 top-2.5 h-4 w-4 animate-spin text-indigo-500" /> : <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />}
+                    <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search documents" aria-label="Search documents" className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-xs outline-none focus:border-indigo-400" />
                   </label>
                 </div>
               ) : null}
@@ -616,6 +820,11 @@ const PdfMaster = () => {
                     </div>
                   </button>
                 ))}
+                {!filteredDocuments.length && search ? (
+                  <div className="px-3 py-8 text-center text-xs text-slate-500">
+                    <Search className="mx-auto mb-2 h-5 w-5 text-slate-300" />No documents match “{search}”.
+                  </div>
+                ) : null}
               </div>
             </div>
           ) : selectedDocument && !selectedDocument.encrypted ? (
@@ -695,10 +904,12 @@ const PdfMaster = () => {
           ) : (
             <div className="flex flex-1 items-center justify-center p-6">
               <div className="max-w-lg text-center">
-                <FilePlus2 className="mx-auto h-12 w-12 text-indigo-500" />
-                <h2 className="mt-4 text-2xl font-black text-slate-900">Add your first PDF</h2>
-                <p className="mt-2 text-sm text-slate-500">Documents stay in your personal library until you delete them.</p>
-                {!isDemo ? (
+                {search ? <Search className="mx-auto h-12 w-12 text-indigo-400" /> : <FilePlus2 className="mx-auto h-12 w-12 text-indigo-500" />}
+                <h2 className="mt-4 text-2xl font-black text-slate-900">{search ? "No documents found" : "Add your first PDF"}</h2>
+                <p className="mt-2 text-sm text-slate-500">{search ? `Nothing matches “${search}”. Try another search.` : "Documents stay in your personal library until you delete them."}</p>
+                {search ? (
+                  <button type="button" onClick={() => setSearch("")} className="mt-5 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-700">Clear search</button>
+                ) : !isDemo ? (
                   <button type="button" onClick={dropzone.open} className="mt-5 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-bold text-white"><Upload className="mr-2 inline h-4 w-4" />Choose PDF</button>
                 ) : null}
               </div>
@@ -706,12 +917,17 @@ const PdfMaster = () => {
           )}
         </main>
 
-        <aside className="hidden w-80 shrink-0 flex-col border-l border-slate-200 bg-white xl:flex">
-          <div className="border-b border-slate-200 px-4 py-3">
-            <h2 className="text-sm font-black text-slate-900">Document tools</h2>
-            <p className="mt-0.5 text-xs text-slate-500">Edit the selected document or staged object.</p>
+        <aside className="hidden w-[19rem] shrink-0 flex-col border-l border-slate-200 bg-white 2xl:w-80 xl:flex">
+          <div className="border-b border-slate-200 px-4 py-3.5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-black text-slate-900">Document tools</h2>
+                <p className="mt-0.5 text-xs text-slate-500">Quick edits first. Expand tools when needed.</p>
+              </div>
+              {selectedDocument ? <span className="rounded-full bg-slate-100 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-slate-500">{selectedDocument.page_count || 0} pages</span> : null}
+            </div>
           </div>
-          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
             {busy && operation ? (
               <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-3">
                 <div className="flex items-center gap-2 text-xs font-bold text-indigo-700"><Loader2 className="h-4 w-4 animate-spin" />{operation.kind.replaceAll("_", " ")}</div>
@@ -740,7 +956,8 @@ const PdfMaster = () => {
                         <label className="text-[10px] font-bold uppercase text-slate-500">Size<input type="number" min="8" max="96" value={selectedShape.font_size || 18} onChange={(event) => updateShape({ font_size: Number(event.target.value) })} className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs" /></label>
                       </>
                     ) : null}
-                    <label className="text-[10px] font-bold uppercase text-slate-500">Color<input type="color" value={selectedShape.color || "#dc2626"} onChange={(event) => updateShape({ color: event.target.value })} className="mt-1 h-8 w-full rounded-md border border-slate-200 bg-white p-1" /></label>
+                    {selectedShape.type !== "redact" ? <label className="text-[10px] font-bold uppercase text-slate-500">Color<input type="color" value={selectedShape.color || "#dc2626"} onChange={(event) => updateShape({ color: event.target.value })} className="mt-1 h-8 w-full rounded-md border border-slate-200 bg-white p-1" /></label> : null}
+                    <RedactionOptions shape={selectedShape} onChange={updateShape} />
                   </div>
                 ) : null}
                 {shapes.some((shape) => ["signature", "stamp"].includes(shape.type)) ? (
@@ -752,8 +969,8 @@ const PdfMaster = () => {
 
             {selectedDocument && !isDemo ? (
               <>
-                <section className="space-y-2">
-                  <h3 className="text-[10px] font-black uppercase tracking-wide text-slate-400">Document</h3>
+                <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-3">
+                  <h3 className="text-[10px] font-black uppercase tracking-wide text-slate-400">Quick actions</h3>
                   <input
                     value={selectedDocument.title}
                     onChange={(event) => updateSelectedDocument({ ...selectedDocument, title: event.target.value })}
@@ -774,8 +991,11 @@ const PdfMaster = () => {
                   </div>
                 </section>
 
-                <section className="space-y-2">
-                  <h3 className="text-[10px] font-black uppercase tracking-wide text-slate-400">Selected pages</h3>
+                <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-[10px] font-black uppercase tracking-wide text-slate-400">Page tools</h3>
+                    {selectedPageNumbers.length ? <span className="rounded-full bg-indigo-50 px-2 py-1 text-[9px] font-black text-indigo-700">{selectedPageNumbers.length} selected</span> : null}
+                  </div>
                   <p className="text-xs text-slate-500">{selectedPageNumbers.length ? selectedPageNumbers.join(", ") : "Select pages from the Pages tab."}</p>
                   <div className="grid grid-cols-2 gap-2">
                     <button type="button" disabled={busy || !selectedPageNumbers.length} onClick={() => runOperation("rotate_pages", { page_numbers: selectedPageNumbers, degrees: 270 })} className="inspector-button"><RotateCcw className="h-4 w-4" />Left</button>
@@ -787,14 +1007,19 @@ const PdfMaster = () => {
                   </div>
                 </section>
 
-                <section className="space-y-2">
-                  <h3 className="text-[10px] font-black uppercase tracking-wide text-slate-400">Security</h3>
-                  <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="At least 8 characters" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
-                  <button type="button" disabled={busy || password.length < 8 || selectedDocument.encrypted} onClick={() => runOperation("protect", {}, { password }).then(() => setPassword(""))} className="flex w-full items-center justify-center rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white"><Lock className="mr-2 h-4 w-4" />Protect PDF</button>
-                </section>
+                <div className="space-y-2">
+                  <p className="px-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">More tools</p>
+                  <ToolDisclosure icon={Lock} title="Security" description="Add password protection">
+                    <label className="block text-[10px] font-black uppercase tracking-wide text-slate-500">
+                      New PDF password
+                      <input type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="At least 8 characters" className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" />
+                    </label>
+                    <p className="text-[10px] leading-4 text-slate-500">A protected copy becomes the next document version and can be undone.</p>
+                    <button type="button" disabled={busy || password.length < 8 || selectedDocument.encrypted} onClick={() => runOperation("protect", {}, { password }).then(() => setPassword(""))} className="flex w-full items-center justify-center rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white"><Lock className="mr-2 h-4 w-4" />Protect PDF</button>
+                  </ToolDisclosure>
 
-                <section className="space-y-2">
-                  <h3 className="text-[10px] font-black uppercase tracking-wide text-slate-400">Merge documents</h3>
+                  <ToolDisclosure icon={Merge} title="Merge PDFs" description="Combine documents in your chosen order" badge={mergeIds.length ? `${mergeIds.length} selected` : null}>
+                    <p className="text-[10px] leading-4 text-slate-500">Choose at least two unlocked PDFs. Drag selected files below to change their order.</p>
                   <div className="max-h-32 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2">
                     {documents.map((document) => (
                       <label key={document.id} className={`flex items-center gap-2 text-xs ${document.encrypted ? "text-slate-300" : "text-slate-600"}`}>
@@ -839,16 +1064,22 @@ const PdfMaster = () => {
                   ) : null}
                   <input value={mergeTitle} onChange={(event) => setMergeTitle(event.target.value)} maxLength={160} aria-label="Merged document title" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs" />
                   <button type="button" disabled={busy || mergeIds.length < 2 || !mergeTitle.trim()} onClick={() => runOperation("merge", { document_ids: mergeIds, title: mergeTitle.trim() }, { documentId: null, baseVersionId: null }).then(() => setMergeIds([]))} className="flex w-full items-center justify-center rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700"><Merge className="mr-2 h-4 w-4" />Merge in this order</button>
-                </section>
+                  </ToolDisclosure>
 
-                <section className="space-y-2">
-                  <h3 className="text-[10px] font-black uppercase tracking-wide text-slate-400">Split by size</h3>
+                  <ToolDisclosure icon={Scissors} title="Split PDF" description="Create smaller files by maximum size" badge={`${splitSizeMb} MB`}>
+                  <p className="text-[10px] leading-4 text-slate-500">Pages stay in order. A page larger than the limit cannot be split further.</p>
                   <div className="flex gap-2">
                     <input type="number" min="1" max="50" value={splitSizeMb} onChange={(event) => setSplitSizeMb(Number(event.target.value))} aria-label="Maximum split file size in megabytes" className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-xs" />
                     <span className="flex items-center text-xs font-bold text-slate-500">MB</span>
                   </div>
                   <button type="button" disabled={busy || selectedDocument.encrypted || splitSizeMb < 1 || splitSizeMb > 50} onClick={() => runOperation("split_by_size", { max_size_mb: splitSizeMb })} className="flex w-full items-center justify-center rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700"><Scissors className="mr-2 h-4 w-4" />Create split documents</button>
-                </section>
+                  </ToolDisclosure>
+
+                  <ToolDisclosure icon={Trash2} title="Delete document" description="Remove the PDF and every saved version" danger>
+                    <p className="text-[10px] leading-4 text-rose-700">This action cannot be undone. Download a copy first if you may need it later.</p>
+                    <button type="button" onClick={() => window.confirm(`Delete "${selectedDocument.title}" and all saved versions?`) && deletePdfDocument(selectedDocument.id).then(() => loadDocuments()).catch((error) => toast.error(errorMessage(error)))} className="flex w-full items-center justify-center rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50"><Trash2 className="mr-2 h-4 w-4" />Delete permanently</button>
+                  </ToolDisclosure>
+                </div>
 
                 {artifacts.length ? (
                   <section className="space-y-2">
@@ -861,7 +1092,6 @@ const PdfMaster = () => {
                   </section>
                 ) : null}
 
-                <button type="button" onClick={() => window.confirm(`Delete "${selectedDocument.title}" and all saved versions?`) && deletePdfDocument(selectedDocument.id).then(() => loadDocuments()).catch((error) => toast.error(errorMessage(error)))} className="flex w-full items-center justify-center rounded-lg border border-rose-200 px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50"><Trash2 className="mr-2 h-4 w-4" />Delete document</button>
               </>
             ) : null}
           </div>
@@ -874,18 +1104,25 @@ const PdfMaster = () => {
           ["pages", Images],
           ["tools", Save],
         ].map(([id, Icon]) => (
-          <button key={id} type="button" onClick={() => { setMobilePanel(id); setMobilePanelOpen(true); }} className={`flex min-h-12 items-center justify-center gap-2 py-3 text-xs font-bold capitalize ${mobilePanel === id && mobilePanelOpen ? "text-indigo-600" : "text-slate-400"}`}><Icon className="h-4 w-4" />{id}</button>
+          <button key={id} type="button" onClick={(event) => openMobilePanel(id, event.currentTarget)} aria-haspopup="dialog" aria-expanded={mobilePanel === id && mobilePanelOpen} className={`flex min-h-12 items-center justify-center gap-2 py-3 text-xs font-bold capitalize ${mobilePanel === id && mobilePanelOpen ? "text-indigo-600" : "text-slate-400"}`}><Icon className="h-4 w-4" />{id}</button>
         ))}
       </div>
+      </>
+      )}
 
-      {mobilePanelOpen ? (
-        <div className="fixed inset-0 z-[90] bg-slate-950/30 xl:hidden" onClick={() => setMobilePanelOpen(false)}>
+      {mobilePanelOpen && typeof document !== "undefined" ? createPortal((
+        <div className="nexus-pdf-panel-backdrop fixed inset-0 z-[90] bg-slate-950/40 xl:hidden" onMouseDown={() => setMobilePanelOpen(false)}>
           <section
+            ref={mobilePanelRef}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="mobile-pdf-panel-title"
             className="absolute inset-x-2 bottom-2 max-h-[min(72dvh,36rem)] overflow-hidden rounded-2xl border border-white/70 bg-white shadow-2xl sm:inset-x-4 sm:bottom-4"
-            onClick={(event) => event.stopPropagation()}
+            onMouseDown={(event) => event.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-              <h2 className="text-sm font-black capitalize text-slate-900">{mobilePanel}</h2>
+              <h2 id="mobile-pdf-panel-title" className="text-sm font-black capitalize text-slate-900">{mobilePanel}</h2>
               <button type="button" onClick={() => setMobilePanelOpen(false)} className="toolbar-button" aria-label="Close panel"><X className="h-4 w-4" /></button>
             </div>
             <div className="max-h-[calc(72dvh-3.5rem)] overflow-y-auto p-3">
@@ -900,10 +1137,10 @@ const PdfMaster = () => {
                   {!isDemo ? (
                     <>
                       <label className="relative block">
-                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                        {searching ? <Loader2 className="absolute left-3 top-2.5 h-4 w-4 animate-spin text-indigo-500" /> : <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />}
                         <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search documents" aria-label="Search documents" className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-xs" />
                       </label>
-                      <p className="text-xs font-semibold text-slate-500">{usage.document_count || 0}/{usage.document_limit || 25} documents · {bytesLabel(usage.storage_bytes)} / 1 GB</p>
+                      <p className="text-xs font-semibold text-slate-500">{usage.document_count || 0}/{usage.document_limit || 25} documents · {bytesLabel(usage.storage_bytes)} / {bytesLabel(usage.storage_limit_bytes)}</p>
                     </>
                   ) : null}
                   {filteredDocuments.map((document) => (
@@ -913,6 +1150,7 @@ const PdfMaster = () => {
                       <span className="text-xs text-slate-400">{document.page_count || "Locked"}p</span>
                     </button>
                   ))}
+                  {!filteredDocuments.length && search ? <p className="py-8 text-center text-sm text-slate-500">No documents match “{search}”.</p> : null}
                 </div>
               ) : null}
 
@@ -929,27 +1167,117 @@ const PdfMaster = () => {
                   disabled={busy}
                 />
               ) : null}
+              {mobilePanel === "pages" && !selectedDocument ? <p className="py-8 text-center text-sm text-slate-500">Choose a document first.</p> : null}
+              {mobilePanel === "pages" && selectedDocument?.encrypted ? (
+                <div className="py-8 text-center">
+                  <Lock className="mx-auto h-8 w-8 text-amber-500" />
+                  <p className="mt-3 text-sm font-bold text-slate-800">Unlock this PDF to organize its pages.</p>
+                  <button type="button" onClick={() => setMobilePanel("tools")} className="mt-4 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white">Open unlock tools</button>
+                </div>
+              ) : null}
 
               {mobilePanel === "tools" ? (
                 <div className="space-y-4">
+                  {busy && operation ? (
+                    <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-3" role="status">
+                      <div className="flex items-center gap-2 text-xs font-bold capitalize text-indigo-700"><Loader2 className="h-4 w-4 animate-spin" />{operation.kind.replaceAll("_", " ")}</div>
+                      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-indigo-100"><div className="h-full bg-indigo-600" style={{ width: `${operation.progress || 10}%` }} /></div>
+                    </div>
+                  ) : null}
                   {shapes.length ? (
                     <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-3">
-                      <p className="text-sm font-bold text-indigo-800">{shapes.length} staged object{shapes.length === 1 ? "" : "s"}</p>
+                      <div className="flex items-center justify-between"><p className="text-sm font-bold text-indigo-800">{shapes.length} staged object{shapes.length === 1 ? "" : "s"}</p><button type="button" onClick={() => { setShapes([]); setSelectedShapeId(null); }} className="text-xs font-bold text-rose-600">Clear</button></div>
+                      {selectedShape ? (
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                          {["x", "y", "width", "height"].filter((key) => selectedShape[key] !== undefined).map((key) => (
+                            <label key={key} className="text-[10px] font-bold uppercase text-slate-500">{key}<input type="number" value={Math.round(selectedShape[key])} onChange={(event) => updateShape({ [key]: Number(event.target.value) })} className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs" /></label>
+                          ))}
+                          {["text", "watermark"].includes(selectedShape.type) ? <label className="col-span-2 text-[10px] font-bold uppercase text-slate-500">Text<input value={selectedShape.text || ""} onChange={(event) => updateShape({ text: event.target.value })} className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs normal-case" /></label> : null}
+                          {selectedShape.type !== "redact" ? <label className="text-[10px] font-bold uppercase text-slate-500">Color<input type="color" value={selectedShape.color || "#dc2626"} onChange={(event) => updateShape({ color: event.target.value })} className="mt-1 h-8 w-full rounded-md border border-slate-200 bg-white p-1" /></label> : null}
+                          <RedactionOptions shape={selectedShape} onChange={updateShape} />
+                        </div>
+                      ) : null}
                       {shapes.some((shape) => ["signature", "stamp"].includes(shape.type)) ? (
                         <input type="file" accept="image/png,image/jpeg" onChange={(event) => setAssetFile(event.target.files?.[0] || null)} className="mt-3 w-full text-xs" />
                       ) : null}
-                      <button type="button" disabled={busy} onClick={() => applyStagedChanges().then(() => setMobilePanelOpen(false))} className="mt-3 flex w-full items-center justify-center rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white"><Save className="mr-2 h-4 w-4" />Apply changes</button>
+                      <button type="button" disabled={busy} onClick={() => applyStagedChanges().then(() => setMobilePanelOpen(false)).catch(() => {})} className="mt-3 flex w-full items-center justify-center rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white"><Save className="mr-2 h-4 w-4" />Apply changes</button>
                     </div>
                   ) : null}
-                  {selectedDocument && !isDemo ? (
-                    <div className="grid grid-cols-2 gap-2">
-                      <button type="button" disabled={busy || selectedDocument.encrypted} onClick={() => runOperation("compress")} className="inspector-button"><FileArchive className="h-4 w-4" />Compress</button>
-                      <button type="button" disabled={busy || selectedDocument.encrypted} onClick={() => runOperation("export_images")} className="inspector-button"><Images className="h-4 w-4" />Export</button>
-                      <button type="button" disabled={busy || !selectedPageNumbers.length} onClick={() => runOperation("rotate_pages", { page_numbers: selectedPageNumbers, degrees: 90 })} className="inspector-button"><RotateCw className="h-4 w-4" />Rotate</button>
-                      <button type="button" disabled={busy || !selectedPageNumbers.length} onClick={() => runOperation("extract_pages", { page_numbers: selectedPageNumbers })} className="inspector-button"><Scissors className="h-4 w-4" />Extract</button>
-                      <button type="button" disabled={busy || selectedDocument.encrypted} onClick={() => runOperation("split_by_size", { max_size_mb: splitSizeMb })} className="inspector-button"><Scissors className="h-4 w-4" />Split</button>
-                    </div>
-                  ) : null}
+                  {selectedDocument && !isDemo ? selectedDocument.encrypted ? (
+                    <section className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                      <div className="flex items-center gap-2 text-sm font-black text-amber-800"><Lock className="h-4 w-4" />Password-protected PDF</div>
+                      <p className="text-xs text-amber-700">Enter its password to create an editable version.</p>
+                      <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm" placeholder="PDF password" />
+                      <button type="button" disabled={busy || !password} onClick={() => runOperation("unlock", {}, { password }).then(() => setPassword("")).catch(() => {})} className="flex w-full items-center justify-center rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white"><Unlock className="mr-2 h-4 w-4" />Unlock PDF</button>
+                    </section>
+                  ) : (
+                    <>
+                      <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-3">
+                        <h3 className="text-[10px] font-black uppercase tracking-wide text-slate-400">Quick actions</h3>
+                        <input value={selectedDocument.title} onChange={(event) => updateSelectedDocument({ ...selectedDocument, title: event.target.value })} onBlur={() => renamePdfDocument(selectedDocument.id, selectedDocument.title).then(({ data }) => updateSelectedDocument(data)).catch((error) => { toast.error(errorMessage(error)); loadDocuments(selectedDocument.id, search); })} aria-label="Document title" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-slate-800" />
+                        <div className="grid grid-cols-2 gap-2">
+                          <button type="button" disabled={busy} onClick={() => runOperation("compress").catch(() => {})} className="inspector-button"><FileArchive className="h-4 w-4" />Compress</button>
+                          <button type="button" disabled={busy} onClick={() => runOperation("extract_text").catch(() => {})} className="inspector-button"><FileText className="h-4 w-4" />Text</button>
+                          <button type="button" disabled={busy} onClick={() => runOperation("export_images").catch(() => {})} className="inspector-button"><Images className="h-4 w-4" />Images</button>
+                          <button type="button" disabled={busy} onClick={() => restorePdfDocument(selectedDocument.id).then(({ data }) => updateSelectedDocument(data)).catch((error) => toast.error(errorMessage(error)))} className="inspector-button"><RotateCcw className="h-4 w-4" />Original</button>
+                        </div>
+                      </section>
+
+                      <section className="space-y-2 rounded-xl border border-slate-200 bg-white p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <h3 className="text-[10px] font-black uppercase tracking-wide text-slate-400">Page tools</h3>
+                          {selectedPageNumbers.length ? <span className="rounded-full bg-indigo-50 px-2 py-1 text-[9px] font-black text-indigo-700">{selectedPageNumbers.length} selected</span> : null}
+                        </div>
+                        <p className="text-xs text-slate-500">{selectedPageNumbers.length ? selectedPageNumbers.join(", ") : "Select pages from the Pages panel."}</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button type="button" disabled={busy || !selectedPageNumbers.length} onClick={() => runOperation("rotate_pages", { page_numbers: selectedPageNumbers, degrees: 270 }).catch(() => {})} className="inspector-button"><RotateCcw className="h-4 w-4" />Left</button>
+                          <button type="button" disabled={busy || !selectedPageNumbers.length} onClick={() => runOperation("rotate_pages", { page_numbers: selectedPageNumbers, degrees: 90 }).catch(() => {})} className="inspector-button"><RotateCw className="h-4 w-4" />Right</button>
+                          <button type="button" disabled={busy || !selectedPageNumbers.length} onClick={() => runOperation("duplicate_pages", { page_numbers: selectedPageNumbers }).catch(() => {})} className="inspector-button"><Plus className="h-4 w-4" />Duplicate</button>
+                          <button type="button" disabled={busy || !selectedPageNumbers.length} onClick={() => runOperation("extract_pages", { page_numbers: selectedPageNumbers }).catch(() => {})} className="inspector-button"><Scissors className="h-4 w-4" />Extract</button>
+                          <button type="button" disabled={busy} onClick={() => runOperation("add_blank_page", { position: currentPage + 1, reference_page_number: currentPage }).catch(() => {})} className="inspector-button"><FilePlus2 className="h-4 w-4" />Blank page</button>
+                          <button type="button" disabled={busy || !selectedPageNumbers.length || selectedPageNumbers.length >= selectedDocument.page_count} onClick={() => window.confirm(`Delete ${selectedPageNumbers.length} selected page(s)?`) && runOperation("delete_pages", { page_numbers: selectedPageNumbers }).catch(() => {})} className="inspector-button text-rose-600"><Trash2 className="h-4 w-4" />Delete pages</button>
+                        </div>
+                      </section>
+
+                      <div className="space-y-2">
+                        <p className="px-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">More tools</p>
+                        <ToolDisclosure icon={Lock} title="Security" description="Add password protection">
+                          <label className="block text-[10px] font-black uppercase tracking-wide text-slate-500">
+                            New PDF password
+                            <input type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="At least 8 characters" className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" />
+                          </label>
+                          <p className="text-[10px] leading-4 text-slate-500">A protected copy becomes the next document version and can be undone.</p>
+                          <button type="button" disabled={busy || password.length < 8} onClick={() => runOperation("protect", {}, { password }).then(() => setPassword("")).catch(() => {})} className="flex w-full items-center justify-center rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white"><Lock className="mr-2 h-4 w-4" />Protect PDF</button>
+                        </ToolDisclosure>
+
+                        <ToolDisclosure icon={Merge} title="Merge PDFs" description="Combine documents in your chosen order" badge={mergeIds.length ? `${mergeIds.length} selected` : null}>
+                        <p className="text-[10px] leading-4 text-slate-500">Choose at least two unlocked PDFs. Selection order controls the final document.</p>
+                        <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2">
+                          {documents.map((document) => (
+                            <label key={document.id} className={`flex min-h-9 items-center gap-2 text-xs ${document.encrypted ? "text-slate-300" : "text-slate-600"}`}>
+                              <input type="checkbox" disabled={document.encrypted} checked={mergeIds.includes(document.id)} onChange={(event) => setMergeIds((current) => event.target.checked ? [...current, document.id] : current.filter((id) => id !== document.id))} />
+                              <span className="min-w-0 flex-1 truncate">{document.title}</span>
+                              {mergeIds.includes(document.id) ? <span className="text-[10px] font-bold text-indigo-500">#{mergeIds.indexOf(document.id) + 1}</span> : null}
+                            </label>
+                          ))}
+                        </div>
+                        <input value={mergeTitle} onChange={(event) => setMergeTitle(event.target.value)} maxLength={160} aria-label="Merged document title" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs" />
+                        <button type="button" disabled={busy || mergeIds.length < 2 || !mergeTitle.trim()} onClick={() => runOperation("merge", { document_ids: mergeIds, title: mergeTitle.trim() }, { documentId: null, baseVersionId: null }).then(() => setMergeIds([])).catch(() => {})} className="flex w-full items-center justify-center rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700"><Merge className="mr-2 h-4 w-4" />Merge in selected order</button>
+                        </ToolDisclosure>
+
+                        <ToolDisclosure icon={Scissors} title="Split PDF" description="Create smaller files by maximum size" badge={`${splitSizeMb} MB`}>
+                        <p className="text-[10px] leading-4 text-slate-500">Pages stay in order. A page larger than the limit cannot be split further.</p>
+                        <div className="flex gap-2"><input type="number" min="1" max="50" value={splitSizeMb} onChange={(event) => setSplitSizeMb(Number(event.target.value))} aria-label="Maximum split file size in megabytes" className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-xs" /><span className="flex items-center text-xs font-bold text-slate-500">MB</span></div>
+                        <button type="button" disabled={busy || splitSizeMb < 1 || splitSizeMb > 50} onClick={() => runOperation("split_by_size", { max_size_mb: splitSizeMb }).catch(() => {})} className="flex w-full items-center justify-center rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700"><Scissors className="mr-2 h-4 w-4" />Create split documents</button>
+                        </ToolDisclosure>
+
+                        <ToolDisclosure icon={Trash2} title="Delete document" description="Remove the PDF and every saved version" danger>
+                          <p className="text-[10px] leading-4 text-rose-700">This action cannot be undone. Download a copy first if you may need it later.</p>
+                          <button type="button" disabled={busy} onClick={() => window.confirm(`Delete "${selectedDocument.title}" and all saved versions?`) && deletePdfDocument(selectedDocument.id).then(() => { setMobilePanelOpen(false); loadDocuments(); }).catch((error) => toast.error(errorMessage(error)))} className="flex w-full items-center justify-center rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-bold text-rose-600"><Trash2 className="mr-2 h-4 w-4" />Delete permanently</button>
+                        </ToolDisclosure>
+                      </div>
+                    </>
+                  ) : <p className="py-8 text-center text-sm text-slate-500">{isDemo ? "Editing tools are disabled in the demo." : "Choose a document first."}</p>}
                   {artifacts.map((artifact) => (
                     <a key={artifact.id} href={artifact.download_url} className="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
                       <span className="truncate">{artifact.filename}</span><Download className="h-4 w-4" />
@@ -960,7 +1288,7 @@ const PdfMaster = () => {
             </div>
           </section>
         </div>
-      ) : null}
+      ), document.body) : null}
     </div>
   );
 };

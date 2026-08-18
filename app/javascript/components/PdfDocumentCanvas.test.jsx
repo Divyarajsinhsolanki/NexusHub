@@ -167,4 +167,55 @@ describe("PdfDocumentCanvas", () => {
       });
     });
   });
+
+  it("creates secure black redactions by default", async () => {
+    render(<Harness activeTool="redact" initialShapes={[]} initialSelectedShapeId={null} />);
+
+    const svg = setSvgBounds();
+    fireEvent.pointerDown(svg, { pointerId: 9, clientX: 80, clientY: 90 });
+    fireEvent.pointerMove(window, { pointerId: 9, clientX: 240, clientY: 140 });
+    fireEvent.pointerUp(window, { pointerId: 9, clientX: 240, clientY: 140 });
+
+    await waitFor(() => {
+      expect(currentShape()).toMatchObject({
+        type: "redact",
+        redaction_mode: "black",
+        replacement_text: "",
+        replacement_color: "#111827",
+        width: 160,
+        height: 50,
+      });
+    });
+  });
+
+  it("previews replacement text and strikethrough styles", () => {
+    const replacement = {
+      id: "redact-replace",
+      type: "redact",
+      page_number: 1,
+      x: 50,
+      y: 80,
+      width: 180,
+      height: 40,
+      redaction_mode: "replace",
+      replacement_text: "Approved",
+      replacement_color: "#111827",
+      font_size: 14,
+    };
+    const strike = {
+      ...replacement,
+      id: "redact-strike",
+      y: 150,
+      redaction_mode: "strike",
+      replacement_color: "#dc2626",
+      stroke_width: 4,
+    };
+
+    render(<Harness initialShapes={[replacement, strike]} initialSelectedShapeId="redact-replace" />);
+
+    expect(screen.getByText("Approved")).toBeTruthy();
+    const line = document.querySelector("svg line");
+    expect(line?.getAttribute("stroke")).toBe("#dc2626");
+    expect(line?.getAttribute("stroke-width")).toBe("4");
+  });
 });
