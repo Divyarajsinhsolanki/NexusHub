@@ -10,7 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { absoluteAssetUrl, apiErrorMessage } from '@/src/api/client';
 import { endpoints } from '@/src/api/endpoints';
-import type { Conversation, Message } from '@/src/api/types';
+import type { CallSession, Conversation, Message } from '@/src/api/types';
 import { useAuth } from '@/src/auth/AuthProvider';
 import { MOBILE_CACHE_PAGE_LIMIT, appendIncomingMessage, mobileQueryKeys, removeCachedMessage, replaceCachedMessage, trimInfinitePages, updateCachedMessage, updateConversationPreview } from '@/src/cache/mobileCache';
 import { requestCallMediaPermissions } from '@/src/calls/mediaPermissions';
@@ -63,6 +63,7 @@ export default function ChatScreen() {
     enabled: Number.isFinite(conversationId),
   });
   const rows = useMemo(() => [...(messages.data?.pages || [])].reverse().flatMap((page) => page.data), [messages.data]);
+  const latestMessage = rows.length ? rows[rows.length - 1] : undefined;
 
   useEffect(() => {
     if (pathname.startsWith('/inbox/chat/')) router.replace(`/chat/${conversationId}` as never);
@@ -116,38 +117,49 @@ export default function ChatScreen() {
       if (event.is_typing) remoteTypingTimers.current.set(userId, setTimeout(() => setTypingUsers((current) => { const next = { ...current }; delete next[userId]; return next; }), 3_000));
       return;
     }
+    if (event.type === 'call_started' || event.type === 'call_ringing' || event.type === 'call_participant_joined') {
+      const call = event.call_session as CallSession | undefined;
+      if (call && typeof call === 'object' && Number(call.id)) {
+        queryClient.setQueryData(mobileQueryKeys.conversation(conversationId), (current?: Conversation) => current ? { ...current, active_call: call } : current);
+      }
+      return;
+    }
+    if (event.type === 'call_ended' || event.type === 'call_missed') {
+      queryClient.setQueryData(mobileQueryKeys.conversation(conversationId), (current?: Conversation) => current ? { ...current, active_call: null } : current);
+      return;
+    }
     if (event.type !== 'message_created') return;
     const incoming = event.message as Message | undefined;
     if (!incoming?.id || incoming.user_id === user?.id) return;
     void acknowledge(incoming.id, 'delivered');
     if (focusedRef.current && appActiveRef.current && atLatestRef.current) void acknowledge(incoming.id, 'read');
     else setHasUnreadBelow(true);
-  }, [acknowledge, conversationId, user?.id]);
+  }, [acknowledge, conversationId, queryClient, user?.id]);
   const connection = useChatRealtime(conversationId, onRealtime);
 
   useFocusEffect(useCallback(() => {
     focusedRef.current = true;
-    const latestId = Number(rows.at(-1)?.id);
+    const latestId = Number(latestMessage?.id);
     if (appActiveRef.current && atLatestRef.current && latestId) void acknowledge(latestId, 'read');
     return () => { focusedRef.current = false; stopTyping(); };
-  }, [acknowledge, rows, stopTyping]));
+  }, [acknowledge, latestMessage?.id, stopTyping]));
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (state) => {
       appActiveRef.current = state === 'active';
       if (!appActiveRef.current) stopTyping();
-      const latestId = Number(rows.at(-1)?.id);
+      const latestId = Number(latestMessage?.id);
       if (appActiveRef.current && focusedRef.current && atLatestRef.current && latestId) void acknowledge(latestId, 'read');
     });
     return () => subscription.remove();
-  }, [acknowledge, rows, stopTyping]);
+  }, [acknowledge, latestMessage?.id, stopTyping]);
 
   useEffect(() => {
-    const latestId = Number(rows.at(-1)?.id);
+    const latestId = Number(latestMessage?.id);
     if (!latestId) return;
     void acknowledge(latestId, 'delivered');
     if (focusedRef.current && appActiveRef.current && atLatestRef.current) void acknowledge(latestId, 'read');
-  }, [acknowledge, rows]);
+  }, [acknowledge, latestMessage?.id]);
 
   useEffect(() => {
     receiptCursorRef.current = { delivered: 0, read: 0 };
@@ -278,18 +290,18 @@ export default function ChatScreen() {
     atLatestRef.current = atLatest;
     if (atLatest) {
       setHasUnreadBelow(false);
-      const latestId = Number(rows.at(-1)?.id);
+      const latestId = Number(latestMessage?.id);
       if (focusedRef.current && appActiveRef.current && latestId) void acknowledge(latestId, 'read');
     }
     if (contentOffset.y <= 120 && messages.hasNextPage && !messages.isFetchNextPageError) void loadOlder();
-  }, [acknowledge, loadOlder, messages.hasNextPage, messages.isFetchNextPageError, rows]);
+  }, [acknowledge, latestMessage?.id, loadOlder, messages.hasNextPage, messages.isFetchNextPageError]);
   const jumpToLatest = useCallback(() => {
     listRef.current?.scrollToEnd({ animated: true });
     atLatestRef.current = true;
     setHasUnreadBelow(false);
-    const latestId = Number(rows.at(-1)?.id);
+    const latestId = Number(latestMessage?.id);
     if (latestId) void acknowledge(latestId, 'read');
-  }, [acknowledge, rows]);
+  }, [acknowledge, latestMessage?.id]);
   const renderMessage = useCallback(({ item }: { item: Message }) => <MessageBubble conversation={conversation.data} message={item} mine={item.user_id === user?.id} onLongPress={() => item.id > 0 && setReactionMessage(item)} onRetry={retryMessage} userId={user?.id} />, [conversation.data, retryMessage, user?.id]);
   const typingNames = Object.values(typingUsers);
   const subtitle = typingNames.length ? `${typingNames.join(', ')} ${typingNames.length === 1 ? 'is' : 'are'} typing…` : connection === 'connected' ? conversation.data?.conversation_type === 'group' ? `${conversation.data.participants?.length || 0} members` : conversation.data?.participants?.some((participant) => participant.id !== user?.id && participant.online) ? 'Online' : 'Live conversation' : 'Reconnecting…';
@@ -298,7 +310,7 @@ export default function ChatScreen() {
   return <Screen header={<PageHeader leading={<IconButton label="Back" onPress={back}><ArrowLeft color={theme.text} size={22} /></IconButton>} title={conversation.data?.title || 'Conversation'} subtitle={subtitle} action={writable ? <View style={styles.headerActions}><IconButton label={conversation.data?.active_call ? 'Join active call' : 'Start video call'} onPress={() => startCall('video')}><Video color={conversation.data?.active_call ? theme.success : theme.text} size={20} /></IconButton><IconButton label="More conversation actions" onPress={() => setMenuOpen(true)}><MoreHorizontal color={theme.text} size={22} /></IconButton></View> : <IconButton label="Conversation details" onPress={() => setDetailsOpen(true)}><UsersRound color={theme.text} size={20} /></IconButton>} />}>
     {messages.isPending && !messages.data ? <LoadingState label="Loading conversation" /> : null}
     {messages.isError && !messages.data ? <ErrorState message={apiErrorMessage(messages.error)} onRetry={() => messages.refetch()} /> : null}
-    {messages.data ? <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0} style={styles.flex}><FlashList contentContainerStyle={styles.messageList} data={rows} keyExtractor={(item) => String(item.id)} ListEmptyComponent={<EmptyState title="Start the conversation" message="Messages and attachments are delivered in real time." />} ListHeaderComponent={<HistoryState hasMessages={rows.length > 0} hasNextPage={Boolean(messages.hasNextPage)} isError={messages.isFetchNextPageError} isLoading={messages.isFetchingNextPage} onRetry={loadOlder} />} maintainVisibleContentPosition={{ startRenderingFromBottom: true, autoscrollToBottomThreshold: 72, animateAutoScrollToBottom: true }} onScroll={onScroll} ref={listRef} renderItem={renderMessage} scrollEventThrottle={80} />{hasUnreadBelow ? <Pressable accessibilityLabel="Jump to new messages" accessibilityRole="button" onPress={jumpToLatest} style={[styles.newMessages, { backgroundColor: theme.primary }]}><Text style={styles.newMessagesText}>New messages</Text></Pressable> : null}{writable && attachment ? <View style={[styles.attachment, { backgroundColor: theme.surfaceMuted }]}><Text numberOfLines={1} style={[styles.attachmentName, { color: theme.text }]}>{attachment.name}</Text><Pressable accessibilityLabel="Remove attachment" onPress={() => setAttachment(null)}><Text style={{ color: theme.danger, fontWeight: '700' }}>Remove</Text></Pressable></View> : null}{writable ? <View style={[styles.composer, { backgroundColor: theme.surface, borderTopColor: theme.border, paddingBottom: Math.max(10, insets.bottom) }]}><IconButton label="Attach file" onPress={pickAttachment}><FilePlus2 color={theme.textMuted} size={21} /></IconButton><TextInput accessibilityLabel="Message" multiline onChangeText={changeBody} placeholder="Message" placeholderTextColor={theme.textMuted} style={[styles.input, { backgroundColor: theme.surfaceMuted, color: theme.text }]} value={body} /><Pressable accessibilityLabel="Send message" accessibilityRole="button" disabled={!body.trim() && !attachment} onPress={sendCurrent} style={[styles.send, { backgroundColor: theme.primary, opacity: (!body.trim() && !attachment) ? 0.45 : 1 }]}><Send color="#ffffff" size={19} /></Pressable></View> : null}</KeyboardAvoidingView> : null}
+    {messages.data ? <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0} style={styles.flex}><FlashList contentContainerStyle={styles.messageList} data={rows} keyExtractor={(item, index) => `${item.id || 'message'}-${index}`} ListEmptyComponent={<EmptyState title="Start the conversation" message="Messages and attachments are delivered in real time." />} ListHeaderComponent={<HistoryState hasMessages={rows.length > 0} hasNextPage={Boolean(messages.hasNextPage)} isError={messages.isFetchNextPageError} isLoading={messages.isFetchingNextPage} onRetry={loadOlder} />} maintainVisibleContentPosition={{ startRenderingFromBottom: true, autoscrollToBottomThreshold: 72, animateAutoScrollToBottom: true }} onScroll={onScroll} ref={listRef} renderItem={renderMessage} scrollEventThrottle={80} />{hasUnreadBelow ? <Pressable accessibilityLabel="Jump to new messages" accessibilityRole="button" onPress={jumpToLatest} style={[styles.newMessages, { backgroundColor: theme.primary }]}><Text style={styles.newMessagesText}>New messages</Text></Pressable> : null}{writable && attachment ? <View style={[styles.attachment, { backgroundColor: theme.surfaceMuted }]}><Text numberOfLines={1} style={[styles.attachmentName, { color: theme.text }]}>{attachment.name}</Text><Pressable accessibilityLabel="Remove attachment" onPress={() => setAttachment(null)}><Text style={{ color: theme.danger, fontWeight: '700' }}>Remove</Text></Pressable></View> : null}{writable ? <View style={[styles.composer, { backgroundColor: theme.surface, borderTopColor: theme.border, paddingBottom: Math.max(10, insets.bottom) }]}><IconButton label="Attach file" onPress={pickAttachment}><FilePlus2 color={theme.textMuted} size={21} /></IconButton><TextInput accessibilityLabel="Message" multiline onChangeText={changeBody} placeholder="Message" placeholderTextColor={theme.textMuted} style={[styles.input, { backgroundColor: theme.surfaceMuted, color: theme.text }]} value={body} /><Pressable accessibilityLabel="Send message" accessibilityRole="button" disabled={!body.trim() && !attachment} onPress={sendCurrent} style={[styles.send, { backgroundColor: theme.primary, opacity: (!body.trim() && !attachment) ? 0.45 : 1 }]}><Send color="#ffffff" size={19} /></Pressable></View> : null}</KeyboardAvoidingView> : null}
     <ReactionPicker message={reactionMessage} onClose={() => setReactionMessage(null)} onSelect={(emoji) => reactionMessage && react.mutate({ message: reactionMessage, emoji })} pending={react.isPending} />
     <HeaderMenu activeCall={conversation.data?.active_call?.id} onAudio={() => startCall('audio')} onClose={() => setMenuOpen(false)} onDetails={() => { setMenuOpen(false); setDetailsOpen(true); }} onJoin={(callId) => { setMenuOpen(false); router.push(`/call/${callId}?type=${conversation.data?.active_call?.call_type || 'audio'}` as never); }} onVideo={() => startCall('video')} visible={menuOpen} />
     <ConversationDetailsSheet conversationId={conversationId} onClose={() => setDetailsOpen(false)} onConversationRemoved={() => { setDetailsOpen(false); router.replace('/inbox' as never); }} readOnly={!writable} visible={detailsOpen} />

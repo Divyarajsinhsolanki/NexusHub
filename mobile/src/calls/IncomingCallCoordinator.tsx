@@ -17,20 +17,36 @@ export function IncomingCallCoordinator() {
   const theme = useAppTheme();
   const [incoming, setIncoming] = useState<CallSession | null>(null);
   const actionRef = useRef<number | null>(null);
+  const ringTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const onEvent = useCallback((event: ChatEvent) => {
     const call = callSessionFromEvent(event);
     if (!call || call.initiator_id === user?.id) return;
     if (event.type === 'call_ringing' && AppState.currentState === 'active') {
       setIncoming(call);
+      if (ringTimerRef.current) clearTimeout(ringTimerRef.current);
+      ringTimerRef.current = setTimeout(() => {
+        setIncoming((current) => current?.id === call.id ? null : current);
+        void endpoints.callAction(call.id, 'decline').catch((error) => captureCallError(error, 'incoming', { call_id: call.id, timeout: true }));
+      }, 30_000);
       recordCallBreadcrumb('incoming', { call_id: call.id, call_type: call.call_type });
       void endpoints.callAction(call.id, 'ack_ring').catch((error) => captureCallError(error, 'incoming', { call_id: call.id, acknowledge: true }));
       return;
     }
-    if (event.type === 'call_ended' && incoming?.id === call.id) setIncoming(null);
+    if ((event.type === 'call_ended' || event.type === 'call_missed') && incoming?.id === call.id) setIncoming(null);
   }, [incoming?.id, user?.id]);
 
   useChatRealtime(undefined, onEvent);
+
+  useEffect(() => () => {
+    if (ringTimerRef.current) clearTimeout(ringTimerRef.current);
+  }, []);
+
+  useEffect(() => {
+    if (incoming || !ringTimerRef.current) return;
+    clearTimeout(ringTimerRef.current);
+    ringTimerRef.current = null;
+  }, [incoming]);
   if (!incoming || !user) return null;
 
   const answer = () => {
@@ -38,6 +54,8 @@ export function IncomingCallCoordinator() {
     actionRef.current = incoming.id;
     const call = incoming;
     setIncoming(null);
+    if (ringTimerRef.current) clearTimeout(ringTimerRef.current);
+    ringTimerRef.current = null;
     actionRef.current = null;
     router.push(`/call/${call.id}?type=${call.call_type}` as never);
   };
@@ -49,6 +67,8 @@ export function IncomingCallCoordinator() {
       await endpoints.callAction(call.id, 'decline');
       recordCallBreadcrumb('incoming', { call_id: call.id, declined: true });
       setIncoming(null);
+      if (ringTimerRef.current) clearTimeout(ringTimerRef.current);
+      ringTimerRef.current = null;
     } catch (error) {
       captureCallError(error, 'incoming', { call_id: call.id, decline: true });
     } finally {
