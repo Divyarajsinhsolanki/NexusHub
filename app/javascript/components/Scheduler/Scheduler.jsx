@@ -13,6 +13,7 @@ import AddTaskForm from '../Scheduler/AddTaskForm';
 import BulkLogForm from '../Scheduler/BulkLogForm';
 import { DEFAULT_DAILY_CAPACITY } from '../Scheduler/bulkLogPlanner';
 import EditTaskForm from '../Scheduler/EditTaskForm';
+import { moveSchedulerLog, schedulerDropTarget } from './schedulerDrag';
 
 import {
   PlusCircleIcon,
@@ -582,28 +583,35 @@ function Scheduler({ sprintId, projectId, sheetIntegrationEnabled, projectMember
   }, []);
 
   const handleDragEnd = async (result) => {
-    const { draggableId, destination, source } = result;
-    if (!destination || (source.droppableId === destination.droppableId && source.index === destination.index)) return;
+    const target = schedulerDropTarget(result);
+    if (!target) return;
 
-    const taskId = draggableId;
-    const [newDate, newDevIdStr] = destination.droppableId.split(':');
-    const newDevId = parseInt(newDevIdStr, 10);
-
-    const originalTask = tasks.find(t => String(t.id) === taskId);
+    const originalTask = tasks.find(t => String(t.id) === target.taskId);
     if (!originalTask) return;
+    if (
+      originalTask.log_date === target.logDate &&
+      Number(originalTask.developer_id) === target.developerId
+    ) return;
 
-    const updatedTaskData = { ...originalTask, log_date: newDate, developer_id: newDevId };
-
-    setTasks(prev => prev.map(t => (String(t.id) === taskId ? updatedTaskData : t)));
+    setTasks(prev => sortSchedulerLogs(moveSchedulerLog(prev, target)));
 
     try {
-      const { data: moved } = await SchedulerAPI.updateTaskLog(taskId, { log_date: newDate, developer_id: newDevId });
-      setTasks(prev => prev.map(t => String(t.id) === taskId ? moved : t));
+      const { data: moved } = await SchedulerAPI.updateTaskLog(target.taskId, {
+        log_date: target.logDate,
+        developer_id: target.developerId
+      });
+      const persistedTask = moved || {
+        ...originalTask,
+        log_date: target.logDate,
+        developer_id: target.developerId,
+      };
+      setTasks(prev => sortSchedulerLogs(prev.map(t => String(t.id) === target.taskId ? persistedTask : t)));
       notifyWorkspaceMutation();
     } catch (error) {
       console.error("Error moving task:", error);
-      setTasks(prev => prev.map(t => String(t.id) === taskId ? originalTask : t));
-      toast.error(`Error: Could not move task. ${error.message}`);
+      setTasks(prev => sortSchedulerLogs(prev.map(t => String(t.id) === target.taskId ? originalTask : t)));
+      const message = error?.response?.data?.errors?.join(', ') || error?.message || 'The log could not be moved.';
+      toast.error(`Could not move log: ${message}`);
     }
   };
 

@@ -91,6 +91,9 @@ describe("Navbar responsive behavior", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /collapse navigation/i }));
     expect(window.localStorage.getItem("nexus:shell:nav-collapsed")).toBe("true");
+    const primaryNavigation = screen.getByRole("complementary", { name: /primary navigation/i });
+    expect(primaryNavigation.classList.contains("nexus-global-rail-collapsed")).toBe(true);
+    expect(screen.getByRole("link", { name: /nexushub home/i }).querySelector("img")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: /^more$/i }));
     expect(screen.getByRole("dialog", { name: /mobile navigation/i }).getAttribute("aria-modal")).toBe("true");

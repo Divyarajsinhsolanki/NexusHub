@@ -1,1 +1,1 @@
-export { default } from '../(tabs)/inbox/chat/[id]';
+export { default, ErrorBoundary } from '../(tabs)/inbox/chat/[id]';

@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
+import * as Sentry from '@sentry/react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import * as Application from 'expo-application';
 import Constants from 'expo-constants';
@@ -8,7 +9,7 @@ import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 import { BellRing, ShieldCheck } from 'lucide-react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, AppState, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { endpoints } from '../api/endpoints';
 import type { User } from '../api/types';
@@ -38,7 +39,10 @@ export function PushRegistrar() {
     if (registrationInFlight.current) return registrationInFlight.current;
     const operation = (async () => {
       await registerCurrentPushDevice(user);
-    })().finally(() => {
+    })().catch((error) => {
+      Sentry.captureException(error, { tags: { stage: 'device_registration', surface: 'mobile_push' } });
+      throw error;
+    }).finally(() => {
       registrationInFlight.current = null;
     });
     registrationInFlight.current = operation;
@@ -49,7 +53,9 @@ export function PushRegistrar() {
     if (!user || Platform.OS === 'web') return;
     let active = true;
     const initialize = async () => {
-      await setupNotificationPresentation().catch(() => undefined);
+      await setupNotificationPresentation().catch((error) => {
+        Sentry.captureException(error, { tags: { stage: 'channel_setup', surface: 'mobile_push' } });
+      });
       const permission = await Notifications.getPermissionsAsync();
       if (!active) return;
       if (permission.status === 'granted') {
@@ -137,6 +143,9 @@ export function PushRegistrar() {
       setShowPrimer(false);
       if (permission.status === 'granted') await registerDevice();
       else await AsyncStorage.setItem(`${PRIMER_KEY}.${user?.id}`, 'true');
+    } catch {
+      setShowPrimer(false);
+      Alert.alert('Notifications couldn’t be connected', 'Your account is safe. Check the network, then enable notifications from Settings and try again.');
     } finally {
       setRequesting(false);
     }

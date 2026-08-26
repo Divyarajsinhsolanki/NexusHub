@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useContext, useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { fetchProjects, createProject, updateProject, deleteProject, addProjectUser, updateProjectUser, deleteProjectUser, leaveProject, SchedulerAPI } from "../components/api";
 import UserMultiSelect from "../components/UserMultiSelect";
@@ -11,8 +11,24 @@ import {
     FiChevronRight, FiX, FiCheck, FiInfo, FiLoader, FiCalendar,
     FiLink, FiFolder, FiAlertTriangle, FiTrendingUp, FiActivity,
     FiCheckCircle, FiXCircle, FiPhone, FiExternalLink, FiMail, FiBriefcase,
-    FiGrid, FiList
+    FiGrid, FiList, FiHome, FiArchive, FiSettings
 } from 'react-icons/fi';
+
+const PROJECT_WORKSPACE_TABS = [
+    { key: "overview", label: "Overview", icon: FiHome },
+    { key: "scheduler", label: "Scheduler", icon: FiCalendar },
+    { key: "todo", label: "Todo", icon: FiCheckCircle },
+    { key: "statistics", label: "Statistics", icon: FiTrendingUp },
+    { key: "issues", label: "Issues", icon: FiAlertTriangle },
+    { key: "sheet", label: "Sheet", icon: FiLink, requiresSheet: true },
+    { key: "vault", label: "Vault", icon: FiArchive },
+    { key: "settings", label: "Settings", icon: FiSettings },
+];
+
+export const projectWorkspacePath = (project, tab, mode = "dev") => {
+    const params = new URLSearchParams({ tab, mode });
+    return `/projects/${project.id}/dashboard?${params.toString()}`;
+};
 
 const asRecordArray = (value) =>
     Array.isArray(value) ? value.filter((item) => item && typeof item === "object") : [];
@@ -1500,6 +1516,29 @@ const Projects = () => {
                                         </div>
                                     )}
                                 </div>
+                                <nav className="nexus-project-direct-nav" aria-label={`${selectedProject.name} workspace`}>
+                                    <div className="nexus-project-direct-nav-heading">
+                                        <span>Project workspace</span>
+                                        <small>Open a delivery area directly</small>
+                                    </div>
+                                    <div className="nexus-project-direct-nav-links scrollbar-hide">
+                                        {PROJECT_WORKSPACE_TABS
+                                            .filter((tab) => !tab.requiresSheet || selectedProject.sheet_integration_enabled)
+                                            .map((tab) => {
+                                                const Icon = tab.icon;
+                                                return (
+                                                    <Link
+                                                        key={tab.key}
+                                                        to={projectWorkspacePath(selectedProject, tab.key, projectViewMode)}
+                                                        className="nexus-project-direct-nav-link"
+                                                    >
+                                                        <Icon aria-hidden="true" />
+                                                        <span>{tab.label}</span>
+                                                    </Link>
+                                                );
+                                            })}
+                                    </div>
+                                </nav>
                                 <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
                                     <div className="rounded-xl border border-slate-200 bg-white/80 p-4 shadow-sm">
                                         <p className="text-xs uppercase tracking-wide text-slate-500">Members</p>

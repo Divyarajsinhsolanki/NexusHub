@@ -1,3 +1,18 @@
+# Database export/import commands
+#
+# 1. Check both connections without changing data:
+#      bin/rails db:external:check
+#
+# 2. Export LOCAL data to the external/Render database (external is replaced):
+#      CONFIRM_DATABASE_SYNC=export-local-to-external bin/rails db:external:export
+#
+# 3. Import external/Render data into LOCAL (local is replaced):
+#      CONFIRM_DATABASE_SYNC=import-external-to-local bin/rails db:external:import
+#
+# Configure RENDER_DATABASE_URL or EXTERNAL_DATABASE_URL before running a task.
+# LOCAL_DATABASE_URL can override the Rails local connection. Use DRY_RUN=1 to
+# inspect the commands first. Run `bin/rails db:external:help` for all options.
+
 require "cgi"
 require "fileutils"
 require "open3"

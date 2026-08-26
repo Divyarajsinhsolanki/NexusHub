@@ -126,6 +126,29 @@ class CallsTest < ActionDispatch::IntegrationTest
     assert_not_equal first_call.fetch("public_id"), second_call.fetch("public_id")
   end
 
+  test "leaving a direct call ends it for both participants and permits a new call" do
+    login(@caller)
+    post "/api/conversations/#{@conversation.id}/calls", params: { call_type: "audio" }
+    assert_response :created
+    first_call = JSON.parse(response.body).fetch("call_session")
+
+    login(@recipient)
+    post "/api/calls/#{first_call.fetch("id")}/join"
+    assert_response :success
+    post "/api/calls/#{first_call.fetch("id")}/leave"
+    assert_response :success
+    assert_equal "ended", JSON.parse(response.body).dig("call_session", "status")
+
+    call_session = CallSession.unscoped.find(first_call.fetch("id"))
+    assert_equal "ended", call_session.status
+    assert_empty call_session.call_participants.where(status: "joined")
+
+    login(@caller)
+    post "/api/conversations/#{@conversation.id}/calls", params: { call_type: "video" }
+    assert_response :created
+    assert_not_equal first_call.fetch("id"), JSON.parse(response.body).dig("call_session", "id")
+  end
+
   test "muted recipient does not receive chat or missed call notifications or email" do
     @conversation.conversation_participants.find_by!(user: @recipient).mute!(nil)
 

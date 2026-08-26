@@ -3,7 +3,7 @@ import * as Notifications from 'expo-notifications';
 import * as Sentry from '@sentry/react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { ActivityIndicator, StyleSheet, useColorScheme, View } from 'react-native';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
@@ -39,10 +39,6 @@ export const unstable_settings = {
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  useEffect(() => {
-    SplashScreen.hideAsync();
-  }, []);
-
   return (
     <GestureHandlerRootView style={styles.root}>
       <EnvironmentGate>
@@ -94,6 +90,7 @@ function AuthGate() {
   const router = useRouter();
   const { returnTo } = useGlobalSearchParams<{ returnTo?: string }>();
   const theme = useAppTheme();
+  const splashHidden = useRef(false);
   const firstSegment = segments[0];
   const isPublicPortfolio = pathname === '/';
   const isAuthRoute = ['login', 'signup', 'forgot-password', 'reset-password'].includes(firstSegment);
@@ -107,8 +104,18 @@ function AuthGate() {
   });
 
   useEffect(() => {
+    if (isLoading) return;
+
     if (redirectTarget) router.replace(redirectTarget as never);
-  }, [redirectTarget, router]);
+
+    // Keep the native splash visible until the encrypted session has been
+    // restored. The auth overlay remains mounted while a redirect settles, so
+    // a signed-in user never sees the public portfolio or login screen flash.
+    if (!splashHidden.current) {
+      splashHidden.current = true;
+      requestAnimationFrame(() => { void SplashScreen.hideAsync(); });
+    }
+  }, [isLoading, redirectTarget, router]);
 
   const isTransitioning = isLoading || Boolean(redirectTarget) || (!user && isProtectedRoute) || Boolean(user && (isPublicPortfolio || isAuthRoute));
 

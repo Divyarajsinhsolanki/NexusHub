@@ -1,8 +1,9 @@
 import { FlashList, type FlashListRef } from '@shopify/flash-list';
+import * as Sentry from '@sentry/react-native';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as DocumentPicker from 'expo-document-picker';
 import { Image } from 'expo-image';
-import { useFocusEffect, useLocalSearchParams, usePathname, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, usePathname, useRouter, type ErrorBoundaryProps } from 'expo-router';
 import { ArrowLeft, FilePlus2, MoreHorizontal, Phone, Send, UsersRound, Video } from 'lucide-react-native';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, AppState, KeyboardAvoidingView, Linking, Modal, NativeScrollEvent, NativeSyntheticEvent, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -12,8 +13,9 @@ import { absoluteAssetUrl, apiErrorMessage } from '@/src/api/client';
 import { endpoints } from '@/src/api/endpoints';
 import type { CallSession, Conversation, Message } from '@/src/api/types';
 import { useAuth } from '@/src/auth/AuthProvider';
-import { MOBILE_CACHE_PAGE_LIMIT, appendIncomingMessage, mobileQueryKeys, removeCachedMessage, replaceCachedMessage, trimInfinitePages, updateCachedMessage, updateConversationPreview } from '@/src/cache/mobileCache';
+import { MOBILE_CACHE_PAGE_LIMIT, appendIncomingMessage, mobileQueryKeys, removeCachedMessage, replaceCachedMessage, trimInfinitePages, updateCachedMessage, updateConversationCaches, updateConversationPreview } from '@/src/cache/mobileCache';
 import { requestCallMediaPermissions } from '@/src/calls/mediaPermissions';
+import { normalizedMessageRows, normalizedParticipants } from '@/src/chat/messageRows';
 import { outgoingReceiptState } from '@/src/chat/receipts';
 import { ConversationDetailsSheet } from '@/src/components/chat/ConversationDetailsSheet';
 import { PageHeader } from '@/src/components/PageHeader';
@@ -62,8 +64,9 @@ export default function ChatScreen() {
     getNextPageParam: (page) => Number(page.meta?.next_before_id) || undefined,
     enabled: Number.isFinite(conversationId),
   });
-  const rows = useMemo(() => [...(messages.data?.pages || [])].reverse().flatMap((page) => page.data), [messages.data]);
+  const rows = useMemo(() => normalizedMessageRows(messages.data?.pages), [messages.data?.pages]);
   const latestMessage = rows.length ? rows[rows.length - 1] : undefined;
+  const participants = useMemo(() => normalizedParticipants(conversation.data?.participants), [conversation.data?.participants]);
 
   useEffect(() => {
     if (pathname.startsWith('/inbox/chat/')) router.replace(`/chat/${conversationId}` as never);
@@ -120,12 +123,12 @@ export default function ChatScreen() {
     if (event.type === 'call_started' || event.type === 'call_ringing' || event.type === 'call_participant_joined') {
       const call = event.call_session as CallSession | undefined;
       if (call && typeof call === 'object' && Number(call.id)) {
-        queryClient.setQueryData(mobileQueryKeys.conversation(conversationId), (current?: Conversation) => current ? { ...current, active_call: call } : current);
+        updateConversationCaches(queryClient, conversationId, (current) => ({ ...current, active_call: call }));
       }
       return;
     }
     if (event.type === 'call_ended' || event.type === 'call_missed') {
-      queryClient.setQueryData(mobileQueryKeys.conversation(conversationId), (current?: Conversation) => current ? { ...current, active_call: null } : current);
+      updateConversationCaches(queryClient, conversationId, (current) => ({ ...current, active_call: null }));
       return;
     }
     if (event.type !== 'message_created') return;
@@ -229,8 +232,12 @@ export default function ChatScreen() {
     setMenuOpen(false);
     recordCallBreadcrumb('create', { call_type: callType, conversation_id: conversationId });
     try {
-      if (conversation.data?.active_call) {
-        router.push(`/call/${conversation.data.active_call.id}?type=${conversation.data.active_call.call_type}` as never);
+      // Always confirm active-call state with Rails before navigating. A cached
+      // conversation can still contain a call that another device just ended.
+      const refreshed = await endpoints.conversationSummary(conversationId);
+      updateConversationCaches(queryClient, conversationId, () => refreshed);
+      if (refreshed.active_call) {
+        router.push(`/call/${refreshed.active_call.id}?type=${refreshed.active_call.call_type}` as never);
         return;
       }
       const permission = await requestCallMediaPermissions(callType === 'video');
@@ -239,12 +246,13 @@ export default function ChatScreen() {
         return;
       }
       const result = await endpoints.startCall(conversationId, callType);
+      updateConversationCaches(queryClient, conversationId, (current) => ({ ...current, active_call: result.call_session }));
       router.push(`/call/${result.call_session.id}?type=${callType}&ready=1` as never);
     } catch (error) {
       captureCallError(error, 'create', { call_type: callType, conversation_id: conversationId });
       try {
         const refreshed = await endpoints.conversationSummary(conversationId);
-        queryClient.setQueryData(mobileQueryKeys.conversation(conversationId), refreshed);
+        updateConversationCaches(queryClient, conversationId, () => refreshed);
         if (refreshed.active_call) {
           Alert.alert('Call already active', 'Join the call already running in this conversation?', [{ text: 'Cancel', style: 'cancel' }, { text: 'Join', onPress: () => router.push(`/call/${refreshed.active_call?.id}?type=${refreshed.active_call?.call_type}` as never) }]);
           return;
@@ -304,7 +312,7 @@ export default function ChatScreen() {
   }, [acknowledge, latestMessage?.id]);
   const renderMessage = useCallback(({ item }: { item: Message }) => <MessageBubble conversation={conversation.data} message={item} mine={item.user_id === user?.id} onLongPress={() => item.id > 0 && setReactionMessage(item)} onRetry={retryMessage} userId={user?.id} />, [conversation.data, retryMessage, user?.id]);
   const typingNames = Object.values(typingUsers);
-  const subtitle = typingNames.length ? `${typingNames.join(', ')} ${typingNames.length === 1 ? 'is' : 'are'} typing…` : connection === 'connected' ? conversation.data?.conversation_type === 'group' ? `${conversation.data.participants?.length || 0} members` : conversation.data?.participants?.some((participant) => participant.id !== user?.id && participant.online) ? 'Online' : 'Live conversation' : 'Reconnecting…';
+  const subtitle = typingNames.length ? `${typingNames.join(', ')} ${typingNames.length === 1 ? 'is' : 'are'} typing…` : connection === 'connected' ? conversation.data?.conversation_type === 'group' ? `${participants.length} members` : participants.some((participant) => participant.id !== user?.id && participant.online) ? 'Online' : 'Live conversation' : 'Reconnecting…';
   const back = () => router.canGoBack() ? router.back() : router.replace('/inbox' as never);
 
   return <Screen header={<PageHeader leading={<IconButton label="Back" onPress={back}><ArrowLeft color={theme.text} size={22} /></IconButton>} title={conversation.data?.title || 'Conversation'} subtitle={subtitle} action={writable ? <View style={styles.headerActions}><IconButton label={conversation.data?.active_call ? 'Join active call' : 'Start video call'} onPress={() => startCall('video')}><Video color={conversation.data?.active_call ? theme.success : theme.text} size={20} /></IconButton><IconButton label="More conversation actions" onPress={() => setMenuOpen(true)}><MoreHorizontal color={theme.text} size={22} /></IconButton></View> : <IconButton label="Conversation details" onPress={() => setDetailsOpen(true)}><UsersRound color={theme.text} size={20} /></IconButton>} />}>
@@ -331,7 +339,7 @@ function Attachment({ file, mine }: { file: Record<string, unknown> & { id: numb
   const contentType = String(file.content_type || '');
   const filename = String(file.filename || 'Attachment');
   const open = () => url && void Linking.openURL(url);
-  if (url && contentType.startsWith('image/')) return <Pressable accessibilityLabel={`Open ${filename}`} onPress={open}><Image contentFit="cover" source={{ uri: url }} style={styles.messageImage} /><Text numberOfLines={1} style={[styles.file, { color: mine ? '#dbeafe' : theme.textMuted }]}>{filename}</Text></Pressable>;
+  if (url && contentType.startsWith('image/')) return <Pressable accessibilityLabel={`Open ${filename}`} onPress={open}><Image cachePolicy="disk" contentFit="cover" source={{ uri: url }} style={styles.messageImage} /><Text numberOfLines={1} style={[styles.file, { color: mine ? '#dbeafe' : theme.textMuted }]}>{filename}</Text></Pressable>;
   return <Pressable accessibilityLabel={`Open ${filename}`} disabled={!url} onPress={open} style={[styles.fileRow, { backgroundColor: mine ? 'rgba(255,255,255,0.12)' : theme.surfaceMuted }]}><FilePlus2 color={mine ? '#dbeafe' : theme.textMuted} size={17} /><Text numberOfLines={1} style={[styles.file, { color: mine ? '#dbeafe' : theme.text }]}>{filename}</Text></Pressable>;
 }
 
@@ -347,6 +355,17 @@ function ReactionPicker({ message, onClose, onSelect, pending }: { message: Mess
 function reactionEntries(reactions: Message['reactions']): Array<[string, number]> { if (!reactions || Array.isArray(reactions)) return []; return Object.entries(reactions).filter((entry): entry is [string, number] => typeof entry[1] === 'number' && entry[1] > 0); }
 function formatTime(value: string) { const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
 function IconButton({ label, onPress, children }: { label: string; onPress: () => void; children: React.ReactNode }) { return <Pressable accessibilityLabel={label} accessibilityRole="button" hitSlop={8} onPress={onPress} style={styles.iconButton}>{children}</Pressable>; }
+
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  const router = useRouter();
+  const theme = useAppTheme();
+
+  useEffect(() => {
+    Sentry.captureException(error, { tags: { surface: 'mobile_chat_thread' } });
+  }, [error]);
+
+  return <View style={[styles.chatError, { backgroundColor: theme.background }]}><Text accessibilityRole="header" style={[styles.chatErrorTitle, { color: theme.text }]}>Conversation couldn’t open</Text><Text style={[styles.chatErrorCopy, { color: theme.textMuted }]}>Your messages are safe. Try loading the conversation again, or return to Chat.</Text><Pressable accessibilityRole="button" onPress={retry} style={[styles.chatErrorPrimary, { backgroundColor: theme.primary }]}><Text style={styles.chatErrorPrimaryText}>Try again</Text></Pressable><Pressable accessibilityRole="button" onPress={() => router.replace('/inbox?mode=chat' as never)} style={styles.chatErrorBack}><Text style={{ color: theme.primary, fontWeight: '800' }}>Back to Chat</Text></Pressable></View>;
+}
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
@@ -385,4 +404,10 @@ const styles = StyleSheet.create({
   menu: { borderRadius: 11, minWidth: 230, padding: 6 },
   menuAction: { alignItems: 'center', flexDirection: 'row', gap: 10, minHeight: 48, paddingHorizontal: 12 },
   menuLabel: { fontSize: 14, fontWeight: '700' },
+  chatError: { alignItems: 'center', flex: 1, justifyContent: 'center', paddingHorizontal: 28 },
+  chatErrorTitle: { fontSize: 22, fontWeight: '900', textAlign: 'center' },
+  chatErrorCopy: { fontSize: 14, lineHeight: 21, marginTop: 9, maxWidth: 360, textAlign: 'center' },
+  chatErrorPrimary: { alignItems: 'center', borderRadius: 9, marginTop: 24, minHeight: 48, justifyContent: 'center', width: 220 },
+  chatErrorPrimaryText: { color: '#ffffff', fontSize: 14, fontWeight: '900' },
+  chatErrorBack: { alignItems: 'center', justifyContent: 'center', marginTop: 8, minHeight: 44, width: 220 },
 });

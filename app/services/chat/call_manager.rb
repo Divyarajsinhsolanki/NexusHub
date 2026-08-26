@@ -142,8 +142,12 @@ module Chat
 
         participant.update!(status: "left", left_at: Time.current)
         if call_session.conversation.direct?
-          call_session.call_participants.where(status: "ringing").update_all(status: "missed", left_at: Time.current, updated_at: Time.current)
-          call_session.call_participants.where(status: "joined").where.not(user_id: user.id).update_all(status: "left", left_at: Time.current, updated_at: Time.current)
+          # A direct phone/video call has only two parties. Hanging up must end
+          # the shared session for both, otherwise the remaining joined row
+          # keeps the conversation locked in an "already active" state.
+          now = Time.current
+          call_session.call_participants.where(status: "ringing").update_all(status: "missed", left_at: now, updated_at: now)
+          call_session.call_participants.where(status: "joined").update_all(status: "left", left_at: now, updated_at: now)
           end_call!(call_session, "ended", "left")
         else
           end_call!(call_session, "ended", "left") unless joined_participants(call_session).exists?

@@ -5,7 +5,7 @@ class CallRingingPushNotificationJob < ApplicationJob
   def perform(call_session_id, recipient_id)
     call_session = CallSession.unscoped.includes(:initiator, :conversation).find_by(id: call_session_id)
     return unless call_session&.live?
-    return unless call_session.call_participants.exists?(user_id: recipient_id, status: "ringing", ring_acknowledged_at: nil)
+    return unless call_session.call_participants.exists?(user_id: recipient_id, status: "ringing")
 
     membership = call_session.conversation.conversation_participants.find_by(user_id: recipient_id)
     return if membership&.muted?

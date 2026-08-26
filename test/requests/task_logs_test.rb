@@ -5,6 +5,7 @@ class TaskLogsTest < ActionDispatch::IntegrationTest
     @workspace = Workspace.create!(name: "Task Logs", slug: "task-logs", kind: "private")
     @user = create_test_user(workspace: @workspace, email: "task-logs-owner@example.test")
     @developer = create_test_user(workspace: @workspace, email: "task-logs-dev@example.test")
+    @second_developer = create_test_user(workspace: @workspace, email: "task-logs-second-dev@example.test")
     Current.user = @user
     Current.workspace = @workspace
 
@@ -64,6 +65,22 @@ class TaskLogsTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_equal({ "deleted_count" => 2 }, JSON.parse(response.body))
     assert TaskLog.unscoped.exists?(@other_log.id)
+  end
+
+  test "update moves a log to the dropped date and developer" do
+    patch "/api/task_logs/#{@first_log.id}.json", params: {
+      task_log: {
+        log_date: "2026-06-03",
+        developer_id: @second_developer.id
+      }
+    }
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal "2026-06-03", payload["log_date"]
+    assert_equal @second_developer.id, payload["developer_id"]
+    assert_equal @second_developer.id, payload.dig("developer", "id")
+    assert_equal Date.new(2026, 6, 3), @first_log.reload.log_date
   end
 
   private

@@ -17,7 +17,9 @@ import { endpoints } from '../api/endpoints';
 import { normalizeMobileDeepLink } from '../navigation/deepLinks';
 
 export const MOBILE_CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
-export const MOBILE_CACHE_BUSTER = 'mobile-cache-v3';
+// Bump whenever a persisted response shape changes. v4 deliberately clears
+// older chat payloads that could contain malformed participant/message rows.
+export const MOBILE_CACHE_BUSTER = 'mobile-cache-v4';
 export const MOBILE_CACHE_PAGE_LIMIT = 3;
 
 const LONG_STALE_TIME = 5 * 60 * 1000;
@@ -172,7 +174,7 @@ export function appendIncomingMessage(
       if (hasMessage(previous, incoming.id)) return previous;
 
       const pages = previous.pages.map((page, index) => (
-        index === 0 ? { ...page, data: [...page.data, incoming] } : page
+        index === 0 ? { ...page, data: [...safeMessageData(page.data), incoming] } : { ...page, data: safeMessageData(page.data) }
       ));
 
       return { ...previous, pages };
@@ -191,7 +193,7 @@ export function updateCachedMessage(
     let changed = false;
     const pages = previous.pages.map((page) => ({
       ...page,
-      data: page.data.map((message) => {
+      data: safeMessageData(page.data).map((message) => {
         if (Number(message.id) !== Number(messageId)) return message;
         changed = true;
         return updater(message);
@@ -206,7 +208,7 @@ export function replaceCachedMessage(queryClient: QueryClient, conversationId: n
     if (!previous?.pages.length) return previous;
     const pages = previous.pages.map((page) => ({
       ...page,
-      data: page.data.filter((cached) => Number(cached.id) !== Number(temporaryId) && Number(cached.id) !== Number(message.id)),
+      data: safeMessageData(page.data).filter((cached) => Number(cached.id) !== Number(temporaryId) && Number(cached.id) !== Number(message.id)),
     }));
     pages[0] = { ...pages[0], data: [...pages[0].data, { ...message, send_state: 'sent' }] };
     return { ...previous, pages };
@@ -216,7 +218,7 @@ export function replaceCachedMessage(queryClient: QueryClient, conversationId: n
 export function removeCachedMessage(queryClient: QueryClient, conversationId: number, messageId: number) {
   queryClient.setQueryData<InfiniteData<CollectionResult<Message>>>(mobileQueryKeys.messages(conversationId), (previous) => previous ? {
     ...previous,
-    pages: previous.pages.map((page) => ({ ...page, data: page.data.filter((message) => Number(message.id) !== Number(messageId)) })),
+    pages: previous.pages.map((page) => ({ ...page, data: safeMessageData(page.data).filter((message) => Number(message.id) !== Number(messageId)) })),
   } : previous);
 }
 
@@ -408,7 +410,12 @@ function queryKeyPrefix(queryKey: QueryKey) {
 }
 
 function hasMessage(data: InfiniteData<CollectionResult<Message>>, messageId: number) {
-  return data.pages.some((page) => page.data.some((message) => Number(message.id) === Number(messageId)));
+  return data.pages.some((page) => safeMessageData(page.data).some((message) => Number(message.id) === Number(messageId)));
+}
+
+function safeMessageData(value: unknown): Message[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((message): message is Message => Boolean(message && typeof message === 'object'));
 }
 
 type ConversationCache = CollectionResult<Conversation> | InfiniteData<CollectionResult<Conversation>>;

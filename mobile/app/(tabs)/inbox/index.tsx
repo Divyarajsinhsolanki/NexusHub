@@ -1,15 +1,16 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Bell, Check, Heart, MessageCircle, MicOff, PhoneCall, Plus, Search, UserRound, UsersRound, X } from 'lucide-react-native';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { absoluteAssetUrl, apiErrorMessage } from '@/src/api/client';
 import { endpoints } from '@/src/api/endpoints';
 import type { CollectionResult, Conversation, EntityRecord, Post } from '@/src/api/types';
 import { applyPostToFeed, mobileQueryKeys, updatePostInFeed } from '@/src/cache/mobileCache';
+import { normalizedParticipants } from '@/src/chat/messageRows';
 import { Avatar } from '@/src/components/Avatar';
 import { PageHeader } from '@/src/components/PageHeader';
 import { PrimaryButton } from '@/src/components/PrimaryButton';
@@ -26,7 +27,8 @@ export default function InboxScreen() {
   const theme = useAppTheme();
   const router = useRouter();
   const { user } = useAuth();
-  const [mode, setMode] = useState<InboxMode>('posts');
+  const params = useLocalSearchParams<{ mode?: string }>();
+  const [mode, setMode] = useState<InboxMode>(params.mode === 'chat' ? 'chat' : 'posts');
   const [newConversation, setNewConversation] = useState(false);
   const [search, setSearch] = useState('');
   const posts = useQuery({ queryKey: mobileQueryKeys.posts, queryFn: () => endpoints.posts(), enabled: mode === 'posts' });
@@ -44,6 +46,10 @@ export default function InboxScreen() {
     return conversationRows.filter((conversation) => conversationTitle(conversation).toLowerCase().includes(query));
   }, [conversationRows, search]);
   const active = mode === 'posts' ? posts : conversations;
+
+  useEffect(() => {
+    if (params.mode === 'chat' || params.mode === 'posts') setMode(params.mode);
+  }, [params.mode]);
 
   return (
     <Screen header={<PageHeader title="Inbox" subtitle="Updates and conversations" action={<View style={styles.headerActions}>{!user?.demo_account ? <Pressable accessibilityLabel={mode === 'posts' ? 'Create post' : 'New conversation'} onPress={() => mode === 'posts' ? router.push('/create?type=post' as never) : setNewConversation(true)} style={[styles.iconButton, { backgroundColor: theme.primary }]}><Plus color="#ffffff" size={20} /></Pressable> : null}<Pressable accessibilityLabel="Open notifications" onPress={() => router.push('/inbox/notifications')} style={[styles.iconButton, { backgroundColor: theme.surfaceMuted }]}><Bell color={theme.text} size={20} /></Pressable></View>} /> }>
@@ -101,10 +107,11 @@ function ConversationRow({ conversation }: { conversation: Conversation }) {
   const theme = useAppTheme();
   const router = useRouter();
   const { user } = useAuth();
-  const other = conversation.participants?.find((participant) => participant.id !== user?.id);
+  const participants = normalizedParticipants(conversation.participants);
+  const other = participants.find((participant) => participant.id !== user?.id);
   const group = conversation.conversation_type === 'group';
   const online = !group && Boolean(other?.online);
-  return <Pressable accessibilityLabel={`Open ${conversationTitle(conversation)}`} accessibilityRole="button" onPress={() => router.push(`/chat/${conversation.id}` as never)} style={({ pressed }) => [styles.conversation, { backgroundColor: pressed ? theme.surfaceMuted : theme.background, borderBottomColor: theme.border }]}><View><Avatar name={conversationTitle(conversation)} size={48} uri={!group ? absoluteAssetUrl(other?.profile_picture) : undefined} /><View style={[styles.presence, { backgroundColor: online ? theme.success : theme.border, borderColor: theme.background }]} /></View><View style={styles.conversationCopy}><View style={styles.conversationTitleRow}><Text numberOfLines={1} style={[styles.name, { color: theme.text }]}>{conversationTitle(conversation)}</Text>{conversation.muted ? <MicOff color={theme.textMuted} size={14} /> : null}</View><Text numberOfLines={1} style={[styles.preview, { color: theme.textMuted }]}>{conversationPreview(conversation)}</Text></View><View style={styles.conversationMeta}>{conversation.active_call ? <PhoneCall color={theme.success} size={17} /> : null}{conversation.unread_count ? <View style={[styles.badge, { backgroundColor: theme.primary }]}><Text style={styles.badgeText}>{conversation.unread_count > 99 ? '99+' : conversation.unread_count}</Text></View> : null}<Text style={[styles.kind, { color: theme.textMuted }]}>{group ? `${conversation.participants?.length || 0} people` : online ? 'Online' : ''}</Text></View></Pressable>;
+  return <Pressable accessibilityLabel={`Open ${conversationTitle(conversation)}`} accessibilityRole="button" onPress={() => router.push(`/chat/${conversation.id}` as never)} style={({ pressed }) => [styles.conversation, { backgroundColor: pressed ? theme.surfaceMuted : theme.background, borderBottomColor: theme.border }]}><View><Avatar name={conversationTitle(conversation)} size={48} uri={!group ? absoluteAssetUrl(other?.profile_picture) : undefined} /><View style={[styles.presence, { backgroundColor: online ? theme.success : theme.border, borderColor: theme.background }]} /></View><View style={styles.conversationCopy}><View style={styles.conversationTitleRow}><Text numberOfLines={1} style={[styles.name, { color: theme.text }]}>{conversationTitle(conversation)}</Text>{conversation.muted ? <MicOff color={theme.textMuted} size={14} /> : null}</View><Text numberOfLines={1} style={[styles.preview, { color: theme.textMuted }]}>{conversationPreview(conversation)}</Text></View><View style={styles.conversationMeta}>{conversation.active_call ? <PhoneCall color={theme.success} size={17} /> : null}{conversation.unread_count ? <View style={[styles.badge, { backgroundColor: theme.primary }]}><Text style={styles.badgeText}>{conversation.unread_count > 99 ? '99+' : conversation.unread_count}</Text></View> : null}<Text style={[styles.kind, { color: theme.textMuted }]}>{group ? `${participants.length} people` : online ? 'Online' : ''}</Text></View></Pressable>;
 }
 
 function NewConversationSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {

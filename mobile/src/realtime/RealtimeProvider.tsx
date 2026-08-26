@@ -229,10 +229,10 @@ export class SharedRealtimeClient {
   }
 
   private teardownConsumer() {
-    this.channels.forEach((record) => {
-      record.subscription?.unsubscribe();
-      record.subscription = undefined;
-    });
+    // Closing the shared socket removes all of its subscriptions server-side.
+    // Sending an unsubscribe for every channel immediately before disconnect
+    // races ActionCable and produces duplicate/unknown subscription commands.
+    this.channels.forEach((record) => { record.subscription = undefined; });
     this.consumer?.disconnect();
     this.consumer = undefined;
   }

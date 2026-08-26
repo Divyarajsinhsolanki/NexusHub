@@ -1,11 +1,13 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Camera, CameraOff, Mic, MicOff, Settings, ShieldAlert } from 'lucide-react-native';
 import { useLocalSearchParams, usePathname, useRouter } from 'expo-router';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { BackHandler, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { apiErrorMessage } from '@/src/api/client';
 import { endpoints } from '@/src/api/endpoints';
+import type { CallSession } from '@/src/api/types';
+import { mobileQueryKeys, updateConversationCaches } from '@/src/cache/mobileCache';
 import { openApplicationSettings, requestCallMediaPermissions } from '@/src/calls/mediaPermissions';
 import { PrimaryButton } from '@/src/components/PrimaryButton';
 import { ErrorState, LoadingState } from '@/src/components/StateView';
@@ -21,15 +23,30 @@ export default function CallScreen() {
   const callId = Number(id);
   const mediaType = type === 'video' ? 'video' : 'audio';
   const router = useRouter();
+  const queryClient = useQueryClient();
   const pathname = usePathname();
   const theme = useAppTheme();
   const [permissionReady, setPermissionReady] = useState(ready === '1');
   const [microphone, setMicrophone] = useState(true);
   const [camera, setCamera] = useState(true);
   const [permissionIssue, setPermissionIssue] = useState<string | null>(null);
+  const [callActionIssue, setCallActionIssue] = useState<string | null>(null);
+  const [failedAction, setFailedAction] = useState<'leave' | 'end' | null>(null);
   const endingRef = useRef<'leave' | 'end' | null>(null);
   const credentials = useQuery({ queryKey: ['call', callId], queryFn: () => endpoints.joinCall(callId), enabled: permissionReady && Number.isFinite(callId), retry: false });
-  const close = useCallback(() => router.replace('/(tabs)/inbox' as never), [router]);
+  const close = useCallback(() => router.replace('/(tabs)/inbox?mode=chat' as never), [router]);
+  const finishLocally = useCallback((callSession?: CallSession) => {
+    const conversationId = callSession?.conversation_id || credentials.data?.call_session.conversation_id;
+    if (conversationId) {
+      updateConversationCaches(queryClient, conversationId, (conversation) => ({ ...conversation, active_call: null }));
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: mobileQueryKeys.conversations }),
+        queryClient.invalidateQueries({ queryKey: mobileQueryKeys.conversation(conversationId) }),
+        queryClient.invalidateQueries({ queryKey: mobileQueryKeys.home }),
+      ]);
+    }
+    close();
+  }, [close, credentials.data?.call_session.conversation_id, queryClient]);
 
   useEffect(() => {
     if (pathname.startsWith('/inbox/call/')) router.replace(`/call/${callId}` as never);
@@ -42,27 +59,66 @@ export default function CallScreen() {
   useCallRealtime(credentials.data?.call_session.public_id, (event) => {
     if (event.type === 'call_ended') {
       recordCallBreadcrumb('end', { call_id: callId, remote: true });
-      close();
+      void finishLocally(credentials.data?.call_session);
     }
   });
 
-  const leave = async () => {
+  const leave = useCallback(async () => {
     if (endingRef.current) return;
     endingRef.current = 'leave';
+    setCallActionIssue(null);
+    setFailedAction(null);
     recordCallBreadcrumb('leave', { call_id: callId });
-    try { await endpoints.callAction(callId, 'leave'); } catch (error) { captureCallError(error, 'leave', { call_id: callId }); }
-    finally { close(); }
-  };
-  const end = async () => {
+    try {
+      const result = await endpoints.callAction(callId, 'leave');
+      finishLocally(result.call_session);
+    } catch (error) {
+      endingRef.current = null;
+      captureCallError(error, 'leave', { call_id: callId });
+
+      // The HTTP response can be lost after Rails already processed the leave.
+      // Reconcile before asking the user to retry, but never close while the
+      // server still reports this call as active.
+      const conversationId = credentials.data?.call_session.conversation_id;
+      if (conversationId) {
+        try {
+          const refreshed = await endpoints.conversationSummary(conversationId);
+          updateConversationCaches(queryClient, conversationId, () => refreshed);
+          if (Number(refreshed.active_call?.id) !== callId) {
+            finishLocally(credentials.data?.call_session);
+            return;
+          }
+        } catch { /* The original leave error remains actionable. */ }
+      }
+      setFailedAction('leave');
+      setCallActionIssue('The server did not confirm that you left. Your media is still connected; try again when the network is stable.');
+    }
+  }, [callId, credentials.data?.call_session, finishLocally, queryClient]);
+  const end = useCallback(async () => {
     if (endingRef.current) return;
     endingRef.current = 'end';
+    setCallActionIssue(null);
+    setFailedAction(null);
     recordCallBreadcrumb('end', { call_id: callId });
-    try { await endpoints.callAction(callId, 'end'); close(); } catch (error) {
+    try {
+      const result = await endpoints.callAction(callId, 'end');
+      finishLocally(result.call_session);
+    } catch (error) {
       endingRef.current = null;
       captureCallError(error, 'end', { call_id: callId });
-      setPermissionIssue(apiErrorMessage(error));
+      setFailedAction('end');
+      setCallActionIssue(apiErrorMessage(error));
     }
-  };
+  }, [callId, finishLocally]);
+
+  useEffect(() => {
+    if (!permissionReady) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      void leave();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [leave, permissionReady]);
 
   const join = async () => {
     setPermissionIssue(null);
@@ -88,7 +144,7 @@ export default function CallScreen() {
   const environmentIssue = validateLiveKitEnvironment(credentials.data.server_url);
   if (environmentIssue) return <View style={[styles.state, { backgroundColor: theme.background }]}><ShieldAlert color={theme.danger} size={42} /><Text style={[styles.title, { color: theme.text }]}>{environmentIssue.title}</Text><Text style={[styles.copy, { color: theme.textMuted }]}>{environmentIssue.detail}</Text><PrimaryButton label="Retry configuration" onPress={() => credentials.refetch()} /><Pressable onPress={close} style={styles.cancel}><Text style={{ color: theme.primary, fontWeight: '800' }}>Back to Inbox</Text></Pressable></View>;
 
-  return <Suspense fallback={<View style={styles.loading}><LoadingState label="Starting secure media" /></View>}><LazyMobileCallRoom credentials={credentials.data} initialAudio={microphone} initialVideo={mediaType === credentials.data.call_session.call_type ? camera : false} onEnd={end} onLeave={leave} /></Suspense>;
+  return <Suspense fallback={<View style={styles.loading}><LoadingState label="Starting secure media" /></View>}><View style={styles.callRoot}><LazyMobileCallRoom credentials={credentials.data} initialAudio={microphone} initialVideo={mediaType === credentials.data.call_session.call_type ? camera : false} onEnd={end} onLeave={leave} />{callActionIssue ? <View accessibilityRole="alert" style={styles.actionIssue}><Text style={styles.actionIssueText}>{callActionIssue}</Text><Pressable accessibilityRole="button" onPress={() => void (failedAction === 'end' ? end() : leave())} style={styles.actionRetry}><Text style={styles.actionRetryText}>Try again</Text></Pressable></View> : null}</View></Suspense>;
 }
 
 function MediaChoice({ active, children, label, onPress }: { active: boolean; children: React.ReactNode; label: string; onPress: () => void }) {
@@ -96,6 +152,7 @@ function MediaChoice({ active, children, label, onPress }: { active: boolean; ch
 }
 
 const styles = StyleSheet.create({
+  callRoot: { flex: 1 },
   loading: { backgroundColor: '#101216', flex: 1, justifyContent: 'center' },
   state: { alignItems: 'center', flex: 1, gap: 14, justifyContent: 'center', paddingHorizontal: 26 },
   prejoin: { flex: 1, justifyContent: 'center', paddingHorizontal: 24 },
@@ -109,4 +166,8 @@ const styles = StyleSheet.create({
   choiceLabel: { color: '#87909f', fontSize: 10, marginTop: 6 },
   permission: { alignItems: 'center', borderRadius: 10, borderWidth: 1, flexDirection: 'row', gap: 12, marginBottom: 16, padding: 12 },
   cancel: { alignItems: 'center', minHeight: 44, padding: 12 },
+  actionIssue: { alignItems: 'center', backgroundColor: '#451a03', borderColor: '#f59e0b', borderRadius: 10, borderWidth: 1, flexDirection: 'row', gap: 10, left: 12, padding: 11, position: 'absolute', right: 12, top: 76 },
+  actionIssueText: { color: '#fef3c7', flex: 1, fontSize: 11, lineHeight: 16 },
+  actionRetry: { alignItems: 'center', borderRadius: 7, justifyContent: 'center', minHeight: 38, paddingHorizontal: 10 },
+  actionRetryText: { color: '#fbbf24', fontSize: 11, fontWeight: '900' },
 });

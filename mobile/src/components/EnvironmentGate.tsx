@@ -1,4 +1,5 @@
-import { PropsWithChildren } from 'react';
+import * as SplashScreen from 'expo-splash-screen';
+import { PropsWithChildren, useEffect } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -6,6 +7,13 @@ import { validateApiEnvironment } from '../config/runtimeEnvironment';
 
 export function EnvironmentGate({ children }: PropsWithChildren) {
   const issue = validateApiEnvironment();
+
+  useEffect(() => {
+    // AuthGate owns normal splash dismissal. If configuration blocks the
+    // provider tree, dismiss here so the actionable setup screen is visible.
+    if (issue) requestAnimationFrame(() => { void SplashScreen.hideAsync(); });
+  }, [issue?.code]);
+
   if (!issue) return children;
 
   return (

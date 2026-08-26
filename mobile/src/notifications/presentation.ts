@@ -4,6 +4,7 @@ import { normalizeMobileDeepLink } from '../navigation/deepLinks';
 import type { NexusPushData } from './constants';
 
 let visibleRoute = '/';
+let visibleIncomingCallId: number | null = null;
 
 export function setVisibleNotificationRoute(pathname: string, params: Record<string, string | string[] | undefined> = {}) {
   const search = new URLSearchParams();
@@ -14,10 +15,15 @@ export function setVisibleNotificationRoute(pathname: string, params: Record<str
   visibleRoute = `${pathname}${search.size ? `?${search}` : ''}`;
 }
 
+export function setVisibleIncomingCall(callId: number | null) {
+  visibleIncomingCallId = Number.isFinite(Number(callId)) ? Number(callId) : null;
+}
+
 export function notificationBehavior(notification: Notifications.Notification): Notifications.NotificationBehavior {
   const data = notification.request.content.data as NexusPushData;
   const incomingCall = data.event_type === 'call_ringing' || data.type === 'call_ringing';
-  const suppress = !incomingCall && isViewingNotificationTarget(data.deep_link);
+  const duplicateForegroundRing = incomingCall && Number(data.call_id) === visibleIncomingCallId;
+  const suppress = duplicateForegroundRing || (!incomingCall && isViewingNotificationTarget(data.deep_link));
   return {
     shouldPlaySound: !suppress,
     shouldSetBadge: true,

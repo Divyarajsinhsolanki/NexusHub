@@ -2,8 +2,11 @@ module PushNotifications
   module_function
 
   def v2_enabled?
-    default = Rails.env.production? ? "false" : "true"
-    ActiveModel::Type::Boolean.new.cast(ENV.fetch("PUSH_V2_ENABLED", default))
+    # The pipeline is backward compatible: schema-v1 devices still receive the
+    # legacy channels. Keep v2 on by default so a missing Render environment
+    # variable cannot silently suppress chat/work/social pushes. Operators can
+    # explicitly set false for an immediate rollback.
+    ActiveModel::Type::Boolean.new.cast(ENV.fetch("PUSH_V2_ENABLED", "true"))
   end
 
   def report(error, delivery: nil, context: {})

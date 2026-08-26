@@ -1,7 +1,8 @@
 import type { Conversation, Message } from '../api/types';
+import { normalizedParticipants } from './messageRows';
 
 export function outgoingReceiptState(conversation: Conversation | undefined, message: Message, currentUserId?: number) {
-  const recipients = (conversation?.participants || []).filter((participant) => (
+  const recipients = normalizedParticipants(conversation?.participants).filter((participant) => (
     participant.id !== currentUserId &&
     (!participant.joined_at || new Date(participant.joined_at) <= new Date(message.created_at))
   ));

@@ -27,16 +27,16 @@ class CallRingingPushNotificationJobTest < ActiveJob::TestCase
     assert_not payload.fetch(:data).key?(:participant_token)
   end
 
-  test "does not send a fallback push after the foreground ring was acknowledged" do
+  test "a web acknowledgement does not suppress ringing on the recipient mobile device" do
     @call.call_participants.find_by!(user: @recipient).update!(ring_acknowledged_at: Time.current)
 
     job = CallRingingPushNotificationJob.new
-    job.define_singleton_method(:push_message) { |_call, _device| throw :push_attempted }
+    job.define_singleton_method(:push_message) { |_call, _device, _recipient| throw :push_attempted }
     result = catch(:push_attempted) do
       job.perform(@call.id, @recipient.id)
-      :skipped
+      :not_attempted
     end
 
-    assert_equal :skipped, result
+    assert_nil result
   end
 end
