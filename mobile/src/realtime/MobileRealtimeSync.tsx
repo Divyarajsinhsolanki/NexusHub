@@ -2,8 +2,8 @@ import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 
 import type { Message, Notification } from '../api/types';
-import { endpoints } from '../api/endpoints';
 import { useAuth } from '../auth/AuthProvider';
+import { sendConversationReceiptOnce } from '../chat/receiptCoordinator';
 import {
   appendIncomingMessage,
   applyConversationReceipt,
@@ -19,7 +19,6 @@ import { normalizeMobileDeepLink } from '../navigation/deepLinks';
 import { type ChatEvent, useChatRealtime } from './useChatRealtime';
 
 const recentMessageEvents = new Map<number, number>();
-const deliveredMessages = new Map<number, number>();
 
 export function MobileRealtimeSync() {
   const { user } = useAuth();
@@ -28,16 +27,17 @@ export function MobileRealtimeSync() {
 }
 
 function RealtimeSubscription() {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const onEvent = useCallback((event: ChatEvent) => {
-    void handleMobileRealtimeEvent(queryClient, event);
-  }, [queryClient]);
+    void handleMobileRealtimeEvent(queryClient, event, user?.id);
+  }, [queryClient, user?.id]);
 
   useChatRealtime(undefined, onEvent);
   return null;
 }
 
-export async function handleMobileRealtimeEvent(queryClient: QueryClient, event: ChatEvent) {
+export async function handleMobileRealtimeEvent(queryClient: QueryClient, event: ChatEvent, userId?: number) {
   const conversationId = numericId(event.conversation_id);
 
   if (event.type === 'notification_received') {
@@ -53,7 +53,7 @@ export async function handleMobileRealtimeEvent(queryClient: QueryClient, event:
       appendIncomingMessage(queryClient, conversationId, message);
       updateConversationPreview(queryClient, conversationId, message);
       recentMessageEvents.set(conversationId, Date.now());
-      void markDeliveredOnce(conversationId, message.id);
+      void sendConversationReceiptOnce(userId, conversationId, message.id, 'delivered').catch(() => undefined);
     }
     return;
   }
@@ -108,16 +108,6 @@ async function refreshConversationCaches(queryClient: QueryClient, conversationI
   }
 
   await Promise.all(tasks);
-}
-
-async function markDeliveredOnce(conversationId: number, messageId: number) {
-  if (Number(deliveredMessages.get(conversationId) || 0) >= messageId) return;
-  deliveredMessages.set(conversationId, messageId);
-  try {
-    await endpoints.updateConversationReceipt(conversationId, messageId, 'delivered');
-  } catch {
-    if (deliveredMessages.get(conversationId) === messageId) deliveredMessages.delete(conversationId);
-  }
 }
 
 function normalizeRealtimeMessage(value: unknown): Message | null {

@@ -1,42 +1,53 @@
-import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import * as Sentry from '@sentry/react-native';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as DocumentPicker from 'expo-document-picker';
 import { Image } from 'expo-image';
-import { useFocusEffect, useLocalSearchParams, usePathname, useRouter, type ErrorBoundaryProps } from 'expo-router';
+import { Redirect, useFocusEffect, useLocalSearchParams, usePathname, useRouter, type ErrorBoundaryProps } from 'expo-router';
 import { ArrowLeft, FilePlus2, MoreHorizontal, Phone, Send, UsersRound, Video } from 'lucide-react-native';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, AppState, KeyboardAvoidingView, Linking, Modal, NativeScrollEvent, NativeSyntheticEvent, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, AppState, FlatList, KeyboardAvoidingView, Linking, Modal, NativeScrollEvent, NativeSyntheticEvent, Platform, Pressable, StyleSheet, Text, TextInput, View, type ListRenderItemInfo } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { absoluteAssetUrl, apiErrorMessage } from '@/src/api/client';
 import { endpoints } from '@/src/api/endpoints';
-import type { CallSession, Conversation, Message } from '@/src/api/types';
+import type { CallSession, Message } from '@/src/api/types';
 import { useAuth } from '@/src/auth/AuthProvider';
 import { MOBILE_CACHE_PAGE_LIMIT, appendIncomingMessage, mobileQueryKeys, removeCachedMessage, replaceCachedMessage, trimInfinitePages, updateCachedMessage, updateConversationCaches, updateConversationPreview } from '@/src/cache/mobileCache';
 import { requestCallMediaPermissions } from '@/src/calls/mediaPermissions';
+import { recentChatPhases, recordChatPhase } from '@/src/chat/chatDiagnostics';
 import { normalizedMessageRows, normalizedParticipants } from '@/src/chat/messageRows';
-import { outgoingReceiptState } from '@/src/chat/receipts';
+import { sendConversationReceiptOnce } from '@/src/chat/receiptCoordinator';
+import { outgoingReceiptStateForParticipants } from '@/src/chat/receipts';
+import { messageKey, OlderPageRequestGate } from '@/src/chat/threadList';
 import { ConversationDetailsSheet } from '@/src/components/chat/ConversationDetailsSheet';
 import { PageHeader } from '@/src/components/PageHeader';
 import { Screen } from '@/src/components/Screen';
 import { EmptyState, ErrorState, LoadingState } from '@/src/components/StateView';
 import { captureCallError, recordCallBreadcrumb } from '@/src/observability/callDiagnostics';
-import { useRealtime } from '@/src/realtime/RealtimeProvider';
+import { useRealtimeActions } from '@/src/realtime/RealtimeProvider';
 import { useChatRealtime, type ChatEvent } from '@/src/realtime/useChatRealtime';
 import { useAppTheme } from '@/src/theme';
 
 type MessageDraft = { body: string; attachment: DocumentPicker.DocumentPickerAsset | null };
 
-export default function ChatScreen() {
+export default function ChatRoute() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const conversationId = Number(id);
   const pathname = usePathname();
+
+  if (pathname.startsWith('/inbox/chat/')) {
+    return <Redirect href={`/chat/${conversationId}` as never} />;
+  }
+
+  return <ChatScreen conversationId={conversationId} />;
+}
+
+function ChatScreen({ conversationId }: { conversationId: number }) {
   const theme = useAppTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
-  const realtime = useRealtime();
+  const { perform } = useRealtimeActions();
   const { user } = useAuth();
   const writable = !user?.demo_account;
   const [body, setBody] = useState('');
@@ -46,12 +57,13 @@ export default function ChatScreen() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [typingUsers, setTypingUsers] = useState<Record<number, string>>({});
-  const listRef = useRef<FlashListRef<Message>>(null);
+  const listRef = useRef<FlatList<Message>>(null);
   const atLatestRef = useRef(true);
   const focusedRef = useRef(false);
   const appActiveRef = useRef(AppState.currentState === 'active');
-  const receiptCursorRef = useRef({ delivered: 0, read: 0 });
-  const olderRequestRef = useRef(false);
+  const olderPageGateRef = useRef(new OlderPageRequestGate());
+  const positionedRef = useRef(false);
+  const shouldScrollToLatestRef = useRef(true);
   const typingRef = useRef(false);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const remoteTypingTimers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
@@ -68,13 +80,12 @@ export default function ChatScreen() {
   const latestMessage = rows.length ? rows[rows.length - 1] : undefined;
   const participants = useMemo(() => normalizedParticipants(conversation.data?.participants), [conversation.data?.participants]);
 
-  useEffect(() => {
-    if (pathname.startsWith('/inbox/chat/')) router.replace(`/chat/${conversationId}` as never);
-  }, [conversationId, pathname, router]);
+  const performRef = useRef(perform);
+  performRef.current = perform;
 
   const performTyping = useCallback((isTyping: boolean) => {
-    realtime.perform({ channel: 'ChatChannel', conversation_id: conversationId }, 'typing', { conversation_id: conversationId, is_typing: isTyping });
-  }, [conversationId, realtime]);
+    performRef.current({ channel: 'ChatChannel', conversation_id: conversationId }, 'typing', { conversation_id: conversationId, is_typing: isTyping });
+  }, [conversationId]);
   const stopTyping = useCallback(() => {
     if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
     typingTimerRef.current = null;
@@ -93,18 +104,10 @@ export default function ChatScreen() {
   }, [performTyping, stopTyping]);
 
   const acknowledge = useCallback(async (messageId: number, state: 'delivered' | 'read') => {
-    if (!messageId || messageId < 0 || receiptCursorRef.current[state] >= messageId) return;
-    const previous = receiptCursorRef.current[state];
-    const previousDelivered = receiptCursorRef.current.delivered;
-    receiptCursorRef.current[state] = messageId;
-    if (state === 'read') receiptCursorRef.current.delivered = Math.max(receiptCursorRef.current.delivered, messageId);
     try {
-      await endpoints.updateConversationReceipt(conversationId, messageId, state);
-    } catch {
-      receiptCursorRef.current[state] = previous;
-      if (state === 'read' && receiptCursorRef.current.delivered === messageId) receiptCursorRef.current.delivered = previousDelivered;
-    }
-  }, [conversationId]);
+      await sendConversationReceiptOnce(user?.id, conversationId, messageId, state);
+    } catch { /* Realtime recovery will reconcile a failed receipt. */ }
+  }, [conversationId, user?.id]);
 
   const onRealtime = useCallback((event: ChatEvent) => {
     if (Number(event.conversation_id) !== conversationId) return;
@@ -134,8 +137,10 @@ export default function ChatScreen() {
     if (event.type !== 'message_created') return;
     const incoming = event.message as Message | undefined;
     if (!incoming?.id || incoming.user_id === user?.id) return;
-    void acknowledge(incoming.id, 'delivered');
-    if (focusedRef.current && appActiveRef.current && atLatestRef.current) void acknowledge(incoming.id, 'read');
+    if (focusedRef.current && appActiveRef.current && atLatestRef.current) {
+      shouldScrollToLatestRef.current = true;
+      void acknowledge(incoming.id, 'read');
+    }
     else setHasUnreadBelow(true);
   }, [acknowledge, conversationId, queryClient, user?.id]);
   const connection = useChatRealtime(conversationId, onRealtime);
@@ -160,20 +165,34 @@ export default function ChatScreen() {
   useEffect(() => {
     const latestId = Number(latestMessage?.id);
     if (!latestId) return;
-    void acknowledge(latestId, 'delivered');
     if (focusedRef.current && appActiveRef.current && atLatestRef.current) void acknowledge(latestId, 'read');
   }, [acknowledge, latestMessage?.id]);
 
   useEffect(() => {
-    receiptCursorRef.current = { delivered: 0, read: 0 };
     atLatestRef.current = true;
+    positionedRef.current = false;
+    shouldScrollToLatestRef.current = true;
+    olderPageGateRef.current.reset();
     setHasUnreadBelow(false);
+    recordChatPhase(conversationId, 'route_open');
     return () => {
+      recordChatPhase(conversationId, 'route_close');
       stopTyping();
       remoteTypingTimers.current.forEach(clearTimeout);
+      remoteTypingTimers.current.clear();
+      olderPageGateRef.current.reset();
       queryClient.setQueryData(mobileQueryKeys.messages(conversationId), (previous) => trimInfinitePages(previous as never, MOBILE_CACHE_PAGE_LIMIT));
     };
   }, [conversationId, queryClient, stopTyping]);
+
+  useEffect(() => {
+    if (!messages.data) return;
+    recordChatPhase(conversationId, 'messages_ready', { pages: messages.data.pages.length, rows: rows.length });
+  }, [conversationId, messages.data, rows.length]);
+
+  useEffect(() => {
+    recordChatPhase(conversationId, `realtime_${connection}`);
+  }, [connection, conversationId]);
 
   const send = useMutation({
     mutationFn: async (draft: MessageDraft) => {
@@ -197,6 +216,7 @@ export default function ChatScreen() {
       failedDrafts.current.set(temporaryId, draft);
       appendIncomingMessage(queryClient, conversationId, optimistic);
       updateConversationPreview(queryClient, conversationId, optimistic);
+      shouldScrollToLatestRef.current = true;
       requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
       return { temporaryId };
     },
@@ -287,11 +307,20 @@ export default function ChatScreen() {
     onError: (error) => Alert.alert('Reaction not updated', apiErrorMessage(error)),
   });
 
+  const nextOlderCursor = Number(messages.data?.pages[messages.data.pages.length - 1]?.meta?.next_before_id) || undefined;
+  const fetchNextPage = messages.fetchNextPage;
   const loadOlder = useCallback(async () => {
-    if (!messages.hasNextPage || olderRequestRef.current) return;
-    olderRequestRef.current = true;
-    try { await messages.fetchNextPage(); } finally { olderRequestRef.current = false; }
-  }, [messages]);
+    if (!messages.hasNextPage || !olderPageGateRef.current.begin(nextOlderCursor)) return;
+    recordChatPhase(conversationId, 'history_request', { cursor: nextOlderCursor });
+    let succeeded = false;
+    try {
+      await fetchNextPage();
+      succeeded = true;
+    } finally {
+      olderPageGateRef.current.finish(nextOlderCursor, succeeded);
+      recordChatPhase(conversationId, succeeded ? 'history_ready' : 'history_failed', { cursor: nextOlderCursor });
+    }
+  }, [conversationId, fetchNextPage, messages.hasNextPage, nextOlderCursor]);
   const onScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
     const atLatest = contentOffset.y + layoutMeasurement.height >= contentSize.height - 72;
@@ -303,6 +332,12 @@ export default function ChatScreen() {
     }
     if (contentOffset.y <= 120 && messages.hasNextPage && !messages.isFetchNextPageError) void loadOlder();
   }, [acknowledge, latestMessage?.id, loadOlder, messages.hasNextPage, messages.isFetchNextPageError]);
+  const onContentSizeChange = useCallback(() => {
+    if (positionedRef.current && !shouldScrollToLatestRef.current) return;
+    positionedRef.current = true;
+    shouldScrollToLatestRef.current = false;
+    requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: false }));
+  }, []);
   const jumpToLatest = useCallback(() => {
     listRef.current?.scrollToEnd({ animated: true });
     atLatestRef.current = true;
@@ -310,7 +345,16 @@ export default function ChatScreen() {
     const latestId = Number(latestMessage?.id);
     if (latestId) void acknowledge(latestId, 'read');
   }, [acknowledge, latestMessage?.id]);
-  const renderMessage = useCallback(({ item }: { item: Message }) => <MessageBubble conversation={conversation.data} message={item} mine={item.user_id === user?.id} onLongPress={() => item.id > 0 && setReactionMessage(item)} onRetry={retryMessage} userId={user?.id} />, [conversation.data, retryMessage, user?.id]);
+  const selectReaction = useCallback((message: Message) => {
+    if (message.id > 0) setReactionMessage(message);
+  }, []);
+  const renderMessage = useCallback(({ item }: ListRenderItemInfo<Message>) => {
+    const mine = item.user_id === user?.id;
+    const receipt = mine && item.id > 0
+      ? outgoingReceiptStateForParticipants(participants, item, user?.id)
+      : null;
+    return <MessageBubble message={item} mine={mine} onLongPress={selectReaction} onRetry={retryMessage} receiptLabel={receipt?.label} receiptRead={receipt?.read} receiptSymbol={receipt?.symbol} />;
+  }, [participants, retryMessage, selectReaction, user?.id]);
   const typingNames = Object.values(typingUsers);
   const subtitle = typingNames.length ? `${typingNames.join(', ')} ${typingNames.length === 1 ? 'is' : 'are'} typing…` : connection === 'connected' ? conversation.data?.conversation_type === 'group' ? `${participants.length} members` : participants.some((participant) => participant.id !== user?.id && participant.online) ? 'Online' : 'Live conversation' : 'Reconnecting…';
   const back = () => router.canGoBack() ? router.back() : router.replace('/inbox' as never);
@@ -318,29 +362,30 @@ export default function ChatScreen() {
   return <Screen header={<PageHeader leading={<IconButton label="Back" onPress={back}><ArrowLeft color={theme.text} size={22} /></IconButton>} title={conversation.data?.title || 'Conversation'} subtitle={subtitle} action={writable ? <View style={styles.headerActions}><IconButton label={conversation.data?.active_call ? 'Join active call' : 'Start video call'} onPress={() => startCall('video')}><Video color={conversation.data?.active_call ? theme.success : theme.text} size={20} /></IconButton><IconButton label="More conversation actions" onPress={() => setMenuOpen(true)}><MoreHorizontal color={theme.text} size={22} /></IconButton></View> : <IconButton label="Conversation details" onPress={() => setDetailsOpen(true)}><UsersRound color={theme.text} size={20} /></IconButton>} />}>
     {messages.isPending && !messages.data ? <LoadingState label="Loading conversation" /> : null}
     {messages.isError && !messages.data ? <ErrorState message={apiErrorMessage(messages.error)} onRetry={() => messages.refetch()} /> : null}
-    {messages.data ? <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0} style={styles.flex}><FlashList contentContainerStyle={styles.messageList} data={rows} keyExtractor={(item, index) => `${item.id || 'message'}-${index}`} ListEmptyComponent={<EmptyState title="Start the conversation" message="Messages and attachments are delivered in real time." />} ListHeaderComponent={<HistoryState hasMessages={rows.length > 0} hasNextPage={Boolean(messages.hasNextPage)} isError={messages.isFetchNextPageError} isLoading={messages.isFetchingNextPage} onRetry={loadOlder} />} maintainVisibleContentPosition={{ startRenderingFromBottom: true, autoscrollToBottomThreshold: 72, animateAutoScrollToBottom: true }} onScroll={onScroll} ref={listRef} renderItem={renderMessage} scrollEventThrottle={80} />{hasUnreadBelow ? <Pressable accessibilityLabel="Jump to new messages" accessibilityRole="button" onPress={jumpToLatest} style={[styles.newMessages, { backgroundColor: theme.primary }]}><Text style={styles.newMessagesText}>New messages</Text></Pressable> : null}{writable && attachment ? <View style={[styles.attachment, { backgroundColor: theme.surfaceMuted }]}><Text numberOfLines={1} style={[styles.attachmentName, { color: theme.text }]}>{attachment.name}</Text><Pressable accessibilityLabel="Remove attachment" onPress={() => setAttachment(null)}><Text style={{ color: theme.danger, fontWeight: '700' }}>Remove</Text></Pressable></View> : null}{writable ? <View style={[styles.composer, { backgroundColor: theme.surface, borderTopColor: theme.border, paddingBottom: Math.max(10, insets.bottom) }]}><IconButton label="Attach file" onPress={pickAttachment}><FilePlus2 color={theme.textMuted} size={21} /></IconButton><TextInput accessibilityLabel="Message" multiline onChangeText={changeBody} placeholder="Message" placeholderTextColor={theme.textMuted} style={[styles.input, { backgroundColor: theme.surfaceMuted, color: theme.text }]} value={body} /><Pressable accessibilityLabel="Send message" accessibilityRole="button" disabled={!body.trim() && !attachment} onPress={sendCurrent} style={[styles.send, { backgroundColor: theme.primary, opacity: (!body.trim() && !attachment) ? 0.45 : 1 }]}><Send color="#ffffff" size={19} /></Pressable></View> : null}</KeyboardAvoidingView> : null}
+    {messages.data ? <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0} style={styles.flex}><FlatList contentContainerStyle={styles.messageList} data={rows} initialNumToRender={20} keyExtractor={messageKey} ListEmptyComponent={<EmptyState title="Start the conversation" message="Messages and attachments are delivered in real time." />} ListHeaderComponent={<HistoryState hasMessages={rows.length > 0} hasNextPage={Boolean(messages.hasNextPage)} isError={messages.isFetchNextPageError} isLoading={messages.isFetchingNextPage} onRetry={() => { olderPageGateRef.current.markUserGesture(); void loadOlder(); }} />} maintainVisibleContentPosition={{ minIndexForVisible: 0 }} maxToRenderPerBatch={12} onContentSizeChange={onContentSizeChange} onScroll={onScroll} onScrollBeginDrag={() => olderPageGateRef.current.markUserGesture()} ref={listRef} removeClippedSubviews={false} renderItem={renderMessage} scrollEventThrottle={80} updateCellsBatchingPeriod={40} windowSize={7} />{hasUnreadBelow ? <Pressable accessibilityLabel="Jump to new messages" accessibilityRole="button" onPress={jumpToLatest} style={[styles.newMessages, { backgroundColor: theme.primary }]}><Text style={styles.newMessagesText}>New messages</Text></Pressable> : null}{writable && attachment ? <View style={[styles.attachment, { backgroundColor: theme.surfaceMuted }]}><Text numberOfLines={1} style={[styles.attachmentName, { color: theme.text }]}>{attachment.name}</Text><Pressable accessibilityLabel="Remove attachment" onPress={() => setAttachment(null)}><Text style={{ color: theme.danger, fontWeight: '700' }}>Remove</Text></Pressable></View> : null}{writable ? <View style={[styles.composer, { backgroundColor: theme.surface, borderTopColor: theme.border, paddingBottom: Math.max(10, insets.bottom) }]}><IconButton label="Attach file" onPress={pickAttachment}><FilePlus2 color={theme.textMuted} size={21} /></IconButton><TextInput accessibilityLabel="Message" multiline onChangeText={changeBody} placeholder="Message" placeholderTextColor={theme.textMuted} style={[styles.input, { backgroundColor: theme.surfaceMuted, color: theme.text }]} value={body} /><Pressable accessibilityLabel="Send message" accessibilityRole="button" disabled={!body.trim() && !attachment} onPress={sendCurrent} style={[styles.send, { backgroundColor: theme.primary, opacity: (!body.trim() && !attachment) ? 0.45 : 1 }]}><Send color="#ffffff" size={19} /></Pressable></View> : null}</KeyboardAvoidingView> : null}
     <ReactionPicker message={reactionMessage} onClose={() => setReactionMessage(null)} onSelect={(emoji) => reactionMessage && react.mutate({ message: reactionMessage, emoji })} pending={react.isPending} />
     <HeaderMenu activeCall={conversation.data?.active_call?.id} onAudio={() => startCall('audio')} onClose={() => setMenuOpen(false)} onDetails={() => { setMenuOpen(false); setDetailsOpen(true); }} onJoin={(callId) => { setMenuOpen(false); router.push(`/call/${callId}?type=${conversation.data?.active_call?.call_type || 'audio'}` as never); }} onVideo={() => startCall('video')} visible={menuOpen} />
     <ConversationDetailsSheet conversationId={conversationId} onClose={() => setDetailsOpen(false)} onConversationRemoved={() => { setDetailsOpen(false); router.replace('/inbox' as never); }} readOnly={!writable} visible={detailsOpen} />
   </Screen>;
 }
 
-const MessageBubble = memo(function MessageBubble({ conversation, message, mine, onLongPress, onRetry, userId }: { conversation?: Conversation; message: Message; mine: boolean; onLongPress: () => void; onRetry: (messageId: number) => void; userId?: number }) {
+const MessageBubble = memo(function MessageBubble({ message, mine, onLongPress, onRetry, receiptLabel, receiptRead, receiptSymbol }: { message: Message; mine: boolean; onLongPress: (message: Message) => void; onRetry: (messageId: number) => void; receiptLabel?: string; receiptRead?: boolean; receiptSymbol?: string }) {
   const theme = useAppTheme();
-  const receipt = mine && message.id > 0 ? outgoingReceiptState(conversation, message, userId) : null;
   const reactions = reactionEntries(message.reactions);
-  return <View style={[styles.bubbleRow, mine && styles.mineRow]}><Pressable accessibilityHint={message.id > 0 ? 'Long press to react' : undefined} accessibilityLabel={message.send_state === 'failed' ? 'Message failed to send' : receipt ? `Message. ${receipt.label}` : 'Message'} delayLongPress={350} onLongPress={onLongPress} style={[styles.bubble, { backgroundColor: mine ? theme.primary : theme.surface, borderColor: message.send_state === 'failed' ? theme.danger : mine ? theme.primary : theme.border }]}>{!mine ? <Text style={[styles.sender, { color: theme.primary }]}>{message.user_name || 'Teammate'}</Text> : null}{message.body ? <Text style={[styles.body, { color: mine ? '#ffffff' : theme.text }]}>{message.body}{'  '}<Text style={[styles.inlineMeta, { color: mine ? '#dbeafe' : theme.textMuted }]}>{formatTime(message.created_at)}{message.send_state === 'sending' ? ' …' : receipt ? <Text style={{ color: receipt.read ? '#86efac' : '#dbeafe' }}> {receipt.symbol}</Text> : null}</Text></Text> : null}{message.attachments?.map((file) => <Attachment key={Number(file.id)} file={file} mine={mine} />)}{message.send_state === 'failed' ? <Pressable accessibilityRole="button" onPress={() => onRetry(message.id)} style={styles.retryMessage}><Text style={styles.retryMessageText}>Not sent · Tap to retry</Text></Pressable> : null}</Pressable>{reactions.length ? <View style={[styles.reactionChips, mine && styles.mineReactionChips]}>{reactions.map(([emoji, count]) => <Pressable key={emoji} accessibilityLabel={`${emoji}, ${count} reactions`} onPress={onLongPress} style={[styles.reactionChip, { backgroundColor: theme.surface, borderColor: theme.border }]}><Text>{emoji} {count}</Text></Pressable>)}</View> : null}</View>;
+  const react = () => onLongPress(message);
+  return <View style={[styles.bubbleRow, mine && styles.mineRow]}><Pressable accessibilityHint={message.id > 0 ? 'Long press to react' : undefined} accessibilityLabel={message.send_state === 'failed' ? 'Message failed to send' : receiptLabel ? `Message. ${receiptLabel}` : 'Message'} delayLongPress={350} onLongPress={react} style={[styles.bubble, { backgroundColor: mine ? theme.primary : theme.surface, borderColor: message.send_state === 'failed' ? theme.danger : mine ? theme.primary : theme.border }]}>{!mine ? <Text style={[styles.sender, { color: theme.primary }]}>{message.user_name || 'Teammate'}</Text> : null}{message.body ? <Text style={[styles.body, { color: mine ? '#ffffff' : theme.text }]}>{message.body}{'  '}<Text style={[styles.inlineMeta, { color: mine ? '#dbeafe' : theme.textMuted }]}>{formatTime(message.created_at)}{message.send_state === 'sending' ? ' …' : receiptSymbol ? <Text style={{ color: receiptRead ? '#86efac' : '#dbeafe' }}> {receiptSymbol}</Text> : null}</Text></Text> : null}{message.attachments?.map((file, index) => <Attachment key={`${message.id}:${String(file.id || file.url || index)}`} file={file} mine={mine} />)}{message.send_state === 'failed' ? <Pressable accessibilityRole="button" onPress={() => onRetry(message.id)} style={styles.retryMessage}><Text style={styles.retryMessageText}>Not sent · Tap to retry</Text></Pressable> : null}</Pressable>{reactions.length ? <View style={[styles.reactionChips, mine && styles.mineReactionChips]}>{reactions.map(([emoji, count]) => <Pressable key={emoji} accessibilityLabel={`${emoji}, ${count} reactions`} onPress={react} style={[styles.reactionChip, { backgroundColor: theme.surface, borderColor: theme.border }]}><Text>{emoji} {count}</Text></Pressable>)}</View> : null}</View>;
 });
 
 function Attachment({ file, mine }: { file: Record<string, unknown> & { id: number }; mine: boolean }) {
   const theme = useAppTheme();
+  const [imageFailed, setImageFailed] = useState(false);
   const rawUrl = String(file.url || file.download_url || '');
-  const url = /^(https?|file|content):/.test(rawUrl) ? rawUrl : absoluteAssetUrl(rawUrl);
+  const url = /^(https?:|file:|content:|\/)/.test(rawUrl) ? (rawUrl.startsWith('/') ? absoluteAssetUrl(rawUrl) : rawUrl) : '';
   const contentType = String(file.content_type || '');
   const filename = String(file.filename || 'Attachment');
   const open = () => url && void Linking.openURL(url);
-  if (url && contentType.startsWith('image/')) return <Pressable accessibilityLabel={`Open ${filename}`} onPress={open}><Image cachePolicy="disk" contentFit="cover" source={{ uri: url }} style={styles.messageImage} /><Text numberOfLines={1} style={[styles.file, { color: mine ? '#dbeafe' : theme.textMuted }]}>{filename}</Text></Pressable>;
-  return <Pressable accessibilityLabel={`Open ${filename}`} disabled={!url} onPress={open} style={[styles.fileRow, { backgroundColor: mine ? 'rgba(255,255,255,0.12)' : theme.surfaceMuted }]}><FilePlus2 color={mine ? '#dbeafe' : theme.textMuted} size={17} /><Text numberOfLines={1} style={[styles.file, { color: mine ? '#dbeafe' : theme.text }]}>{filename}</Text></Pressable>;
+  if (url && contentType.startsWith('image/') && !imageFailed) return <Pressable accessibilityLabel={`Open ${filename}`} onPress={open}><Image cachePolicy="disk" contentFit="cover" onError={() => setImageFailed(true)} recyclingKey={`${String(file.id)}:${url}`} source={{ uri: url }} style={styles.messageImage} transition={0} /><Text numberOfLines={1} style={[styles.file, { color: mine ? '#dbeafe' : theme.textMuted }]}>{filename}</Text></Pressable>;
+  return <Pressable accessibilityLabel={url ? `Open ${filename}` : `${filename} is unavailable`} disabled={!url} onPress={open} style={[styles.fileRow, { backgroundColor: mine ? 'rgba(255,255,255,0.12)' : theme.surfaceMuted }]}><FilePlus2 color={mine ? '#dbeafe' : theme.textMuted} size={17} /><View style={styles.fileCopy}><Text numberOfLines={1} style={[styles.file, { color: mine ? '#dbeafe' : theme.text }]}>{filename}</Text>{imageFailed ? <Text style={[styles.fileFallback, { color: mine ? '#dbeafe' : theme.textMuted }]}>Preview unavailable · Tap to download</Text> : null}</View></Pressable>;
 }
 
 function HeaderMenu({ activeCall, onAudio, onClose, onDetails, onJoin, onVideo, visible }: { activeCall?: number; onAudio: () => void; onClose: () => void; onDetails: () => void; onJoin: (id: number) => void; onVideo: () => void; visible: boolean }) {
@@ -359,10 +404,12 @@ function IconButton({ label, onPress, children }: { label: string; onPress: () =
 export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   const router = useRouter();
   const theme = useAppTheme();
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const conversationId = Number(id);
 
   useEffect(() => {
-    Sentry.captureException(error, { tags: { surface: 'mobile_chat_thread' } });
-  }, [error]);
+    Sentry.captureException(error, { extra: { chat_phases: recentChatPhases(conversationId) }, tags: { surface: 'mobile_chat_thread' } });
+  }, [conversationId, error]);
 
   return <View style={[styles.chatError, { backgroundColor: theme.background }]}><Text accessibilityRole="header" style={[styles.chatErrorTitle, { color: theme.text }]}>Conversation couldn’t open</Text><Text style={[styles.chatErrorCopy, { color: theme.textMuted }]}>Your messages are safe. Try loading the conversation again, or return to Chat.</Text><Pressable accessibilityRole="button" onPress={retry} style={[styles.chatErrorPrimary, { backgroundColor: theme.primary }]}><Text style={styles.chatErrorPrimaryText}>Try again</Text></Pressable><Pressable accessibilityRole="button" onPress={() => router.replace('/inbox?mode=chat' as never)} style={styles.chatErrorBack}><Text style={{ color: theme.primary, fontWeight: '800' }}>Back to Chat</Text></Pressable></View>;
 }
@@ -380,7 +427,9 @@ const styles = StyleSheet.create({
   body: { fontSize: 15, lineHeight: 20 },
   inlineMeta: { fontSize: 10, lineHeight: 14 },
   fileRow: { alignItems: 'center', borderRadius: 7, flexDirection: 'row', gap: 7, marginTop: 7, maxWidth: 250, minHeight: 38, paddingHorizontal: 9 },
+  fileCopy: { flex: 1, paddingVertical: 6 },
   file: { flexShrink: 1, fontSize: 12 },
+  fileFallback: { fontSize: 10, marginTop: 2 },
   messageImage: { borderRadius: 7, height: 150, marginTop: 7, width: 220 },
   retryMessage: { marginTop: 7, minHeight: 28, justifyContent: 'center' },
   retryMessageText: { color: '#fecaca', fontSize: 11, fontWeight: '800' },

@@ -28,17 +28,34 @@ export function normalizedMessageRows(pages: readonly MessagePage[] | null | und
         ? value.reactions
         : undefined;
 
-      rows.push({
-        ...(value as Message),
-        id,
-        body,
-        created_at: typeof value.created_at === 'string' ? value.created_at : new Date(0).toISOString(),
-        attachments: attachments as Message['attachments'],
-        reactions: reactions as Message['reactions'],
-        reacted_emojis: Array.isArray(value.reacted_emojis)
-          ? value.reacted_emojis.filter((emoji): emoji is string => typeof emoji === 'string')
-          : [],
-      });
+      const safeId = typeof value.id === 'number' && value.id === id;
+      const safeCreatedAt = typeof value.created_at === 'string';
+      const safeBody = typeof value.body === 'string';
+      const safeAttachments = value.attachments === undefined || (
+        Array.isArray(value.attachments) && value.attachments.every(isRecord)
+      );
+      const safeReactions = value.reactions === undefined || isRecord(value.reactions) || Array.isArray(value.reactions);
+      const safeReactedEmojis = value.reacted_emojis === undefined || (
+        Array.isArray(value.reacted_emojis) && value.reacted_emojis.every((emoji) => typeof emoji === 'string')
+      );
+
+      // Preserve trusted message object identity. FlatList can then keep
+      // unchanged memoized bubbles mounted when one realtime row is appended.
+      if (safeId && safeCreatedAt && safeBody && safeAttachments && safeReactions && safeReactedEmojis) {
+        rows.push(value as Message);
+      } else {
+        rows.push({
+          ...(value as Message),
+          id,
+          body,
+          created_at: safeCreatedAt ? value.created_at as string : new Date(0).toISOString(),
+          attachments: attachments as Message['attachments'],
+          reactions: reactions as Message['reactions'],
+          reacted_emojis: Array.isArray(value.reacted_emojis)
+            ? value.reacted_emojis.filter((emoji): emoji is string => typeof emoji === 'string')
+            : [],
+        });
+      }
     });
   });
 

@@ -14,14 +14,16 @@ type ChannelRecord = {
   subscription?: Subscription;
 };
 
-type RealtimeContextValue = {
-  state: RealtimeState;
+type RealtimeActions = {
   subscribe: (identifier: ChannelIdentifier, listener: Listener) => () => void;
   perform: (identifier: ChannelIdentifier, action: string, payload?: Record<string, unknown>) => boolean;
   reconnect: () => void;
 };
 
-const RealtimeContext = createContext<RealtimeContextValue | null>(null);
+type RealtimeContextValue = RealtimeActions & { state: RealtimeState };
+
+const RealtimeActionsContext = createContext<RealtimeActions | null>(null);
+const RealtimeStateContext = createContext<RealtimeState | null>(null);
 
 export function RealtimeProvider({ children }: PropsWithChildren) {
   const { user } = useAuth();
@@ -67,28 +69,45 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
   ), [client]);
 
   const reconnect = useCallback(() => client?.reconnect(), [client]);
-  const value = useMemo(() => ({ state, subscribe, perform, reconnect }), [perform, reconnect, state, subscribe]);
-  return <RealtimeContext.Provider value={value}>{children}</RealtimeContext.Provider>;
+  const actions = useMemo(() => ({ subscribe, perform, reconnect }), [perform, reconnect, subscribe]);
+  return (
+    <RealtimeActionsContext.Provider value={actions}>
+      <RealtimeStateContext.Provider value={state}>{children}</RealtimeStateContext.Provider>
+    </RealtimeActionsContext.Provider>
+  );
 }
 
-export function useRealtime() {
-  const value = useContext(RealtimeContext);
-  if (!value) throw new Error('useRealtime must be used inside RealtimeProvider');
+export function useRealtimeActions() {
+  const value = useContext(RealtimeActionsContext);
+  if (!value) throw new Error('useRealtimeActions must be used inside RealtimeProvider');
   return value;
 }
 
+export function useRealtimeState() {
+  const value = useContext(RealtimeStateContext);
+  if (!value) throw new Error('useRealtimeState must be used inside RealtimeProvider');
+  return value;
+}
+
+export function useRealtime(): RealtimeContextValue {
+  const actions = useRealtimeActions();
+  const state = useRealtimeState();
+  return useMemo(() => ({ ...actions, state }), [actions, state]);
+}
+
 export function useRealtimeChannel(identifier: ChannelIdentifier | undefined, onEvent: Listener, enabled = true) {
-  const realtime = useRealtime();
+  const { subscribe } = useRealtimeActions();
+  const state = useRealtimeState();
   const callbackRef = useRef(onEvent);
   callbackRef.current = onEvent;
   const key = identifier ? identifierKey(identifier) : '';
 
   useEffect(() => {
     if (!identifier || !enabled) return;
-    return realtime.subscribe(identifier, (event) => callbackRef.current(event));
-  }, [enabled, key, realtime.subscribe]);
+    return subscribe(identifier, (event) => callbackRef.current(event));
+  }, [enabled, key, subscribe]);
 
-  return realtime.state;
+  return state;
 }
 
 export class SharedRealtimeClient {
