@@ -2,6 +2,12 @@ class Api::BaseController < ApplicationController
   include SessionCookieAuthentication
 
   protect_from_forgery with: :null_session
+  # Legacy API controllers share this base class. Normalize expected client
+  # input/resource errors here so they do not reach ApplicationController's
+  # catch-all handler, which re-raises them as 500 responses.
+  rescue_from ActiveRecord::RecordNotFound, with: :render_api_not_found
+  rescue_from ActionController::ParameterMissing, with: :render_api_invalid_request
+
   before_action :set_request_context
   before_action :authenticate_user!
   before_action :enforce_demo_read_only!
@@ -147,6 +153,14 @@ class Api::BaseController < ApplicationController
 
   def handle_unauthorized
     render json: { error: "Unauthorized" }, status: :unauthorized
+  end
+
+  def render_api_not_found
+    render json: { error: "The requested resource was not found." }, status: :not_found
+  end
+
+  def render_api_invalid_request(error)
+    render json: { error: error.message }, status: :unprocessable_entity
   end
 
   def log_application_warning(message, payload: {})
