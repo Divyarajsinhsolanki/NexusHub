@@ -62,8 +62,9 @@ class Api::AuthController < Api::BaseController
 
       save_google_user!(user) if user.changed? || user.new_record?
     else
-      user = User.find_by(email: params[:auth][:email])
-      return render json: { error: "Invalid credentials" }, status: :unauthorized unless user&.valid_password?(params[:auth][:password])
+      credentials = params.require(:auth).permit(:email, :password)
+      user = User.find_by(email: credentials[:email])
+      return render json: { error: "Invalid credentials" }, status: :unauthorized unless user&.valid_password?(credentials[:password])
       return render json: { error: "Email not verified" }, status: :unauthorized unless user.confirmed?
     end
 
