@@ -84,7 +84,7 @@ class Chat::ReceiptManagerTest < ActiveSupport::TestCase
     assert_includes broadcasts.map(&:first), Chat::Broadcaster.user_stream(@workspace.id, @sender.id)
   end
 
-  test "incoming messages are broadcast to recipient user streams while the thread is closed" do
+  test "messages reach every participant including the sender's other devices while the thread is closed" do
     broadcasts = []
 
     ActionCable.server.stub(:broadcast, ->(stream, payload) { broadcasts << [stream, payload] }) do
@@ -95,6 +95,7 @@ class Chat::ReceiptManagerTest < ActiveSupport::TestCase
     assert_includes message_streams, Chat::Broadcaster.conversation_stream(@workspace.id, @conversation.id)
     assert_includes message_streams, Chat::Broadcaster.user_stream(@workspace.id, @recipient.id)
     assert_includes message_streams, Chat::Broadcaster.user_stream(@workspace.id, @third_user.id)
-    assert_not_includes message_streams, Chat::Broadcaster.user_stream(@workspace.id, @sender.id)
+    assert_includes message_streams, Chat::Broadcaster.user_stream(@workspace.id, @sender.id)
+    assert_not_includes message_streams, Chat::Broadcaster.user_stream(@workspace.id, @outsider.id)
   end
 end

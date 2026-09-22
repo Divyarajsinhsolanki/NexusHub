@@ -1,20 +1,52 @@
-import { QueryClient, type InfiniteData } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, type InfiniteData } from '@tanstack/react-query';
 import { afterEach, describe, expect, jest, test } from '@jest/globals';
+import { render } from '@testing-library/react-native';
+import { createElement } from 'react';
 
 import type { ApiEnvelope, CollectionResult, Conversation, Message, Notification } from '../api/types';
 import { mobileQueryKeys } from '../cache/mobileCache';
-import { handleMobileRealtimeEvent } from './MobileRealtimeSync';
+import { handleMobileRealtimeEvent, MobileRealtimeSync } from './MobileRealtimeSync';
+import { useChatRealtime } from './useChatRealtime';
 
 jest.mock('./useChatRealtime', () => ({ useChatRealtime: jest.fn() }));
+jest.mock('../auth/AuthProvider', () => ({ useAuth: () => ({ user: { id: 1 } }) }));
 
 let clients: QueryClient[] = [];
 
 afterEach(() => {
   clients.forEach((client) => client.clear());
   clients = [];
+  jest.clearAllMocks();
 });
 
 describe('handleMobileRealtimeEvent', () => {
+  test('refreshes chats on reconnect so messages sent while backgrounded are recovered', async () => {
+    const queryClient = testQueryClient();
+    const keys = [mobileQueryKeys.conversations, mobileQueryKeys.conversation(7), mobileQueryKeys.messages(7)];
+    const seedFreshCaches = () => {
+      queryClient.setQueryData(keys[0], { data: [] });
+      queryClient.setQueryData(keys[1], { id: 7 });
+      queryClient.setQueryData(keys[2], { pageParams: [undefined], pages: [{ data: [] }] });
+    };
+    seedFreshCaches();
+    jest.mocked(useChatRealtime).mockReturnValue('connecting');
+    const tree = () => createElement(QueryClientProvider, { client: queryClient }, createElement(MobileRealtimeSync));
+    const screen = await render(tree());
+    expect(queryClient.getQueryState(keys[2])?.isInvalidated).toBe(false);
+
+    jest.mocked(useChatRealtime).mockReturnValue('connected');
+    await screen.rerender(tree());
+    keys.forEach((key) => expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true));
+
+    jest.mocked(useChatRealtime).mockReturnValue('disconnected');
+    await screen.rerender(tree());
+    seedFreshCaches();
+    jest.mocked(useChatRealtime).mockReturnValue('connected');
+    await screen.rerender(tree());
+    keys.forEach((key) => expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true));
+    await screen.unmount();
+  });
+
   test('prepends realtime notifications and refreshes notification counters', async () => {
     const queryClient = testQueryClient();
     queryClient.setQueryData<InfiniteData<ApiEnvelope<Notification[]>>>(mobileQueryKeys.notifications, {

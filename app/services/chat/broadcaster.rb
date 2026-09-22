@@ -13,8 +13,7 @@ module Chat
           payload
         )
         message.conversation.participant_ids.each do |participant_id|
-          next if participant_id == message.user_id
-
+          # The sender may also be signed in on another phone or browser.
           broadcast(user_stream(message.workspace_id, participant_id), payload)
         end
         broadcast_conversation_refresh(message.conversation)

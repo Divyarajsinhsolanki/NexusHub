@@ -4,9 +4,10 @@ import { format, formatDistanceToNow, isSameDay, isThisYear, isToday, isYesterda
 import { motion, AnimatePresence } from "framer-motion";
 import {
   FiArrowLeft,
+  FiArrowUpRight,
+  FiAtSign,
   FiBellOff,
   FiCheck,
-  FiClock,
   FiCopy,
   FiDownload,
   FiEdit,
@@ -14,13 +15,13 @@ import {
   FiHash,
   FiImage,
   FiInfo,
-  FiLayers,
   FiMessageSquare,
   FiMoreVertical,
   FiPaperclip,
   FiPhone,
   FiPhoneCall,
   FiPhoneOff,
+  FiPlus,
   FiSearch,
   FiSend,
   FiSmile,
@@ -77,6 +78,7 @@ import {
 } from "../utils/chatMentions";
 import { isLiveCall, mergeCallIntoConversationGroups } from "../utils/chatCalls";
 import { getOutgoingReceiptStatus } from "../utils/chatReceipts";
+import "./Chat.css";
 
 const DEFAULT_REACTION_EMOJIS = ["👍", "❤️", "😂", "🎉", "🙌"];
 const EXTRA_REACTION_EMOJIS = ["🔥", "👏", "🙏", "😊", "😍", "😮", "😢", "😡", "✅", "💯", "🚀", "👀", "🤔", "😎", "🥳", "💪", "✨", "😅", "🤝", "🏆"];
@@ -476,16 +478,19 @@ const Avatar = ({ name, src, size = "md", className = "" }) => {
     xl: "h-20 w-20 text-xl"
   };
   const colors = [
-    "from-sky-500 to-blue-600",
-    "from-emerald-500 to-teal-600",
-    "from-amber-500 to-orange-600",
-    "from-rose-500 to-pink-600",
-    "from-indigo-500 to-cyan-600"
+    "bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200",
+    "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200",
+    "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-200",
+    "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-200",
+    "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-200"
   ];
 
   const currentSizeClass = sizeClasses[size] || sizeClasses.md;
-  const initial = name ? name.charAt(0).toUpperCase() : "?";
-  const colorIndex = name ? name.charCodeAt(0) % colors.length : 0;
+  const nameParts = (name || "").trim().split(/\s+/).filter(Boolean);
+  const initials = nameParts.length > 1
+    ? `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`.toUpperCase()
+    : (nameParts[0]?.slice(0, 2).toUpperCase() || "?");
+  const colorIndex = Array.from(name || "").reduce((total, character) => total + character.charCodeAt(0), 0) % colors.length;
 
   useEffect(() => {
     setImageFailed(false);
@@ -496,7 +501,7 @@ const Avatar = ({ name, src, size = "md", className = "" }) => {
       <img
         src={src}
         alt={name}
-        className={`rounded-full object-cover ring-2 ring-white/90 shadow-[0_16px_40px_-24px_rgba(15,23,42,0.7)] ${currentSizeClass} ${className}`}
+        className={`nx-chat-avatar shrink-0 rounded-full object-cover ${currentSizeClass} ${className}`}
         loading="lazy"
         onError={() => setImageFailed(true)}
       />
@@ -505,24 +510,23 @@ const Avatar = ({ name, src, size = "md", className = "" }) => {
 
   return (
     <div
-      className={`flex items-center justify-center rounded-full bg-gradient-to-br ${colors[colorIndex]} font-bold text-white ring-2 ring-white/90 shadow-[0_16px_40px_-24px_rgba(15,23,42,0.7)] ${currentSizeClass} ${className}`}
+      aria-hidden="true"
+      className={`nx-chat-avatar flex shrink-0 items-center justify-center rounded-full ${colors[colorIndex]} font-semibold ${currentSizeClass} ${className}`}
     >
-      {initial}
+      {initials}
     </div>
   );
 };
 
-const StatCard = ({ icon, label, value, accentClass }) => (
-  <div className="rounded-2xl border border-white/60 bg-white/70 p-3 shadow-[0_18px_45px_-32px_rgba(15,23,42,0.45)] backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/70">
+const StatCard = ({ icon, label, value }) => (
+  <div className="chat-stat-card">
     <div className="flex items-center justify-between gap-3">
-      <div className={`flex h-9 w-9 items-center justify-center rounded-2xl ${accentClass}`}>
+      <div className="chat-stat-icon">
         {icon}
       </div>
-      <span className="text-xl font-semibold tracking-tight text-slate-900 dark:text-white">{value}</span>
+      <span className="chat-stat-value">{value}</span>
     </div>
-    <p className="mt-2 text-[11px] font-medium uppercase tracking-[0.24em] text-slate-400 dark:text-slate-500">
-      {label}
-    </p>
+    <p>{label}</p>
   </div>
 );
 
@@ -535,8 +539,7 @@ const ConversationItem = React.memo(({ conversation, currentUserId, isActive, se
   const isDirectOnline = isParticipantOnline(otherParticipant, presenceNow);
   const displayName = getConversationDisplayName(conversation, currentUserId);
   const displayImage = getConversationDisplayImage(conversation, currentUserId);
-  const subtitle = isDirect ? "" : `${conversation.participants?.length || 0} members`;
-  const conversationPreview = previewText || (isDirect ? "No messages yet" : "Create a room that keeps the whole group aligned");
+  const conversationPreview = previewText || (isDirect ? "Start a conversation" : `${conversation.participants?.length || 0} members · Say hello to the group`);
   const Item = onSelect ? "button" : Link;
   const itemProps = onSelect
     ? { type: "button", onClick: () => onSelect(conversation.id) }
@@ -549,23 +552,35 @@ const ConversationItem = React.memo(({ conversation, currentUserId, isActive, se
       if (!menuRef.current || menuRef.current.contains(event.target)) return;
       setIsMenuOpen(false);
     };
+    const handleKeyDown = (event) => {
+      if (event.key !== "Escape") return;
+      setIsMenuOpen(false);
+      menuRef.current?.querySelector('[aria-label="Conversation actions"]')?.focus();
+    };
 
     document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, [isMenuOpen]);
 
   return (
     <div
       ref={menuRef}
-      className={`group relative flex items-center gap-1 rounded-lg border px-2 py-1.5 transition-colors ${
+      data-active={isActive}
+      className={`nx-chat-conversation group relative flex min-h-[76px] items-center gap-1 rounded-xl border px-3 py-3 transition-colors ${
         isActive
-          ? "border-blue-200 bg-blue-50 text-blue-950 dark:border-sky-800 dark:bg-sky-950/45 dark:text-sky-100"
-          : "border-transparent bg-transparent text-slate-700 hover:bg-white/80 dark:text-slate-200 dark:hover:bg-zinc-900/80"
+          ? "border-indigo-100 bg-indigo-50 text-indigo-950 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-100"
+          : "border-transparent bg-transparent text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-zinc-900"
       }`}
     >
+      {isActive && <span aria-hidden="true" className="absolute inset-y-5 left-0 w-[3px] rounded-full bg-indigo-600 dark:bg-indigo-400" />}
       <Item
         {...itemProps}
-        className={`flex min-w-0 flex-1 items-center gap-2 text-left ${onSelect ? "w-full" : ""}`}
+        aria-current={isActive ? "page" : undefined}
+        className={`flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 ${onSelect ? "w-full" : ""}`}
         onClick={(event) => {
           setIsMenuOpen(false);
           itemProps.onClick?.(event);
@@ -573,15 +588,15 @@ const ConversationItem = React.memo(({ conversation, currentUserId, isActive, se
       >
         <div className="relative shrink-0">
           {isDirect ? (
-            <Avatar name={displayName} src={displayImage} size="sm" />
+            <Avatar name={displayName} src={displayImage} size="md" />
           ) : (
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-sky-100 to-cyan-50 text-sky-700 ring-2 ring-white/90 dark:from-sky-950/60 dark:to-cyan-950/40 dark:text-sky-200">
-              <FiUsers className="h-4 w-4" />
+            <div className="nx-chat-avatar flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-100 text-violet-600 dark:bg-violet-950 dark:text-violet-300">
+              <FiUsers className="h-5 w-5" />
             </div>
           )}
           {isDirect && (
             <span
-              className={`absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white dark:border-zinc-950 ${isDirectOnline ? "bg-emerald-500" : "bg-slate-300 dark:bg-zinc-600"}`}
+              className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white dark:border-zinc-950 ${isDirectOnline ? "bg-emerald-500" : "bg-slate-300 dark:bg-zinc-600"}`}
               title={isDirectOnline ? "Online" : "Offline"}
             />
           )}
@@ -589,23 +604,17 @@ const ConversationItem = React.memo(({ conversation, currentUserId, isActive, se
 
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
-            <p className={`truncate text-[13px] font-semibold ${isActive ? "" : "text-slate-900 dark:text-white"}`}>
+            <p className={`nx-chat-conversation-name min-w-0 flex-1 truncate text-sm font-semibold ${isActive ? "" : "text-slate-900 dark:text-white"}`}>
               <HighlightText text={displayName} query={searchQuery} />
             </p>
-            {isUnread && !isActive && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />}
-            {conversation.muted && !isActive && <FiBellOff className="h-3 w-3 shrink-0 text-slate-400" title="Muted" />}
-            <span className={`shrink-0 text-[10px] ${isActive ? "opacity-70" : "text-slate-400 dark:text-slate-500"}`}>
-              {formatConversationTime(conversation.updated_at)}
+            {conversation.muted && <FiBellOff className="h-3 w-3 shrink-0 text-slate-400" title="Muted" />}
+            <span className={`nx-chat-conversation-time shrink-0 text-[11px] ${isUnread ? "font-medium text-indigo-600 dark:text-indigo-300" : "text-slate-400 dark:text-slate-500"}`}>
+              {formatConversationTime(conversation.updated_at || conversation.last_message_at)}
             </span>
           </div>
 
-          <div className="mt-0.5 flex min-w-0 items-center gap-2">
-            {subtitle && (
-              <span className={`shrink-0 text-[10px] uppercase ${isActive ? "opacity-70" : "text-slate-400 dark:text-slate-500"}`}>
-                {subtitle}
-              </span>
-            )}
-            <p className={`truncate text-[11px] leading-4 ${isActive ? "opacity-80" : isUnread ? "font-semibold text-slate-800 dark:text-slate-100" : "text-slate-500 dark:text-slate-400"}`}>
+          <div className="mt-1 flex min-w-0 items-center gap-2">
+            <p className={`nx-chat-conversation-preview truncate text-xs leading-5 ${isUnread ? "font-medium text-slate-700 dark:text-slate-200" : "text-slate-500 dark:text-slate-400"}`}>
               <HighlightText text={conversationPreview} query={searchQuery} />
             </p>
           </div>
@@ -613,7 +622,7 @@ const ConversationItem = React.memo(({ conversation, currentUserId, isActive, se
       </Item>
 
       {isUnread && (
-        <span className={`flex h-5 min-w-[1.25rem] shrink-0 items-center justify-center rounded-full px-1.5 text-[10px] font-bold ${isActive ? "bg-blue-600 text-white dark:bg-sky-200 dark:text-sky-950" : "bg-blue-600 text-white dark:bg-sky-200 dark:text-sky-950"}`}>
+        <span aria-label={`${conversation.unread_count} unread messages`} className="nx-chat-unread-count flex h-5 min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-indigo-600 px-1.5 text-[10px] font-semibold text-white dark:bg-indigo-400 dark:text-indigo-950">
           {conversation.unread_count}
         </span>
       )}
@@ -625,16 +634,18 @@ const ConversationItem = React.memo(({ conversation, currentUserId, isActive, se
           event.stopPropagation();
           setIsMenuOpen((previous) => !previous);
         }}
-        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md opacity-0 transition group-hover:opacity-100 ${isMenuOpen ? "opacity-100" : ""} ${
-          isActive ? "hover:bg-blue-100 dark:hover:bg-sky-900/50" : "hover:bg-slate-100 dark:hover:bg-zinc-800"
+        className={`nx-chat-conversation-actions flex h-8 w-7 shrink-0 items-center justify-center rounded-lg text-slate-400 transition focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 ${isMenuOpen ? "md:opacity-100" : ""} ${
+          isActive ? "hover:bg-indigo-100 dark:hover:bg-indigo-900/50" : "hover:bg-slate-100 dark:hover:bg-zinc-800"
         }`}
         title="Conversation actions"
+        aria-label="Conversation actions"
+        aria-expanded={isMenuOpen}
       >
         <FiMoreVertical className="h-3.5 w-3.5" />
       </button>
 
       {isMenuOpen && (
-        <div className="absolute right-2 top-9 z-30 w-44 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 text-slate-700 shadow-xl dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-100">
+        <div className="nx-chat-conversation-menu absolute right-2 top-[calc(100%-0.5rem)] z-30 w-48 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 text-slate-700 shadow-lg dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-100">
           {conversation.muted ? (
             <button
               type="button"
@@ -707,31 +718,31 @@ const MessageAttachmentCard = ({ attachment, isMe, searchQuery }) => {
   const downloadUrl = attachment.download_url || attachment.url;
   const fileSize = formatFileSize(attachment.byte_size);
   const containerClass = isMe
-    ? "border-blue-200 bg-blue-50/80 text-slate-800"
-    : "border-slate-200/80 bg-slate-50/80 text-slate-700 dark:border-zinc-700 dark:bg-zinc-900/80 dark:text-slate-200";
-  const metaTextClass = isMe ? "text-blue-500" : "text-slate-400 dark:text-slate-500";
+    ? "border-indigo-200/70 bg-white text-slate-800 dark:border-indigo-800 dark:bg-zinc-900 dark:text-slate-100"
+    : "border-slate-200 bg-slate-50 text-slate-700 dark:border-zinc-700 dark:bg-zinc-950 dark:text-slate-200";
+  const metaTextClass = "text-slate-500 dark:text-slate-400";
   const downloadClass = isMe
-    ? "bg-blue-600 text-white hover:bg-blue-700"
-    : "bg-white/95 text-slate-700 hover:bg-white dark:bg-zinc-800/95 dark:text-slate-100 dark:hover:bg-zinc-700";
+    ? "bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-950 dark:text-indigo-300"
+    : "bg-white text-slate-600 hover:bg-slate-100 dark:bg-zinc-800 dark:text-slate-100 dark:hover:bg-zinc-700";
 
   if (isImage || isVideo) {
     return (
-      <div className={`group/attachment relative overflow-hidden rounded-2xl border ${containerClass}`}>
-        <a href={attachment.url} target="_blank" rel="noreferrer" className="block" title={`Open ${attachment.filename}`}>
-          {isImage ? (
-            <img src={attachment.url} alt={attachment.filename} className="h-44 w-full object-cover" loading="lazy" />
-          ) : (
-            <video src={attachment.url} className="h-44 w-full bg-slate-900 object-cover" controls preload="metadata" />
-          )}
-        </a>
+      <div className={`nx-chat-attachment group/attachment relative min-w-0 overflow-hidden rounded-xl border ${containerClass}`}>
+        {isImage ? (
+          <a href={attachment.url} target="_blank" rel="noreferrer" className="block" title={`Open ${attachment.filename}`}>
+            <img src={attachment.url} alt={attachment.filename} className="max-h-64 min-h-36 w-full object-cover" loading="lazy" />
+          </a>
+        ) : (
+          <video src={attachment.url} aria-label={attachment.filename} className="max-h-64 min-h-36 w-full bg-slate-900 object-contain" controls preload="metadata" />
+        )}
 
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent p-3 text-white">
-          <div className="flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.22em] text-white/80">
+        <div className="px-3 py-2.5 pr-12">
+          <div className="flex items-center gap-2 text-[10px] font-medium text-slate-500 dark:text-slate-400">
             {isImage ? <FiImage className="h-3.5 w-3.5" /> : <FiVideo className="h-3.5 w-3.5" />}
             {isImage ? "Image" : "Video"}
             {fileSize && <span>{fileSize}</span>}
           </div>
-          <p className="mt-1 truncate pr-10 text-xs font-medium">
+          <p className="mt-1 truncate text-xs font-medium">
             <HighlightText text={attachment.filename} query={searchQuery} />
           </p>
         </div>
@@ -739,7 +750,7 @@ const MessageAttachmentCard = ({ attachment, isMe, searchQuery }) => {
         <a
           href={downloadUrl}
           download={attachment.filename}
-          className={`absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full shadow-lg backdrop-blur ${downloadClass}`}
+          className={`absolute bottom-3 right-2 flex h-8 w-8 items-center justify-center rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${downloadClass}`}
           title={`Download ${attachment.filename}`}
           aria-label={`Download ${attachment.filename}`}
         >
@@ -750,8 +761,8 @@ const MessageAttachmentCard = ({ attachment, isMe, searchQuery }) => {
   }
 
   return (
-    <div className={`flex items-center gap-3 rounded-2xl border px-3 py-3 transition hover:-translate-y-0.5 ${containerClass}`}>
-      <div className={`flex h-10 w-10 items-center justify-center rounded-2xl ${isMe ? "bg-blue-100 text-blue-700" : "bg-white text-slate-600 dark:bg-zinc-800 dark:text-slate-200"}`}>
+    <div className={`nx-chat-attachment flex min-w-0 items-center gap-3 rounded-xl border px-3 py-3 ${containerClass}`}>
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-300">
         <FiFileText className="h-5 w-5" />
       </div>
 
@@ -759,7 +770,7 @@ const MessageAttachmentCard = ({ attachment, isMe, searchQuery }) => {
         <p className="truncate text-sm font-medium">
           <HighlightText text={attachment.filename} query={searchQuery} />
         </p>
-        <p className={`mt-1 text-[11px] uppercase tracking-[0.22em] ${metaTextClass}`}>
+        <p className={`mt-1 text-[11px] ${metaTextClass}`}>
           {[getAttachmentKindLabel(attachment.content_type), fileSize].filter(Boolean).join(" · ")}
         </p>
       </a>
@@ -767,7 +778,7 @@ const MessageAttachmentCard = ({ attachment, isMe, searchQuery }) => {
       <a
         href={downloadUrl}
         download={attachment.filename}
-        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl transition ${downloadClass}`}
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${downloadClass}`}
         title={`Download ${attachment.filename}`}
         aria-label={`Download ${attachment.filename}`}
       >
@@ -781,6 +792,8 @@ const MessageBubble = React.memo(({ message, isMe, showAvatar, onToggleReaction,
   const [isReactionPickerOpen, setIsReactionPickerOpen] = useState(false);
   const [isReactionPickerExpanded, setIsReactionPickerExpanded] = useState(false);
   const [customReactionEmoji, setCustomReactionEmoji] = useState("");
+  const reactionPickerRef = useRef(null);
+  const reactionTriggerRef = useRef(null);
   const timeString = format(new Date(message.created_at), "h:mm a");
   const reactions = message.reactions || {};
   const reactedEmojis = message.reacted_emojis || [];
@@ -795,6 +808,27 @@ const MessageBubble = React.memo(({ message, isMe, showAvatar, onToggleReaction,
       : receiptRecipients.length > 1
         ? `Delivered to ${deliveredBy.length} of ${receiptRecipients.length} · Read by ${readBy.length}`
         : "Sent";
+
+  useEffect(() => {
+    if (!isReactionPickerOpen) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (reactionPickerRef.current?.contains(event.target) || reactionTriggerRef.current?.contains(event.target)) return;
+      setIsReactionPickerOpen(false);
+    };
+    const handleKeyDown = (event) => {
+      if (event.key !== "Escape") return;
+      setIsReactionPickerOpen(false);
+      reactionTriggerRef.current?.focus();
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isReactionPickerOpen]);
   const handleCustomReactionSubmit = (event) => {
     event.preventDefault();
     const emoji = customReactionEmoji.trim();
@@ -810,26 +844,26 @@ const MessageBubble = React.memo(({ message, isMe, showAvatar, onToggleReaction,
   };
 
   return (
-    <div className={`group/bubble flex w-full ${isMe ? "justify-end" : "justify-start"}`}>
-      <div className={`flex max-w-[92%] gap-2 md:max-w-[74%] ${isMe ? "flex-row-reverse" : "flex-row"}`}>
+    <div data-outgoing={isMe} data-group-start={showAvatar} className={`nx-chat-message group/bubble flex w-full ${showAvatar ? "pt-3" : "pt-0.5"} ${isMe ? "justify-end" : "justify-start"}`}>
+      <div className={`flex min-w-0 max-w-[94%] gap-2.5 md:max-w-[78%] ${isMe ? "flex-row-reverse" : "flex-row"}`}>
         {!isMe && (
-          <div className="flex w-8 shrink-0 items-end justify-center">
+          <div className="flex w-8 shrink-0 items-start justify-center pt-1">
             {showAvatar ? <Avatar name={message.user_name} src={message.user_profile_picture} size="sm" /> : <div className="h-8 w-8" />}
           </div>
         )}
 
-        <div className={`relative flex flex-col ${isMe ? "items-end" : "items-start"}`}>
+        <div className={`relative flex min-w-0 flex-col ${isMe ? "items-end" : "items-start"}`}>
           {!isMe && showAvatar && (
-            <span className={`mb-0.5 ml-2 text-[10px] font-medium uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500 ${isDirectConversation ? "hidden" : ""}`}>
+            <span className={`mb-1.5 ml-1 text-xs font-medium text-slate-600 dark:text-slate-400 ${isDirectConversation ? "hidden" : ""}`}>
               {message.user_name}
             </span>
           )}
 
           <div
-            className={`relative overflow-hidden rounded-[20px] border px-3.5 py-2 shadow-[0_16px_36px_-28px_rgba(15,23,42,0.45)] ${
+            className={`nx-chat-message-bubble relative min-w-0 max-w-full rounded-2xl border px-4 py-2.5 [overflow-wrap:anywhere] ${
               isMe
-                ? "border-blue-300 bg-[linear-gradient(135deg,rgba(191,219,254,0.98),rgba(219,234,254,0.98))] text-slate-900 shadow-[0_16px_36px_-30px_rgba(37,99,235,0.55)]"
-                : "border-white/80 bg-white/92 text-slate-800 dark:border-zinc-700 dark:bg-zinc-900/90 dark:text-slate-200"
+                ? "rounded-tr-md border-indigo-100 bg-indigo-50 text-slate-800 dark:border-indigo-900/70 dark:bg-indigo-950/50 dark:text-slate-100"
+                : "rounded-tl-md border-slate-200/70 bg-white text-slate-800 shadow-sm shadow-slate-100/60 dark:border-zinc-800 dark:bg-zinc-900 dark:text-slate-200"
             } ${searchQuery.trim() ? "ring-2 ring-amber-300/60" : ""}`}
           >
             {message.body && <RichMessageText text={message.body} isMe={isMe} searchQuery={searchQuery} mentionLookups={mentionLookups} />}
@@ -847,11 +881,25 @@ const MessageBubble = React.memo(({ message, isMe, showAvatar, onToggleReaction,
               </div>
             )}
 
-            <span className={`ml-2 inline-flex translate-y-0.5 items-center gap-1 whitespace-nowrap text-[10px] ${isMe ? "text-blue-600/75" : "text-slate-400 dark:text-slate-500"}`}>
-              <span>{timeString}</span>
+          </div>
+
+          <div className={`nx-chat-message-meta flex min-h-6 items-center gap-1.5 px-1 text-[10px] text-slate-400 dark:text-slate-500 ${isMe ? "flex-row-reverse" : ""}`}>
+            <button
+              ref={reactionTriggerRef}
+              type="button"
+              onClick={() => setIsReactionPickerOpen((previous) => !previous)}
+              className={`flex h-6 w-6 items-center justify-center rounded-md text-slate-400 transition hover:bg-white hover:text-indigo-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 md:opacity-0 md:group-hover/bubble:opacity-100 md:group-focus-within/bubble:opacity-100 dark:hover:bg-zinc-800 dark:hover:text-indigo-300 ${isReactionPickerOpen ? "bg-white text-indigo-600 md:opacity-100 dark:bg-zinc-800 dark:text-indigo-300" : ""}`}
+              aria-label="Add reaction"
+              aria-expanded={isReactionPickerOpen}
+              aria-controls={isReactionPickerOpen ? `message-reactions-${message.id}` : undefined}
+            >
+              <FiSmile className="h-3.5 w-3.5" />
+            </button>
+            <span className="inline-flex items-center gap-1 whitespace-nowrap">
+              <time dateTime={message.created_at}>{timeString}</time>
               {isMe && (
                 <span
-                  className={`inline-flex items-center ${allRead ? "text-emerald-600" : allDelivered ? "text-slate-500" : "text-blue-600/75"}`}
+                  className={`inline-flex items-center ${allRead ? "text-indigo-600 dark:text-indigo-300" : "text-slate-400 dark:text-slate-500"}`}
                   title={receiptTitle}
                   aria-label={receiptTitle}
                 >
@@ -863,7 +911,7 @@ const MessageBubble = React.memo(({ message, isMe, showAvatar, onToggleReaction,
           </div>
 
           {reactionEntries.length > 0 && (
-            <div className={`mt-1 flex max-w-full flex-wrap items-center gap-1 px-1 ${isMe ? "justify-end pr-2" : "justify-start pl-2"}`}>
+            <div className={`nx-chat-message-reactions mb-1 flex max-w-full flex-wrap items-center gap-1 px-1 ${isMe ? "justify-end" : "justify-start"}`}>
               {reactionEntries.map(([emoji, count]) => {
                 const isActive = reactedEmojis.includes(emoji);
 
@@ -872,12 +920,13 @@ const MessageBubble = React.memo(({ message, isMe, showAvatar, onToggleReaction,
                     key={`${message.id}-${emoji}`}
                     type="button"
                     onClick={() => handleReactionClick(emoji, isActive)}
-                    className={`inline-flex items-center gap-1 rounded-full border bg-clip-padding px-2 py-0.5 text-[10px] font-medium shadow-sm backdrop-blur transition ${
+                    className={`inline-flex min-h-7 items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
                       isActive
-                        ? "border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-200"
-                        : "border-slate-200 bg-white/80 text-slate-600 hover:border-slate-300 dark:border-zinc-700 dark:bg-zinc-800/85 dark:text-slate-300"
+                        ? "border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950 dark:text-indigo-200"
+                        : "border-slate-200 bg-white text-slate-600 hover:border-indigo-200 dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-300"
                     }`}
                     aria-label={`${isActive ? "Remove" : "Add"} ${emoji} reaction`}
+                    aria-pressed={isActive}
                   >
                     <span>{emoji}</span>
                     <span>{count}</span>
@@ -887,18 +936,9 @@ const MessageBubble = React.memo(({ message, isMe, showAvatar, onToggleReaction,
             </div>
           )}
 
-          <button
-            type="button"
-            onClick={() => setIsReactionPickerOpen((previous) => !previous)}
-            className={`absolute top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 opacity-0 shadow-sm transition hover:text-blue-600 group-hover/bubble:opacity-100 group-focus-within/bubble:opacity-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-400 ${isReactionPickerOpen ? "opacity-100" : ""} ${isMe ? "-left-9" : "-right-9"}`}
-            aria-label="Add reaction"
-            aria-expanded={isReactionPickerOpen}
-          >
-            <FiSmile className="h-3.5 w-3.5" />
-          </button>
-
-          <div className={`absolute top-0 z-20 -translate-y-[calc(100%+0.25rem)] transition-all duration-150 ${isReactionPickerOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"} ${isMe ? "right-0" : "left-0"}`}>
-            <div className="flex max-w-[min(19rem,calc(100vw-3rem))] flex-wrap items-center gap-1 rounded-2xl border border-white/70 bg-white/95 p-1 shadow-xl backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/95">
+          {isReactionPickerOpen && (
+          <div ref={reactionPickerRef} id={`message-reactions-${message.id}`} role="group" aria-label="Choose a reaction" className={`nx-chat-reaction-picker absolute bottom-7 z-20 w-max max-w-[min(19rem,calc(100vw-6rem))] ${isMe ? "right-0" : "left-0"}`}>
+            <div className="flex flex-wrap items-center gap-1 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
               {pickerEmojis.map((emoji) => {
                 const isActive = reactedEmojis.includes(emoji);
                 return (
@@ -906,8 +946,9 @@ const MessageBubble = React.memo(({ message, isMe, showAvatar, onToggleReaction,
                     key={`${message.id}-picker-${emoji}`}
                     type="button"
                     onClick={() => handleReactionClick(emoji, isActive)}
-                    className={`flex h-8 w-8 items-center justify-center rounded-full text-base transition-transform hover:scale-110 ${isActive ? "bg-amber-100 dark:bg-amber-900/40" : "hover:bg-slate-100 dark:hover:bg-zinc-800"}`}
+                    className={`flex h-9 w-9 items-center justify-center rounded-xl text-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${isActive ? "bg-indigo-50 dark:bg-indigo-950" : "hover:bg-slate-100 dark:hover:bg-zinc-800"}`}
                     aria-label={`${isActive ? "Remove" : "Add"} ${emoji} reaction`}
+                    aria-pressed={isActive}
                   >
                     {emoji}
                   </button>
@@ -925,7 +966,7 @@ const MessageBubble = React.memo(({ message, isMe, showAvatar, onToggleReaction,
                   />
                   <button
                     type="submit"
-                    className="h-8 rounded-full bg-blue-600 px-2.5 text-[10px] font-bold text-white transition hover:bg-blue-700"
+                    className="h-8 rounded-lg bg-indigo-600 px-2.5 text-xs font-semibold text-white transition hover:bg-indigo-700"
                     aria-label="Add custom emoji reaction"
                   >
                     Add
@@ -943,6 +984,7 @@ const MessageBubble = React.memo(({ message, isMe, showAvatar, onToggleReaction,
               </button>
             </div>
           </div>
+          )}
 
         </div>
       </div>
@@ -1058,6 +1100,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   const usersRequestRef = useRef(null);
   const tasksRequestRef = useRef(null);
   const addMembersDialogRef = useRef(null);
+  const newChatDialogRef = useRef(null);
   const addMembersPreviousFocusRef = useRef(null);
   const typingStateRef = useRef({ active: false, conversationId: null });
   const reconciliationTimerRef = useRef(null);
@@ -1085,6 +1128,12 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   const [attachments, setAttachments] = useState([]);
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [sendError, setSendError] = useState("");
+  const sendInFlightRef = useRef(false);
+  const draftCacheRef = useRef({});
+  const draftConversationIdRef = useRef(conversationId);
+  const currentConversationIdRef = useRef(conversationId);
+  currentConversationIdRef.current = conversationId;
   const [typingUsers, setTypingUsers] = useState({});
   const [showInfo, setShowInfo] = useState(false);
   const [isThreadActionsOpen, setIsThreadActionsOpen] = useState(false);
@@ -1099,6 +1148,8 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
 
   const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
   const [newChatMode, setNewChatMode] = useState("direct");
+  const [isCreatingChat, setIsCreatingChat] = useState(false);
+  const [newChatError, setNewChatError] = useState("");
   const [newChatStep, setNewChatStep] = useState("select");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedUserIds, setSelectedUserIds] = useState([]);
@@ -1116,6 +1167,60 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   const [isCallConnecting, setIsCallConnecting] = useState(false);
   const [callError, setCallError] = useState("");
   const [presenceNow, setPresenceNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!isNewChatModalOpen) return undefined;
+    const previousFocus = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setIsNewChatModalOpen(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const controls = Array.from(newChatDialogRef.current?.querySelectorAll('button:not([disabled]), input:not([disabled]), [href], [tabindex="0"]') || []);
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKeyDown);
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
+  }, [isNewChatModalOpen]);
+
+  useEffect(() => {
+    setSendError("");
+  }, [conversationId]);
+
+  useEffect(() => {
+    const previousId = draftConversationIdRef.current;
+    if (String(previousId) === String(conversationId)) return;
+    if (previousId) draftCacheRef.current[String(previousId)] = { body: messageBody, attachments };
+    const nextDraft = draftCacheRef.current[String(conversationId)] || { body: "", attachments: [] };
+    setMessageBody(nextDraft.body);
+    setAttachments(nextDraft.attachments);
+    setComposerSelection({ start: 0, end: 0 });
+    setActiveMentionIndex(0);
+    draftConversationIdRef.current = conversationId;
+  }, [conversationId]);
+
+  useEffect(() => {
+    if ((!showInfo && !isThreadActionsOpen) || isAddMembersOpen || isNewChatModalOpen) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key !== "Escape") return;
+      if (isThreadActionsOpen) {
+        setIsThreadActionsOpen(false);
+        threadActionsRef.current?.querySelector("button")?.focus();
+      } else setShowInfo(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [showInfo, isThreadActionsOpen, isAddMembersOpen, isNewChatModalOpen]);
 
   useEffect(() => {
     if (embedded) setEmbeddedConversationId(initialConversationId);
@@ -1625,6 +1730,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   }, [acknowledgeReceipt, conversationId, isLoadingOlderMessages, loadOlderMessages, messagePageMeta?.has_more]);
 
   const resetNewChatModal = useCallback((mode = "direct") => {
+    setNewChatError("");
     setNewChatMode(mode);
     setNewChatStep("select");
     setSearchTerm("");
@@ -1929,7 +2035,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     if (!textarea) return;
 
     textarea.style.height = "auto";
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 48)}px`;
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 144)}px`;
   }, [messageBody]);
 
   const applyReactionUpdate = useCallback((messageId, updates = {}) => {
@@ -2760,6 +2866,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   }, [applyReactionUpdate, conversationId]);
 
   const addAttachments = useCallback((files = []) => {
+    if (sendInFlightRef.current) return;
     const nextFiles = Array.from(files).filter(Boolean);
     if (!nextFiles.length) return;
 
@@ -2773,6 +2880,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
 
   const handleDragOverAttachments = (event) => {
     event.preventDefault();
+    if (sendInFlightRef.current) return;
     event.dataTransfer.dropEffect = "copy";
     setIsDraggingFiles(true);
   };
@@ -2814,9 +2922,27 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     });
   };
 
+  const insertComposerText = (text) => {
+    if (sendInFlightRef.current) return;
+    const textarea = composerTextareaRef.current;
+    const start = textarea?.selectionStart ?? messageBody.length;
+    const end = textarea?.selectionEnd ?? start;
+    const prefix = start > 0 && !/\s/.test(messageBody[start - 1]) ? " " : "";
+    const insertion = prefix + text;
+    setMessageBody(messageBody.slice(0, start) + insertion + messageBody.slice(end));
+    const cursor = start + insertion.length;
+    setComposerSelection({ start: cursor, end: cursor });
+    window.requestAnimationFrame(() => {
+      textarea?.focus();
+      textarea?.setSelectionRange(cursor, cursor);
+    });
+  };
+
   const handleSendMessage = async (event) => {
     event.preventDefault();
-    if ((!messageBody.trim() && attachments.length === 0) || !conversationId) return;
+    if (sendInFlightRef.current || (!messageBody.trim() && attachments.length === 0) || !conversationId) return;
+    sendInFlightRef.current = true;
+    setSendError("");
 
     const shouldFollowMessage = isAtLatestMessagesRef.current;
     setIsSending(true);
@@ -2829,7 +2955,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       const { data: newMessage } = await sendMessage(conversationId, formData);
 
       setActiveConversation((previous) => {
-        if (!previous) return previous;
+        if (!previous || Number(previous.id) !== Number(conversationId)) return previous;
         if (previous.messages?.some((message) => Number(message.id) === Number(newMessage.id))) return previous;
 
         const nextConversation = {
@@ -2844,16 +2970,32 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
         return nextConversation;
       });
 
-      setMessageBody("");
-      setAttachments([]);
-      setComposerSelection({ start: 0, end: 0 });
-      setActiveMentionIndex(0);
+      const cachedConversation = conversationCacheRef.current[String(conversationId)];
+      if (cachedConversation && !cachedConversation.messages?.some((message) => Number(message.id) === Number(newMessage.id))) {
+        conversationCacheRef.current[String(conversationId)] = {
+          ...cachedConversation,
+          messages: [...(cachedConversation.messages || []), newMessage]
+        };
+      }
+      delete draftCacheRef.current[String(conversationId)];
+      if (String(currentConversationIdRef.current) === String(conversationId)) {
+        setMessageBody("");
+        setAttachments([]);
+        setComposerSelection({ start: 0, end: 0 });
+        setActiveMentionIndex(0);
+      }
       applyRealtimeMessageSummary(conversationId, newMessage);
-      if (shouldFollowMessage) scrollMessagesToBottom(40);
-      else setHasUnreadBelow(true);
+      if (String(currentConversationIdRef.current) === String(conversationId)) {
+        if (shouldFollowMessage) scrollMessagesToBottom(40);
+        else setHasUnreadBelow(true);
+      }
     } catch (error) {
       console.error("Failed to send message", error);
+      if (String(currentConversationIdRef.current) === String(conversationId)) {
+        setSendError("Your message couldn’t be sent. Please try again. Your draft is still here.");
+      }
     } finally {
+      sendInFlightRef.current = false;
       stopTyping();
       setIsSending(false);
     }
@@ -2873,9 +3015,12 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   };
 
   const handleContinueNewChat = async () => {
+    if (isCreatingChat) return;
+    setNewChatError("");
     if (newChatMode === "direct") {
       if (!selectedUserIds[0]) return;
 
+      setIsCreatingChat(true);
       try {
         const { data } = await startDirectConversation(selectedUserIds[0]);
         setIsNewChatModalOpen(false);
@@ -2883,6 +3028,9 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
         openConversation(data.id);
       } catch (error) {
         console.error("Failed to start direct conversation", error);
+        setNewChatError("Couldn’t start this chat. Please try again.");
+      } finally {
+        setIsCreatingChat(false);
       }
 
       return;
@@ -2896,6 +3044,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
 
     if (!newGroupTitle.trim()) return;
 
+    setIsCreatingChat(true);
     try {
       const { data } = await createConversation({
         title: newGroupTitle,
@@ -2909,6 +3058,9 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       openConversation(data.id);
     } catch (error) {
       console.error("Failed to create group", error);
+      setNewChatError("Couldn’t create this group. Please try again.");
+    } finally {
+      setIsCreatingChat(false);
     }
   };
 
@@ -2957,74 +3109,57 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   const sidebarEmpty = !isConversationListLoading && filteredConversations.direct.length === 0 && filteredConversations.group.length === 0;
 
   return (
-    <div className="nexus-chat-page flex h-full min-h-0 w-full overflow-hidden bg-slate-100 p-1.5 md:p-3 dark:bg-zinc-950">
+    <div data-has-conversation={Boolean(conversationId)} className={`nexus-chat-page flex h-full min-h-0 w-full overflow-hidden ${embedded ? "chat-embedded" : ""}`}>
       <div className="nexus-chat-surface relative flex min-h-0 h-full w-full overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(125,211,252,0.24),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(96,165,250,0.14),transparent_24%)]" />
-
-        <aside className={`nexus-chat-sidebar relative z-10 flex min-h-0 w-full flex-col border-r border-slate-200 bg-white dark:border-zinc-800 dark:bg-zinc-950 md:w-[20rem] xl:w-[22rem] ${conversationId ? "hidden md:flex" : "flex"}`}>
-          <div className="border-b border-white/70 px-3 py-2 dark:border-zinc-800">
-            <div className="flex items-center gap-2">
-              <h1 className="text-base font-semibold tracking-tight text-slate-950 dark:text-white">Messages</h1>
+        <aside aria-label="Conversations" className={`nexus-chat-sidebar relative z-10 flex min-h-0 w-full shrink-0 flex-col border-r border-slate-200 bg-white dark:border-zinc-800 dark:bg-zinc-950 md:w-[20rem] xl:w-[22rem] ${conversationId ? "hidden md:flex" : "flex"}`}>
+          <div className="chat-inbox-header">
+            <div className="chat-inbox-heading">
+              <div className="chat-inbox-mark"><FiMessageSquare /></div>
+              <h1>Messages</h1>
               {totalUnreadCount > 0 && (
-                <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-bold text-white dark:bg-sky-200 dark:text-sky-950">
-                  {totalUnreadCount}
+                <span className="chat-unread-total" aria-label={`${totalUnreadCount} unread messages`}>
+                  {totalUnreadCount > 99 ? "99+" : totalUnreadCount}
                 </span>
               )}
-              {cableStatus !== "connected" && (
-                <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-950/50 dark:text-amber-200">
-                  <FiWifiOff className="h-3 w-3" />
-                  {cableStatus}
-                </span>
-              )}
-              <button
-                type="button"
-                onClick={() => openNewChatModal("group")}
-                className="ml-auto flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-300 dark:hover:bg-zinc-800"
-                title="Create group room"
-              >
-                <FiUsers className="h-4 w-4" />
-              </button>
               <button
                 type="button"
                 onClick={() => openNewChatModal("direct")}
-                className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white transition hover:bg-blue-700 dark:bg-sky-200 dark:text-sky-950"
+                className="chat-new-button"
                 title="Start a new conversation"
+                aria-label="Start a new conversation"
               >
                 <FiEdit className="h-4 w-4" />
               </button>
             </div>
+            <p className="chat-inbox-subtitle">A space for every conversation.</p>
 
-            <div className="mt-2 flex items-center gap-2">
-              <div className="relative min-w-0 flex-1">
-                <FiSearch className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-                <input
-                  value={sideSearchQuery}
-                  onChange={(event) => setSideSearchQuery(event.target.value)}
-                  placeholder="Search"
-                  className="h-8 w-full rounded-lg border border-slate-200 bg-white/90 pl-8 pr-2 text-xs text-slate-700 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100 dark:border-zinc-700 dark:bg-zinc-900/90 dark:text-slate-100 dark:focus:border-sky-700 dark:focus:ring-sky-950/50"
-                />
-              </div>
+            <div className="chat-inbox-search">
+              <FiSearch aria-hidden="true" />
+              <input
+                value={sideSearchQuery}
+                onChange={(event) => setSideSearchQuery(event.target.value)}
+                placeholder="Search conversations"
+                aria-label="Search conversations"
+              />
+              {sideSearchQuery && <button type="button" onClick={() => setSideSearchQuery("")} aria-label="Clear conversation search"><FiX /></button>}
+            </div>
 
-              <div className="flex shrink-0 rounded-lg bg-slate-100 p-0.5 dark:bg-zinc-900">
+              <div className="chat-inbox-filters" role="group" aria-label="Filter conversations">
                 {CONVERSATION_FILTERS.map((filter) => (
                   <button
                     key={filter.id}
                     type="button"
                     onClick={() => setConversationFilter(filter.id)}
-                    className={`rounded-md px-2 py-1 text-[10px] font-semibold transition ${
-                      conversationFilter === filter.id
-                        ? "bg-white text-slate-950 shadow-sm dark:bg-zinc-700 dark:text-white"
-                        : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
-                    }`}
+                    aria-pressed={conversationFilter === filter.id}
                   >
                     {filter.label}
+                    {filter.id === "unread" && totalUnreadCount > 0 && <span className="chat-filter-dot" />}
                   </button>
                 ))}
               </div>
-            </div>
           </div>
 
-          <div className="scrollbar-hide relative flex-1 overflow-y-auto px-2 py-2">
+          <div className="chat-inbox-list relative min-h-0 flex-1 overflow-y-auto">
             {isConversationListLoading && allConversations.length === 0 ? (
               <div className="space-y-3 px-2">
                 {[1, 2, 3, 4].map((item) => (
@@ -3044,9 +3179,9 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                 <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-3xl bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-200">
                   <FiSearch className="h-6 w-6" />
                 </div>
-                <h3 className="mt-4 text-lg font-semibold text-slate-900 dark:text-white">No conversations match</h3>
+                <h3 className="mt-4 text-lg font-semibold text-slate-900 dark:text-white">{allConversations.length === 0 ? "No conversations yet" : "No conversations match"}</h3>
                 <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                  Try a broader search or start a fresh conversation.
+                  {allConversations.length === 0 ? "Start a chat with a teammate or make a room for your team." : "Try a broader search or start a fresh conversation."}
                 </p>
                 <button
                   type="button"
@@ -3060,9 +3195,9 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
               <div className="space-y-3">
                 {filteredConversations.direct.length > 0 && (
                   <section>
-                    <div className="mb-1 flex items-center justify-between px-2">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Direct</p>
-                      <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500">
+                    <div className="chat-list-section-heading">
+                      <p>Direct messages</p>
+                      <span>
                         {filteredConversations.direct.length}
                       </span>
                     </div>
@@ -3090,14 +3225,15 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
 
                 {filteredConversations.group.length > 0 && (
                   <section>
-                    <div className="mb-1 flex items-center justify-between px-2">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Groups</p>
+                    <div className="chat-list-section-heading">
+                      <p>Group conversations</p>
                       <button
                         type="button"
                         onClick={() => openNewChatModal("group")}
-                        className="rounded-md px-2 py-1 text-[10px] font-semibold text-slate-500 transition hover:bg-white hover:text-slate-900 dark:text-slate-400 dark:hover:bg-zinc-900 dark:hover:text-white"
+                        className="chat-section-add"
+                        aria-label="Create group room"
                       >
-                        New
+                        <FiPlus />
                       </button>
                     </div>
 
@@ -3135,6 +3271,16 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
               </div>
             )}
           </div>
+          <div className="chat-inbox-footer">
+            <Avatar name={getFullUserName(user)} src={user?.profile_picture} size="sm" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate">{getFullUserName(user)}</p>
+              <span role="status" className={cableStatus === "connected" ? "chat-connection-online" : "chat-connection-pending"}>
+                {cableStatus === "connected" ? <><i /> Connected to your workspace</> : <><FiWifiOff /> Reconnecting…</>}
+              </span>
+            </div>
+            <button type="button" className="chat-icon-button" onClick={() => openNewChatModal("group")} title="Create group room" aria-label="Start a group conversation"><FiUsers /></button>
+          </div>
         </aside>
 
         <main className={`nexus-chat-thread relative z-10 flex min-h-0 min-w-0 flex-1 flex-col ${!conversationId ? "hidden md:flex" : "flex"}`}>
@@ -3159,40 +3305,24 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
               </div>
             </div>
           ) : !activeConversation ? (
-            <div className="relative flex flex-1 items-center justify-center p-6 md:p-10">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(125,211,252,0.22),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.6),rgba(248,250,252,0.72))] dark:bg-[linear-gradient(180deg,rgba(9,9,11,0.72),rgba(17,24,39,0.82))]" />
-              <div className="relative z-10 max-w-xl rounded-[32px] border border-white/80 bg-white/78 p-8 text-center shadow-[0_30px_70px_-40px_rgba(15,23,42,0.8)] backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-950/78">
-                <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-[28px] bg-[linear-gradient(135deg,#dbeafe,#e0f2fe)] text-blue-700 shadow-[0_24px_60px_-36px_rgba(37,99,235,0.45)] dark:bg-[linear-gradient(135deg,#082f49,#0f172a)] dark:text-sky-100">
-                  <FiMessageSquare className="h-9 w-9" />
-                </div>
-                <p className="mt-6 text-[11px] font-medium uppercase tracking-[0.34em] text-sky-500">Workspace Chat</p>
-                <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950 dark:text-white">A cleaner inbox for fast team conversations</h2>
-                <p className="mt-4 text-sm leading-7 text-slate-500 dark:text-slate-400">
-                  Pick a conversation from the list, search your history, or start a new room with the people you need.
-                </p>
-
-                <div className="mt-8 grid gap-3 sm:grid-cols-3">
-                  <StatCard icon={<FiLayers className="h-4 w-4" />} label="Threads" value={allConversations.length} accentClass="bg-slate-100 text-slate-700 dark:bg-zinc-800 dark:text-slate-200" />
-                  <StatCard icon={<FiZap className="h-4 w-4" />} label="Unread" value={totalUnreadCount} accentClass="bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-200" />
-                  <StatCard icon={<FiUsers className="h-4 w-4" />} label="Teams" value={groupConversationCount} accentClass="bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-200" />
-                </div>
-
-                <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
-                  <button
-                    type="button"
-                    onClick={() => openNewChatModal("direct")}
-                    className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 dark:bg-sky-200 dark:text-sky-950"
-                  >
-                    Start new chat
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openNewChatModal("group")}
-                    className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-200 dark:hover:bg-zinc-800"
-                  >
-                    Create group room
-                  </button>
-                </div>
+            <div className="chat-welcome">
+              <div className="chat-welcome-visual" aria-hidden="true">
+                <div className="chat-welcome-orbit" />
+                <div className="chat-welcome-bubble first"><FiMessageSquare /><div className="chat-welcome-lines"><i /><i /></div></div>
+                <div className="chat-welcome-bubble second"><i /><i /><i /></div>
+                <FiZap className="chat-welcome-spark" />
+              </div>
+              <p className="chat-welcome-eyebrow">Your workspace, connected</p>
+              <h2>Good conversations.<br />Great teamwork.</h2>
+              <p className="chat-welcome-description">A quick hello, a big idea, or the next step. Bring it all together with your team, right here.</p>
+              <div className="chat-welcome-actions">
+                <button type="button" onClick={() => openNewChatModal("direct")} className="chat-primary-button"><FiPlus /> Start new chat <FiArrowUpRight /></button>
+                <button type="button" onClick={() => openNewChatModal("group")} className="chat-secondary-button"><FiUsers /> Create group room</button>
+              </div>
+              <div className="chat-welcome-summary">
+                <span><FiMessageSquare /><strong>{allConversations.length}</strong> conversations</span>
+                <span><FiUsers /><strong>{groupConversationCount}</strong> groups</span>
+                <span><span className="chat-filter-dot" /><strong>{totalUnreadCount}</strong> unread messages</span>
               </div>
             </div>
           ) : (
@@ -3204,6 +3334,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                       <button
                         type="button"
                         onClick={() => setEmbeddedConversationId(null)}
+                        aria-label="Back to conversations"
                         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 md:hidden"
                       >
                         <FiArrowLeft className="h-5 w-5" />
@@ -3211,6 +3342,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                     ) : (
                       <Link
                         to="/chat"
+                        aria-label="Back to conversations"
                         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 md:hidden"
                       >
                         <FiArrowLeft className="h-5 w-5" />
@@ -3236,7 +3368,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                         <h2 className="truncate text-base font-semibold tracking-tight text-slate-950 sm:text-xl dark:text-white">
                           {activeConversationName}
                         </h2>
-                        <span className="hidden rounded-full bg-blue-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-blue-700 sm:inline-flex dark:bg-sky-950/70 dark:text-sky-200">
+                        <span className="chat-thread-kind hidden sm:inline-flex">
                           {activeConversation.conversation_type === "group" ? "Group" : "Direct"}
                         </span>
                       </div>
@@ -3246,13 +3378,14 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                     </div>
                   </div>
 
-                  <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+                  <div className="chat-header-actions flex shrink-0 items-center gap-1 sm:gap-2">
                     <button
                       type="button"
                       onClick={() => handleStartCall("audio")}
                       disabled={isCallConnecting || Boolean(visibleCall)}
-                      className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:opacity-40 sm:h-10 sm:w-10 sm:rounded-2xl dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-300 dark:hover:bg-zinc-800"
+                      className="chat-icon-button"
                       title="Start voice call"
+                      aria-label="Start voice call"
                     >
                       <FiPhone className="h-4.5 w-4.5" />
                     </button>
@@ -3261,8 +3394,9 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                       type="button"
                       onClick={() => handleStartCall("video")}
                       disabled={isCallConnecting || Boolean(visibleCall)}
-                      className="hidden h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 disabled:opacity-40 sm:flex dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-300 dark:hover:bg-zinc-800"
+                      className="chat-icon-button hidden sm:flex"
                       title="Start video call"
+                      aria-label="Start video call"
                     >
                       <FiVideo className="h-4.5 w-4.5" />
                     </button>
@@ -3273,12 +3407,10 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                         setIsThreadSearchOpen((previous) => !previous);
                         if (isThreadSearchOpen) setThreadSearchQuery("");
                       }}
-                      className={`hidden h-10 w-10 items-center justify-center rounded-2xl transition sm:flex ${
-                        isThreadSearchOpen
-                          ? "bg-blue-600 text-white dark:bg-sky-200 dark:text-sky-950"
-                          : "border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-300 dark:hover:bg-zinc-800"
-                      }`}
+                      className="chat-icon-button hidden sm:flex"
+                      aria-expanded={isThreadSearchOpen}
                       title="Search in conversation"
+                      aria-label="Search in conversation"
                     >
                       <FiSearch className="h-4.5 w-4.5" />
                     </button>
@@ -3286,12 +3418,10 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                     <button
                       type="button"
                       onClick={() => setShowInfo((previous) => !previous)}
-                      className={`hidden h-10 w-10 items-center justify-center rounded-2xl transition sm:flex ${
-                        showInfo
-                          ? "bg-blue-600 text-white dark:bg-sky-200 dark:text-sky-950"
-                          : "border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-300 dark:hover:bg-zinc-800"
-                      }`}
+                      className="chat-icon-button hidden sm:flex"
+                      aria-expanded={showInfo}
                       title="Conversation details"
+                      aria-label="Conversation details"
                     >
                       <FiInfo className="h-4.5 w-4.5" />
                     </button>
@@ -3300,8 +3430,10 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                       <button
                         type="button"
                         onClick={() => setIsThreadActionsOpen((previous) => !previous)}
-                        className={`flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 sm:h-10 sm:w-10 sm:rounded-2xl dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-300 dark:hover:bg-zinc-800 ${isThreadActionsOpen ? "ring-2 ring-sky-100 dark:ring-sky-950/60" : ""}`}
+                        className="chat-icon-button"
+                        aria-expanded={isThreadActionsOpen}
                         title="More actions"
+                        aria-label="More actions"
                       >
                         <FiMoreVertical className="h-4.5 w-4.5" />
                       </button>
@@ -3374,6 +3506,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                           value={threadSearchQuery}
                           onChange={(event) => setThreadSearchQuery(event.target.value)}
                           placeholder="Search messages, people, or attachments in this thread"
+                          aria-label="Search messages in this conversation"
                           className="w-full rounded-2xl border border-white/70 bg-white/82 py-3 pl-11 pr-11 text-sm text-slate-700 outline-none transition focus:border-sky-300 focus:ring-4 focus:ring-sky-100 dark:border-zinc-700 dark:bg-zinc-900/95 dark:text-slate-100 dark:focus:border-sky-700 dark:focus:ring-sky-950/50"
                           autoFocus
                         />
@@ -3466,18 +3599,15 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                     ref={messageListRef}
                     onScroll={handleMessageListScroll}
                     className="nexus-chat-message-list scrollbar-hide relative flex-1 overflow-y-auto px-3 py-3 sm:px-4 sm:py-4 md:px-5"
-                    style={{
-                      backgroundImage: "radial-gradient(circle at top, rgba(96,165,250,0.12), transparent 28%), radial-gradient(circle at bottom right, rgba(56,189,248,0.14), transparent 24%), linear-gradient(180deg, rgba(255,255,255,0.55), rgba(248,250,252,0.78))"
-                    }}
+                    aria-label="Conversation messages"
+                    tabIndex={0}
                   >
                     <div className="mx-auto flex max-w-4xl flex-col gap-4">
-                      <div className="sticky top-0 z-10 flex justify-center">
-                        <span className="rounded-full border border-white/80 bg-white/90 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500 shadow-sm backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/90 dark:text-slate-300">
-                          {deferredThreadSearchQuery.trim()
-                            ? `${filteredMessages.length} match${filteredMessages.length === 1 ? "" : "es"} for "${deferredThreadSearchQuery}"`
-                            : `${activeConversationName} • ${activeConversationMessages.length} messages`}
-                        </span>
-                      </div>
+                      {deferredThreadSearchQuery.trim() && (
+                        <p role="status" className="chat-thread-search-results">
+                          {filteredMessages.length} match{filteredMessages.length === 1 ? "" : "es"} for “{deferredThreadSearchQuery}”
+                        </p>
+                      )}
 
                       {(isLoadingOlderMessages || olderMessagesError) && !deferredThreadSearchQuery.trim() && (
                         <div className="flex justify-center">
@@ -3497,13 +3627,13 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                       )}
 
                       {activeConversationMessages.length === 0 ? (
-                        <div className="rounded-[28px] border border-dashed border-slate-200 bg-white/76 px-6 py-10 text-center shadow-[0_24px_60px_-40px_rgba(15,23,42,0.45)] backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-950/72">
+                        <div className="chat-empty-thread">
                           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[24px] bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-200">
                             <FiMessageSquare className="h-7 w-7" />
                           </div>
-                          <h3 className="mt-4 text-xl font-semibold tracking-tight text-slate-900 dark:text-white">This conversation is empty</h3>
+                          <h3 className="mt-4 text-xl font-semibold tracking-tight text-slate-900 dark:text-white">Every conversation starts with hello</h3>
                           <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                            Start with a clear opener, a status update, or a quick request.
+                            Share an idea, ask a question, or simply say hi.
                           </p>
 
                           <div className="mt-6 flex flex-wrap justify-center gap-2">
@@ -3520,7 +3650,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                           </div>
                         </div>
                       ) : groupedMessages.length === 0 ? (
-                        <div className="rounded-[28px] border border-dashed border-slate-200 bg-white/76 px-6 py-10 text-center shadow-[0_24px_60px_-40px_rgba(15,23,42,0.45)] backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-950/72">
+                        <div className="chat-empty-thread">
                           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[24px] bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-200">
                             <FiSearch className="h-7 w-7" />
                           </div>
@@ -3532,13 +3662,9 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                       ) : (
                         groupedMessages.map((group) => (
                           <div key={group.dateKey} className="space-y-2">
-                            <div className="flex justify-center">
-                              <span className="rounded-full border border-white/80 bg-white/92 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/92 dark:text-slate-400">
-                                {group.label}
-                              </span>
-                            </div>
+                            <div className="chat-day-divider"><span>{group.label}</span></div>
 
-                            <div className="space-y-1">
+                            <div className="chat-message-stack">
                               {group.messages.map((message, index) => {
                                 const previousMessage = group.messages[index - 1];
                                 const showAvatar = !previousMessage || !isSameDay(new Date(previousMessage.created_at), new Date(message.created_at)) || Number(previousMessage.user_id) !== Number(message.user_id);
@@ -3592,7 +3718,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 8 }}
                         onClick={() => scrollMessagesToBottom(0)}
-                        className="absolute bottom-24 left-1/2 z-20 -translate-x-1/2 rounded-full bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-lg hover:bg-blue-700"
+                        className="chat-new-messages absolute left-1/2 z-20 -translate-x-1/2 rounded-full px-4 py-2 text-xs font-semibold text-white shadow-lg"
                       >
                         New messages ↓
                       </motion.button>
@@ -3639,6 +3765,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                                 <button
                                   type="button"
                                   onClick={() => setAttachments((previous) => previous.filter((_, currentIndex) => currentIndex !== index))}
+                                  aria-label={`Remove ${file.name}`}
                                   className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-blue-600/90 text-white transition hover:bg-blue-700"
                                 >
                                   <FiX className="h-4 w-4" />
@@ -3649,16 +3776,14 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                         </div>
                       )}
 
+                      {sendError && <p role="alert" className="chat-compose-error">{sendError}</p>}
                       <form
                         onSubmit={handleSendMessage}
                         onDragOver={handleDragOverAttachments}
                         onDragLeave={handleDragLeaveAttachments}
                         onDrop={handleDropAttachments}
-                        className={`relative rounded-[22px] border p-2 shadow-[0_24px_60px_-36px_rgba(15,23,42,0.7)] backdrop-blur-xl transition ${
-                          isDraggingFiles
-                            ? "border-sky-400 bg-sky-50/95 ring-4 ring-sky-200/60 dark:border-sky-500 dark:bg-sky-950/40 dark:ring-sky-900/50"
-                            : "border-white/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.92),rgba(248,250,252,0.98))] dark:border-zinc-700 dark:bg-[linear-gradient(135deg,rgba(24,24,27,0.96),rgba(9,9,11,0.96))]"
-                        }`}
+                        className="chat-composer-form relative"
+                        data-dragging={isDraggingFiles}
                       >
                         {isDraggingFiles && (
                           <div className="pointer-events-none absolute inset-2 z-20 flex items-center justify-center rounded-[24px] border-2 border-dashed border-sky-400 bg-sky-50/92 text-sky-700 shadow-inner backdrop-blur-sm dark:border-sky-500 dark:bg-sky-950/88 dark:text-sky-100">
@@ -3677,17 +3802,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                           onChange={handleAddAttachments}
                         />
 
-                        <div className="flex items-end gap-2">
-                          <button
-                            type="button"
-                            onClick={() => fileInputRef.current?.click()}
-                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-300 dark:hover:bg-zinc-800"
-                            title="Add attachments"
-                          >
-                            <FiPaperclip className="h-5 w-5" />
-                          </button>
-
-                          <div className="min-w-0 flex-1 rounded-[18px] border border-slate-200 bg-white px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900">
+                        <div className="chat-composer-input">
                             <textarea
                               ref={composerTextareaRef}
                               value={messageBody}
@@ -3697,6 +3812,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                                 announceTyping();
                               }}
                               onKeyDown={(event) => {
+                                if (event.nativeEvent.isComposing || event.keyCode === 229) return;
                                 if (activeMentionSuggestions.length > 0) {
                                   if (event.key === "ArrowDown") {
                                     event.preventDefault();
@@ -3729,6 +3845,8 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                               onSelect={syncComposerSelection}
                               rows={1}
                               placeholder="Write a message..."
+                              aria-label="Message"
+                              readOnly={isSending}
                               className="max-h-12 min-h-[24px] w-full resize-none border-0 bg-transparent p-0 text-sm leading-5 text-slate-800 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
                             />
 
@@ -3738,37 +3856,21 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                               onSelect={handleSelectMention}
                             />
 
-                            <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
-                              <div className="flex flex-wrap items-center gap-2 text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
-                                <span className="inline-flex items-center gap-1">
-                                  <FiClock className="h-3.5 w-3.5" />
-                                  Enter to send
-                                </span>
-                                <span className="hidden sm:inline">Shift + Enter for new line</span>
-                                <span className="hidden md:inline">@ mentions</span>
-                                <span className="hidden md:inline"># tasks</span>
-                              </div>
-
-                              <div className="flex flex-wrap items-center gap-2 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                                {attachments.length > 0 && (
-                                  <span className="rounded-full bg-slate-100 px-2.5 py-1 dark:bg-zinc-800">
-                                    {attachments.length} attachment{attachments.length === 1 ? "" : "s"}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
+                        </div>
+                        <div className="chat-composer-toolbar">
+                          <div className="chat-composer-tools">
+                            <button type="button" className="chat-icon-button" disabled={isSending} title="Add attachments" aria-label="Add attachments" onClick={() => fileInputRef.current?.click()}><FiPaperclip /></button>
+                            <button type="button" className="chat-icon-button" disabled={isSending} title="Mention a teammate" aria-label="Mention a teammate" onClick={() => insertComposerText("@")}><FiAtSign /></button>
+                            <button type="button" className="chat-icon-button" disabled={isSending} title="Link a task" aria-label="Link a task" onClick={() => insertComposerText("#")}><FiHash /></button>
+                            <span className="chat-composer-divider" />
+                            <span className="chat-composer-hint"><kbd>Enter</kbd> to send</span>
                           </div>
-
-                          <button
-                            type="submit"
-                            disabled={isSending || (!messageBody.trim() && attachments.length === 0)}
-                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-[0_20px_48px_-30px_rgba(37,99,235,0.8)] transition hover:-translate-y-0.5 hover:bg-blue-700 disabled:translate-y-0 disabled:opacity-40 disabled:shadow-none dark:bg-blue-500 dark:text-white"
-                            title="Send message"
-                          >
-                            <FiSend className={`h-5 w-5 ${isSending ? "animate-pulse" : ""}`} />
+                          <button type="submit" disabled={isSending || (!messageBody.trim() && attachments.length === 0)} className="chat-send-button" title="Send message" aria-label="Send message">
+                            {isSending ? "Sending…" : "Send"}<FiSend />
                           </button>
                         </div>
                       </form>
+                      <p className="chat-composer-note">Shift + Enter for a new line · Drop files here to share</p>
                     </div>
                   </div>
                 </div>
@@ -3782,6 +3884,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         onClick={() => setShowInfo(false)}
+                            aria-label="Close conversation details"
                         className="absolute inset-0 z-20 bg-slate-950/20 backdrop-blur-sm lg:hidden"
                       />
 
@@ -3790,24 +3893,26 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                         animate={{ x: 0, opacity: 1 }}
                         exit={{ x: "100%", opacity: 0 }}
                         transition={{ duration: 0.22 }}
-                        className="absolute inset-y-0 right-0 z-30 flex w-full max-w-sm flex-col border-l border-white/70 bg-white/88 backdrop-blur-2xl dark:border-zinc-800 dark:bg-zinc-950/92"
+                        className="chat-details-panel absolute inset-y-0 right-0 z-30 flex w-full max-w-sm flex-col border-l"
+                        aria-label="Conversation details"
                       >
                         <div className="flex items-center justify-between border-b border-white/70 px-5 py-4 dark:border-zinc-800">
                           <div>
                             <p className="text-[11px] font-medium uppercase tracking-[0.28em] text-sky-500">Conversation</p>
-                            <h3 className="mt-1 text-lg font-semibold tracking-tight text-slate-950 dark:text-white">Details & shared files</h3>
+                            <h3 className="mt-1 text-lg font-semibold tracking-tight text-slate-950 dark:text-white">Details</h3>
                           </div>
                           <button
                             type="button"
                             onClick={() => setShowInfo(false)}
+                        aria-label="Close conversation details"
                             className="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-300 dark:hover:bg-zinc-800"
                           >
                             <FiX className="h-4.5 w-4.5" />
                           </button>
                         </div>
 
-                        <div className="scrollbar-hide flex-1 overflow-y-auto px-5 py-5">
-                          <div className="rounded-[28px] border border-white/70 bg-white/72 p-5 text-center shadow-[0_24px_60px_-40px_rgba(15,23,42,0.6)] dark:border-zinc-800 dark:bg-zinc-900/72">
+                        <div className="chat-details-scroll min-h-0 flex-1 overflow-y-auto px-5 py-5">
+                          <div className="chat-details-profile">
                             {activeConversation.conversation_type === "direct" ? (
                               <Avatar name={activeConversationName} src={activeConversationImage} size="xl" className="mx-auto" />
                             ) : (
@@ -3904,7 +4009,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                               {(activeConversation.participants || []).map((participant) => (
                                 <div
                                   key={participant.id}
-                                  className="flex items-center gap-3 rounded-2xl border border-white/70 bg-white/72 px-3 py-3 dark:border-zinc-800 dark:bg-zinc-900/72"
+                                  className="chat-detail-member flex items-center gap-3 px-3 py-3"
                                 >
                                   <Avatar name={participant.name} src={participant.profile_picture} size="sm" />
                                   <div className="min-w-0 flex-1">
@@ -4314,19 +4419,24 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
               exit={{ opacity: 0 }}
               className="absolute inset-0 bg-slate-950/50 backdrop-blur-sm"
               onClick={() => setIsNewChatModalOpen(false)}
+                    aria-label="Close new conversation"
             />
 
             <motion.div
               initial={{ opacity: 0, scale: 0.96, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 10 }}
-              className="relative z-10 flex max-h-[86vh] w-full max-w-2xl flex-col overflow-hidden rounded-[32px] border border-white/70 bg-white/95 shadow-[0_40px_90px_-50px_rgba(15,23,42,1)] backdrop-blur-2xl dark:border-zinc-800 dark:bg-zinc-950/95"
+              ref={newChatDialogRef}
+              className="chat-modal relative z-10 flex max-h-[86dvh] w-full max-w-xl flex-col overflow-hidden"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="new-conversation-title"
             >
               <div className="border-b border-white/70 px-6 py-5 dark:border-zinc-800">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-[11px] font-medium uppercase tracking-[0.3em] text-sky-500">New conversation</p>
-                    <h3 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">
+                    <h3 id="new-conversation-title" className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">
                       {newChatMode === "group" ? "Create a shared room" : "Start a direct chat"}
                     </h3>
                     <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
@@ -4339,6 +4449,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                   <button
                     type="button"
                     onClick={() => setIsNewChatModalOpen(false)}
+                    aria-label="Close new conversation"
                     className="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-300 dark:hover:bg-zinc-800"
                   >
                     <FiX className="h-4.5 w-4.5" />
@@ -4350,7 +4461,9 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                     <button
                       key={mode.id}
                       type="button"
-                      onClick={() => resetNewChatModal(mode.id)}
+                      onClick={() => { setNewChatError(""); resetNewChatModal(mode.id); }}
+                      disabled={isCreatingChat}
+                      aria-pressed={newChatMode === mode.id}
                       className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
                         newChatMode === mode.id
                           ? "bg-blue-600 text-white dark:bg-sky-200 dark:text-sky-950"
@@ -4363,6 +4476,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                 </div>
               </div>
 
+              {newChatError && <p role="alert" className="mx-6 mt-4 chat-compose-error">{newChatError}</p>}
               {newChatStep === "select" ? (
                 <>
                   <div className="border-b border-white/70 px-6 py-4 dark:border-zinc-800">
@@ -4404,6 +4518,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                             key={candidate.id}
                             type="button"
                             onClick={() => handleSelectUser(candidate.id)}
+                            aria-pressed={selectedUserIds.includes(candidate.id)}
                             className={`flex items-center gap-4 rounded-[24px] border px-4 py-3 text-left transition ${
                               selected
                                 ? "border-blue-200 bg-blue-50 text-blue-950 shadow-[0_18px_45px_-34px_rgba(37,99,235,0.45)] dark:border-sky-800 dark:bg-sky-950/45 dark:text-sky-100"
@@ -4429,7 +4544,8 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                       })}
                     </div>
 
-                    {filteredUsers.length === 0 && (
+                    {isUsersLoading && <p role="status" className="p-6 text-center text-sm text-slate-500">Loading your teammates…</p>}
+                    {!isUsersLoading && filteredUsers.length === 0 && (
                       <div className="rounded-[24px] border border-dashed border-slate-200 bg-white/76 p-6 text-center text-sm text-slate-500 dark:border-zinc-800 dark:bg-zinc-900/72 dark:text-slate-400">
                         No people match that search.
                       </div>
@@ -4448,10 +4564,10 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                     <button
                       type="button"
                       onClick={handleContinueNewChat}
-                      disabled={newChatMode === "group" ? selectedUserIds.length < 2 : !selectedUserIds[0]}
+                      disabled={isCreatingChat || (newChatMode === "group" ? selectedUserIds.length < 2 : !selectedUserIds[0])}
                       className="rounded-2xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-40 dark:bg-sky-200 dark:text-sky-950"
                     >
-                      {newChatMode === "group" ? "Continue" : "Start chat"}
+                      {isCreatingChat ? "Starting…" : newChatMode === "group" ? "Continue" : "Start chat"}
                     </button>
                   </div>
                 </>
@@ -4498,7 +4614,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                     <button
                       type="button"
                       onClick={handleContinueNewChat}
-                      disabled={!newGroupTitle.trim()}
+                      disabled={isCreatingChat || !newGroupTitle.trim()}
                       className="rounded-2xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-40 dark:bg-sky-200 dark:text-sky-950"
                     >
                       Create group

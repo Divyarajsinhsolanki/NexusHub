@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import React from "react";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const apiMocks = vi.hoisted(() => ({
+  sendMessage: vi.fn(),
   fetchConversations: vi.fn(),
   fetchConversation: vi.fn(),
   fetchConversationMessages: vi.fn(),
@@ -62,7 +63,7 @@ vi.mock("../components/api", () => ({
   muteConversation: vi.fn(),
   removeConversationParticipant: apiMocks.removeConversationParticipant,
   removeMessageReaction: vi.fn(),
-  sendMessage: vi.fn(),
+  sendMessage: apiMocks.sendMessage,
   startDirectConversation: vi.fn(),
   unmuteConversation: vi.fn(),
   updateConversation: apiMocks.updateConversation,
@@ -138,6 +139,7 @@ const renderChat = () => render(
 
 beforeEach(() => {
   vi.clearAllMocks();
+  apiMocks.sendMessage.mockReset();
   cableMocks.conversationCallback = null;
   cableMocks.statusCallback = null;
   apiMocks.fetchConversations.mockResolvedValue({ data: { data: [conversation], meta: { unread_count: 0 } } });
@@ -232,5 +234,143 @@ describe("mobile chat performance behavior", () => {
 
     await waitFor(() => expect(apiMocks.addConversationParticipants).toHaveBeenCalledWith(1, [3]));
     expect(await screen.findByText("Members (3)")).toBeTruthy();
+  });
+});
+
+
+describe("chat composer and keyboard controls", () => {
+  it("keeps the draft visible when sending fails and allows retry", async () => {
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+    apiMocks.sendMessage.mockRejectedValueOnce(new Error("Offline"));
+    renderChat();
+    const composer = await screen.findByRole("textbox", { name: "Message" });
+    fireEvent.change(composer, { target: { value: "Keep this draft" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+    expect((await screen.findByRole("alert")).textContent).toContain("Your draft is still here");
+    expect(composer.value).toBe("Keep this draft");
+    expect(screen.getByRole("button", { name: "Send message" }).disabled).toBe(false);
+    apiMocks.sendMessage.mockResolvedValueOnce({ data: { ...conversation.messages[0], id: 99, user_id: 1, body: "Keep this draft" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+    await waitFor(() => expect(composer.value).toBe(""));
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(apiMocks.sendMessage).toHaveBeenCalledTimes(2);
+    errorLog.mockRestore();
+  });
+
+  it("does not send during IME composition and prevents duplicate pending sends", async () => {
+    let resolveSend;
+    apiMocks.sendMessage.mockImplementation(() => new Promise((resolve) => { resolveSend = resolve; }));
+    renderChat();
+    const composer = await screen.findByRole("textbox", { name: "Message" });
+    fireEvent.change(composer, { target: { value: "Hello team" } });
+    fireEvent.keyDown(composer, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(composer, { key: "Enter", shiftKey: true });
+    expect(apiMocks.sendMessage).not.toHaveBeenCalled();
+    fireEvent.keyDown(composer, { key: "Enter" });
+    fireEvent.keyDown(composer, { key: "Enter" });
+    expect(apiMocks.sendMessage).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Send message" }).disabled).toBe(true);
+    await act(async () => resolveSend({ data: { ...conversation.messages[0], id: 99, user_id: 1, body: "Hello team" } }));
+    expect(composer.value).toBe("");
+  });
+
+  it("opens reaction choices only on demand and restores focus with Escape", async () => {
+    renderChat();
+    const trigger = await screen.findByRole("button", { name: "Add reaction" });
+    expect(screen.queryByRole("group", { name: "Choose a reaction" })).toBeNull();
+    fireEvent.click(trigger);
+    expect(screen.getByRole("group", { name: "Choose a reaction" })).toBeTruthy();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("group", { name: "Choose a reaction" })).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it("inserts mention and task triggers from the composer toolbar", async () => {
+    renderChat();
+    const composer = await screen.findByRole("textbox", { name: "Message" });
+    fireEvent.click(screen.getByRole("button", { name: "Mention a teammate" }));
+    expect(composer.value).toBe("@");
+    await waitFor(() => expect(apiMocks.getUsers).toHaveBeenCalledTimes(1));
+    fireEvent.change(composer, { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Link a task" }));
+    expect(composer.value).toBe("#");
+    await waitFor(() => expect(apiMocks.getTasks).toHaveBeenCalledTimes(1));
+  });
+
+  it("traps new-conversation dialog focus and closes with Escape", async () => {
+    renderChat();
+    await screen.findByRole("textbox", { name: "Message" });
+    const trigger = screen.getByRole("button", { name: "Start a new conversation" });
+    trigger.focus();
+    fireEvent.click(trigger);
+    const dialog = await screen.findByRole("dialog", { name: "Start a direct chat" });
+    const controls = dialog.querySelectorAll('button:not([disabled]), input:not([disabled])');
+    const last = controls[controls.length - 1];
+    last.focus();
+    fireEvent.keyDown(document, { key: "Tab" });
+    expect(document.activeElement).toBe(screen.getByRole("dialog").querySelector("button"));
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});
+
+describe("conversation drafts", () => {
+  const secondConversation = {
+    ...conversation,
+    id: 2,
+    title: "Mira Chen",
+    participants: [conversation.participants[0], { id: 3, name: "Mira Chen" }],
+    messages: [],
+    last_message: "A separate conversation",
+  };
+
+  const renderTwoConversations = () => {
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
+    });
+    apiMocks.fetchConversations.mockResolvedValue({ data: { data: [conversation, secondConversation], meta: { unread_count: 0 } } });
+    apiMocks.fetchConversation.mockImplementation(async (id) => ({ data: Number(id) === 2 ? secondConversation : conversation }));
+    apiMocks.fetchConversationSummary.mockImplementation(async (id) => ({ data: Number(id) === 2 ? secondConversation : conversation }));
+    return render(
+      <MemoryRouter initialEntries={["/chat/1"]}>
+        <AuthContext.Provider value={{ user }}>
+          <Routes>
+            <Route path="/chat" element={<Chat />} />
+            <Route path="/chat/:conversationId" element={<Chat />} />
+          </Routes>
+        </AuthContext.Provider>
+      </MemoryRouter>
+    );
+  };
+
+  it("keeps drafts separate when navigating between conversations", async () => {
+    renderTwoConversations();
+    const composer = await screen.findByRole("textbox", { name: "Message" });
+    fireEvent.change(composer, { target: { value: "Draft for Anita" } });
+    fireEvent.click(await screen.findByRole("link", { name: /Mira Chen/ }));
+    await screen.findByRole("heading", { name: "Mira Chen" });
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Message" }).value).toBe(""));
+    fireEvent.change(screen.getByRole("textbox", { name: "Message" }), { target: { value: "Draft for Mira" } });
+    fireEvent.click(screen.getByRole("link", { name: /Anita Rao/ }));
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Message" }).value).toBe("Draft for Anita"));
+    fireEvent.click(screen.getByRole("link", { name: /Mira Chen/ }));
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Message" }).value).toBe("Draft for Mira"));
+  });
+
+  it("keeps a late send result in its original conversation", async () => {
+    let resolveSend;
+    apiMocks.sendMessage.mockImplementation(() => new Promise((resolve) => { resolveSend = resolve; }));
+    renderTwoConversations();
+    const composer = await screen.findByRole("textbox", { name: "Message" });
+    fireEvent.change(composer, { target: { value: "For Anita only" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+    fireEvent.click(await screen.findByRole("link", { name: /Mira Chen/ }));
+    await screen.findByRole("heading", { name: "Mira Chen" });
+    await act(async () => resolveSend({ data: { ...conversation.messages[0], id: 99, user_id: 1, body: "For Anita only" } }));
+    expect(within(screen.getByRole("main")).queryByText("For Anita only")).toBeNull();
+    fireEvent.click(screen.getByRole("link", { name: /Anita Rao/ }));
+    expect(await within(screen.getByRole("main")).findByText("For Anita only")).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: "Message" }).value).toBe("");
   });
 });

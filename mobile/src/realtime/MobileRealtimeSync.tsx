@@ -1,5 +1,5 @@
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 
 import type { Message, Notification } from '../api/types';
 import { useAuth } from '../auth/AuthProvider';
@@ -33,7 +33,18 @@ function RealtimeSubscription() {
     void handleMobileRealtimeEvent(queryClient, event, user?.id);
   }, [queryClient, user?.id]);
 
-  useChatRealtime(undefined, onEvent);
+  const connection = useChatRealtime(undefined, onEvent);
+
+  useEffect(() => {
+    if (connection !== 'connected') return;
+    // ActionCable does not replay messages missed while the app was offline or
+    // backgrounded. Refresh active chats and mark cached threads stale on return.
+    void Promise.all([
+      queryClient.invalidateQueries({ queryKey: mobileQueryKeys.conversations }),
+      queryClient.invalidateQueries({ queryKey: ['conversation'] }),
+      queryClient.invalidateQueries({ queryKey: ['messages'] }),
+    ]).catch(() => undefined);
+  }, [connection, queryClient]);
   return null;
 }
 
@@ -53,7 +64,9 @@ export async function handleMobileRealtimeEvent(queryClient: QueryClient, event:
       appendIncomingMessage(queryClient, conversationId, message);
       updateConversationPreview(queryClient, conversationId, message);
       recentMessageEvents.set(conversationId, Date.now());
-      void sendConversationReceiptOnce(userId, conversationId, message.id, 'delivered').catch(() => undefined);
+      if (Number(message.user_id) !== Number(userId)) {
+        void sendConversationReceiptOnce(userId, conversationId, message.id, 'delivered').catch(() => undefined);
+      }
     }
     return;
   }
