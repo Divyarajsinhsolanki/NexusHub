@@ -42,7 +42,5 @@ jobs:
           pip install awsebcli
 
       - name: Deploy to Elastic Beanstalk
-        env:
-          AWS_EB_PROFILE: ""
         run: |
-          eb deploy nexus-hub-prod --timeout 30 --label "github-${GITHUB_SHA::12}"
+          eb deploy nexus-hub-prod --region ap-south-1 --timeout 30 --label "github-${GITHUB_SHA::12}"
