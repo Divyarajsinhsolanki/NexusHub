@@ -84,8 +84,9 @@ NGINX
 # Validate before touching nginx
 nginx -t
 
-# Reload nginx
-systemctl reload nginx
+# EB can leave an old nginx master running without the regenerated 443 config.
+# A restart reliably loads the HTTPS server block after deploy/config changes.
+systemctl restart nginx
 
 # Verify HTTPS listener
 if ss -lnt | grep -q ':443 '; then
