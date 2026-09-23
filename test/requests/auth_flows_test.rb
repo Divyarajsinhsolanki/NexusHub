@@ -103,6 +103,16 @@ class AuthFlowsTest < ActionDispatch::IntegrationTest
     assert_equal "If that email exists, a reset link is on its way.", response.parsed_body.fetch("message")
   end
 
+  test "forgot password delivers Devise reset instructions synchronously" do
+    assert_difference -> { ActionMailer::Base.deliveries.count }, 1 do
+      post "/api/password/forgot", params: { password: { email: @user.email } }
+    end
+
+    assert_response :success
+    assert @user.reload.reset_password_token.present?
+    assert_equal [@user.email], ActionMailer::Base.deliveries.last.to
+  end
+
   private
 
   def login

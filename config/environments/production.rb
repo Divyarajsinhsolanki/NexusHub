@@ -72,12 +72,26 @@ Rails.application.configure do
   config.active_job.queue_name_prefix = "nexus_hub_production"
 
   config.action_mailer.perform_caching = false
+  # Password reset delivery is synchronous through Devise (deliver_now), so it
+  # must not depend on the Sidekiq worker configured above.
+  config.action_mailer.perform_deliveries = true
   mail_delivery_method = ENV.fetch("EMAIL_DELIVERY_METHOD", ENV["SMTP_ADDRESS"].present? ? "smtp" : "postmark")
-  smtp_configured = ENV["SMTP_ADDRESS"].present? && ENV["SMTP_USERNAME"].present? && ENV["SMTP_PASSWORD"].present?
-  postmark_configured = ENV["POSTMARK_SERVER_TOKEN"].present?
+  unless %w[smtp postmark].include?(mail_delivery_method)
+    raise "Unsupported production EMAIL_DELIVERY_METHOD: #{mail_delivery_method.inspect}"
+  end
 
-  mail_delivery_method = "test" if mail_delivery_method == "smtp" && !smtp_configured
-  mail_delivery_method = "test" if mail_delivery_method == "postmark" && !postmark_configured
+  required_mailer_variables = if mail_delivery_method == "smtp"
+    %w[SMTP_ADDRESS SMTP_USERNAME SMTP_PASSWORD MAILER_SENDER]
+  else
+    %w[POSTMARK_SERVER_TOKEN MAILER_SENDER]
+  end
+  missing_mailer_variables = required_mailer_variables.select { |name| ENV[name].blank? }
+
+  # Never silently use ActionMailer :test in production: it accepts mail in
+  # memory, returns success, and makes a password-reset request look delivered.
+  if missing_mailer_variables.any?
+    raise "Production email is not configured; missing #{missing_mailer_variables.join(', ')}"
+  end
 
   config.action_mailer.delivery_method = mail_delivery_method.to_sym
   if mail_delivery_method == "smtp"
