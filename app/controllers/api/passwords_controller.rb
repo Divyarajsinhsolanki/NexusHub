@@ -4,8 +4,13 @@ class Api::PasswordsController < Api::BaseController
   # POST /api/password/forgot
   def create
     email = params.dig(:password, :email).to_s.strip.downcase
+    Rails.logger.info("[PasswordResetEmail] password reset requested")
+
     if email.present? && (user = User.find_by(email: email))
-      send_reset_instructions(user, email)
+      Rails.logger.info("[PasswordResetEmail] password reset user found")
+      PasswordResetEmailDelivery.call(user: user)
+    else
+      Rails.logger.info("[PasswordResetEmail] password reset user not found")
     end
 
     render json: { message: "If that email exists, a reset link is on its way." }
@@ -46,18 +51,4 @@ class Api::PasswordsController < Api::BaseController
     end
   end
 
-  private
-
-  def send_reset_instructions(user, email)
-    user.send_reset_password_instructions
-  rescue StandardError => error
-    AppEventLogger.error(
-      :application_errors,
-      source: "#{self.class.name}#create",
-      message: "Password reset email failed",
-      exception: error,
-      payload: { email: email }
-    )
-    Rails.error.report(error, handled: true, context: { controller: self.class.name, action: "password_forgot", email: email })
-  end
 end

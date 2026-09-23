@@ -4,8 +4,13 @@ class Api::V1::PasswordsController < Api::V1::BaseController
 
   def forgot
     email = params.require(:email).to_s.strip.downcase
+    Rails.logger.info("[PasswordResetEmail] password reset requested")
+
     if email.present? && (user = User.find_by(email: email))
-      send_reset_instructions(user, email)
+      Rails.logger.info("[PasswordResetEmail] password reset user found")
+      PasswordResetEmailDelivery.call(user: user)
+    else
+      Rails.logger.info("[PasswordResetEmail] password reset user not found")
     end
 
     render_data({ accepted: true })
@@ -46,18 +51,4 @@ class Api::V1::PasswordsController < Api::V1::BaseController
     render_data({ password_changed: true })
   end
 
-  private
-
-  def send_reset_instructions(user, email)
-    user.send_reset_password_instructions
-  rescue StandardError => error
-    AppEventLogger.error(
-      :application_errors,
-      source: "#{self.class.name}#forgot",
-      message: "Mobile password reset email failed",
-      exception: error,
-      payload: { email: email }
-    )
-    Rails.error.report(error, handled: true, context: { controller: self.class.name, action: "password_forgot", email: email })
-  end
 end
