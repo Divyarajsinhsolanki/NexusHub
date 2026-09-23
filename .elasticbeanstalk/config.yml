@@ -1,0 +1,17 @@
+branch-defaults:
+  main:
+    environment: nexus-hub-prod
+global:
+  application_name: nexus-hub
+  branch: null
+  default_ec2_keyname: null
+  default_platform: Ruby 3.3 running on 64bit Amazon Linux 2023
+  default_region: ap-south-1
+  include_git_submodules: true
+  instance_profile: aws-elasticbeanstalk-ec2-role
+  platform_name: null
+  platform_version: null
+  profile: null
+  repository: null
+  sc: git
+  workspace_type: Application
