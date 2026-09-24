@@ -2,8 +2,9 @@ class ApplicationController < ActionController::Base
   include ActionController::Cookies
 
   before_action :set_current_user
+  before_action :set_current_request_context
   before_action :enforce_demo_read_only_request!
-  after_action :reset_current_user
+  after_action :finish_current_request
   rescue_from StandardError, with: :notify_unhandled_exception
 
   private
@@ -43,6 +44,41 @@ class ApplicationController < ActionController::Base
   def set_current_user
     Current.user = current_user || user_from_access_cookie
     Current.workspace = Current.user&.workspace
+  end
+
+  def set_current_request_context
+    Current.request_id = request.request_id
+    @request_started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+  end
+
+  def finish_current_request
+    log_request_summary
+  ensure
+    reset_current_user
+  end
+
+  def log_request_summary
+    return unless Rails.env.production?
+
+    duration_ms = @request_started_at ? ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - @request_started_at) * 1000).round(1) : nil
+    payload = {
+      event: "request",
+      request_id: request.request_id,
+      method: request.request_method,
+      path: request.path,
+      format: request.format&.ref,
+      status: response.status,
+      duration_ms: duration_ms,
+      controller: params[:controller],
+      action: params[:action],
+      user_id: Current.user&.id,
+      workspace_id: Current.workspace&.id,
+      remote_ip: request.remote_ip,
+      user_agent: request.user_agent.to_s.first(180),
+      params: request.filtered_parameters.except("controller", "action")
+    }.compact
+
+    Rails.logger.info(payload.to_json)
   end
 
   def enforce_demo_read_only_request!
