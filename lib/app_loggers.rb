@@ -5,7 +5,8 @@ class AppLoggers
   LOG_FILES = {
     sheet_operations: 'sheet_operations.log',
     project_dashboard: 'project_dashboard.log',
-    application_errors: 'application_errors.log'
+    application_errors: 'application_errors.log',
+    request_audit: 'request_audit.log'
   }.freeze
 
   class << self
