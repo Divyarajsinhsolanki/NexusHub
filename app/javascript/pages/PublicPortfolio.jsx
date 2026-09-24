@@ -20,13 +20,13 @@ import {
 import { AuthContext } from "../context/AuthContext";
 import { fetchPortfolio, sendContact } from "../components/api";
 import LoopingVideo from "../components/ui/LoopingVideo";
-import { runtimeOrBuildValue } from "../config/runtime";
+import { runtimeMetaValue, runtimeOrBuildValue } from "../config/runtime";
 import nexusProductPoster from "../images/nexus/nexus-product-poster.webp";
 
-const RECAPTCHA_SITE_KEY = runtimeOrBuildValue(
-  "nexus-recaptcha-site-key",
-  import.meta.env.VITE_RECAPTCHA_SITE_KEY
-);
+const RECAPTCHA_ENABLED = runtimeMetaValue("nexus-recaptcha-enabled") === "true";
+const RECAPTCHA_SITE_KEY = RECAPTCHA_ENABLED
+  ? runtimeOrBuildValue("nexus-recaptcha-site-key", import.meta.env.VITE_RECAPTCHA_SITE_KEY)
+  : undefined;
 const NEXUS_PRODUCT_LOOP_WEBM = "/media/nexus/nexus-product-loop.webm";
 const NEXUS_PRODUCT_LOOP_MP4 = "/media/nexus/nexus-product-loop.mp4";
 
@@ -34,28 +34,28 @@ const fallbackProfile = {
   full_name: "Divyarajsinh Solanki",
   headline: "Full-stack engineer building practical Rails and React products",
   location: "India",
-  summary: "I build product-focused web applications from database modeling and secure APIs through responsive interfaces, realtime collaboration, integrations, and deployment.",
-  skills: ["Ruby on Rails", "React", "PostgreSQL", "JavaScript", "REST APIs", "Tailwind CSS"],
-  metrics: ["Rails 8.0 + React 18", "35+ API controllers", "20+ product surfaces", "Realtime collaboration"],
-  architecture: ["React and Vite client", "Rails JSON API", "PostgreSQL data model", "Action Cable and background jobs"],
-  engineering_highlights: ["Workspace authorization", "Project delivery workflows", "Realtime chat", "Calendar reminders", "PDF processing"],
+  summary: "I build product-focused web applications from database modeling and secure APIs through responsive interfaces, realtime collaboration, cloud deployment, CI/CD, DNS, email, storage, and production troubleshooting.",
+  skills: ["Ruby on Rails", "React", "PostgreSQL", "AWS EB/EC2", "Route 53", "S3", "SES", "GitHub Actions", "AI-assisted development"],
+  metrics: ["AWS production deploy", "GitHub CI/CD pipeline", "35+ API controllers", "20+ product surfaces"],
+  architecture: ["React and Vite client", "Rails JSON API", "PostgreSQL data model", "AWS Elastic Beanstalk on EC2", "Route 53 DNS and HTTPS", "S3 assets and SES email", "GitHub Actions deployments", "AI-assisted delivery workflow"],
+  engineering_highlights: ["Workspace authorization", "Project delivery workflows", "Realtime chat", "AWS deployment", "CI/CD", "Production troubleshooting"],
   social_links: { github: "https://github.com/Divyarajsinhsolanki" },
 };
 
 const fallbackProject = {
   title: "Nexus Hub",
-  tagline: "A connected workspace for planning, delivery, collaboration, knowledge, and document workflows.",
-  summary: "Nexus Hub is a full-stack Rails and React product that brings project operations, personal productivity, team communication, learning tools, and PDF workflows into one application.",
-  stack: ["Ruby 3.3", "Rails 8.0", "React 18", "Vite 6", "PostgreSQL", "Tailwind CSS"],
+  tagline: "A connected workspace for planning, delivery, collaboration, knowledge, documents, and production-ready cloud deployment.",
+  summary: "Nexus Hub is a full-stack Rails and React product that brings project operations, productivity, team communication, learning tools, PDF workflows, and AWS deployment practice into one application.",
+  stack: ["Ruby 3.3", "Rails 8.0", "React 18", "Vite 6", "PostgreSQL", "Redis", "AWS EB/EC2", "S3", "Route 53", "SES", "GitHub Actions"],
   repository_url: "https://github.com/Divyarajsinhsolanki/rails_vite",
   engineering_highlights: fallbackProfile.engineering_highlights,
   case_study: {
     problem: "Teams often split project delivery, planning, communication, learning, and document work across disconnected tools.",
-    role: "Designed and implemented the Rails domain model, APIs, React product surfaces, authorization, realtime workflows, and deployment setup.",
-    constraints: ["Protect tenant data", "Keep a broad product understandable", "Offer a safe public demo"],
-    decisions: ["Workspace-scoped Rails APIs", "Synthetic read-only demo workspace", "Route-level loading for heavy features"],
-    trade_offs: ["A broad product requires stronger navigation and testing discipline"],
-    outcomes: ["One connected workspace", "One-click technical review", "Production-oriented deployment"],
+    role: "Designed and implemented the Rails domain model, APIs, React product surfaces, authorization, realtime workflows, AWS deployment, DNS/SSL, SES email, S3 storage, CI/CD, and production debugging.",
+    constraints: ["Protect tenant data", "Keep a broad product understandable", "Offer a safe public demo", "Keep the first AWS setup cost-conscious"],
+    decisions: ["Workspace-scoped Rails APIs", "Synthetic read-only demo workspace", "AWS Elastic Beanstalk on EC2", "Route 53 DNS and HTTPS", "S3 assets, SES email, and GitHub Actions deploys", "AI-assisted code review and deployment debugging"],
+    trade_offs: ["A broad product requires stronger navigation and testing discipline", "Single-server PostgreSQL and Redis reduce cost now but can move to managed AWS services later"],
+    outcomes: ["One connected workspace", "One-click technical review", "Production AWS deployment", "Repeatable local-to-production DB restore workflow"],
   },
   features: [
     ["Project Delivery", "Projects, Sprints, and Quality", "/projects"],
@@ -63,7 +63,7 @@ const fallbackProject = {
     ["Collaboration", "Teams, Posts, and Real-time Chat", "/posts"],
     ["Knowledge", "Knowledge and Learning Grid", "/knowledge"],
     ["Documents", "PDF Master Workflows", "/pdf-master"],
-    ["Platform", "Full-stack Product Engineering", "/demo#architecture"],
+    ["Platform", "Cloud Deployment and Product Operations", "/demo#architecture"],
   ].map(([category, title, demo_path], index) => ({
     id: `fallback-${index}`,
     category,
@@ -131,7 +131,7 @@ const ContactForm = () => {
   };
 
   return (
-    <form onSubmit={submit} className="min-w-0 rounded-[24px] border border-white/10 bg-white/5 p-4 sm:rounded-[30px] sm:p-7">
+    <form onSubmit={submit} className="portfolio-depth-card portfolio-reveal portfolio-fly-right min-w-0 rounded-[24px] border border-white/10 bg-white/5 p-4 sm:rounded-[30px] sm:p-7">
       <div className="grid gap-4 sm:grid-cols-2">
         <input
           aria-label="Name"
@@ -167,7 +167,7 @@ const ContactForm = () => {
       >
         <FiSend /> {sending ? "Sending..." : "Send message"}
       </button>
-      {!RECAPTCHA_SITE_KEY ? <p className="mt-3 text-sm text-amber-300">Configure reCAPTCHA to enable this form.</p> : null}
+      {!RECAPTCHA_SITE_KEY ? <p className="mt-3 text-sm text-amber-300">Contact form verification is being configured.</p> : null}
       {status ? <p className={`mt-3 text-sm ${status.type === "success" ? "text-emerald-300" : "text-rose-300"}`}>{status.text}</p> : null}
     </form>
   );
@@ -223,6 +223,32 @@ const PublicPortfolio = () => {
     [features]
   );
 
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const elements = Array.from(document.querySelectorAll(".portfolio-reveal"));
+    if (!elements.length) return undefined;
+
+    if (!("IntersectionObserver" in window)) {
+      elements.forEach((element) => element.classList.add("is-visible"));
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          entry.target.classList.add("is-visible");
+          observer.unobserve(entry.target);
+        });
+      },
+      { rootMargin: "0px 0px -12% 0px", threshold: 0.18 }
+    );
+
+    elements.forEach((element) => observer.observe(element));
+    return () => observer.disconnect();
+  }, [groupedFeatures.length, profile.metrics?.length, profile.architecture?.length]);
+
   const openDemo = async (path = "/demo") => {
     setDemoError("");
     setDemoLoading(path);
@@ -242,6 +268,132 @@ const PublicPortfolio = () => {
 
   return (
     <div className="portfolio-page min-h-dvh overflow-x-hidden bg-[#07111f] text-white">
+      <style>{`
+        .portfolio-page {
+          background:
+            radial-gradient(circle at 50% -20%, rgba(34, 211, 238, 0.18), transparent 34rem),
+            linear-gradient(135deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px),
+            linear-gradient(225deg, rgba(148, 163, 184, 0.06) 1px, transparent 1px),
+            #07111f;
+          background-size: auto, 4.5rem 4.5rem, 4.5rem 4.5rem, auto;
+        }
+
+        .portfolio-perspective {
+          perspective: 1200px;
+          transform-style: preserve-3d;
+        }
+
+        .portfolio-depth-card {
+          transform: translateZ(0) rotateX(0) rotateY(0);
+          transition: transform 360ms ease, border-color 360ms ease, box-shadow 360ms ease, background 360ms ease;
+          will-change: transform;
+        }
+
+        .portfolio-depth-card:hover {
+          border-color: rgba(103, 232, 249, 0.42);
+          box-shadow: 0 28px 70px rgba(8, 47, 73, 0.38);
+          transform: translateY(-8px) rotateX(2deg) rotateY(-2deg);
+        }
+
+        .portfolio-hero-card {
+          animation: portfolioFloat 8s ease-in-out infinite;
+          transform: rotateY(-12deg) rotateX(8deg);
+          transform-style: preserve-3d;
+        }
+
+        .portfolio-reveal {
+          opacity: 0;
+          filter: blur(14px);
+          transform:
+            translate3d(var(--reveal-x, 0), var(--reveal-y, 5rem), var(--reveal-z, -7rem))
+            rotateX(var(--reveal-rx, 10deg))
+            rotateY(var(--reveal-ry, 0deg))
+            scale(0.94);
+          transform-origin: center;
+          transition:
+            opacity 900ms cubic-bezier(0.16, 1, 0.3, 1),
+            filter 900ms cubic-bezier(0.16, 1, 0.3, 1),
+            transform 1000ms cubic-bezier(0.16, 1, 0.3, 1);
+          transition-delay: var(--reveal-delay, 0ms);
+          will-change: opacity, filter, transform;
+        }
+
+        .portfolio-reveal.is-visible {
+          opacity: 1;
+          filter: blur(0);
+          transform: translate3d(0, 0, 0) rotateX(0) rotateY(0) scale(1);
+        }
+
+        .portfolio-fly-left {
+          --reveal-x: -5rem;
+          --reveal-y: 3rem;
+          --reveal-ry: 12deg;
+        }
+
+        .portfolio-fly-right {
+          --reveal-x: 5rem;
+          --reveal-y: 3rem;
+          --reveal-ry: -12deg;
+        }
+
+        .portfolio-fly-up {
+          --reveal-y: 6rem;
+          --reveal-rx: 14deg;
+        }
+
+        .portfolio-fly-deep {
+          --reveal-y: 5rem;
+          --reveal-z: -14rem;
+          --reveal-rx: 16deg;
+          --reveal-ry: -8deg;
+        }
+
+        .portfolio-stagger > * {
+          --reveal-delay: calc(var(--reveal-index, 0) * 90ms);
+        }
+
+        .portfolio-depth-card.is-visible:hover,
+        .portfolio-depth-card:hover {
+          transform: translateY(-8px) rotateX(2deg) rotateY(-2deg) scale(1.01);
+        }
+
+        .portfolio-depth-card.is-visible:nth-child(even):hover {
+          transform: translateY(-8px) rotateX(2deg) rotateY(2deg) scale(1.01);
+        }
+
+        .portfolio-stage-line {
+          background:
+            linear-gradient(90deg, transparent, rgba(103, 232, 249, 0.42), transparent),
+            linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent);
+        }
+
+        @keyframes portfolioFloat {
+          0%, 100% { transform: rotateY(-12deg) rotateX(8deg) translate3d(0, 0, 0); }
+          50% { transform: rotateY(-7deg) rotateX(4deg) translate3d(0, -14px, 32px); }
+        }
+
+        @keyframes portfolioReveal {
+          from { opacity: 0.35; transform: translateY(34px) rotateX(8deg) scale(0.98); }
+          to { opacity: 1; transform: translateY(0) rotateX(0) scale(1); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .portfolio-hero-card,
+          .portfolio-reveal {
+            animation: none;
+          }
+
+          .portfolio-depth-card,
+          .portfolio-depth-card:hover,
+          .portfolio-hero-card,
+          .portfolio-reveal,
+          .portfolio-reveal.is-visible {
+            transform: none;
+            opacity: 1;
+            filter: none;
+          }
+        }
+      `}</style>
       <Helmet>
         <title>{seo.title || `${profile.full_name} | Full-stack Rails and React Engineer`}</title>
         <meta name="description" content={seo.description || profile.summary} />
@@ -255,9 +407,9 @@ const PublicPortfolio = () => {
         <script type="application/ld+json">{JSON.stringify(structuredData)}</script>
       </Helmet>
 
-      <div className="pointer-events-none fixed inset-0 opacity-50" aria-hidden="true">
-        <div className="absolute -left-32 -top-32 h-[34rem] w-[34rem] rounded-full bg-cyan-400/20 blur-[130px]" />
-        <div className="absolute right-[-12rem] top-[28%] h-[30rem] w-[30rem] rounded-full bg-blue-600/20 blur-[130px]" />
+      <div className="pointer-events-none fixed inset-0 opacity-70" aria-hidden="true">
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/60 to-transparent" />
+        <div className="absolute bottom-0 left-1/2 h-[42rem] w-[120vw] -translate-x-1/2 translate-y-1/2 rounded-[100%] border border-cyan-300/10" />
       </div>
 
       <header className="sticky top-0 z-50 border-b border-white/10 bg-[#07111f]/85 backdrop-blur-xl">
@@ -292,7 +444,7 @@ const PublicPortfolio = () => {
       </header>
 
       <main id="top" className="relative">
-        <section className="mx-auto grid min-h-[calc(100dvh-4.25rem)] max-w-7xl items-center gap-10 px-4 py-10 sm:px-8 sm:py-14 lg:grid-cols-[minmax(0,1.25fr)_minmax(20rem,0.75fr)] lg:py-16">
+        <section className="portfolio-perspective mx-auto grid min-h-[calc(100dvh-4.25rem)] max-w-7xl items-center gap-10 px-4 py-10 sm:px-8 sm:py-14 lg:grid-cols-[minmax(0,1.25fr)_minmax(20rem,0.75fr)] lg:py-16">
           <div className="min-w-0">
             <p className="inline-flex max-w-full items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 text-xs font-semibold text-cyan-200 sm:px-4 sm:text-sm">
               <FiCode /> Rails, React, PostgreSQL
@@ -317,8 +469,8 @@ const PublicPortfolio = () => {
             {demoError ? <p className="mt-4 text-amber-300">{demoError}</p> : null}
           </div>
           <div className="relative mx-auto w-full max-w-[20rem] sm:max-w-sm lg:max-w-md">
-            <div className="absolute inset-0 rotate-6 rounded-[42px] bg-gradient-to-br from-cyan-300 to-blue-600 opacity-70 blur-sm" />
-            <div className="relative rounded-[32px] border border-white/10 bg-slate-900/90 p-6 shadow-2xl sm:p-7">
+            <div className="portfolio-stage-line absolute -bottom-8 left-4 right-4 h-16 rounded-[100%] blur-sm" />
+            <div className="portfolio-hero-card relative rounded-[32px] border border-cyan-200/20 bg-slate-900/90 p-6 shadow-2xl shadow-cyan-950/40 sm:p-7">
               {profile.avatar_url ? (
                 <img src={profile.avatar_url} alt={`${profile.full_name} portrait`} className="aspect-square w-full rounded-[24px] object-cover" />
               ) : (
@@ -335,14 +487,14 @@ const PublicPortfolio = () => {
           </div>
         </section>
 
-        <section id="about" className="border-y border-white/10 bg-white/[0.03]">
+        <section id="about" className="portfolio-perspective border-y border-white/10 bg-white/[0.03]">
           <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-8 sm:py-14 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,1.25fr)] lg:py-16">
-            <div>
+            <div className="portfolio-reveal portfolio-fly-left">
               <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">About</p>
               <h2 className="mt-4 text-3xl font-semibold leading-tight tracking-[-0.03em] sm:text-4xl">Product thinking with full-stack execution.</h2>
             </div>
-            <div>
-              <p className="text-base leading-8 text-slate-300 sm:text-lg">{profile.headline}. My work covers data modeling, API design, authorization, complex UI state, realtime behavior, background processing, integrations, and deployment.</p>
+            <div className="portfolio-reveal portfolio-fly-right">
+              <p className="text-base leading-8 text-slate-300 sm:text-lg">{profile.headline}. My work covers data modeling, API design, authorization, complex UI state, realtime behavior, background processing, integrations, AWS deployment, DNS, HTTPS, email delivery, storage, CI/CD, and AI-assisted debugging.</p>
               <div className="mt-8 flex flex-wrap gap-2">
                 {(profile.skills || []).map((skill) => <span key={skill} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200">{skill}</span>)}
               </div>
@@ -350,10 +502,10 @@ const PublicPortfolio = () => {
           </div>
         </section>
 
-        <section className="mx-auto max-w-7xl px-4 py-12 sm:px-8 lg:py-14">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {(profile.metrics || []).map((metric) => (
-              <div key={metric} className="rounded-[26px] border border-white/10 bg-white/5 p-6">
+        <section className="portfolio-perspective mx-auto max-w-7xl px-4 py-12 sm:px-8 lg:py-14">
+          <div className="portfolio-stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {(profile.metrics || []).map((metric, index) => (
+              <div key={metric} style={{ "--reveal-index": index }} className="portfolio-depth-card portfolio-reveal portfolio-fly-up rounded-[26px] border border-white/10 bg-white/5 p-6">
                 <FiCheck className="text-cyan-300" />
                 <p className="mt-6 text-xl font-semibold">{metric}</p>
               </div>
@@ -361,9 +513,9 @@ const PublicPortfolio = () => {
           </div>
         </section>
 
-        <section id="case-study" className="mx-auto max-w-7xl px-4 py-12 sm:px-8 sm:py-14 lg:py-16">
+        <section id="case-study" className="portfolio-perspective mx-auto max-w-7xl px-4 py-12 sm:px-8 sm:py-14 lg:py-16">
           <div className="grid min-w-0 gap-10 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
-            <div>
+            <div className="portfolio-reveal portfolio-fly-left">
               <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">Flagship Case Study</p>
               <h2 className="mt-4 text-3xl font-semibold leading-tight tracking-[-0.03em] sm:text-4xl">{project?.title || "Nexus Hub"}</h2>
               <p className="mt-5 text-lg leading-8 text-slate-300">{project?.tagline || "One connected workspace for product delivery and personal productivity."}</p>
@@ -372,7 +524,7 @@ const PublicPortfolio = () => {
               </div>
             </div>
             <div className="min-w-0 space-y-5">
-              <div className="rounded-[26px] border border-white/10 bg-gradient-to-br from-white/10 to-white/[0.03] p-5 sm:rounded-[34px] sm:p-9">
+              <div className="portfolio-depth-card portfolio-reveal portfolio-fly-right rounded-[26px] border border-white/10 bg-gradient-to-br from-white/10 to-white/[0.03] p-5 sm:rounded-[34px] sm:p-9">
                 <p className="text-base leading-8 text-slate-200 sm:text-lg">{project?.summary || "Nexus Hub brings planning, delivery, communication, knowledge, and document tools into one Rails and React product."}</p>
                 <p className="mt-5 leading-7 text-slate-400">{project?.description}</p>
                 <div className="mt-8 grid gap-3 sm:grid-cols-2">
@@ -385,7 +537,7 @@ const PublicPortfolio = () => {
                   {project?.repository_url ? <a href={project.repository_url} target="_blank" rel="noreferrer" className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/15 px-5 py-3 font-semibold sm:w-auto"><FiGithub /> View code</a> : null}
                 </div>
               </div>
-              <div className="overflow-hidden rounded-[30px] border border-cyan-300/12 bg-slate-950 shadow-2xl shadow-cyan-950/30">
+              <div className="portfolio-depth-card portfolio-reveal portfolio-fly-deep overflow-hidden rounded-[30px] border border-cyan-300/12 bg-slate-950 shadow-2xl shadow-cyan-950/30">
                 <LoopingVideo
                   srcWebm={NEXUS_PRODUCT_LOOP_WEBM}
                   srcMp4={NEXUS_PRODUCT_LOOP_MP4}
@@ -398,18 +550,18 @@ const PublicPortfolio = () => {
           </div>
         </section>
 
-        <section id="decisions" className="border-y border-white/10 bg-white/[0.03]">
+        <section id="decisions" className="portfolio-perspective border-y border-white/10 bg-white/[0.03]">
           <div className="mx-auto max-w-7xl px-4 py-12 sm:px-8 sm:py-14 lg:py-16">
-            <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">Engineering Decisions</p>
-            <h2 className="mt-4 max-w-4xl text-3xl font-semibold leading-tight sm:text-4xl">
+            <p className="portfolio-reveal portfolio-fly-left text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">Engineering Decisions</p>
+            <h2 className="portfolio-reveal portfolio-fly-left mt-4 max-w-4xl text-3xl font-semibold leading-tight sm:text-4xl">
               The reasoning behind the product, not only the feature list.
             </h2>
-            <div className="mt-10 grid gap-5 lg:grid-cols-2">
-              <article className="rounded-[26px] border border-white/10 bg-slate-950/60 p-5 sm:rounded-[30px] sm:p-7">
+            <div className="portfolio-stagger mt-10 grid gap-5 lg:grid-cols-2">
+              <article style={{ "--reveal-index": 0 }} className="portfolio-depth-card portfolio-reveal portfolio-fly-left rounded-[26px] border border-white/10 bg-slate-950/60 p-5 sm:rounded-[30px] sm:p-7">
                 <p className="text-xs font-bold uppercase tracking-[0.24em] text-cyan-300">Problem</p>
                 <p className="mt-4 text-lg leading-8 text-slate-200">{caseStudy.problem}</p>
               </article>
-              <article className="rounded-[26px] border border-white/10 bg-slate-950/60 p-5 sm:rounded-[30px] sm:p-7">
+              <article style={{ "--reveal-index": 1 }} className="portfolio-depth-card portfolio-reveal portfolio-fly-right rounded-[26px] border border-white/10 bg-slate-950/60 p-5 sm:rounded-[30px] sm:p-7">
                 <p className="text-xs font-bold uppercase tracking-[0.24em] text-cyan-300">My Role</p>
                 <p className="mt-4 text-lg leading-8 text-slate-200">{caseStudy.role}</p>
               </article>
@@ -418,8 +570,8 @@ const PublicPortfolio = () => {
                 ["Technical Decisions", caseStudy.decisions],
                 ["Trade-offs", caseStudy.trade_offs],
                 ["Outcomes", caseStudy.outcomes],
-              ].map(([title, items]) => (
-                <article key={title} className="rounded-[26px] border border-white/10 bg-white/5 p-5 sm:rounded-[30px] sm:p-7">
+              ].map(([title, items], index) => (
+                <article key={title} style={{ "--reveal-index": index + 2 }} className="portfolio-depth-card portfolio-reveal portfolio-fly-up rounded-[26px] border border-white/10 bg-white/5 p-5 sm:rounded-[30px] sm:p-7">
                   <p className="text-xs font-bold uppercase tracking-[0.24em] text-cyan-300">{title}</p>
                   <ul className="mt-5 space-y-3">
                     {(items || []).map((item) => (
@@ -435,13 +587,13 @@ const PublicPortfolio = () => {
           </div>
         </section>
 
-        <section id="features" className="border-y border-white/10 bg-white/[0.03]">
+        <section id="features" className="portfolio-perspective border-y border-white/10 bg-white/[0.03]">
           <div className="mx-auto max-w-7xl px-4 py-12 sm:px-8 sm:py-14 lg:py-16">
-            <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">Feature Map</p>
-            <h2 className="mt-4 max-w-3xl text-3xl font-semibold leading-tight sm:text-4xl">A large product, organized for a fast technical review.</h2>
-            <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+            <p className="portfolio-reveal portfolio-fly-left text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">Feature Map</p>
+            <h2 className="portfolio-reveal portfolio-fly-left mt-4 max-w-3xl text-3xl font-semibold leading-tight sm:text-4xl">A large product, organized for a fast technical review.</h2>
+            <div className="portfolio-stagger mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
               {groupedFeatures.map((feature, index) => (
-                <button key={feature.id || feature.title} onClick={() => openDemo(feature.demo_path || "/demo")} className="group min-w-0 overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/60 text-left sm:rounded-[28px]">
+                <button key={feature.id || feature.title} style={{ "--reveal-index": index }} onClick={() => openDemo(feature.demo_path || "/demo")} className={`portfolio-depth-card portfolio-reveal ${index % 2 === 0 ? "portfolio-fly-left" : "portfolio-fly-right"} group min-w-0 overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/60 text-left sm:rounded-[28px]`}>
                   {feature.screenshot_url ? (
                     <img src={feature.screenshot_url} alt={feature.alt_text || feature.title} loading="lazy" className="aspect-[16/10] w-full object-cover" />
                   ) : (
@@ -467,29 +619,29 @@ const PublicPortfolio = () => {
           </div>
         </section>
 
-        <section id="architecture" className="mx-auto max-w-7xl px-4 py-12 sm:px-8 sm:py-14 lg:py-16">
+        <section id="architecture" className="portfolio-perspective mx-auto max-w-7xl px-4 py-12 sm:px-8 sm:py-14 lg:py-16">
           <div className="grid gap-10 lg:grid-cols-2">
-            <div>
+            <div className="portfolio-reveal portfolio-fly-left">
               <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">Architecture</p>
               <h2 className="mt-4 text-3xl font-semibold leading-tight tracking-[-0.03em] sm:text-4xl">Built across the complete application stack.</h2>
             </div>
-            <div className="space-y-3">
+            <div className="portfolio-stagger space-y-3">
               {(profile.architecture || []).map((item, index) => (
-                <div key={item} className="flex min-w-0 items-start gap-4 rounded-2xl border border-white/10 bg-white/5 p-4 sm:items-center sm:gap-5 sm:p-5">
+                <div key={item} style={{ "--reveal-index": index }} className="portfolio-depth-card portfolio-reveal portfolio-fly-right flex min-w-0 items-start gap-4 rounded-2xl border border-white/10 bg-white/5 p-4 sm:items-center sm:gap-5 sm:p-5">
                   <span className="text-sm font-bold text-cyan-300">0{index + 1}</span>
                   <span className="min-w-0 text-base font-medium text-slate-200 sm:text-lg">{item}</span>
                 </div>
               ))}
             </div>
           </div>
-          <div className="mt-12 grid items-stretch gap-3 md:grid-cols-[1fr_auto_1fr_auto_1fr]">
+          <div className="portfolio-stagger mt-12 grid items-stretch gap-3 md:grid-cols-[1fr_auto_1fr_auto_1fr]">
             {[
               ["React + Vite", "Public portfolio and authenticated product UI"],
               ["Rails 8.0", "Authentication, authorization, APIs, jobs, storage, and realtime"],
               ["PostgreSQL + Redis + S3", "Tenant data, background work, streams, and durable media"],
             ].map(([title, description], index) => (
               <React.Fragment key={title}>
-                <div className="rounded-[26px] border border-white/10 bg-white/5 p-6">
+                <div style={{ "--reveal-index": index }} className="portfolio-depth-card portfolio-reveal portfolio-fly-deep rounded-[26px] border border-white/10 bg-white/5 p-6">
                   <p className="text-lg font-semibold text-white">{title}</p>
                   <p className="mt-3 leading-7 text-slate-400">{description}</p>
                 </div>
@@ -499,9 +651,9 @@ const PublicPortfolio = () => {
           </div>
         </section>
 
-        <section id="contact" className="border-t border-white/10 bg-slate-950">
+        <section id="contact" className="portfolio-perspective border-t border-white/10 bg-slate-950">
           <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-8 sm:py-14 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:py-16">
-            <div>
+            <div className="portfolio-reveal portfolio-fly-left">
               <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">Contact</p>
               <h2 className="mt-4 text-3xl font-semibold leading-tight tracking-[-0.03em] sm:text-4xl">Let’s discuss the role and the problems you need solved.</h2>
               <div className="mt-7 flex flex-wrap gap-3">

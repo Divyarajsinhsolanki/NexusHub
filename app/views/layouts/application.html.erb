@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="description" content="<%= PortfolioAccess.enabled? ? "Portfolio of Divyarajsinh Solanki, a full-stack Ruby on Rails and React engineer building Nexus Hub." : "Sign in or create a Nexus Hub workspace." %>">
     <meta name="nexus-portfolio-enabled" content="<%= PortfolioAccess.enabled? %>">
-    <meta name="nexus-recaptcha-site-key" content="<%= ENV["VITE_RECAPTCHA_SITE_KEY"] %>">
+    <meta name="nexus-recaptcha-enabled" content="<%= ActiveModel::Type::Boolean.new.cast(ENV["RECAPTCHA_ENABLED"]) %>">
+    <meta name="nexus-recaptcha-site-key" content="<%= ActiveModel::Type::Boolean.new.cast(ENV["RECAPTCHA_ENABLED"]) ? ENV["VITE_RECAPTCHA_SITE_KEY"] : "" %>">
     <meta name="nexus-firebase-api-key" content="<%= ENV["VITE_FIREBASE_API_KEY"] %>">
     <meta name="nexus-firebase-auth-domain" content="<%= ENV["VITE_FIREBASE_AUTH_DOMAIN"] %>">
     <meta name="nexus-firebase-project-id" content="<%= ENV["VITE_FIREBASE_PROJECT_ID"] %>">
