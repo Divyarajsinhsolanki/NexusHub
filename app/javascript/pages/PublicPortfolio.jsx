@@ -27,6 +27,17 @@ const RECAPTCHA_SITE_KEY = runtimeOrBuildValue(
   "nexus-recaptcha-site-key",
   import.meta.env.VITE_RECAPTCHA_SITE_KEY
 );
+
+export const demoStartErrorMessage = (error) => {
+  switch (error.response?.data?.error) {
+    case "demo_disabled":
+      return "The live demo is disabled on this deployment. Enable PORTFOLIO_ENABLED and DEMO_MODE_ENABLED, then run the release command.";
+    case "demo_unavailable":
+      return "The live demo data has not been prepared yet. Run the release command to seed the demo workspace.";
+    default:
+      return "The demo could not be started. Please try again or check the deployment logs.";
+  }
+};
 const NEXUS_PRODUCT_LOOP_WEBM = "/media/nexus/nexus-product-loop.webm";
 const NEXUS_PRODUCT_LOOP_MP4 = "/media/nexus/nexus-product-loop.mp4";
 
@@ -229,7 +240,7 @@ const PublicPortfolio = () => {
     try {
       await handleDemoLogin(path);
     } catch (error) {
-      setDemoError(error.response?.data?.error === "demo_disabled" ? "The live demo is not enabled on this deployment." : "The demo could not be started.");
+      setDemoError(demoStartErrorMessage(error));
     } finally {
       setDemoLoading("");
     }

@@ -159,6 +159,57 @@ the Rails server starts. Keep `DEMO_MODE_ENABLED=false` until the deployment is
 verified; the synthetic workspace can still be prepared safely. Set
 `SEED_DEMO=false` to omit it entirely.
 
+### AWS deployment checklist
+
+The public portfolio's demo, Google sign-in, and contact form are deliberately
+disabled until their external services are configured. Add the following
+environment variables to the **running AWS service** (for example, Elastic
+Beanstalk environment properties, ECS task-definition secrets, or App Runner
+environment variables), then deploy or restart the service. Do not commit any
+of these values to Git.
+
+```text
+# Required to publish the portfolio and let visitors start the seeded demo.
+PORTFOLIO_ENABLED=true
+DEMO_MODE_ENABLED=true
+SEED_PORTFOLIO=true
+SEED_DEMO=true
+
+# Required for the public contact form (reCAPTCHA v3 keys for the AWS hostname).
+VITE_RECAPTCHA_SITE_KEY=your_recaptcha_v3_site_key
+RECAPTCHA_SECRET_KEY=your_recaptcha_v3_secret_key
+RECAPTCHA_MIN_SCORE=0.5
+
+# Required to show Google sign-in (Firebase Web app configuration).
+VITE_FIREBASE_API_KEY=...
+VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your-project
+FIREBASE_PROJECT_ID=your-project
+VITE_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
+VITE_FIREBASE_MESSAGING_SENDER_ID=...
+VITE_FIREBASE_APP_ID=...
+```
+
+In Firebase Authentication, enable the **Google** provider and add the exact
+AWS HTTPS hostname to **Authorized domains**. In the reCAPTCHA v3 console, add
+that same hostname to the key's allowed domains and use a v3 key (the contact
+form sends the `contact_form_submit` action and enforces the configured score).
+The Firebase browser settings are exposed at request time by the Rails layout,
+so a service restart is sufficient after they are changed; no secret Firebase
+credential belongs in a `VITE_` variable.
+
+Finally, ensure the release phase has run after setting `SEED_DEMO=true`:
+
+```bash
+bin/release
+```
+
+This runs the idempotent bootstrap and seeds the demo workspace. If the UI says
+the demo is disabled, one of `PORTFOLIO_ENABLED` or `DEMO_MODE_ENABLED` is not
+truthy in the running service. If it says the demo data is not prepared, the
+release phase did not complete successfully; inspect its logs and rerun the
+command after the database is available.
+
 ### Copy the local database to Render
 
 This is destructive: it replaces the Render database. Suspend application

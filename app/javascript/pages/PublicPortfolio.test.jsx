@@ -14,7 +14,7 @@ vi.mock("../components/api", () => ({
 }));
 
 import { AuthContext } from "../context/AuthContext";
-import PublicPortfolio from "./PublicPortfolio";
+import PublicPortfolio, { demoStartErrorMessage } from "./PublicPortfolio";
 
 describe("PublicPortfolio", () => {
   it("renders the flagship case study and six guided feature areas", () => {
@@ -37,5 +37,11 @@ describe("PublicPortfolio", () => {
     expect(html).toContain("Platform");
     expect(html).toContain("Architecture");
     expect(html).toContain("Contact");
+  });
+
+  it("explains how to correct disabled or unseeded demo deployments", () => {
+    expect(demoStartErrorMessage({ response: { data: { error: "demo_disabled" } } })).toContain("PORTFOLIO_ENABLED");
+    expect(demoStartErrorMessage({ response: { data: { error: "demo_unavailable" } } })).toContain("seed the demo workspace");
+    expect(demoStartErrorMessage({})).toBe("The demo could not be started. Please try again or check the deployment logs.");
   });
 });
