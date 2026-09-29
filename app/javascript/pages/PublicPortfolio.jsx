@@ -200,6 +200,7 @@ const PublicPortfolio = () => {
   const navigate = useNavigate();
   const { handleDemoLogin } = useContext(AuthContext);
   const [data, setData] = useState({ profile: fallbackProfile, projects: [fallbackProject], seo: {} });
+  const [selectedProject, setSelectedProject] = useState(fallbackProject);
   const [menuOpen, setMenuOpen] = useState(false);
   const [demoLoading, setDemoLoading] = useState("");
   const [demoError, setDemoError] = useState("");
@@ -210,20 +211,23 @@ const PublicPortfolio = () => {
   useEffect(() => {
     fetchPortfolio()
       .then(({ data: payload }) => {
+        const projects = Array.isArray(payload?.projects) && payload.projects.length ? payload.projects : [fallbackProject];
         setData({
           profile: payload?.profile || fallbackProfile,
-          projects: Array.isArray(payload?.projects) && payload.projects.length ? payload.projects : [fallbackProject],
+          projects,
           seo: payload?.seo || {},
         });
+        setSelectedProject(projects[0]);
       })
       .catch(() => setData((current) => current));
   }, []);
 
   const profile = data.profile || fallbackProfile;
-  const project = data.projects[0];
+  const project = selectedProject || fallbackProject;
   const features = project?.features || [];
   const socialLinks = profile.social_links || {};
   const caseStudy = project?.case_study || fallbackProject.case_study;
+  const guidedDemoPath = features[0]?.demo_path || "/demo";
   const seo = data.seo || {};
   const browserUrl = typeof window === "undefined" ? "http://localhost:3000/" : window.location.href;
   const browserOrigin = typeof window === "undefined" ? "http://localhost:3000" : window.location.origin;
@@ -334,7 +338,7 @@ const PublicPortfolio = () => {
         <meta property="og:type" content="website" />
         <meta property="og:url" content={seo.canonical_url || browserUrl} />
         <meta name="twitter:card" content="summary_large_image" />
-        {seo.image_url || project?.cover_image_url ? <meta property="og:image" content={seo.image_url || project.cover_image_url} /> : null}
+        {project?.cover_image_url || seo.image_url ? <meta property="og:image" content={project?.cover_image_url || seo.image_url} /> : null}
         <script type="application/ld+json">{JSON.stringify(structuredData)}</script>
       </Helmet>
 
@@ -385,8 +389,8 @@ const PublicPortfolio = () => {
             </h1>
             <p className="mt-6 max-w-3xl text-base leading-8 text-slate-300 sm:text-lg">{profile.summary}</p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-              <button onClick={() => openDemo("/demo")} className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-cyan-300 px-6 py-3.5 font-semibold text-slate-950 sm:w-auto">
-                {demoLoading ? "Starting demo..." : "Explore Nexus Hub"} <FiArrowUpRight />
+              <button onClick={() => openDemo(guidedDemoPath)} className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-cyan-300 px-6 py-3.5 font-semibold text-slate-950 sm:w-auto">
+                {demoLoading ? "Starting demo..." : `Explore ${project.title}`} <FiArrowUpRight />
               </button>
               <button onClick={() => scrollTo("case-study")} className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/15 px-6 py-3.5 font-semibold sm:w-auto">
                 Read case study <FiArrowDown />
@@ -433,6 +437,24 @@ const PublicPortfolio = () => {
         </section>
 
         <section id="case-study" data-portfolio-motion="case-study" className="portfolio-perspective mx-auto max-w-7xl px-4 py-12 sm:px-8 sm:py-14 lg:py-16">
+          {data.projects.length > 1 ? (
+            <nav aria-label="Project case studies" className="mb-8 flex flex-wrap gap-3">
+              {data.projects.map((candidate) => {
+                const isSelected = candidate.id === project.id;
+                return (
+                  <button
+                    key={candidate.id || candidate.slug || candidate.title}
+                    type="button"
+                    aria-pressed={isSelected}
+                    onClick={() => setSelectedProject(candidate)}
+                    className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${isSelected ? "border-cyan-300 bg-cyan-300 text-slate-950" : "border-white/15 text-slate-200 hover:border-cyan-300/60"}`}
+                  >
+                    {candidate.title}
+                  </button>
+                );
+              })}
+            </nav>
+          ) : null}
           <div className="grid min-w-0 gap-10 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">Flagship Case Study</p>
@@ -452,18 +474,22 @@ const PublicPortfolio = () => {
                   ))}
                 </div>
                 <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-                  <button onClick={() => openDemo("/demo")} className="w-full rounded-full bg-white px-5 py-3 font-semibold text-slate-950 sm:w-auto">Start guided demo</button>
+                  <button onClick={() => openDemo(guidedDemoPath)} className="w-full rounded-full bg-white px-5 py-3 font-semibold text-slate-950 sm:w-auto">Start guided demo</button>
                   {project?.repository_url ? <a href={project.repository_url} target="_blank" rel="noreferrer" className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/15 px-5 py-3 font-semibold sm:w-auto"><FiGithub /> View code</a> : null}
                 </div>
               </div>
               <div data-portfolio-motion="case-visual" className="portfolio-depth-card overflow-hidden rounded-[30px] border border-cyan-300/12 bg-slate-950 shadow-2xl shadow-cyan-950/30">
-                <LoopingVideo
-                  srcWebm={NEXUS_PRODUCT_LOOP_WEBM}
-                  srcMp4={NEXUS_PRODUCT_LOOP_MP4}
-                  poster={nexusProductPoster}
-                  ariaLabel="Animated Nexus Hub workspace product overview"
-                  className="aspect-video w-full object-cover"
-                />
+                {project?.cover_image_url ? (
+                  <img src={project.cover_image_url} alt={`${project.title} product overview`} className="aspect-video w-full object-cover" />
+                ) : (
+                  <LoopingVideo
+                    srcWebm={NEXUS_PRODUCT_LOOP_WEBM}
+                    srcMp4={NEXUS_PRODUCT_LOOP_MP4}
+                    poster={nexusProductPoster}
+                    ariaLabel={`Animated ${project.title} product overview`}
+                    className="aspect-video w-full object-cover"
+                  />
+                )}
               </div>
             </div>
           </div>

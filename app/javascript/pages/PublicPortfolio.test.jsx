@@ -1,7 +1,9 @@
+// @vitest-environment jsdom
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../context/AuthContext", async () => {
   const ReactModule = await import("react");
@@ -14,9 +16,47 @@ vi.mock("../components/api", () => ({
 }));
 
 import { AuthContext } from "../context/AuthContext";
+import { fetchPortfolio } from "../components/api";
 import PublicPortfolio from "./PublicPortfolio";
 
+const projects = [
+  {
+    id: 1,
+    title: "Nexus Hub",
+    tagline: "A workspace for connected product delivery.",
+    summary: "Nexus Hub case study summary.",
+    stack: ["Rails", "React"],
+    engineering_highlights: ["Nexus highlight"],
+    case_study: { problem: "Nexus problem", role: "Nexus role", constraints: [], decisions: [], trade_offs: [], outcomes: [] },
+    repository_url: "https://github.com/example/nexus-hub",
+    features: [{ id: 11, category: "Delivery", title: "Nexus delivery feature", summary: "Nexus feature summary", demo_path: "/nexus-demo", position: 1 }],
+  },
+  {
+    id: 2,
+    title: "Atlas Console",
+    tagline: "A console for distributed operations.",
+    summary: "Atlas Console case study summary.",
+    stack: ["TypeScript", "PostgreSQL"],
+    engineering_highlights: ["Atlas highlight"],
+    case_study: { problem: "Atlas problem", role: "Atlas role", constraints: [], decisions: [], trade_offs: [], outcomes: [] },
+    repository_url: "https://github.com/example/atlas-console",
+    features: [{ id: 21, category: "Operations", title: "Atlas operations feature", summary: "Atlas feature summary", demo_path: "/atlas-demo", position: 1 }],
+  },
+];
+
+const renderPortfolio = (handleDemoLogin = vi.fn()) => render(
+  <MemoryRouter>
+    <AuthContext.Provider value={{ handleDemoLogin }}>
+      <PublicPortfolio />
+    </AuthContext.Provider>
+  </MemoryRouter>
+);
+
 describe("PublicPortfolio", () => {
+  beforeEach(() => {
+    vi.mocked(fetchPortfolio).mockReturnValue(new Promise(() => {}));
+  });
+
   it("renders the flagship case study and six guided feature areas", () => {
     const html = renderToStaticMarkup(
       <MemoryRouter>
@@ -66,5 +106,27 @@ describe("PublicPortfolio", () => {
     expect(html).toContain("Let’s discuss the role and the problems you need solved.");
     expect(html).toContain("prefers-reduced-motion: reduce");
     expect(html).not.toContain("portfolioReveal");
+  });
+
+  it("allows each returned project to be selected with its own features and guided demo action", async () => {
+    vi.mocked(fetchPortfolio).mockResolvedValue({ data: { projects, seo: {} } });
+    const handleDemoLogin = vi.fn().mockResolvedValue(undefined);
+    renderPortfolio(handleDemoLogin);
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Nexus Hub", pressed: true })).toBeTruthy());
+    expect(screen.getByText("Nexus delivery feature")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /view code/i }).getAttribute("href")).toBe(projects[0].repository_url);
+    fireEvent.click(screen.getByRole("button", { name: "Start guided demo" }));
+    expect(handleDemoLogin).toHaveBeenCalledWith("/nexus-demo");
+
+    fireEvent.click(screen.getByRole("button", { name: "Atlas Console" }));
+
+    expect(screen.getByRole("button", { name: "Atlas Console", pressed: true })).toBeTruthy();
+    expect(screen.getByText("Atlas operations feature")).toBeTruthy();
+    expect(screen.getByText("Atlas feature summary")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /view code/i }).getAttribute("href")).toBe(projects[1].repository_url);
+
+    fireEvent.click(screen.getByRole("button", { name: "Start guided demo" }));
+    expect(handleDemoLogin).toHaveBeenCalledWith("/atlas-demo");
   });
 });
