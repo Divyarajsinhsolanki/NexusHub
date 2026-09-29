@@ -38,4 +38,26 @@ describe("PublicPortfolio", () => {
     expect(html).toContain("Architecture");
     expect(html).toContain("Contact");
   });
+
+  it("keeps essential portfolio content visible in static markup without is-visible classes", () => {
+    const html = renderToStaticMarkup(
+      <MemoryRouter>
+        <AuthContext.Provider value={{ handleDemoLogin: vi.fn() }}>
+          <PublicPortfolio />
+        </AuthContext.Provider>
+      </MemoryRouter>
+    );
+
+    expect(html).not.toMatch(/class="[^"]*portfolio-js/);
+    expect(html).not.toMatch(/class="[^"]*is-visible/);
+    expect(html).toContain("I build full-stack products that solve real workflow problems.");
+    expect(html).toContain("Product thinking with full-stack execution.");
+    expect(html).toContain("AWS production deploy");
+    expect(html).toContain("Flagship Case Study");
+    expect(html).toContain("Engineering Decisions");
+    expect(html).toContain("Project Delivery");
+    expect(html).toContain("Built across the complete application stack.");
+    expect(html).toContain("Let’s discuss the role and the problems you need solved.");
+    expect(html).toContain(".portfolio-page.portfolio-js .portfolio-reveal");
+  });
 });

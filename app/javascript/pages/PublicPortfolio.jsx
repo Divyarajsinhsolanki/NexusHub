@@ -180,6 +180,7 @@ const PublicPortfolio = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [demoLoading, setDemoLoading] = useState("");
   const [demoError, setDemoError] = useState("");
+  const [revealEnhanced, setRevealEnhanced] = useState(false);
 
   useEffect(() => {
     fetchPortfolio()
@@ -191,6 +192,12 @@ const PublicPortfolio = () => {
         });
       })
       .catch(() => setData((current) => current));
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !("IntersectionObserver" in window)) return;
+
+    setRevealEnhanced(true);
   }, []);
 
   const profile = data.profile || fallbackProfile;
@@ -224,15 +231,10 @@ const PublicPortfolio = () => {
   );
 
   useEffect(() => {
-    if (typeof window === "undefined") return undefined;
+    if (!revealEnhanced || typeof window === "undefined") return undefined;
 
     const elements = Array.from(document.querySelectorAll(".portfolio-reveal"));
     if (!elements.length) return undefined;
-
-    if (!("IntersectionObserver" in window)) {
-      elements.forEach((element) => element.classList.add("is-visible"));
-      return undefined;
-    }
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -247,7 +249,7 @@ const PublicPortfolio = () => {
 
     elements.forEach((element) => observer.observe(element));
     return () => observer.disconnect();
-  }, [groupedFeatures.length, profile.metrics?.length, profile.architecture?.length]);
+  }, [revealEnhanced, groupedFeatures.length, profile.metrics?.length, profile.architecture?.length]);
 
   const openDemo = async (path = "/demo") => {
     setDemoError("");
@@ -267,7 +269,7 @@ const PublicPortfolio = () => {
   };
 
   return (
-    <div className="portfolio-page min-h-dvh overflow-x-hidden bg-[#07111f] text-white">
+    <div className={`portfolio-page min-h-dvh overflow-x-hidden bg-[#07111f] text-white${revealEnhanced ? " portfolio-js" : ""}`}>
       <style>{`
         .portfolio-page {
           background:
@@ -301,7 +303,7 @@ const PublicPortfolio = () => {
           transform-style: preserve-3d;
         }
 
-        .portfolio-reveal {
+        .portfolio-page.portfolio-js .portfolio-reveal {
           opacity: 0;
           filter: blur(14px);
           transform:
@@ -318,7 +320,7 @@ const PublicPortfolio = () => {
           will-change: opacity, filter, transform;
         }
 
-        .portfolio-reveal.is-visible {
+        .portfolio-page.portfolio-js .portfolio-reveal.is-visible {
           opacity: 1;
           filter: blur(0);
           transform: translate3d(0, 0, 0) rotateX(0) rotateY(0) scale(1);
@@ -379,15 +381,15 @@ const PublicPortfolio = () => {
 
         @media (prefers-reduced-motion: reduce) {
           .portfolio-hero-card,
-          .portfolio-reveal {
+          .portfolio-page.portfolio-js .portfolio-reveal {
             animation: none;
           }
 
           .portfolio-depth-card,
           .portfolio-depth-card:hover,
           .portfolio-hero-card,
-          .portfolio-reveal,
-          .portfolio-reveal.is-visible {
+          .portfolio-page.portfolio-js .portfolio-reveal,
+          .portfolio-page.portfolio-js .portfolio-reveal.is-visible {
             transform: none;
             opacity: 1;
             filter: none;
