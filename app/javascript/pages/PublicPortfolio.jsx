@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useContext, useEffect, useMemo, useState } from "react";
+import React, { lazy, Suspense, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate } from "react-router-dom";
 import {
@@ -22,6 +22,7 @@ import { fetchPortfolio, sendContact } from "../components/api";
 import LoopingVideo from "../components/ui/LoopingVideo";
 import { runtimeMetaValue, runtimeOrBuildValue } from "../config/runtime";
 import nexusProductPoster from "../images/nexus/nexus-product-poster.webp";
+import usePortfolioScrollMotion from "../components/portfolio/usePortfolioScrollMotion";
 
 const PortfolioHeroScene = lazy(() => import("../components/portfolio/PortfolioHeroScene"));
 
@@ -133,7 +134,7 @@ const ContactForm = () => {
   };
 
   return (
-    <form onSubmit={submit} className="portfolio-depth-card portfolio-reveal portfolio-fly-right min-w-0 rounded-[24px] border border-white/10 bg-white/5 p-4 sm:rounded-[30px] sm:p-7">
+    <form onSubmit={submit} className="portfolio-depth-card min-w-0 rounded-[24px] border border-white/10 bg-white/5 p-4 sm:rounded-[30px] sm:p-7">
       <div className="grid gap-4 sm:grid-cols-2">
         <input
           aria-label="Name"
@@ -202,7 +203,9 @@ const PublicPortfolio = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [demoLoading, setDemoLoading] = useState("");
   const [demoError, setDemoError] = useState("");
-  const [revealEnhanced, setRevealEnhanced] = useState(false);
+  const portfolioRef = useRef(null);
+
+  usePortfolioScrollMotion(portfolioRef);
 
   useEffect(() => {
     fetchPortfolio()
@@ -214,12 +217,6 @@ const PublicPortfolio = () => {
         });
       })
       .catch(() => setData((current) => current));
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !("IntersectionObserver" in window)) return;
-
-    setRevealEnhanced(true);
   }, []);
 
   const profile = data.profile || fallbackProfile;
@@ -252,26 +249,6 @@ const PublicPortfolio = () => {
     [features]
   );
 
-  useEffect(() => {
-    if (!revealEnhanced || typeof window === "undefined") return undefined;
-
-    const elements = Array.from(document.querySelectorAll(".portfolio-reveal"));
-    if (!elements.length) return undefined;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (!entry.isIntersecting) return;
-          entry.target.classList.add("is-visible");
-          observer.unobserve(entry.target);
-        });
-      },
-      { rootMargin: "0px 0px -12% 0px", threshold: 0.18 }
-    );
-
-    elements.forEach((element) => observer.observe(element));
-    return () => observer.disconnect();
-  }, [revealEnhanced, groupedFeatures.length, profile.metrics?.length, profile.architecture?.length]);
 
   const openDemo = async (path = "/demo") => {
     setDemoError("");
@@ -291,7 +268,7 @@ const PublicPortfolio = () => {
   };
 
   return (
-    <div className={`portfolio-page min-h-dvh overflow-x-hidden bg-[#07111f] text-white${revealEnhanced ? " portfolio-js" : ""}`}>
+    <div ref={portfolioRef} className="portfolio-page min-h-dvh overflow-x-hidden bg-[#07111f] text-white">
       <style>{`
         .portfolio-page {
           background:
@@ -325,64 +302,9 @@ const PublicPortfolio = () => {
           transform-style: preserve-3d;
         }
 
-        .portfolio-page.portfolio-js .portfolio-reveal {
-          opacity: 0;
-          filter: blur(14px);
-          transform:
-            translate3d(var(--reveal-x, 0), var(--reveal-y, 5rem), var(--reveal-z, -7rem))
-            rotateX(var(--reveal-rx, 10deg))
-            rotateY(var(--reveal-ry, 0deg))
-            scale(0.94);
-          transform-origin: center;
-          transition:
-            opacity 900ms cubic-bezier(0.16, 1, 0.3, 1),
-            filter 900ms cubic-bezier(0.16, 1, 0.3, 1),
-            transform 1000ms cubic-bezier(0.16, 1, 0.3, 1);
-          transition-delay: var(--reveal-delay, 0ms);
-          will-change: opacity, filter, transform;
-        }
-
-        .portfolio-page.portfolio-js .portfolio-reveal.is-visible {
-          opacity: 1;
-          filter: blur(0);
-          transform: translate3d(0, 0, 0) rotateX(0) rotateY(0) scale(1);
-        }
-
-        .portfolio-fly-left {
-          --reveal-x: -5rem;
-          --reveal-y: 3rem;
-          --reveal-ry: 12deg;
-        }
-
-        .portfolio-fly-right {
-          --reveal-x: 5rem;
-          --reveal-y: 3rem;
-          --reveal-ry: -12deg;
-        }
-
-        .portfolio-fly-up {
-          --reveal-y: 6rem;
-          --reveal-rx: 14deg;
-        }
-
-        .portfolio-fly-deep {
-          --reveal-y: 5rem;
-          --reveal-z: -14rem;
-          --reveal-rx: 16deg;
-          --reveal-ry: -8deg;
-        }
-
-        .portfolio-stagger > * {
-          --reveal-delay: calc(var(--reveal-index, 0) * 90ms);
-        }
-
-        .portfolio-depth-card.is-visible:hover,
-        .portfolio-depth-card:hover {
-          transform: translateY(-8px) rotateX(2deg) rotateY(-2deg) scale(1.01);
-        }
-
-        .portfolio-depth-card.is-visible:nth-child(even):hover {
-          transform: translateY(-8px) rotateX(2deg) rotateY(2deg) scale(1.01);
+        .portfolio-motion-enabled [data-portfolio-motion="case-visual"] {
+          position: sticky;
+          top: 5.5rem;
         }
 
         .portfolio-stage-line {
@@ -396,26 +318,11 @@ const PublicPortfolio = () => {
           50% { transform: rotateY(-7deg) rotateX(4deg) translate3d(0, -14px, 32px); }
         }
 
-        @keyframes portfolioReveal {
-          from { opacity: 0.35; transform: translateY(34px) rotateX(8deg) scale(0.98); }
-          to { opacity: 1; transform: translateY(0) rotateX(0) scale(1); }
-        }
+
 
         @media (prefers-reduced-motion: reduce) {
-          .portfolio-hero-card,
-          .portfolio-page.portfolio-js .portfolio-reveal {
-            animation: none;
-          }
-
-          .portfolio-depth-card,
-          .portfolio-depth-card:hover,
-          .portfolio-hero-card,
-          .portfolio-page.portfolio-js .portfolio-reveal,
-          .portfolio-page.portfolio-js .portfolio-reveal.is-visible {
-            transform: none;
-            opacity: 1;
-            filter: none;
-          }
+          .portfolio-hero-card { animation: none; }
+          .portfolio-depth-card, .portfolio-depth-card:hover, .portfolio-hero-card { transform: none; }
         }
       `}</style>
       <Helmet>
@@ -492,18 +399,20 @@ const PublicPortfolio = () => {
             </div>
             {demoError ? <p className="mt-4 text-amber-300">{demoError}</p> : null}
           </div>
-          <Suspense fallback={<HeroCardFallback profile={profile} initials={initials} />}>
-            <PortfolioHeroScene fallback={<HeroCardFallback profile={profile} initials={initials} />} />
-          </Suspense>
+          <div data-portfolio-motion="hero">
+            <Suspense fallback={<HeroCardFallback profile={profile} initials={initials} />}>
+              <PortfolioHeroScene fallback={<HeroCardFallback profile={profile} initials={initials} />} />
+            </Suspense>
+          </div>
         </section>
 
         <section id="about" className="portfolio-perspective border-y border-white/10 bg-white/[0.03]">
           <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-8 sm:py-14 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,1.25fr)] lg:py-16">
-            <div className="portfolio-reveal portfolio-fly-left">
+            <div>
               <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">About</p>
               <h2 className="mt-4 text-3xl font-semibold leading-tight tracking-[-0.03em] sm:text-4xl">Product thinking with full-stack execution.</h2>
             </div>
-            <div className="portfolio-reveal portfolio-fly-right">
+            <div>
               <p className="text-base leading-8 text-slate-300 sm:text-lg">{profile.headline}. My work covers data modeling, API design, authorization, complex UI state, realtime behavior, background processing, integrations, AWS deployment, DNS, HTTPS, email delivery, storage, CI/CD, and AI-assisted debugging.</p>
               <div className="mt-8 flex flex-wrap gap-2">
                 {(profile.skills || []).map((skill) => <span key={skill} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200">{skill}</span>)}
@@ -513,9 +422,9 @@ const PublicPortfolio = () => {
         </section>
 
         <section className="portfolio-perspective mx-auto max-w-7xl px-4 py-12 sm:px-8 lg:py-14">
-          <div className="portfolio-stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {(profile.metrics || []).map((metric, index) => (
-              <div key={metric} style={{ "--reveal-index": index }} className="portfolio-depth-card portfolio-reveal portfolio-fly-up rounded-[26px] border border-white/10 bg-white/5 p-6">
+              <div key={metric} className="portfolio-depth-card rounded-[26px] border border-white/10 bg-white/5 p-6">
                 <FiCheck className="text-cyan-300" />
                 <p className="mt-6 text-xl font-semibold">{metric}</p>
               </div>
@@ -523,9 +432,9 @@ const PublicPortfolio = () => {
           </div>
         </section>
 
-        <section id="case-study" className="portfolio-perspective mx-auto max-w-7xl px-4 py-12 sm:px-8 sm:py-14 lg:py-16">
+        <section id="case-study" data-portfolio-motion="case-study" className="portfolio-perspective mx-auto max-w-7xl px-4 py-12 sm:px-8 sm:py-14 lg:py-16">
           <div className="grid min-w-0 gap-10 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
-            <div className="portfolio-reveal portfolio-fly-left">
+            <div>
               <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">Flagship Case Study</p>
               <h2 className="mt-4 text-3xl font-semibold leading-tight tracking-[-0.03em] sm:text-4xl">{project?.title || "Nexus Hub"}</h2>
               <p className="mt-5 text-lg leading-8 text-slate-300">{project?.tagline || "One connected workspace for product delivery and personal productivity."}</p>
@@ -534,7 +443,7 @@ const PublicPortfolio = () => {
               </div>
             </div>
             <div className="min-w-0 space-y-5">
-              <div className="portfolio-depth-card portfolio-reveal portfolio-fly-right rounded-[26px] border border-white/10 bg-gradient-to-br from-white/10 to-white/[0.03] p-5 sm:rounded-[34px] sm:p-9">
+              <div className="portfolio-depth-card rounded-[26px] border border-white/10 bg-gradient-to-br from-white/10 to-white/[0.03] p-5 sm:rounded-[34px] sm:p-9">
                 <p className="text-base leading-8 text-slate-200 sm:text-lg">{project?.summary || "Nexus Hub brings planning, delivery, communication, knowledge, and document tools into one Rails and React product."}</p>
                 <p className="mt-5 leading-7 text-slate-400">{project?.description}</p>
                 <div className="mt-8 grid gap-3 sm:grid-cols-2">
@@ -547,7 +456,7 @@ const PublicPortfolio = () => {
                   {project?.repository_url ? <a href={project.repository_url} target="_blank" rel="noreferrer" className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/15 px-5 py-3 font-semibold sm:w-auto"><FiGithub /> View code</a> : null}
                 </div>
               </div>
-              <div className="portfolio-depth-card portfolio-reveal portfolio-fly-deep overflow-hidden rounded-[30px] border border-cyan-300/12 bg-slate-950 shadow-2xl shadow-cyan-950/30">
+              <div data-portfolio-motion="case-visual" className="portfolio-depth-card overflow-hidden rounded-[30px] border border-cyan-300/12 bg-slate-950 shadow-2xl shadow-cyan-950/30">
                 <LoopingVideo
                   srcWebm={NEXUS_PRODUCT_LOOP_WEBM}
                   srcMp4={NEXUS_PRODUCT_LOOP_MP4}
@@ -562,16 +471,16 @@ const PublicPortfolio = () => {
 
         <section id="decisions" className="portfolio-perspective border-y border-white/10 bg-white/[0.03]">
           <div className="mx-auto max-w-7xl px-4 py-12 sm:px-8 sm:py-14 lg:py-16">
-            <p className="portfolio-reveal portfolio-fly-left text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">Engineering Decisions</p>
-            <h2 className="portfolio-reveal portfolio-fly-left mt-4 max-w-4xl text-3xl font-semibold leading-tight sm:text-4xl">
+            <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">Engineering Decisions</p>
+            <h2 className="mt-4 max-w-4xl text-3xl font-semibold leading-tight sm:text-4xl">
               The reasoning behind the product, not only the feature list.
             </h2>
-            <div className="portfolio-stagger mt-10 grid gap-5 lg:grid-cols-2">
-              <article style={{ "--reveal-index": 0 }} className="portfolio-depth-card portfolio-reveal portfolio-fly-left rounded-[26px] border border-white/10 bg-slate-950/60 p-5 sm:rounded-[30px] sm:p-7">
+            <div className="mt-10 grid gap-5 lg:grid-cols-2">
+              <article data-portfolio-motion="decision-card" className="portfolio-depth-card rounded-[26px] border border-white/10 bg-slate-950/60 p-5 sm:rounded-[30px] sm:p-7">
                 <p className="text-xs font-bold uppercase tracking-[0.24em] text-cyan-300">Problem</p>
                 <p className="mt-4 text-lg leading-8 text-slate-200">{caseStudy.problem}</p>
               </article>
-              <article style={{ "--reveal-index": 1 }} className="portfolio-depth-card portfolio-reveal portfolio-fly-right rounded-[26px] border border-white/10 bg-slate-950/60 p-5 sm:rounded-[30px] sm:p-7">
+              <article data-portfolio-motion="decision-card" className="portfolio-depth-card rounded-[26px] border border-white/10 bg-slate-950/60 p-5 sm:rounded-[30px] sm:p-7">
                 <p className="text-xs font-bold uppercase tracking-[0.24em] text-cyan-300">My Role</p>
                 <p className="mt-4 text-lg leading-8 text-slate-200">{caseStudy.role}</p>
               </article>
@@ -581,7 +490,7 @@ const PublicPortfolio = () => {
                 ["Trade-offs", caseStudy.trade_offs],
                 ["Outcomes", caseStudy.outcomes],
               ].map(([title, items], index) => (
-                <article key={title} style={{ "--reveal-index": index + 2 }} className="portfolio-depth-card portfolio-reveal portfolio-fly-up rounded-[26px] border border-white/10 bg-white/5 p-5 sm:rounded-[30px] sm:p-7">
+                <article key={title} data-portfolio-motion="decision-card" className="portfolio-depth-card rounded-[26px] border border-white/10 bg-white/5 p-5 sm:rounded-[30px] sm:p-7">
                   <p className="text-xs font-bold uppercase tracking-[0.24em] text-cyan-300">{title}</p>
                   <ul className="mt-5 space-y-3">
                     {(items || []).map((item) => (
@@ -599,11 +508,11 @@ const PublicPortfolio = () => {
 
         <section id="features" className="portfolio-perspective border-y border-white/10 bg-white/[0.03]">
           <div className="mx-auto max-w-7xl px-4 py-12 sm:px-8 sm:py-14 lg:py-16">
-            <p className="portfolio-reveal portfolio-fly-left text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">Feature Map</p>
-            <h2 className="portfolio-reveal portfolio-fly-left mt-4 max-w-3xl text-3xl font-semibold leading-tight sm:text-4xl">A large product, organized for a fast technical review.</h2>
-            <div className="portfolio-stagger mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+            <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">Feature Map</p>
+            <h2 className="mt-4 max-w-3xl text-3xl font-semibold leading-tight sm:text-4xl">A large product, organized for a fast technical review.</h2>
+            <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
               {groupedFeatures.map((feature, index) => (
-                <button key={feature.id || feature.title} style={{ "--reveal-index": index }} onClick={() => openDemo(feature.demo_path || "/demo")} className={`portfolio-depth-card portfolio-reveal ${index % 2 === 0 ? "portfolio-fly-left" : "portfolio-fly-right"} group min-w-0 overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/60 text-left sm:rounded-[28px]`}>
+                <button key={feature.id || feature.title} data-portfolio-motion="feature-card" onClick={() => openDemo(feature.demo_path || "/demo")} className="portfolio-depth-card group min-w-0 overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/60 text-left sm:rounded-[28px]">
                   {feature.screenshot_url ? (
                     <img src={feature.screenshot_url} alt={feature.alt_text || feature.title} loading="lazy" className="aspect-[16/10] w-full object-cover" />
                   ) : (
@@ -631,27 +540,27 @@ const PublicPortfolio = () => {
 
         <section id="architecture" className="portfolio-perspective mx-auto max-w-7xl px-4 py-12 sm:px-8 sm:py-14 lg:py-16">
           <div className="grid gap-10 lg:grid-cols-2">
-            <div className="portfolio-reveal portfolio-fly-left">
+            <div>
               <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">Architecture</p>
               <h2 className="mt-4 text-3xl font-semibold leading-tight tracking-[-0.03em] sm:text-4xl">Built across the complete application stack.</h2>
             </div>
-            <div className="portfolio-stagger space-y-3">
+            <div className="space-y-3">
               {(profile.architecture || []).map((item, index) => (
-                <div key={item} style={{ "--reveal-index": index }} className="portfolio-depth-card portfolio-reveal portfolio-fly-right flex min-w-0 items-start gap-4 rounded-2xl border border-white/10 bg-white/5 p-4 sm:items-center sm:gap-5 sm:p-5">
+                <div key={item} data-portfolio-motion="architecture-step" className="portfolio-depth-card flex min-w-0 items-start gap-4 rounded-2xl border border-white/10 bg-white/5 p-4 sm:items-center sm:gap-5 sm:p-5">
                   <span className="text-sm font-bold text-cyan-300">0{index + 1}</span>
                   <span className="min-w-0 text-base font-medium text-slate-200 sm:text-lg">{item}</span>
                 </div>
               ))}
             </div>
           </div>
-          <div className="portfolio-stagger mt-12 grid items-stretch gap-3 md:grid-cols-[1fr_auto_1fr_auto_1fr]">
+          <div className="mt-12 grid items-stretch gap-3 md:grid-cols-[1fr_auto_1fr_auto_1fr]">
             {[
               ["React + Vite", "Public portfolio and authenticated product UI"],
               ["Rails 8.0", "Authentication, authorization, APIs, jobs, storage, and realtime"],
               ["PostgreSQL + Redis + S3", "Tenant data, background work, streams, and durable media"],
             ].map(([title, description], index) => (
               <React.Fragment key={title}>
-                <div style={{ "--reveal-index": index }} className="portfolio-depth-card portfolio-reveal portfolio-fly-deep rounded-[26px] border border-white/10 bg-white/5 p-6">
+                <div data-portfolio-motion="architecture-step" className="portfolio-depth-card rounded-[26px] border border-white/10 bg-white/5 p-6">
                   <p className="text-lg font-semibold text-white">{title}</p>
                   <p className="mt-3 leading-7 text-slate-400">{description}</p>
                 </div>
@@ -663,7 +572,7 @@ const PublicPortfolio = () => {
 
         <section id="contact" className="portfolio-perspective border-t border-white/10 bg-slate-950">
           <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-8 sm:py-14 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:py-16">
-            <div className="portfolio-reveal portfolio-fly-left">
+            <div>
               <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">Contact</p>
               <h2 className="mt-4 text-3xl font-semibold leading-tight tracking-[-0.03em] sm:text-4xl">Let’s discuss the role and the problems you need solved.</h2>
               <div className="mt-7 flex flex-wrap gap-3">

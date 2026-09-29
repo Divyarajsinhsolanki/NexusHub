@@ -50,6 +50,12 @@ describe("PublicPortfolio", () => {
 
     expect(html).not.toMatch(/class="[^"]*portfolio-js/);
     expect(html).not.toMatch(/class="[^"]*is-visible/);
+    expect(html).not.toContain("portfolio-reveal");
+    expect(html).toContain('data-portfolio-motion="hero"');
+    expect(html).toContain('data-portfolio-motion="case-visual"');
+    expect(html).toContain('data-portfolio-motion="decision-card"');
+    expect(html).toContain('data-portfolio-motion="feature-card"');
+    expect(html).toContain('data-portfolio-motion="architecture-step"');
     expect(html).toContain("I build full-stack products that solve real workflow problems.");
     expect(html).toContain("Product thinking with full-stack execution.");
     expect(html).toContain("AWS production deploy");
@@ -58,6 +64,7 @@ describe("PublicPortfolio", () => {
     expect(html).toContain("Project Delivery");
     expect(html).toContain("Built across the complete application stack.");
     expect(html).toContain("Let’s discuss the role and the problems you need solved.");
-    expect(html).toContain(".portfolio-page.portfolio-js .portfolio-reveal");
+    expect(html).toContain("prefers-reduced-motion: reduce");
+    expect(html).not.toContain("portfolioReveal");
   });
 });
