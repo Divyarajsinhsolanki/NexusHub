@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useMemo, useState } from "react";
+import React, { lazy, Suspense, useContext, useEffect, useMemo, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate } from "react-router-dom";
 import {
@@ -22,6 +22,8 @@ import { fetchPortfolio, sendContact } from "../components/api";
 import LoopingVideo from "../components/ui/LoopingVideo";
 import { runtimeMetaValue, runtimeOrBuildValue } from "../config/runtime";
 import nexusProductPoster from "../images/nexus/nexus-product-poster.webp";
+
+const PortfolioHeroScene = lazy(() => import("../components/portfolio/PortfolioHeroScene"));
 
 const RECAPTCHA_ENABLED = runtimeMetaValue("nexus-recaptcha-enabled") === "true";
 const RECAPTCHA_SITE_KEY = RECAPTCHA_ENABLED
@@ -172,6 +174,26 @@ const ContactForm = () => {
     </form>
   );
 };
+
+const HeroCardFallback = ({ profile, initials }) => (
+  <div className="relative mx-auto w-full max-w-[20rem] sm:max-w-sm lg:max-w-md">
+    <div className="portfolio-stage-line absolute -bottom-8 left-4 right-4 h-16 rounded-[100%] blur-sm" />
+    <div className="portfolio-hero-card relative rounded-[32px] border border-cyan-200/20 bg-slate-900/90 p-6 shadow-2xl shadow-cyan-950/40 sm:p-7">
+      {profile.avatar_url ? (
+        <img src={profile.avatar_url} alt={`${profile.full_name} portrait`} className="aspect-square w-full rounded-[24px] object-cover" />
+      ) : (
+        <div className="flex aspect-square items-center justify-center rounded-[24px] bg-gradient-to-br from-slate-800 to-slate-950 text-6xl font-semibold text-cyan-300 sm:text-7xl">{initials}</div>
+      )}
+      <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div>
+          <p className="font-semibold">{profile.full_name}</p>
+          <p className="mt-1 inline-flex items-center gap-2 text-sm text-slate-400"><FiMapPin /> {profile.location}</p>
+        </div>
+        <span className="rounded-full bg-emerald-400/10 px-3 py-1.5 text-xs font-semibold text-emerald-300">Open to opportunities</span>
+      </div>
+    </div>
+  </div>
+);
 
 const PublicPortfolio = () => {
   const navigate = useNavigate();
@@ -470,23 +492,9 @@ const PublicPortfolio = () => {
             </div>
             {demoError ? <p className="mt-4 text-amber-300">{demoError}</p> : null}
           </div>
-          <div className="relative mx-auto w-full max-w-[20rem] sm:max-w-sm lg:max-w-md">
-            <div className="portfolio-stage-line absolute -bottom-8 left-4 right-4 h-16 rounded-[100%] blur-sm" />
-            <div className="portfolio-hero-card relative rounded-[32px] border border-cyan-200/20 bg-slate-900/90 p-6 shadow-2xl shadow-cyan-950/40 sm:p-7">
-              {profile.avatar_url ? (
-                <img src={profile.avatar_url} alt={`${profile.full_name} portrait`} className="aspect-square w-full rounded-[24px] object-cover" />
-              ) : (
-                <div className="flex aspect-square items-center justify-center rounded-[24px] bg-gradient-to-br from-slate-800 to-slate-950 text-6xl font-semibold text-cyan-300 sm:text-7xl">{initials}</div>
-              )}
-              <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                <div>
-                  <p className="font-semibold">{profile.full_name}</p>
-                  <p className="mt-1 inline-flex items-center gap-2 text-sm text-slate-400"><FiMapPin /> {profile.location}</p>
-                </div>
-                <span className="rounded-full bg-emerald-400/10 px-3 py-1.5 text-xs font-semibold text-emerald-300">Open to opportunities</span>
-              </div>
-            </div>
-          </div>
+          <Suspense fallback={<HeroCardFallback profile={profile} initials={initials} />}>
+            <PortfolioHeroScene fallback={<HeroCardFallback profile={profile} initials={initials} />} />
+          </Suspense>
         </section>
 
         <section id="about" className="portfolio-perspective border-y border-white/10 bg-white/[0.03]">
