@@ -2,8 +2,8 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router-dom";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../context/AuthContext", async () => {
   const ReactModule = await import("react");
@@ -57,6 +57,8 @@ describe("PublicPortfolio", () => {
     vi.mocked(fetchPortfolio).mockReturnValue(new Promise(() => {}));
   });
 
+  afterEach(cleanup);
+
   it("renders the flagship case study and six guided feature areas", () => {
     const html = renderToStaticMarkup(
       <MemoryRouter>
@@ -106,6 +108,14 @@ describe("PublicPortfolio", () => {
     expect(html).toContain("Let’s discuss the role and the problems you need solved.");
     expect(html).toContain("prefers-reduced-motion: reduce");
     expect(html).not.toContain("portfolioReveal");
+  });
+
+  it("replaces an unconfigured contact form with an accessible direct fallback link", () => {
+    renderPortfolio();
+
+    expect(screen.getByText("Use a direct contact option")).toBeTruthy();
+    expect(screen.queryByRole("textbox", { name: "Name" })).toBeNull();
+    expect(screen.getAllByRole("link", { name: "GitHub" }).at(-1).getAttribute("href")).toBe("https://github.com/Divyarajsinhsolanki");
   });
 
   it("allows each returned project to be selected with its own features and guided demo action", async () => {

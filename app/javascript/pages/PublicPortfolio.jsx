@@ -26,10 +26,12 @@ import usePortfolioScrollMotion from "../components/portfolio/usePortfolioScroll
 
 const PortfolioHeroScene = lazy(() => import("../components/portfolio/PortfolioHeroScene"));
 
-const RECAPTCHA_ENABLED = runtimeMetaValue("nexus-recaptcha-enabled") === "true";
-const RECAPTCHA_SITE_KEY = RECAPTCHA_ENABLED
+const CONTACT_ENDPOINT_ENABLED = runtimeMetaValue("nexus-contact-endpoint-enabled") === "true";
+const RECAPTCHA_SITE_KEY = CONTACT_ENDPOINT_ENABLED
   ? runtimeOrBuildValue("nexus-recaptcha-site-key", import.meta.env.VITE_RECAPTCHA_SITE_KEY)
   : undefined;
+const CONTACT_EMAIL = runtimeMetaValue("nexus-contact-email");
+const contactFormConfigured = CONTACT_ENDPOINT_ENABLED && Boolean(RECAPTCHA_SITE_KEY);
 const NEXUS_PRODUCT_LOOP_WEBM = "/media/nexus/nexus-product-loop.webm";
 const NEXUS_PRODUCT_LOOP_MP4 = "/media/nexus/nexus-product-loop.mp4";
 
@@ -87,33 +89,66 @@ const navItems = [
   ["Contact", "contact"],
 ];
 
-const ContactForm = () => {
+const ContactFallback = ({ contactEmail, socialLinks, loading = false }) => (
+  <div className="portfolio-depth-card min-w-0 rounded-[24px] border border-white/10 bg-white/5 p-4 sm:rounded-[30px] sm:p-7">
+    <p className="text-lg font-semibold text-white">{loading ? "Preparing the secure contact form" : "Use a direct contact option"}</p>
+    <p className="mt-2 leading-7 text-slate-300">
+      {loading
+        ? "The secure form is loading. You can also contact me directly using one of the options below."
+        : "The secure contact form is unavailable right now. Please email me or connect through one of the available profiles below."}
+    </p>
+    <div className="mt-5 flex flex-wrap gap-3">
+      {contactEmail ? <a href={`mailto:${contactEmail}`} className="inline-flex items-center gap-2 rounded-full bg-cyan-300 px-4 py-2.5 font-semibold text-slate-950"><FiMail /> Email me</a> : null}
+      {socialLinks.github ? <a href={socialLinks.github} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border border-white/15 px-4 py-2.5"><FiGithub /> GitHub</a> : null}
+      {socialLinks.linkedin ? <a href={socialLinks.linkedin} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border border-white/15 px-4 py-2.5"><FiLinkedin /> LinkedIn</a> : null}
+    </div>
+  </div>
+);
+
+const ContactForm = ({ contactEmail, socialLinks }) => {
   const [form, setForm] = useState({ name: "", email: "", message: "" });
   const [status, setStatus] = useState(null);
   const [ready, setReady] = useState(false);
+  const [failed, setFailed] = useState(false);
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
-    if (!RECAPTCHA_SITE_KEY) return undefined;
+    if (!contactFormConfigured) return undefined;
     if (window.grecaptcha?.execute) {
       setReady(true);
       return undefined;
     }
 
     const existing = document.querySelector('script[data-portfolio-recaptcha="true"]');
+    const markReady = () => {
+      if (window.grecaptcha?.execute) setReady(true);
+      else setFailed(true);
+    };
+    const markFailed = () => setFailed(true);
     if (existing) {
-      existing.addEventListener("load", () => setReady(true), { once: true });
-      return undefined;
+      existing.addEventListener("load", markReady, { once: true });
+      existing.addEventListener("error", markFailed, { once: true });
+      return () => {
+        existing.removeEventListener("load", markReady);
+        existing.removeEventListener("error", markFailed);
+      };
     }
 
     const script = document.createElement("script");
     script.dataset.portfolioRecaptcha = "true";
     script.src = `https://www.google.com/recaptcha/api.js?render=${RECAPTCHA_SITE_KEY}`;
     script.async = true;
-    script.onload = () => setReady(true);
+    script.onload = markReady;
+    script.onerror = markFailed;
     document.body.appendChild(script);
-    return undefined;
+    return () => {
+      script.removeEventListener("load", markReady);
+      script.removeEventListener("error", markFailed);
+    };
   }, []);
+
+  if (!contactFormConfigured) return <ContactFallback contactEmail={contactEmail} socialLinks={socialLinks} />;
+  if (!ready) return <ContactFallback contactEmail={contactEmail} socialLinks={socialLinks} loading={!failed} />;
 
   const submit = async (event) => {
     event.preventDefault();
@@ -121,7 +156,6 @@ const ContactForm = () => {
     setStatus(null);
 
     try {
-      if (!RECAPTCHA_SITE_KEY || !window.grecaptcha?.execute) throw new Error("Contact form is not configured yet.");
       const recaptchaToken = await window.grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: "contact_form_submit" });
       await sendContact({ ...form, recaptcha_token: recaptchaToken });
       setForm({ name: "", email: "", message: "" });
@@ -136,41 +170,11 @@ const ContactForm = () => {
   return (
     <form onSubmit={submit} className="portfolio-depth-card min-w-0 rounded-[24px] border border-white/10 bg-white/5 p-4 sm:rounded-[30px] sm:p-7">
       <div className="grid gap-4 sm:grid-cols-2">
-        <input
-          aria-label="Name"
-          required
-          placeholder="Your name"
-          value={form.name}
-          onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-          className="min-w-0 rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-cyan-300"
-        />
-        <input
-          aria-label="Email"
-          required
-          type="email"
-          placeholder="Email address"
-          value={form.email}
-          onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
-          className="min-w-0 rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-cyan-300"
-        />
+        <input aria-label="Name" required placeholder="Your name" value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} className="min-w-0 rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-cyan-300" />
+        <input aria-label="Email" required type="email" placeholder="Email address" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} className="min-w-0 rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-cyan-300" />
       </div>
-      <textarea
-        aria-label="Message"
-        required
-        rows={5}
-        placeholder="Tell me about the role or project"
-        value={form.message}
-        onChange={(event) => setForm((current) => ({ ...current, message: event.target.value }))}
-        className="mt-4 min-w-0 w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-cyan-300"
-      />
-      <button
-        type="submit"
-        disabled={!ready || sending}
-        className="mt-4 inline-flex items-center gap-2 rounded-full bg-cyan-300 px-5 py-3 font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        <FiSend /> {sending ? "Sending..." : "Send message"}
-      </button>
-      {!RECAPTCHA_SITE_KEY ? <p className="mt-3 text-sm text-amber-300">Contact form verification is being configured.</p> : null}
+      <textarea aria-label="Message" required rows={5} placeholder="Tell me about the role or project" value={form.message} onChange={(event) => setForm((current) => ({ ...current, message: event.target.value }))} className="mt-4 min-w-0 w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-cyan-300" />
+      <button type="submit" disabled={sending} className="mt-4 inline-flex items-center gap-2 rounded-full bg-cyan-300 px-5 py-3 font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-50"><FiSend /> {sending ? "Sending..." : "Send message"}</button>
       {status ? <p className={`mt-3 text-sm ${status.type === "success" ? "text-emerald-300" : "text-rose-300"}`}>{status.text}</p> : null}
     </form>
   );
@@ -607,7 +611,7 @@ const PublicPortfolio = () => {
                 <span className="inline-flex items-center gap-2 rounded-full border border-white/15 px-4 py-2.5 text-slate-300"><FiMail /> Contact form</span>
               </div>
             </div>
-            <ContactForm />
+            <ContactForm contactEmail={CONTACT_EMAIL} socialLinks={socialLinks} />
           </div>
         </section>
       </main>

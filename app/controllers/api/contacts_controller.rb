@@ -5,6 +5,10 @@ class Api::ContactsController < ApplicationController
   skip_before_action :verify_authenticity_token
 
   def create
+    unless ContactEndpoint.enabled?
+      return render json: { errors: ['Contact form is not available'] }, status: :service_unavailable
+    end
+
     unless valid_captcha?
       return render json: { errors: ['reCAPTCHA verification failed'] }, status: :unprocessable_entity
     end
@@ -25,7 +29,7 @@ class Api::ContactsController < ApplicationController
 
   def valid_captcha?
     token = params.dig(:contact, :recaptcha_token).to_s
-    secret = ENV['RECAPTCHA_SECRET_KEY'].to_s
+    secret = ContactEndpoint.secret_key
 
     return false if token.blank? || secret.blank?
 
