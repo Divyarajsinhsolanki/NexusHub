@@ -27,20 +27,20 @@ systemctl restart redis6 >/dev/null 2>&1 || systemctl restart redis >/dev/null 2
 install -d -o webapp -g webapp /var/run/puma
 install -d -o webapp -g webapp /var/app/staging/log
 
-if [ ! -f /var/lib/pgsql/data/PG_VERSION ]; then
-  postgresql-setup --initdb
-fi
-
-sed -i 's/ident/scram-sha-256/g; s/md5/scram-sha-256/g' /var/lib/pgsql/data/pg_hba.conf
-grep -q "127.0.0.1/32" /var/lib/pgsql/data/pg_hba.conf || {
-  echo "host all all 127.0.0.1/32 scram-sha-256" >> /var/lib/pgsql/data/pg_hba.conf
-  echo "host all all ::1/128 scram-sha-256" >> /var/lib/pgsql/data/pg_hba.conf
-}
-
-systemctl enable postgresql >/dev/null 2>&1
-systemctl restart postgresql
-
 if [ "${LOCAL_POSTGRES_ENABLED:-false}" = "true" ]; then
+  if [ ! -f /var/lib/pgsql/data/PG_VERSION ]; then
+    postgresql-setup --initdb
+  fi
+
+  sed -i 's/ident/scram-sha-256/g; s/md5/scram-sha-256/g' /var/lib/pgsql/data/pg_hba.conf
+  grep -q "127.0.0.1/32" /var/lib/pgsql/data/pg_hba.conf || {
+    echo "host all all 127.0.0.1/32 scram-sha-256" >> /var/lib/pgsql/data/pg_hba.conf
+    echo "host all all ::1/128 scram-sha-256" >> /var/lib/pgsql/data/pg_hba.conf
+  }
+
+  systemctl enable postgresql >/dev/null 2>&1
+  systemctl restart postgresql
+
   DB_NAME="${LOCAL_POSTGRES_DB:-nexus_hub_production}"
   DB_USER="${LOCAL_POSTGRES_USER:-nexus_hub}"
 
@@ -67,4 +67,7 @@ SQL
   if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'" | grep -q 1; then
     sudo -u postgres createdb --owner="${DB_USER}" "${DB_NAME}"
   fi
+else
+  systemctl disable postgresql >/dev/null 2>&1 || true
+  systemctl stop postgresql >/dev/null 2>&1 || true
 fi

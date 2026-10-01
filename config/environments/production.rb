@@ -152,6 +152,12 @@ Rails.application.configure do
 
   config.hosts += allowed_hosts
 
+  cable_origins = allowed_hosts.flat_map do |host|
+    ["https://#{host}", "http://#{host}"]
+  end.uniq
+  config.action_cable.url = "#{app_protocol == "https" ? "wss" : "ws"}://#{app_host}/cable"
+  config.action_cable.allowed_request_origins = cable_origins if cable_origins.any?
+
   # Skip DNS rebinding protection for the default health check endpoint.
   # config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
 end
