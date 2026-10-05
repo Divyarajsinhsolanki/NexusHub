@@ -25,7 +25,11 @@ class PortfolioSeeder
       summary: "I design, build, and deploy product-focused web applications from database modeling and secure APIs through responsive interfaces, real-time collaboration, cloud infrastructure, CI/CD, observability, and production operations.",
       skills: ["Ruby on Rails", "React", "JavaScript", "PostgreSQL", "Tailwind CSS", "REST APIs", "AWS EB/EC2", "Route 53", "S3", "SES", "GitHub Actions", "AI-assisted development"],
       metrics: ["AWS production deploy", "GitHub CI/CD pipeline", "35+ API controllers", "20+ product surfaces"],
-      social_links: { github: "https://github.com/Divyarajsinhsolanki", linkedin: "", website: "" },
+      social_links: (profile.social_links || {}).merge(
+        "github" => "https://github.com/Divyarajsinhsolanki",
+        "linkedin" => ENV["PORTFOLIO_LINKEDIN_URL"].presence || profile.social_links&.dig("linkedin") || "",
+        "website" => profile.social_links&.dig("website") || ""
+      ),
       architecture: ["React and Vite client", "Rails JSON API", "PostgreSQL data model", "AWS Elastic Beanstalk on EC2", "Route 53 DNS and HTTPS", "S3 assets and SES email", "GitHub Actions deployments", "AI-assisted delivery workflow"],
       engineering_highlights: ["Workspace-aware authorization", "Project and sprint planning", "Realtime chat and notifications", "PDF processing workflows", "AWS deployment and DNS setup", "CI/CD and production troubleshooting"],
       published: true

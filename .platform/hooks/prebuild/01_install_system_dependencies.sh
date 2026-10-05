@@ -17,12 +17,7 @@ dnf install -y \
   tar \
   xz
 
-if ! command -v redis-server >/dev/null 2>&1; then
-  dnf install -y redis6 || dnf install -y redis
-fi
-
-systemctl enable redis6 >/dev/null 2>&1 || systemctl enable redis >/dev/null 2>&1 || true
-systemctl restart redis6 >/dev/null 2>&1 || systemctl restart redis >/dev/null 2>&1 || true
+bash /var/app/staging/scripts/eb_install_valkey.sh
 
 install -d -o webapp -g webapp /var/run/puma
 install -d -o webapp -g webapp /var/app/staging/log

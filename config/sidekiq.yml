@@ -1,0 +1,7 @@
+:concurrency: 2
+:timeout: 25
+:queues:
+  - nexus_hub_production_default
+  - nexus_hub_production_mailers
+  - nexus_hub_production_active_storage_analysis
+  - nexus_hub_production_active_storage_purge

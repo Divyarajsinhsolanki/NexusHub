@@ -28,6 +28,22 @@ class PortfolioAndDemoTest < ActionDispatch::IntegrationTest
     assert payload.dig("projects", 0, "features").all? { |feature| feature["screenshot_url"].start_with?("/portfolio-seed-images/") }
   end
 
+  test "portfolio bootstrap uses configured LinkedIn and preserves existing social links" do
+    previous_url = ENV["PORTFOLIO_LINKEDIN_URL"]
+    profile = PortfolioProfile.first!
+    profile.update!(social_links: { "linkedin" => "https://www.linkedin.com/in/existing", "website" => "https://example.com" })
+    ENV.delete("PORTFOLIO_LINKEDIN_URL")
+    PortfolioSeeder.new.call
+    assert_equal "https://www.linkedin.com/in/existing", profile.reload.social_links["linkedin"]
+
+    ENV["PORTFOLIO_LINKEDIN_URL"] = "https://www.linkedin.com/in/configured"
+    PortfolioSeeder.new.call
+    assert_equal ENV["PORTFOLIO_LINKEDIN_URL"], profile.reload.social_links["linkedin"]
+    assert_equal "https://example.com", profile.social_links["website"]
+  ensure
+    ENV["PORTFOLIO_LINKEDIN_URL"] = previous_url
+  end
+
   test "demo session exposes manifest and rejects mutations" do
     post "/api/demo_session"
     assert_response :success

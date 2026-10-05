@@ -1,0 +1,64 @@
+# EB Environment Variable Inventory
+
+Checked 2026-10-05. Values and secrets are intentionally omitted.
+Presence does not validate credentials or service behavior.
+
+| Variable | Status |
+| --- | --- |
+| `ACTIVE_STORAGE_SERVICE` | Set |
+| `ALLOWED_HOSTS` | Set |
+| `APP_DOMAIN` | Set |
+| `APP_HOST` | Set |
+| `APPLICATION_HOST` | Set |
+| `BASE_URL` | Set |
+| `BUNDLE_DEPLOYMENT` | Set |
+| `BUNDLE_WITHOUT` | Set |
+| `BUNDLER_DEPLOYMENT_MODE` | Set |
+| `CERTBOT_DOMAINS` | Set |
+| `CERTBOT_EMAIL` | Set |
+| `CERTBOT_ENABLE` | Set |
+| `DATABASE_URL` | Set |
+| `DEMO_MODE_ENABLED` | Set |
+| `DEVISE_JWT_SECRET_KEY` | Set |
+| `EMAIL_DELIVERY_METHOD` | Set |
+| `FIREBASE_PROJECT_ID` | Set |
+| `LIVEKIT_API_KEY` | Set |
+| `LIVEKIT_API_SECRET` | Set |
+| `LIVEKIT_URL` | Set |
+| `LOCAL_POSTGRES_DB` | Set |
+| `LOCAL_POSTGRES_ENABLED` | Set |
+| `LOCAL_POSTGRES_PASSWORD` | Set |
+| `LOCAL_POSTGRES_USER` | Set |
+| `MAILER_SENDER` | Set |
+| `PORTFOLIO_ENABLED` | Set |
+| `PORTFOLIO_LINKEDIN_URL` | Set |
+| `RACK_ENV` | Set |
+| `RAILS_ENV` | Set |
+| `RAILS_LOG_LEVEL` | Set |
+| `RAILS_LOG_TO_STDOUT` | Set |
+| `RAILS_MAX_THREADS` | Set |
+| `RAILS_MIN_THREADS` | Set |
+| `RAILS_SERVE_STATIC_FILES` | Set |
+| `RAILS_SKIP_ASSET_COMPILATION` | Set |
+| `RAILS_SKIP_MIGRATIONS` | Set |
+| `RECAPTCHA_SECRET_KEY` | Set |
+| `REDIS_URL` | Set |
+| `S3_BUCKET` | Set |
+| `S3_REGION` | Set |
+| `SECRET_KEY_BASE` | Set |
+| `SEED_DEMO` | Set |
+| `SMTP_ADDRESS` | Set |
+| `SMTP_DOMAIN` | Set |
+| `SMTP_PASSWORD` | Set |
+| `SMTP_PORT` | Set |
+| `SMTP_USERNAME` | Set |
+| `VITE_FIREBASE_API_KEY` | Set |
+| `VITE_FIREBASE_APP_ID` | Set |
+| `VITE_FIREBASE_AUTH_DOMAIN` | Set |
+| `VITE_FIREBASE_MEASUREMENT_ID` | Set |
+| `VITE_FIREBASE_MESSAGING_SENDER_ID` | Set |
+| `VITE_FIREBASE_PROJECT_ID` | Set |
+| `VITE_FIREBASE_STORAGE_BUCKET` | Set |
+| `VITE_RECAPTCHA_SITE_KEY` | Set |
+| `WEB_CONCURRENCY` | Set |
+

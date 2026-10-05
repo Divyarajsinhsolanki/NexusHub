@@ -7,7 +7,7 @@ This app is prepared for a low-cost Elastic Beanstalk single-instance deployment
 - Elastic Beanstalk Ruby platform on Amazon Linux 2023.
 - Single EC2 instance to avoid load balancer cost at the beginning.
 - PostgreSQL through `DATABASE_URL`.
-- Redis installed on the same EC2 instance for Action Cable and Sidekiq.
+- Redis-compatible Valkey installed on the same EC2 instance for Action Cable and Sidekiq.
 - Active Storage uploads in S3.
 - Vite/Rails compiled assets served by the Rails/EB instance for the first launch.
 
@@ -30,7 +30,6 @@ RAILS_ENV=production
 RACK_ENV=production
 DATABASE_URL=postgresql://...
 SECRET_KEY_BASE=...
-RAILS_MASTER_KEY=...
 BASE_URL=https://your-domain.com
 APP_DOMAIN=your-domain.com
 ALLOWED_HOSTS=your-domain.com,your-eb-env.elasticbeanstalk.com
@@ -38,7 +37,6 @@ ACTIVE_STORAGE_SERVICE=s3
 S3_REGION=ap-south-1
 S3_BUCKET=nexus-hub-production
 REDIS_URL=redis://127.0.0.1:6379/1
-KEKA_API_KEY_ENCRYPTION_KEY=...
 WEB_CONCURRENCY=1
 RAILS_MAX_THREADS=5
 RAILS_MIN_THREADS=5
@@ -49,6 +47,12 @@ Optional, depending on enabled features:
 
 ```text
 POSTMARK_SERVER_TOKEN=
+EMAIL_DELIVERY_METHOD=smtp
+SMTP_ADDRESS=email-smtp.ap-south-1.amazonaws.com
+SMTP_PORT=587
+SMTP_DOMAIN=your-domain.com
+SMTP_USERNAME=
+SMTP_PASSWORD=
 MAILER_SENDER=
 ERROR_NOTIFICATION_EMAIL=
 LIVEKIT_URL=
@@ -64,6 +68,10 @@ VITE_FIREBASE_PROJECT_ID=
 VITE_FIREBASE_STORAGE_BUCKET=
 VITE_FIREBASE_MESSAGING_SENDER_ID=
 VITE_FIREBASE_APP_ID=
+PORTFOLIO_ADMIN_EMAIL=
+PORTFOLIO_LINKEDIN_URL=https://www.linkedin.com/in/your-profile
+RAILS_MASTER_KEY=
+KEKA_API_KEY_ENCRYPTION_KEY=
 ```
 
 Variables starting with `VITE_` are visible in browser JavaScript. Do not put server secrets in `VITE_` variables.
@@ -99,20 +107,59 @@ If using an instance profile, `S3_ACCESS_KEY_ID` and `S3_SECRET_ACCESS_KEY` can 
 The EB hooks do the following:
 
 - install Linux packages needed by PostgreSQL, image processing, and PDF tools
-- install Redis on the same EC2 instance
+- install Valkey on the same EC2 instance (Sidekiq 8 requires Redis 7+ or Valkey 7.2+)
 - install Node from `.node-version`
 - install Yarn 1.x
 - install Ruby and JavaScript dependencies
 - build Vite and Rails assets
 - run `rails db:migrate` after deploy
 
-Seeds are not run automatically on every EB deploy. Run seed/bootstrap manually only when needed:
+The predeploy hook runs `rails app:bootstrap` (migrations and enabled seeds)
+unless `RAILS_SKIP_MIGRATIONS=true`. `SEED_PORTFOLIO` defaults to true; configure
+`PORTFOLIO_LINKEDIN_URL` to seed the public LinkedIn link. Other existing social
+links are preserved. `SEED_DEMO` controls synthetic demo data independently of
+public demo access.
+
+For a manual bootstrap:
 
 ```bash
 eb ssh
 cd /var/app/current
 SEED_DEMO=false bundle exec rails app:bootstrap
 ```
+
+## HTTPS and Background Jobs
+
+This single-instance environment terminates HTTPS in Nginx using Certbot.
+Set `CERTBOT_ENABLE=true`, `CERTBOT_EMAIL`, and comma-separated `CERTBOT_DOMAINS`.
+Both `.platform/hooks/postdeploy` and `.platform/confighooks/postdeploy` restore
+the HTTPS listener. EB regenerates Nginx configuration during environment-variable
+updates, so the configuration hook is required even when application code is unchanged.
+EB checks `/up` over HTTP; Green health alone does not verify public HTTPS.
+
+Production queues jobs through Sidekiq. The deployment hooks install and enable
+`sidekiq.service` on the existing EC2 instance using EB's environment file and
+the `webapp` user. `config/sidekiq.yml` sets two threads and consumes default,
+mailer, and Active Storage queues. Predeploy hooks stop it gracefully; postdeploy
+hooks restart it for both application releases and configuration updates.
+No additional instance or load balancer is required.
+
+`scripts/eb_install_valkey.sh` migrates a legacy Redis 6 snapshot without deleting
+the original data, disables Redis 6, and enables Valkey on the same localhost
+port. Append-only persistence and `noeviction` protect queued jobs. `REDIS_URL`
+remains unchanged. The script refuses to overwrite existing Valkey data when
+legacy Redis is still active.
+
+Check the worker on the instance with `sudo systemctl status sidekiq` and inspect
+logs with `sudo journalctl -u sidekiq -n 100`. Delayed jobs are handled by Sidekiq;
+recurring jobs still need an explicit scheduler if the feature requires one.
+Configure automatic certificate renewal and database backups separately; the EB
+hooks do not install backup schedules or renewal timers.
+
+`RAILS_MASTER_KEY` is needed when using encrypted Rails credentials. Keka falls
+back to `SECRET_KEY_BASE` when its dedicated encryption key is absent; do not
+change either encryption key after saving credentials. Sentry, Slack, Google
+Sheets, and knowledge-feed API keys are optional integrations.
 
 ## Cost Notes
 

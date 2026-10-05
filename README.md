@@ -99,13 +99,13 @@ Environment variables are documented in `.env.example`. The most important group
 
 - App/runtime: `RAILS_MASTER_KEY`, `RAILS_LOG_LEVEL`, `RAILS_MAX_THREADS`, `RAILS_MIN_THREADS`, `WEB_CONCURRENCY`, `ALLOWED_HOSTS`
 - Database: `DB_HOST`, `DATABASE_URL`
-- Production email (Postmark): `POSTMARK_SERVER_TOKEN`, `MAILER_SENDER`, `ERROR_NOTIFICATION_EMAIL`, `BASE_URL`, `FRONTEND_URL`
-- Optional local SMTP: `SMTP_ADDRESS`, `SMTP_PORT`, `SMTP_DOMAIN`, `SMTP_USERNAME`, `SMTP_PASSWORD`
+- Production email: `EMAIL_DELIVERY_METHOD` (`smtp` or `postmark`), `MAILER_SENDER`, `ERROR_NOTIFICATION_EMAIL`, `BASE_URL`, `FRONTEND_URL`
+- SMTP (including AWS SES): `SMTP_ADDRESS`, `SMTP_PORT`, `SMTP_DOMAIN`, `SMTP_USERNAME`, `SMTP_PASSWORD`
 - CORS: `CORS_ALLOWED_ORIGINS`, `CORS_ALLOWED_PATH`
 - Action Cable: `REDIS_URL`
 - Calls: `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`
 - Rate limits: `RACK_ATTACK_LOGIN_PER_MINUTE`, `RACK_ATTACK_REQUESTS_PER_MINUTE`, `RACK_ATTACK_SIGNUP_PER_HOUR`
-- Portfolio/demo: `PORTFOLIO_ENABLED`, `PORTFOLIO_ADMIN_EMAIL`, `DEMO_MODE_ENABLED`, `RACK_ATTACK_DEMO_PER_MINUTE`
+- Portfolio/demo: `PORTFOLIO_ENABLED`, `PORTFOLIO_ADMIN_EMAIL`, `PORTFOLIO_LINKEDIN_URL`, `DEMO_MODE_ENABLED`, `RACK_ATTACK_DEMO_PER_MINUTE`
 - Contact form reCAPTCHA: `VITE_RECAPTCHA_SITE_KEY`, `RECAPTCHA_SECRET_KEY`, `RECAPTCHA_MIN_SCORE`
 - Knowledge cards and feeds: `VITE_GNEWS_API_KEY`, `VITE_NEWSAPI_KEY`, `VITE_FINANCIAL_MODELING_PREP_API_KEY`, `VITE_ALPHA_VANTAGE_API_KEY`, `VITE_NEWSDATA_API_KEY`, `VITE_GUARDIAN_API_KEY`, `VITE_WORDNIK_API_KEY`, `VITE_NASA_API_KEY`
 - Firebase: `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `FIREBASE_PROJECT_ID`, `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID`, `VITE_FIREBASE_APP_ID`, `VITE_FIREBASE_MEASUREMENT_ID`
@@ -115,15 +115,17 @@ Environment variables are documented in `.env.example`. The most important group
 Values prefixed with `VITE_` are exposed to browser-side JavaScript. Do not put
 private server secrets in `VITE_` variables.
 
-Production email is sent through the Postmark HTTPS API. Confirm a Sender
+Production on AWS uses SES SMTP with `EMAIL_DELIVERY_METHOD=smtp` and the SMTP
+settings above. Postmark is an alternative with `EMAIL_DELIVERY_METHOD=postmark`.
+Confirm a Sender
 Signature in Postmark, then set `MAILER_SENDER` to that exact address, for
 example `Nexus Hub <you@company.example>`. `POSTMARK_SERVER_TOKEN` is a server
-secret: add it only to Render, never to Git, Expo, EAS, or a `VITE_` variable.
+secret: add it only to the server environment, never to Git, Expo, EAS, or a `VITE_` variable.
 Development continues to use the optional SMTP settings above, while tests use
 Action Mailer's in-memory test delivery.
 
-For calls on Render, create a LiveKit Cloud project and add its project URL,
-API key, and API secret to the Render web service as `LIVEKIT_URL`,
+For production calls, create a LiveKit Cloud project and add its project URL,
+API key, and API secret to the server environment as `LIVEKIT_URL`,
 `LIVEKIT_API_KEY`, and `LIVEKIT_API_SECRET`. The production URL must use
 `wss://`; `ws://localhost:7880` only works for local development. Do not add the
 LiveKit API secret to Expo/EAS or any `VITE_` variable.
@@ -132,6 +134,18 @@ Keep `KEKA_API_KEY_ENCRYPTION_KEY` unchanged between deployments. If it changes,
 existing Keka credentials become unreadable and must be entered again.
 
 ## Production Deployment
+
+The current production deployment uses AWS Elastic Beanstalk. See
+[AWS deployment configuration](docs/aws-eb-deployment.md) for environment variables,
+S3 permissions, HTTPS, and background workers. The Compose setup below is an
+alternative deployment, not an additional service required by EB.
+See [production configuration audit](docs/production-config-audit.md) for the
+latest checked settings and remaining operational work.
+
+EB runs Sidekiq on the same instance through a supervised `sidekiq.service`.
+Application and configuration deployment hooks stop and restart the worker;
+`config/sidekiq.yml` limits it to two threads. It handles call timeouts, push
+notifications, reminders, queued emails, background PDF operations, and cleanup.
 
 The Compose stack includes Rails web, Sidekiq, PostgreSQL, Redis, Caddy, and daily
 PostgreSQL backups. Configure `.env` from `.env.example`, including
