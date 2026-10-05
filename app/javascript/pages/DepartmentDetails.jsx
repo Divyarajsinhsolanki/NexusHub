@@ -1,3 +1,4 @@
+import MemberProfileCard from "../components/ui/MemberProfileCard";
 import React, { useEffect, useState, useMemo, useContext } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -309,9 +310,7 @@ const DepartmentDetails = () => {
               <div className="grid gap-3 sm:grid-cols-2">
                 {department.members.map(member => (
                   <div key={member.id} className="group relative flex items-center gap-4 rounded-xl border border-slate-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-800/30 p-3 hover:bg-white dark:hover:bg-zinc-800 hover:shadow-md hover:border-slate-200 dark:hover:border-zinc-600 transition-all">
-                    <Link to={`/profile/${member.id}`} className="shrink-0">
-                      <Avatar name={member.full_name} src={member.profile_picture_url} size="md" />
-                    </Link>
+                    <MemberProfileCard member={member} compact />
                     <div className="min-w-0 flex-1">
                       <Link to={`/profile/${member.id}`} className="block truncate font-medium text-slate-900 dark:text-white hover:text-[var(--theme-color)] transition-colors">
                         {member.full_name || "Unknown User"}
@@ -380,9 +379,7 @@ const DepartmentDetails = () => {
               </div>
             ) : department.manager ? (
               <div className="flex items-center gap-4">
-                <Link to={`/profile/${department.manager.id}`}>
-                  <Avatar name={department.manager.full_name} src={department.manager.profile_picture_url} size="lg" />
-                </Link>
+                <MemberProfileCard member={department.manager} compact><Avatar name={department.manager.full_name} src={department.manager.profile_picture_url} size="lg" /></MemberProfileCard>
                 <div>
                   <Link to={`/profile/${department.manager.id}`} className="font-semibold text-slate-900 dark:text-white hover:text-[var(--theme-color)] transition-colors block">
                     {department.manager.full_name}

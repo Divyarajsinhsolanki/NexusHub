@@ -1,13 +1,13 @@
 .roomShell {
   position: relative;
-  width: 100vw;
-  height: 100vh;
-  height: 100dvh;
-  min-height: 720px;
-  margin-top: -96px;
-  margin-inline: calc(50% - 50vw);
+  width: 100%;
+  height: calc(100vh - var(--nexus-command-height, 64px));
+  height: calc(100dvh - var(--nexus-command-height, 64px));
+  min-height: 640px;
+  margin-top: 0;
+  margin-inline: 0;
   overflow: hidden;
-  background: #09111f;
+  background: #eaf1ff;
   color: #0f172a;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   outline: none;
@@ -39,8 +39,8 @@
   z-index: 8;
   pointer-events: none;
   box-shadow:
-    inset 0 0 110px rgba(2, 6, 23, 0.38),
-    inset 0 -140px 180px rgba(15, 23, 42, 0.32);
+    inset 0 0 100px rgba(99, 102, 241, 0.08),
+    inset 0 -70px 110px rgba(52, 109, 255, 0.08);
 }
 
 .loadingLayer {
@@ -87,7 +87,7 @@
 }
 
 .topBar {
-  top: 116px;
+  top: 22px;
   left: 22px;
   right: 22px;
   display: flex;
@@ -132,7 +132,7 @@
 .searchPanel {
   left: 22px;
   bottom: max(22px, env(safe-area-inset-bottom));
-  width: min(360px, calc(100vw - 44px));
+  width: min(360px, calc(100% - 44px));
   display: flex;
   align-items: center;
   gap: 10px;
@@ -260,7 +260,7 @@
 }
 
 .syncBadge {
-  top: 180px;
+  top: 96px;
   right: 22px;
   border-radius: 999px;
   padding: 8px 12px;
@@ -281,7 +281,7 @@
   border: 1px solid rgba(226, 232, 240, 0.72);
   border-radius: 20px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(241, 245, 249, 0.84)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 255, 0.98)),
     rgba(255, 255, 255, 0.86);
   box-shadow: 0 30px 86px rgba(15, 23, 42, 0.18);
   backdrop-filter: blur(14px);
@@ -597,11 +597,10 @@
 }
 
 .fallbackShell {
-  min-height: 100vh;
-  min-height: 100dvh;
-  margin-top: -96px;
-  margin-inline: calc(50% - 50vw);
-  padding: 124px 22px 24px;
+  min-height: calc(100dvh - var(--nexus-command-height, 64px));
+  margin-top: 0;
+  margin-inline: 0;
+  padding: 24px 22px;
   background:
     radial-gradient(circle at top left, rgba(34, 211, 238, 0.16), transparent 32%),
     linear-gradient(180deg, #ecfeff, #f8fafc 48%, #e2e8f0);
@@ -644,11 +643,11 @@
 @media (max-width: 860px) {
   .roomShell {
     min-height: 680px;
-    margin-top: -88px;
+    margin-top: 0;
   }
 
   .topBar {
-    top: 104px;
+    top: 14px;
     left: 12px;
     right: 12px;
     align-items: flex-start;
@@ -681,7 +680,7 @@
   }
 
   .syncBadge {
-    top: 198px;
+    top: 126px;
     right: 12px;
   }
 
@@ -710,8 +709,8 @@
   }
 
   .fallbackShell {
-    margin-top: -88px;
-    padding: 116px 12px 18px;
+    margin-top: 0;
+    padding: 20px 12px;
   }
 }
 
@@ -721,10 +720,15 @@
   }
 
   .topBar {
-    top: 104px;
+    top: 14px;
   }
 
   .wallPanel {
     height: 650px;
   }
 }
+
+.roomShell :is(button, input):focus-visible { outline: 2px solid #346dff; outline-offset: 3px; }
+.cardScroller { scrollbar-width: thin; scrollbar-color: #b8c8df transparent; align-content: start; }
+.wallHeader { background: linear-gradient(120deg, #f0f7ff, #fff 70%); }
+.wallHeader h2 { font-size: 1.9rem; letter-spacing: -0.025em; }

@@ -1,3 +1,4 @@
+import MemberProfileCard from "../components/ui/MemberProfileCard";
 import React, { useEffect, useState, useContext, useCallback, useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -78,9 +79,10 @@ const Avatar = ({ name, src, size = 'md', className = '' }) => {
     );
 };
 
-const AvatarStack = ({ members, max = 4 }) => {
-    const visible = members.slice(0, max);
-    const remaining = members.length - max;
+const AvatarStack = ({ members = [], max = 4 }) => {
+    const safeMembers = Array.isArray(members) ? members.filter(Boolean) : [];
+    const visible = safeMembers.slice(0, max);
+    const remaining = safeMembers.length - max;
 
     return (
         <div className="flex items-center -space-x-2">
@@ -92,7 +94,7 @@ const AvatarStack = ({ members, max = 4 }) => {
                     transition={{ delay: i * 0.05 }}
                     className="relative hover:z-10 hover:scale-110 transition-transform"
                 >
-                    <Avatar name={member.name} src={member.profile_picture} size="md" />
+                    <MemberProfileCard member={member} compact />
                 </motion.div>
             ))}
             {remaining > 0 && (
@@ -244,7 +246,7 @@ const TeamCard = ({ team, isSelected, onClick }) => {
     const leads = team.users.filter((member) => member.role === "team_leader").length;
 
     return (
-        <motion.button
+        <motion.div
             onClick={onClick}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
@@ -255,7 +257,7 @@ const TeamCard = ({ team, isSelected, onClick }) => {
         >
             <div className="mb-2 flex items-center justify-between">
                 <h3 className={`font-semibold ${isSelected ? 'text-blue-700 dark:text-blue-300' : 'text-zinc-800 dark:text-white'}`}>
-                    {team.name}
+                    <button type="button" aria-pressed={isSelected} onClick={(event) => { event.stopPropagation(); onClick(); }} className="text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-theme">{team.name}</button>
                 </h3>
                 <FiChevronRight className={`w-4 h-4 transition-transform ${isSelected ? 'text-blue-500 translate-x-1' : 'text-zinc-400'}`} />
             </div>
@@ -273,7 +275,7 @@ const TeamCard = ({ team, isSelected, onClick }) => {
                 <span>•</span>
                 <span>{leads} leads</span>
             </div>
-        </motion.button>
+        </motion.div>
     );
 };
 
@@ -285,7 +287,7 @@ const MemberRow = ({ member, canManage, isEditing, onEdit, onSave, onCancel, onR
         className="flex items-center justify-between p-4 bg-white dark:bg-zinc-800/50 rounded-xl border border-zinc-100 dark:border-zinc-700/50 hover:shadow-md transition-all"
     >
         <div className="flex items-center gap-3">
-            <Avatar name={member.name} src={member.profile_picture} size="lg" />
+            <MemberProfileCard member={member} compact><Avatar name={member.name} src={member.profile_picture} size="lg" /></MemberProfileCard>
             <div>
                 <p className="font-semibold text-zinc-800 dark:text-white">{member.name || "Invited User"}</p>
                 <div className="flex items-center gap-2 mt-0.5">

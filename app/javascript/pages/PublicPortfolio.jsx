@@ -596,11 +596,11 @@ const PublicPortfolio = () => {
 
         <section id="features" className="portfolio-perspective border-y border-white/10 bg-white/[0.03]">
           <div className="mx-auto max-w-7xl px-4 py-12 sm:px-8 sm:py-14 lg:py-16">
-            <p className="portfolio-reveal portfolio-fly-left text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">Feature Map</p>
-            <h2 className="portfolio-reveal portfolio-fly-left mt-4 max-w-3xl text-3xl font-semibold leading-tight sm:text-4xl">A large product, organized for a fast technical review.</h2>
+            <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">Feature Map</p>
+            <h2 className="mt-4 max-w-3xl text-3xl font-semibold leading-tight sm:text-4xl">A large product, organized for a fast technical review.</h2>
             <div className="portfolio-stagger mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
               {groupedFeatures.map((feature, index) => (
-                <button key={feature.id || feature.title} style={{ "--reveal-index": index }} onClick={() => openDemo(feature.demo_path || "/demo")} className={`portfolio-depth-card portfolio-reveal ${index % 2 === 0 ? "portfolio-fly-left" : "portfolio-fly-right"} group min-w-0 overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/60 text-left sm:rounded-[28px]`}>
+                <button key={feature.id || feature.title} style={{ "--reveal-index": index }} onClick={() => openDemo(feature.demo_path || "/demo")} className="portfolio-depth-card group min-w-0 overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/60 text-left sm:rounded-[28px]">
                   {feature.screenshot_url ? (
                     <img src={feature.screenshot_url} alt={feature.alt_text || feature.title} loading="lazy" className="aspect-[16/10] w-full object-cover" />
                   ) : (
@@ -622,6 +622,11 @@ const PublicPortfolio = () => {
                   </div>
                 </button>
               ))}
+              {!groupedFeatures.length ? (
+                <div className="rounded-[24px] border border-white/10 bg-slate-950/60 p-6 text-slate-300 md:col-span-2 lg:col-span-3">
+                  Feature map is loading. Refresh the page if this message stays visible.
+                </div>
+              ) : null}
             </div>
           </div>
         </section>

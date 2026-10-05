@@ -2238,9 +2238,9 @@ html[data-nexus-nav="collapsed"] {
   min-width: 0;
   flex-direction: column;
   overflow: hidden;
-  border-right: 1px solid rgb(255 255 255 / 0.08);
-  color: #dbe6f5;
-  background: var(--nexus-rail-bg);
+  border-right: 1px solid var(--nexus-line);
+  color: var(--nexus-text);
+  background: var(--nexus-panel);
   transition: width 180ms ease;
 }
 
@@ -2251,7 +2251,7 @@ html[data-nexus-nav="collapsed"] {
   align-items: center;
   gap: 0.5rem;
   padding: 0 0.75rem;
-  border-bottom: 1px solid rgb(255 255 255 / 0.08);
+  border-bottom: 1px solid var(--nexus-line);
 }
 
 .nexus-rail-brand {
@@ -2260,7 +2260,7 @@ html[data-nexus-nav="collapsed"] {
   flex: 1;
   align-items: center;
   gap: 0.7rem;
-  color: #fff;
+  color: var(--nexus-text);
   font-size: 1rem;
   font-weight: 750;
 }
@@ -2271,7 +2271,7 @@ html[data-nexus-nav="collapsed"] {
   flex: 0 0 38px;
   border-radius: 10px;
   object-fit: contain;
-  background: rgb(255 255 255 / 0.08);
+  background: var(--nexus-line);
   padding: 4px;
 }
 
@@ -2311,7 +2311,7 @@ html[data-nexus-nav="collapsed"] {
 .nexus-mobile-group > p {
   margin: 0 0 0.4rem;
   padding: 0 0.65rem;
-  color: #71829a;
+  color: var(--nexus-muted);
   font-size: 0.64rem;
   font-weight: 750;
   letter-spacing: 0.13em;
@@ -2328,7 +2328,7 @@ html[data-nexus-nav="collapsed"] {
   margin-bottom: 0.18rem;
   padding: 0.55rem 0.72rem;
   border-radius: 10px;
-  color: #aebdd1;
+  color: var(--nexus-muted);
   font-size: 0.85rem;
   font-weight: 600;
   white-space: nowrap;
@@ -2341,13 +2341,14 @@ html[data-nexus-nav="collapsed"] {
 }
 
 .nexus-rail-link:hover {
-  color: #fff;
-  background: rgb(255 255 255 / 0.06);
+  color: var(--nexus-text);
+  background: var(--nexus-panel-subtle);
 }
 
 .nexus-rail-link-active {
-  color: #fff;
-  background: rgb(var(--theme-color-rgb) / 0.28);
+  color: var(--nexus-text);
+  background: var(--nexus-soft-blue);
+  color: var(--theme-color);
   box-shadow: inset 3px 0 0 var(--theme-color);
 }
 
@@ -2385,7 +2386,7 @@ html[data-nexus-nav="collapsed"] {
 
 .nexus-rail-account {
   padding: 0.75rem;
-  border-top: 1px solid rgb(255 255 255 / 0.08);
+  border-top: 1px solid var(--nexus-line);
 }
 
 .nexus-account-button,
@@ -2397,14 +2398,14 @@ html[data-nexus-nav="collapsed"] {
   gap: 0.65rem;
   padding: 0.5rem;
   border-radius: 10px;
-  color: #dbe6f5;
+  color: var(--nexus-text);
   text-align: left;
 }
 
 .nexus-account-button:hover,
 .nexus-rail-logout:hover {
-  color: #fff;
-  background: rgb(255 255 255 / 0.06);
+  color: var(--nexus-text);
+  background: var(--nexus-panel-subtle);
 }
 
 .nexus-account-button > span {
@@ -2461,9 +2462,9 @@ html[data-nexus-nav="collapsed"] {
 }
 
 .nexus-global-rail .nexus-icon-button {
-  border-color: rgb(255 255 255 / 0.1);
-  color: #94a4b9;
-  background: rgb(255 255 255 / 0.04);
+  border-color: var(--nexus-line);
+  color: var(--nexus-muted);
+  background: var(--nexus-panel-subtle);
 }
 
 .nexus-top-command-bar {
@@ -3645,3 +3646,28 @@ html[data-nexus-nav="collapsed"] {
   .nexus-post-composer { padding: 0.75rem; }
   .nexus-post-card > div { padding-inline: 0.85rem; }
 }
+
+/* Authentication shares the workspace palette in both themes. */
+.auth-page {
+  background-image: radial-gradient(ellipse at top left, rgb(var(--theme-color-rgb) / 0.08), transparent 60%);
+}
+.auth-login-card {
+  box-shadow: 0 20px 60px rgb(15 23 42 / 0.08);
+}
+.nexus-rail-link { transition: color 150ms ease, background-color 150ms ease; }
+.nexus-rail-link:focus-visible { outline: 2px solid var(--theme-color); outline-offset: 2px; }
+.nexus-global-rail .nexus-icon-button:hover { color: var(--theme-color); background: var(--nexus-soft-blue); }
+
+/* Render member previews outside animated and clipped page containers. */
+.member-profile-trigger { position: relative; z-index: 1; display: inline-flex; align-items: flex-start; gap: 0.85rem; min-width: 0; max-width: 100%; border-radius: 10px; text-align: left; }
+.member-profile-trigger-compact { border-radius: 999px; }
+.member-profile-trigger:focus-visible { outline: 2px solid var(--theme-color); outline-offset: 3px; }
+.member-profile-popover { position: fixed; z-index: 1500; width: min(352px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); overflow-y: auto; overscroll-behavior: contain; padding: 1.25rem; border: 1px solid var(--shell-border); border-radius: 16px; color: var(--shell-text); background: var(--surface-elevated); box-shadow: 0 16px 48px rgb(15 23 42 / 0.2); }
+.member-profile-close { display: inline-flex; flex: 0 0 30px; height: 30px; align-items: center; justify-content: center; border-radius: 8px; color: var(--shell-muted); }
+.member-profile-close:hover { background: var(--surface-muted); color: var(--shell-text); }
+.member-profile-contact { display: flex; align-items: flex-start; gap: 0.6rem; }
+.member-profile-contact svg { flex-shrink: 0; margin-top: 3px; }
+.member-profile-contact span { min-width: 0; overflow-wrap: anywhere; }
+a.member-profile-contact:hover { color: var(--theme-color); }
+.member-profile-view { display: flex; align-items: center; justify-content: center; gap: 0.5rem; margin-top: 1rem; padding: 0.65rem 1rem; border: 1px solid var(--shell-border); border-radius: 10px; color: var(--theme-color); background: rgb(var(--theme-color-rgb) / 0.08); font-size: 0.875rem; font-weight: 600; }
+.member-profile-popover :is(a, button):focus-visible { outline: 2px solid var(--theme-color); outline-offset: 2px; }

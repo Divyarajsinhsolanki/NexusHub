@@ -1,15 +1,18 @@
-import React, { useState, useContext, useEffect } from "react";
+import React, { useState, useContext, useEffect, useRef } from "react";
 import { AuthContext } from "../context/AuthContext";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { firebaseEnabled } from "../firebaseFlags";
 import { toast } from "react-hot-toast";
-import SpinnerOverlay from "../components/ui/SpinnerOverlay";
+import { FiArrowRight, FiEye, FiEyeOff, FiLock } from "react-icons/fi";
+import logo from "../images/logo.webp";
 import WorkspaceOrb from "../components/landing/WorkspaceOrb";
 import { safeReturnPath } from "../utils/safeReturnPath";
 
 const Login = ({ switchToSignup }) => {
   const { handleLogin, handleGoogleLogin } = useContext(AuthContext);
   const [formData, setFormData] = useState({ email: "", password: "" });
+  const [showPassword, setShowPassword] = useState(false);
+  const submitting = useRef(false);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [searchParams] = useSearchParams();
@@ -18,21 +21,24 @@ const Login = ({ switchToSignup }) => {
   const returnTo = safeReturnPath(location.state?.from || searchParams.get("return_to"));
 
   const handleChange = (e) => {
+    setError(null);
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitting.current) return;
+    submitting.current = true;
     setError(null);
     setLoading(true);
 
     try {
-      await handleLogin({ auth: formData }, returnTo);
-    } catch (err) {
+      await handleLogin({ auth: { ...formData, email: formData.email.trim() } }, returnTo);
+    } catch {
       const msg = "Invalid email or password. Please try again.";
       setError(msg);
-      toast.error(msg);
     } finally {
+      submitting.current = false;
       setLoading(false);
     }
   };
@@ -46,19 +52,19 @@ const Login = ({ switchToSignup }) => {
 
   return (
     <div className="w-full">
-      {loading && <SpinnerOverlay />}
       <div className="mx-auto grid w-full max-w-6xl items-center gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(340px,0.8fr)] lg:gap-8 xl:gap-10">
         <div className="auth-orb-panel hidden lg:block">
           <WorkspaceOrb />
         </div>
 
-        <div className="flex justify-start sm:justify-center lg:justify-end">
-          <div className="w-full max-w-xs rounded-2xl border border-shell-border bg-surface-elevated p-6 shadow-shell-lg transition-transform duration-200 hover:-translate-y-1 sm:max-w-sm sm:p-7">
-            <h2 className="mb-1 text-center text-2xl font-bold text-shell-text-strong">Welcome back</h2>
-            <p className="mb-6 text-center text-sm text-shell-muted">Sign in to continue where you left off.</p>
+        <div className="flex justify-center lg:justify-end">
+          <div className="auth-login-card w-full max-w-md rounded-2xl border border-shell-border bg-surface-elevated p-6 sm:p-9">
+            <div className="mb-7 flex items-center gap-3"><img src={logo} alt="" className="h-10 w-10 rounded-xl object-contain" /><span className="text-lg font-bold text-shell-text-strong">NexusHub</span></div>
+            <h2 className="mb-1 text-3xl font-bold text-shell-text-strong">Welcome back</h2>
+            <p className="mb-7 text-sm text-shell-muted">Sign in to continue where you left off.</p>
 
             {/* 📝 Login Form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-5" aria-busy={loading}>
               <div>
                 <label className="mb-1 block text-sm font-semibold text-shell-muted-strong required-label" htmlFor="email">
                   Email
@@ -67,9 +73,13 @@ const Login = ({ switchToSignup }) => {
                   id="email"
                   type="email"
                   name="email"
+                  autoComplete="username"
+                  disabled={loading}
+                  aria-invalid={Boolean(error)}
+                  aria-describedby={error ? "login-error" : undefined}
                   placeholder="you@example.com"
                   required
-                  className="w-full rounded-xl border-2 border-shell-border bg-surface-card px-4 py-2.5 text-shell-text placeholder:text-muted/70 shadow-sm transition focus:border-theme focus:ring-1 focus:ring-theme/35"
+                  className="w-full rounded-xl border border-shell-border bg-surface-card px-4 py-2.5 text-shell-text placeholder:text-muted/70 shadow-sm transition focus:outline-none focus:border-theme focus:ring-1 focus:ring-theme/35"
                   value={formData.email}
                   onChange={handleChange}
                 />
@@ -83,38 +93,46 @@ const Login = ({ switchToSignup }) => {
                   <div className="flex items-center gap-3 text-xs text-theme">
                     <button
                       type="button"
+                      disabled={loading}
                       onClick={() => navigate("/forgot-password")}
                       className="font-semibold text-theme transition hover:text-theme/80"
                     >
-                      Forgot?
+                      Forgot password?
                     </button>
-                    <span className="text-[11px] text-theme/80">Secure login</span>
                   </div>
                 </div>
-                <input
-                  id="password"
-                  type="password"
-                  name="password"
-                  placeholder="••••••••"
-                  required
-                  className="w-full rounded-xl border-2 border-shell-border bg-surface-card px-4 py-2.5 text-shell-text placeholder:text-muted/70 shadow-sm transition focus:border-theme focus:ring-1 focus:ring-theme/35"
-                  value={formData.password}
-                  onChange={handleChange}
-                />
+                <div className="relative">
+                  <input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    name="password"
+                    autoComplete="current-password"
+                    disabled={loading}
+                    aria-invalid={Boolean(error)}
+                    aria-describedby={error ? "login-error" : undefined}
+                    placeholder="••••••••"
+                    required
+                    className="w-full rounded-xl border border-shell-border bg-surface-card pl-4 pr-12 py-2.5 text-shell-text placeholder:text-muted/70 shadow-sm transition focus:outline-none focus:border-theme focus:ring-1 focus:ring-theme/35"
+                    value={formData.password}
+                    onChange={handleChange}
+                  />
+                  <button type="button" disabled={loading} onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} className="absolute inset-y-0 right-0 flex w-12 items-center justify-center rounded-xl text-shell-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-theme">{showPassword ? <FiEyeOff /> : <FiEye />}</button>
+                </div>
               </div>
 
               <button
                 type="submit"
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-shell-primary py-2.5 font-semibold text-white shadow-lg shadow-theme/20 transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-theme/25"
+                disabled={loading}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-shell-primary py-2.5 font-semibold text-white shadow-lg shadow-theme/20 transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-theme/25 disabled:cursor-wait disabled:opacity-60"
               >
-                Log In
+                {loading ? "Signing in…" : <>Sign in <FiArrowRight aria-hidden="true" /></>}
               </button>
             </form>
 
             {/* 🚨 Error Message */}
             {error && (
-              <div className="mt-5 flex items-center gap-2 rounded-lg border border-danger/20 bg-danger-soft p-3 text-danger">
-                ⚠️ {error}
+              <div id="login-error" role="alert" className="mt-5 flex items-center gap-2 rounded-lg border border-danger/20 bg-danger-soft p-3 text-danger">
+                {error}
               </div>
             )}
             {firebaseEnabled ? (
@@ -129,13 +147,19 @@ const Login = ({ switchToSignup }) => {
                 </div>
 
                 <button
+                  type="button"
+                  disabled={loading}
                   onClick={async () => {
+                    if (submitting.current) return;
+                    submitting.current = true;
+                    setError(null);
                     setLoading(true);
                     try {
                       await handleGoogleLogin(returnTo);
                     } catch (googleError) {
-                      toast.error(googleError.message || "Google login failed.");
+                      setError(googleError.message || "Google login failed.");
                     } finally {
+                      submitting.current = false;
                       setLoading(false);
                     }
                   }}
@@ -152,11 +176,13 @@ const Login = ({ switchToSignup }) => {
               </>
             ) : null}
 
+            <p className="mt-6 flex items-center justify-center gap-2 text-xs text-shell-muted"><FiLock aria-hidden="true" /> Your workspace, securely connected.</p>
             <p className="mt-5 text-center text-sm text-shell-muted">
               Don't have an account?{" "}
               <button
                 type="button"
-                onClick={switchToSignup}
+                disabled={loading}
+                onClick={switchToSignup || (() => navigate("/signup"))}
                 className="font-semibold text-theme transition hover:text-theme/80"
               >
                 Sign Up

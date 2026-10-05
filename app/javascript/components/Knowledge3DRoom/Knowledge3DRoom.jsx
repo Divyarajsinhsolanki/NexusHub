@@ -18,7 +18,7 @@ import styles from "./Knowledge3DRoom.module.css";
 const ROOM_WIDTH = 18;
 const ROOM_DEPTH = 14;
 const ROOM_HEIGHT = 8.6;
-const PANEL_SCALE = 0.00685;
+const PANEL_SCALE = 0.0094;
 const INTERACTIVE_SELECTOR = "button, a, input, select, textarea, option, label, summary, [data-wall-interactive='true'], [contenteditable='true']";
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
@@ -59,8 +59,8 @@ const makeRoomTexture = (THREE, base, line, accent = "rgba(56, 189, 248, 0.28)")
 
   ctx.strokeStyle = line;
   ctx.lineWidth = 1;
-  ctx.globalAlpha = 0.46;
-  for (let i = 0; i <= 1024; i += 72) {
+  ctx.globalAlpha = 0.16;
+  for (let i = 0; i <= 1024; i += 128) {
     ctx.beginPath();
     ctx.moveTo(i, 0);
     ctx.lineTo(i, 1024);
@@ -313,15 +313,15 @@ export default function Knowledge3DRoom({
       shell.appendChild(cssRenderer.domElement);
 
       const scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x09111f);
-      scene.fog = new THREE.Fog(0x09111f, 18, 38);
+      scene.background = new THREE.Color(0xeaf1ff);
+      scene.fog = new THREE.Fog(0xeaf1ff, 24, 48);
       const cssScene = new THREE.Scene();
 
-      const camera = new THREE.PerspectiveCamera(58, 1, 0.1, 80);
-      camera.position.set(0, 1.45, 5.4);
+      const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 80);
+      camera.position.set(0, 2.2, 3.2);
       camera.rotation.order = "YXZ";
 
-      const ambient = new THREE.AmbientLight(0xffffff, 1.1);
+      const ambient = new THREE.HemisphereLight(0xf0f7ff, 0xc2c9e0, 2.2);
       scene.add(ambient);
       const keyLight = new THREE.PointLight(0x7dd3fc, 2.4, 30);
       keyLight.position.set(0, 4.7, 1.6);
@@ -351,34 +351,34 @@ export default function Knowledge3DRoom({
         ROOM_HEIGHT,
         [0, 2.1, -ROOM_DEPTH / 2],
         [0, 0, 0],
-        wallMaterial(["#e7f4ff", "#bad7ea"], "rgba(37, 99, 235, 0.2)", "rgba(34, 211, 238, 0.34)")
+        wallMaterial(["#f4f8ff", "#dce8fa"], "rgba(37, 99, 235, 0.2)", "rgba(34, 211, 238, 0.34)")
       );
       addWall(
         ROOM_WIDTH,
         ROOM_HEIGHT,
         [0, 2.1, ROOM_DEPTH / 2],
         [0, Math.PI, 0],
-        wallMaterial(["#eff2ff", "#cbd5e1"], "rgba(79, 70, 229, 0.18)", "rgba(129, 140, 248, 0.32)")
+        wallMaterial(["#f5f3ff", "#e2dff5"], "rgba(79, 70, 229, 0.18)", "rgba(129, 140, 248, 0.32)")
       );
       addWall(
         ROOM_DEPTH,
         ROOM_HEIGHT,
         [-ROOM_WIDTH / 2, 2.1, 0],
         [0, Math.PI / 2, 0],
-        wallMaterial(["#e0f7f5", "#b9d7df"], "rgba(13, 148, 136, 0.2)", "rgba(20, 184, 166, 0.32)")
+        wallMaterial(["#edfaf8", "#d5ecea"], "rgba(13, 148, 136, 0.2)", "rgba(20, 184, 166, 0.32)")
       );
       addWall(
         ROOM_DEPTH,
         ROOM_HEIGHT,
         [ROOM_WIDTH / 2, 2.1, 0],
         [0, -Math.PI / 2, 0],
-        wallMaterial(["#f5f3ff", "#cfd5ea"], "rgba(99, 102, 241, 0.18)", "rgba(168, 85, 247, 0.28)")
+        wallMaterial(["#f6f2ff", "#e4ddf6"], "rgba(99, 102, 241, 0.18)", "rgba(168, 85, 247, 0.28)")
       );
 
       const floor = new THREE.Mesh(
         new THREE.PlaneGeometry(ROOM_WIDTH, ROOM_DEPTH),
         new THREE.MeshStandardMaterial({
-          map: makeRoomTexture(THREE, ["#9aa9b8", "#64748b"], "rgba(15, 23, 42, 0.2)", "rgba(14, 165, 233, 0.24)"),
+          map: makeRoomTexture(THREE, ["#e1e8f4", "#b8c8df"], "rgba(15, 23, 42, 0.2)", "rgba(14, 165, 233, 0.24)"),
           roughness: 0.82,
           metalness: 0.04,
           side: THREE.FrontSide,
@@ -401,7 +401,7 @@ export default function Knowledge3DRoom({
         new THREE.MeshBasicMaterial({
           color: 0x38bdf8,
           transparent: true,
-          opacity: 0.18,
+          opacity: 0.07,
           side: THREE.DoubleSide,
           depthWrite: false,
         })
@@ -457,13 +457,13 @@ export default function Knowledge3DRoom({
           mobileScale: 0.0087,
         },
         {
-          object: addCssWall(wallHosts.inbox, [-ROOM_WIDTH / 2 + 0.08, 2.15, -0.55], [0, Math.PI / 2, 0], 0.0067),
-          scale: 0.0067,
+          object: addCssWall(wallHosts.inbox, [-ROOM_WIDTH / 2 + 0.08, 2.15, -0.55], [0, Math.PI / 2, 0], PANEL_SCALE),
+          scale: PANEL_SCALE,
           mobileScale: 0.0081,
         },
         {
-          object: addCssWall(wallHosts.review, [ROOM_WIDTH / 2 - 0.08, 2.15, -0.55], [0, -Math.PI / 2, 0], 0.0067),
-          scale: 0.0067,
+          object: addCssWall(wallHosts.review, [ROOM_WIDTH / 2 - 0.08, 2.15, -0.55], [0, -Math.PI / 2, 0], PANEL_SCALE),
+          scale: PANEL_SCALE,
           mobileScale: 0.0081,
         },
         {
@@ -505,24 +505,30 @@ export default function Knowledge3DRoom({
         const isMobile = width < 720;
         renderer.setSize(width, height, false);
         cssRenderer.setSize(width, height);
-        camera.fov = isMobile ? 46 : 58;
+        camera.fov = isMobile ? 46 : 50;
         camera.aspect = width / Math.max(height, 1);
         if (isMobile) {
           camera.position.z = clamp(camera.position.z, -1.6, 3.7);
-          camera.position.y = clamp(camera.position.y, 1.05, 1.7);
+          camera.position.y = clamp(camera.position.y, 1.8, 2.2);
         } else {
           camera.position.z = clamp(camera.position.z, -ROOM_DEPTH / 2 + 1.2, ROOM_DEPTH / 2 - 1.2);
-          camera.position.y = clamp(camera.position.y, 1.2, 2.1);
+          camera.position.y = clamp(camera.position.y, 1.8, 2.2);
         }
         cssWallObjects.forEach((entry) => {
-          entry.object.scale.setScalar(isMobile ? entry.mobileScale : entry.scale);
+          // Keep a large, readable wall framed between the room toolbar and search controls.
+          const distance = camera.position.z + ROOM_DEPTH / 2;
+          const visibleHeight = 2 * distance * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+          const element = entry.object.element;
+          const fitWidth = visibleHeight * camera.aspect * 0.86 / element.offsetWidth;
+          const fitHeight = visibleHeight * 0.68 / element.offsetHeight;
+          entry.object.scale.setScalar(Math.min(isMobile ? entry.mobileScale : entry.scale, fitWidth, fitHeight));
         });
         camera.updateProjectionMatrix();
       };
 
       const handlePointerDown = (event) => {
-        shell.focus({ preventScroll: true });
         if (isWallInteraction(event.target)) return;
+        shell.focus({ preventScroll: true });
         controls.dragging = true;
         controls.lastX = event.clientX;
         controls.lastY = event.clientY;
@@ -590,6 +596,8 @@ export default function Knowledge3DRoom({
       shell.addEventListener("pointercancel", handlePointerUp);
       shell.addEventListener("wheel", handleWheel, { passive: false });
       window.addEventListener("resize", resize);
+      const resizeObserver = new ResizeObserver(resize);
+      resizeObserver.observe(shell);
       window.addEventListener("keydown", handleKeyDown);
 
       return () => {
@@ -600,6 +608,7 @@ export default function Knowledge3DRoom({
         shell.removeEventListener("pointercancel", handlePointerUp);
         shell.removeEventListener("wheel", handleWheel);
         window.removeEventListener("resize", resize);
+        resizeObserver.disconnect();
         window.removeEventListener("keydown", handleKeyDown);
         cssRenderer.domElement.remove();
         const disposedMaterials = new Set();

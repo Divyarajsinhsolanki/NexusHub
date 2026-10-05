@@ -1,3 +1,4 @@
+import MemberProfileCard from "../components/ui/MemberProfileCard";
 import React, { useEffect, useState, useContext, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -72,14 +73,15 @@ const Avatar = ({ name, src, size = 'md', className = '' }) => {
   );
 };
 
-const AvatarStack = ({ members, max = 4, size = 'sm' }) => {
-  const visible = members.slice(0, max);
-  const remaining = members.length - max;
+const AvatarStack = ({ members = [], max = 4, size = 'sm' }) => {
+  const safeMembers = Array.isArray(members) ? members.filter(Boolean) : [];
+  const visible = safeMembers.slice(0, max);
+  const remaining = safeMembers.length - max;
   return (
     <div className="flex items-center -space-x-2">
       {visible.map((member, i) => (
         <div key={member.id || i} className="relative z-0 hover:z-10 transition-transform hover:scale-105">
-          <Avatar name={member.full_name} src={member.profile_picture_url} size={size} />
+          <MemberProfileCard member={member} compact><Avatar name={member.full_name} src={member.profile_picture_url} size={size} /></MemberProfileCard>
         </div>
       ))}
       {remaining > 0 && (
@@ -381,7 +383,7 @@ const DepartmentCard = ({ department, viewMode, canManage, onEdit, onDelete }) =
 
           {department.manager ? (
             <div className="hidden md:flex items-center gap-2">
-              <Avatar name={department.manager.full_name} src={department.manager.profile_picture_url} size="sm" />
+              <MemberProfileCard member={department.manager} compact><Avatar name={department.manager.full_name} src={department.manager.profile_picture_url} size="sm" /></MemberProfileCard>
               <div className="text-xs">
                 <p className="font-medium text-slate-700 dark:text-slate-300">{department.manager.full_name}</p>
                 <p className="text-slate-400">Lead</p>
@@ -396,7 +398,7 @@ const DepartmentCard = ({ department, viewMode, canManage, onEdit, onDelete }) =
               <FiArrowRight />
             </Link>
             {canManage && (
-              <div className="relative group/menu">
+              <div className="relative z-10 group/menu">
                 <button className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg">
                   <FiMoreVertical />
                 </button>
@@ -423,7 +425,7 @@ const DepartmentCard = ({ department, viewMode, canManage, onEdit, onDelete }) =
           <FiBriefcase className="text-2xl" />
         </div>
         {canManage && (
-          <div className="relative group/menu">
+          <div className="relative z-10 group/menu">
             <button className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg">
               <FiMoreVertical />
             </button>
@@ -439,7 +441,7 @@ const DepartmentCard = ({ department, viewMode, canManage, onEdit, onDelete }) =
         )}
       </div>
 
-      <Link to={`/departments/${department.id}`} className="block mb-4">
+      <Link to={`/departments/${department.id}`} className="relative z-10 block mb-4">
         <h3 className="text-lg font-bold text-slate-900 dark:text-white group-hover:text-[var(--theme-color)] transition-colors">
           {department.name}
         </h3>
@@ -461,9 +463,7 @@ const DepartmentCard = ({ department, viewMode, canManage, onEdit, onDelete }) =
         {department.manager && (
           <div className="text-right">
             <p className="text-xs text-slate-400 uppercase mb-1 font-semibold">Lead</p>
-            <Link to={`/profile/${department.manager.id}`} className="block">
-              <Avatar name={department.manager.full_name} src={department.manager.profile_picture_url} size="sm" className="ml-auto" />
-            </Link>
+            <MemberProfileCard member={department.manager} compact><Avatar name={department.manager.full_name} src={department.manager.profile_picture_url} size="sm" /></MemberProfileCard>
           </div>
         )}
       </div>
