@@ -1,0 +1,20 @@
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { expect, jest, test } from '@jest/globals';
+import ForgotPasswordScreen from '../../app/forgot-password';
+import { useAuth } from '../auth/AuthProvider';
+const mockReplace = jest.fn();
+jest.mock('expo-router', () => ({ useRouter: () => ({ replace: mockReplace }) }));
+jest.mock('../auth/AuthProvider', () => ({ useAuth: jest.fn() }));
+test('a failed reset stays editable and does not show a success confirmation', async () => {
+  const forgotPassword = jest.fn<() => Promise<void>>().mockRejectedValue(new Error('Reset failed'));
+  (useAuth as jest.MockedFunction<typeof useAuth>).mockReturnValue({ forgotPassword } as never);
+  const screen = await render(<ForgotPasswordScreen />);
+  await fireEvent.changeText(screen.getByLabelText('Email'), 'alex@example.com');
+  await fireEvent.press(screen.getByRole('button', { name: 'Send reset link' }));
+  await waitFor(() => expect(forgotPassword).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy());
+  expect(screen.queryByText(/a reset link is on the way/)).toBeNull();
+  expect(screen.getByLabelText('Email')).toBeTruthy();
+  await fireEvent.press(screen.getByRole('link', { name: 'Back to sign in' }));
+  expect(mockReplace).toHaveBeenCalledWith('/login');
+});

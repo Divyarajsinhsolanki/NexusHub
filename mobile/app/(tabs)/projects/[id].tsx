@@ -1,3 +1,4 @@
+import { canOpenProject } from "@/src/utils/projectAccess";
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, BarChart3, Bug, Columns3, FolderLock, ListTree, Plus, Server, Settings2, TimerReset, Users } from 'lucide-react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -26,13 +27,15 @@ export default function ProjectDetailScreen() {
   const { user } = useAuth();
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const project = useQuery({ queryKey: ['project', projectId], queryFn: () => endpoints.project(projectId), enabled: Number.isFinite(projectId) });
-  const sprints = useQuery({ queryKey: ['project-sprints', projectId], queryFn: () => endpoints.sprints(projectId), enabled: Number.isFinite(projectId) });
-  const tasks = useQuery({ queryKey: ['project-tasks', projectId], queryFn: () => endpoints.tasks({ project_id: projectId, per_page: 100 }), enabled: Number.isFinite(projectId) });
+  const sprints = useQuery({ queryKey: ['project-sprints', projectId], queryFn: () => endpoints.sprints(projectId), enabled: canOpenProject(project.data, user) });
+  const tasks = useQuery({ queryKey: ['project-tasks', projectId], queryFn: () => endpoints.tasks({ project_id: projectId, per_page: 100 }), enabled: canOpenProject(project.data, user) });
   const taskStatus = useTaskStatus();
   const refreshing = project.isRefetching || sprints.isRefetching || tasks.isRefetching;
   const taskData = [...(tasks.data?.data || [])].sort((a, b) => (a.id === selectedTaskId ? -1 : b.id === selectedTaskId ? 1 : 0));
   const refresh = () => Promise.all([project.refetch(), sprints.refetch(), tasks.refetch()]);
   const changeStatus = (id: number, status: TaskStatus) => taskStatus.mutate({ id, status });
+
+  if (project.data && !canOpenProject(project.data, user)) return <Screen header={<PageHeader title="Project access" subtitle="Workspace membership required" />}><EmptyState title="Project access required" message="Ask a project manager to add you to this workspace." /></Screen>;
 
   return (
     <Screen
@@ -42,17 +45,17 @@ export default function ProjectDetailScreen() {
       {project.data ? (
         <ScrollView contentContainerStyle={styles.scroll} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.primary} />}>
           {project.data.description ? <Text style={[styles.description, { color: theme.textMuted }]}>{project.data.description}</Text> : null}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tools}>
-            <ProjectTool icon={Columns3} label="Board" onPress={() => router.push(`/projects/${projectId}/board` as never)} />
+          <View style={[styles.tools, { flexWrap: 'wrap' }]}>
+            <ProjectTool icon={Columns3} label="Todo" onPress={() => router.push(`/projects/${projectId}/board` as never)} />
             <ProjectTool icon={Users} label="Members" onPress={() => router.push(`/projects/${projectId}/members` as never)} />
-            <ProjectTool icon={ListTree} label="Sprints" onPress={() => router.push(`/projects/${projectId}/sprints` as never)} />
+            <ProjectTool icon={ListTree} label="Scheduler" onPress={() => router.push(`/projects/${projectId}/scheduler` as never)} />
             <ProjectTool icon={BarChart3} label="Statistics" onPress={() => router.push(`/projects/${projectId}/statistics` as never)} />
             <ProjectTool icon={Bug} label="Issues" onPress={() => router.push(`/projects/${projectId}/issues` as never)} />
             <ProjectTool icon={TimerReset} label="Logs" onPress={() => router.push(`/projects/${projectId}/logs` as never)} />
             <ProjectTool icon={Server} label="Environments" onPress={() => router.push(`/projects/${projectId}/environments` as never)} />
             <ProjectTool icon={FolderLock} label="Vault" onPress={() => router.push(`/projects/${projectId}/vault` as never)} />
-            <ProjectTool icon={Settings2} label="Settings" onPress={() => router.push(`/projects/${projectId}/settings` as never)} />
-          </ScrollView>
+            {user?.permissions?.includes('projects.manage') && !user.demo_account ? <ProjectTool icon={Settings2} label="Settings" onPress={() => router.push(`/projects/${projectId}/settings` as never)} /> : null}
+          </View>
           <Text style={[styles.heading, { color: theme.text }]}>Sprints</Text>
           <View style={styles.sprints}>
             {sprints.data?.length ? sprints.data.map((sprint) => (
@@ -85,15 +88,15 @@ function ProjectTool({ icon: Icon, label, onPress }: { icon: typeof Users; label
 
 const styles = StyleSheet.create({
   back: { alignItems: 'center', height: 42, justifyContent: 'center', width: 42 },
-  add: { alignItems: 'center', borderRadius: 8, elevation: 1, height: 42, justifyContent: 'center', shadowOffset: { height: 2, width: 0 }, shadowOpacity: 0.1, shadowRadius: 5, width: 42 },
+  add: { alignItems: 'center', borderRadius: 14, elevation: 1, height: 42, justifyContent: 'center', shadowOffset: { height: 2, width: 0 }, shadowOpacity: 0.1, shadowRadius: 5, width: 42 },
   scroll: { padding: 20, paddingBottom: 40 },
   description: { fontSize: 14, lineHeight: 21 },
-  tools: { gap: 8, paddingRight: 16, paddingTop: 18 },
-  tool: { alignItems: 'center', borderRadius: 8, borderWidth: 1, elevation: 1, flexDirection: 'row', gap: 7, minHeight: 44, paddingHorizontal: 11, shadowOffset: { height: 3, width: 0 }, shadowOpacity: 0.07, shadowRadius: 8 },
+  tools: { flexDirection: 'row', gap: 8, paddingRight: 16, paddingTop: 18 },
+  tool: { alignItems: 'center', borderRadius: 14, borderWidth: 1, elevation: 1, flexDirection: 'row', gap: 7, minHeight: 44, paddingHorizontal: 11, shadowOffset: { height: 3, width: 0 }, shadowOpacity: 0.07, shadowRadius: 8 },
   toolLabel: { fontSize: 12, fontWeight: '800' },
   heading: { fontSize: 17, fontWeight: '800', marginBottom: 11, marginTop: 24 },
   sprints: { gap: 8 },
-  sprint: { borderRadius: 8, borderWidth: 1, elevation: 1, padding: 13, shadowOffset: { height: 3, width: 0 }, shadowOpacity: 0.07, shadowRadius: 8 },
+  sprint: { borderRadius: 14, borderWidth: 1, elevation: 1, padding: 13, shadowOffset: { height: 3, width: 0 }, shadowOpacity: 0.07, shadowRadius: 8 },
   sprintRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   sprintName: { fontSize: 15, fontWeight: '700' },
   sprintStatus: { fontSize: 11, fontWeight: '700', textTransform: 'capitalize' },

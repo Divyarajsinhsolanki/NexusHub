@@ -1,3 +1,4 @@
+import { canOpenProject } from "@/src/utils/projectAccess";
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, FolderKanban, Plus, Search, Trash2, X } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
@@ -61,26 +62,15 @@ export default function ProjectsScreen() {
 function ProjectRow({ project, onEdit }: { project: Project; onEdit?: () => void }) {
   const theme = useAppTheme();
   const router = useRouter();
-  return (
-    <TouchableScale
-      accessibilityLabel={`Open ${project.name}`}
-      accessibilityRole="button"
-      onLongPress={onEdit}
-      onPress={() => router.push(`/projects/${project.id}`)}
-      scaleTo={0.985}
-      style={[styles.card, { backgroundColor: theme.surfaceRaised, borderColor: theme.border, shadowColor: theme.shadow }]}>
+  const { user } = useAuth();
+  const accessible = canOpenProject(project, user);
+  return <View style={[styles.card, { flexDirection: 'column', alignItems: 'stretch', backgroundColor: theme.surfaceRaised, borderColor: theme.border }]}>
+    <Pressable accessibilityRole="button" accessibilityLabel={`View ${project.name}`} onLongPress={onEdit} onPress={() => accessible ? router.push(`/projects/${project.id}`) : Alert.alert('Project access', 'Ask a project manager to add you to this project.')} style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
       <View style={[styles.icon, { backgroundColor: theme.primarySoft }]}><FolderKanban color={theme.primary} size={22} /></View>
-      <View style={styles.copy}>
-        <View style={styles.titleRow}>
-          <Text numberOfLines={1} style={[styles.title, { color: theme.text }]}>{project.name}</Text>
-          <Text style={[styles.status, { backgroundColor: project.status === 'completed' ? (theme.isDark ? '#143d25' : '#dcfce7') : theme.primarySoft, color: project.status === 'completed' ? theme.success : theme.primary }]}>{project.status}</Text>
-        </View>
-        {project.description ? <Text numberOfLines={2} style={[styles.description, { color: theme.textMuted }]}>{project.description}</Text> : null}
-        <Text style={[styles.meta, { color: theme.textMuted }]}>{project.sprint_count} sprints · {project.task_count} tasks</Text>
-      </View>
-      <ChevronRight color={theme.textMuted} size={20} />
-    </TouchableScale>
-  );
+      <View style={styles.copy}><Text style={[styles.title, { color: theme.text }]}>{project.name}</Text><Text style={[styles.description, { color: theme.textMuted }]} numberOfLines={2}>{project.description || 'Project workspace'}</Text><Text style={[styles.meta, { color: theme.textMuted }]}>{project.status} · {project.task_count} tasks</Text></View><ChevronRight color={theme.textMuted} size={20} />
+    </Pressable>
+    {accessible ? <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{[['Overview', ''], ['Scheduler', '/scheduler'], ['Todo', '/board']].map(([label, suffix]) => <Pressable key={label} accessibilityRole="button" onPress={() => router.push(`/projects/${project.id}${suffix}` as never)} style={{ minHeight: 44, paddingHorizontal: 12, borderRadius: 10, justifyContent: 'center', backgroundColor: theme.primarySoft }}><Text style={{ color: theme.primary, fontSize: 12, fontWeight: '700' }}>{label}</Text></Pressable>)}</View> : <Text style={{ color: theme.textMuted, fontSize: 12 }}>Membership required to open workspace sections.</Text>}
+  </View>;
 }
 
 function ProjectField({ label, value, onChangeText, multiline, placeholder }: { label: string; value: string; onChangeText: (value: string) => void; multiline?: boolean; placeholder?: string }) { const theme = useAppTheme(); return <View><Text style={[styles.label, { color: theme.text }]}>{label}</Text><TextInput accessibilityLabel={label} multiline={multiline} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor={theme.textMuted} style={[styles.field, multiline && styles.multiline, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }]} value={value} /></View>; }
@@ -91,8 +81,8 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, fontSize: 14, minHeight: 42, paddingHorizontal: 9, paddingVertical: 8 },
   filter: { borderRadius: 16, borderWidth: 1, justifyContent: 'center', marginRight: 7, minHeight: 32, paddingHorizontal: 12 },
   list: { flexGrow: 1, gap: 9, padding: 16, paddingBottom: 32 },
-  add: { alignItems: 'center', borderRadius: 8, elevation: 1, height: 42, justifyContent: 'center', shadowOffset: { height: 2, width: 0 }, shadowOpacity: 0.1, shadowRadius: 5, width: 42 },
-  card: { alignItems: 'center', borderRadius: 8, borderWidth: 1, elevation: 1, flexDirection: 'row', gap: 12, padding: 14, shadowOffset: { height: 3, width: 0 }, shadowOpacity: 0.08, shadowRadius: 8 },
+  add: { alignItems: 'center', borderRadius: 14, elevation: 1, height: 42, justifyContent: 'center', shadowOffset: { height: 2, width: 0 }, shadowOpacity: 0.1, shadowRadius: 5, width: 42 },
+  card: { alignItems: 'center', borderRadius: 14, borderWidth: 1, elevation: 1, flexDirection: 'row', gap: 12, padding: 14, shadowOffset: { height: 3, width: 0 }, shadowOpacity: 0.08, shadowRadius: 8 },
   icon: { alignItems: 'center', borderRadius: 6, height: 42, justifyContent: 'center', width: 42 },
   copy: { flex: 1 },
   titleRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
@@ -100,5 +90,5 @@ const styles = StyleSheet.create({
   status: { borderRadius: 6, fontSize: 11, fontWeight: '800', overflow: 'hidden', paddingHorizontal: 7, paddingVertical: 3, textTransform: 'capitalize' },
   description: { fontSize: 13, lineHeight: 18, marginTop: 5 },
   meta: { fontSize: 12, marginTop: 8 },
-  modal: { flex: 1 }, close: { alignItems: 'center', height: 44, justifyContent: 'center', width: 44 }, form: { gap: 17, padding: 20 }, label: { fontSize: 13, fontWeight: '700', marginBottom: 7 }, field: { borderRadius: 8, borderWidth: 1, fontSize: 15, minHeight: 46, paddingHorizontal: 12, paddingVertical: 11 }, multiline: { minHeight: 110, textAlignVertical: 'top' }, delete: { alignItems: 'center', flexDirection: 'row', gap: 8, justifyContent: 'center', minHeight: 48 },
+  modal: { flex: 1 }, close: { alignItems: 'center', height: 44, justifyContent: 'center', width: 44 }, form: { gap: 17, padding: 20 }, label: { fontSize: 13, fontWeight: '700', marginBottom: 7 }, field: { borderRadius: 14, borderWidth: 1, fontSize: 15, minHeight: 46, paddingHorizontal: 12, paddingVertical: 11 }, multiline: { minHeight: 110, textAlignVertical: 'top' }, delete: { alignItems: 'center', flexDirection: 'row', gap: 8, justifyContent: 'center', minHeight: 48 },
 });

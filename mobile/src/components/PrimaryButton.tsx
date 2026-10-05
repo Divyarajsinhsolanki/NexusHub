@@ -23,7 +23,7 @@ export function PrimaryButton({ label, onPress, loading = false, disabled = fals
 }
 
 const styles = StyleSheet.create({
-  button: { alignItems: 'center', borderRadius: 9, justifyContent: 'center', minHeight: 50, paddingHorizontal: 18 },
+  button: { alignItems: 'center', borderRadius: 12, justifyContent: 'center', minHeight: 52, paddingHorizontal: 18 },
   content: { alignItems: 'center', flexDirection: 'row', gap: 8 },
   label: { color: '#ffffff', fontSize: 16, fontWeight: '700' },
 });

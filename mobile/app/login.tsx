@@ -3,7 +3,7 @@ import * as Sentry from '@sentry/react-native';
 import { Controller, useForm } from 'react-hook-form';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, CircleAlert, Eye, EyeOff, PlayCircle } from 'lucide-react-native';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { z } from 'zod';
 
@@ -27,6 +27,7 @@ export default function LoginScreen() {
   const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
   const authQuery = returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : '';
   const { signIn, signInWithGoogle, signInDemo } = useAuth();
+  const authPending = useRef(false);
   const [showPassword, setShowPassword] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [demoLoading, setDemoLoading] = useState(false);
@@ -38,16 +39,22 @@ export default function LoginScreen() {
     formState: { errors, isSubmitting },
   } = useForm<LoginFields>({ resolver: zodResolver(schema), defaultValues: { email: '', password: '' } });
 
+  const busy = isSubmitting || googleLoading || demoLoading;
+
   const submit = handleSubmit(async ({ email, password }) => {
+    if (authPending.current) return;
+    authPending.current = true;
     setFeedback(null);
     try {
       await signIn(email, password);
     } catch (error) {
       handleAuthFailure(error, 'credentials', setFeedback);
-    }
+    } finally { authPending.current = false; }
   });
 
   const google = async () => {
+    if (authPending.current || busy) return;
+    authPending.current = true;
     setFeedback(null);
     setGoogleLoading(true);
     try {
@@ -57,11 +64,14 @@ export default function LoginScreen() {
         handleAuthFailure(error, 'google', setFeedback);
       }
     } finally {
+      authPending.current = false;
       setGoogleLoading(false);
     }
   };
 
   const demo = async () => {
+    if (authPending.current || busy) return;
+    authPending.current = true;
     setFeedback(null);
     setDemoLoading(true);
     try {
@@ -69,6 +79,7 @@ export default function LoginScreen() {
     } catch (error) {
       handleAuthFailure(error, 'demo', setFeedback);
     } finally {
+      authPending.current = false;
       setDemoLoading(false);
     }
   };
@@ -89,6 +100,7 @@ export default function LoginScreen() {
         render={({ field: { onBlur, onChange, value } }) => (
           <TextInput
             accessibilityLabel="Email"
+            editable={!busy}
             autoCapitalize="none"
             autoComplete="email"
             keyboardType="email-address"
@@ -116,6 +128,7 @@ export default function LoginScreen() {
           render={({ field: { onBlur, onChange, value } }) => (
             <TextInput
               accessibilityLabel="Password"
+              editable={!busy}
               autoComplete="password"
               onBlur={onBlur}
               onChangeText={(next) => { setFeedback(null); onChange(next); }}
@@ -141,7 +154,7 @@ export default function LoginScreen() {
           </View>
         </View>
       ) : null}
-      <PrimaryButton label="Sign in" loading={isSubmitting} onPress={submit} />
+      <PrimaryButton label="Sign in" disabled={googleLoading || demoLoading} loading={isSubmitting} onPress={submit} />
 
       {googleAuthConfigured ? (
         <>
@@ -150,7 +163,7 @@ export default function LoginScreen() {
             <Text style={[styles.dividerText, { color: theme.textMuted }]}>or</Text>
             <View style={[styles.divider, { backgroundColor: theme.border }]} />
           </View>
-          <Pressable accessibilityRole="button" disabled={googleLoading} onPress={google} style={[styles.googleButton, { borderColor: theme.border, backgroundColor: theme.surface }]}>
+          <Pressable accessibilityRole="button" disabled={busy} onPress={google} style={[styles.googleButton, { borderColor: theme.border, backgroundColor: theme.surface }]}>
             <View style={styles.googleMark}><Text style={styles.googleMarkText}>G</Text></View>
             <Text style={[styles.googleLabel, { color: theme.text }]}>{googleLoading ? 'Connecting...' : 'Continue with Google'}</Text>
           </Pressable>
@@ -172,24 +185,24 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   label: { fontSize: 14, fontWeight: '700', marginBottom: 8 },
-  input: { borderRadius: 8, borderWidth: 1, fontSize: 16, minHeight: 52, paddingHorizontal: 14 },
+  input: { borderRadius: 12, borderWidth: 1, fontSize: 16, minHeight: 52, paddingHorizontal: 14 },
   passwordInput: { paddingRight: 48 },
   eye: { alignItems: 'center', height: 52, justifyContent: 'center', position: 'absolute', right: 2, top: 0, width: 44 },
   passwordHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginTop: 17 },
   forgot: { fontSize: 13, fontWeight: '700', marginBottom: 8 },
   error: { fontSize: 12, marginTop: 5 },
-  feedback: { alignItems: 'flex-start', borderRadius: 8, borderWidth: 1, flexDirection: 'row', gap: 10, marginBottom: 14, marginTop: 14, padding: 12 },
+  feedback: { alignItems: 'flex-start', borderRadius: 12, borderWidth: 1, flexDirection: 'row', gap: 10, marginBottom: 14, marginTop: 14, padding: 12 },
   feedbackCopy: { flex: 1 },
   feedbackTitle: { fontSize: 13, fontWeight: '800' },
   feedbackMessage: { fontSize: 12, lineHeight: 17, marginTop: 3 },
   dividerRow: { alignItems: 'center', flexDirection: 'row', marginVertical: 22 },
   divider: { flex: 1, height: 1 },
   dividerText: { fontSize: 13, marginHorizontal: 12 },
-  googleButton: { alignItems: 'center', borderRadius: 8, borderWidth: 1, flexDirection: 'row', justifyContent: 'center', minHeight: 50 },
+  googleButton: { alignItems: 'center', borderRadius: 12, borderWidth: 1, flexDirection: 'row', justifyContent: 'center', minHeight: 50 },
   googleMark: { alignItems: 'center', backgroundColor: '#ffffff', borderColor: '#d9dee7', borderRadius: 10, borderWidth: 1, height: 22, justifyContent: 'center', width: 22 },
   googleMarkText: { color: '#4285f4', fontSize: 14, fontWeight: '900' },
   googleLabel: { fontSize: 15, fontWeight: '700', marginLeft: 9 },
-  demoPanel: { borderRadius: 8, borderWidth: 1, marginTop: 18, padding: 14 },
+  demoPanel: { borderRadius: 12, borderWidth: 1, marginTop: 18, padding: 14 },
   demoCopy: { marginBottom: 13 },
   demoTitle: { fontSize: 15, fontWeight: '800' },
   demoText: { fontSize: 12, lineHeight: 18, marginTop: 4 },

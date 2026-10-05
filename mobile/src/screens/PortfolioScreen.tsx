@@ -199,6 +199,7 @@ function ProfileHero({ colors, demoError, demoLoading, onDemo, profile, publicMo
       <Text style={[styles.summary, { color: colors.text }]}>{profile.summary}</Text>
       <View style={styles.skills}>{profile.skills.slice(0, 10).map((skill) => <View key={skill} style={[styles.skill, { backgroundColor: colors.surfaceMuted }]}><Text style={[styles.skillText, { color: colors.text }]}>{skill}</Text></View>)}</View>
       <View style={styles.heroActions}>
+        {socialLinks(profile).map((link) => <ActionButton key={link.label} colors={colors} icon={ExternalLink} label={link.label} onPress={() => openUrl(link.url)} />)}
         {publicMode ? <ActionButton colors={colors} icon={PlayCircle} label={demoLoading ? 'Opening demo...' : 'View demo'} onPress={() => onDemo('/more/demo')} primary /> : null}
         {publicMode ? <ActionButton colors={colors} icon={UserPlus} label="Create account" onPress={() => router.push('/signup')} /> : null}
         {profile.resume_url ? <ActionButton colors={colors} icon={Download} label="Resume" onPress={() => openUrl(absoluteAssetUrl(profile.resume_url))} /> : null}

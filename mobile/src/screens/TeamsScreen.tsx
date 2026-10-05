@@ -59,14 +59,14 @@ function Field({ label, value, onChangeText, multiline }: { label: string; value
 
 const styles = StyleSheet.create({
   iconButton: { alignItems: 'center', height: 44, justifyContent: 'center', width: 44 },
-  add: { alignItems: 'center', borderRadius: 8, height: 42, justifyContent: 'center', width: 42 },
-  search: { alignItems: 'center', borderRadius: 8, borderWidth: 1, flexDirection: 'row', marginHorizontal: 20, marginTop: 14, paddingLeft: 12 },
+  add: { alignItems: 'center', borderRadius: 14, height: 42, justifyContent: 'center', width: 42 },
+  search: { alignItems: 'center', borderRadius: 14, borderWidth: 1, flexDirection: 'row', marginHorizontal: 20, marginTop: 14, paddingLeft: 12 },
   searchInput: { flex: 1, fontSize: 14, minHeight: 44, paddingHorizontal: 9 },
   clear: { alignItems: 'center', height: 44, justifyContent: 'center', width: 40 },
   list: { padding: 20, paddingBottom: 44 },
-  row: { alignItems: 'center', borderRadius: 8, borderWidth: 1, flexDirection: 'row', marginBottom: 9, minHeight: 86 },
+  row: { alignItems: 'center', borderRadius: 14, borderWidth: 1, flexDirection: 'row', marginBottom: 9, minHeight: 86 },
   rowMain: { alignItems: 'center', flex: 1, flexDirection: 'row', minHeight: 84, paddingLeft: 12 },
-  teamIcon: { alignItems: 'center', borderRadius: 8, height: 44, justifyContent: 'center', marginRight: 12, width: 44 },
+  teamIcon: { alignItems: 'center', borderRadius: 14, height: 44, justifyContent: 'center', marginRight: 12, width: 44 },
   copy: { flex: 1 },
   name: { fontSize: 15, fontWeight: '800' },
   meta: { fontSize: 12, marginTop: 4 },
@@ -77,7 +77,7 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: 17, fontWeight: '800' },
   form: { gap: 18, padding: 20 },
   label: { fontSize: 13, fontWeight: '800', marginBottom: 7 },
-  field: { borderRadius: 8, borderWidth: 1, fontSize: 15, minHeight: 47, paddingHorizontal: 12, paddingVertical: 11 },
+  field: { borderRadius: 14, borderWidth: 1, fontSize: 15, minHeight: 47, paddingHorizontal: 12, paddingVertical: 11 },
   multiline: { minHeight: 112, textAlignVertical: 'top' },
   delete: { alignItems: 'center', flexDirection: 'row', gap: 8, justifyContent: 'center', minHeight: 48 },
 });

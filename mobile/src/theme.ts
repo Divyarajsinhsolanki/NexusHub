@@ -4,7 +4,7 @@ import { useColorScheme } from 'react-native';
 import { useAuth } from './auth/AuthProvider';
 
 const shared = {
-  primary: '#2563eb',
+  primary: '#346dff',
   primaryPressed: '#1d4ed8',
   success: '#15803d',
   warning: '#b45309',
@@ -27,15 +27,15 @@ const themePresetMap = Object.fromEntries(themePresets.map((preset) => [preset.k
 export const lightTheme = {
   ...shared,
   isDark: false,
-  background: '#f4f6f8',
+  background: '#eef3fb',
   surface: '#ffffff',
   surfaceRaised: '#ffffff',
-  surfaceMuted: '#e9edf2',
+  surfaceMuted: '#e8eef8',
   surfacePressed: '#eef2f7',
   primarySoft: '#dbeafe',
   text: '#172033',
   textMuted: '#667085',
-  border: '#d9dee7',
+  border: '#dce4f0',
   shadow: 'rgba(15, 23, 42, 0.14)',
   tabBar: '#ffffff',
 };
@@ -43,17 +43,17 @@ export const lightTheme = {
 export const darkTheme = {
   ...shared,
   isDark: true,
-  background: '#111315',
-  surface: '#1b1e22',
-  surfaceRaised: '#20242a',
-  surfaceMuted: '#252a30',
-  surfacePressed: '#303640',
+  background: '#0b1120',
+  surface: '#111827',
+  surfaceRaised: '#182235',
+  surfaceMuted: '#1e293b',
+  surfacePressed: '#263449',
   primarySoft: '#1e3a5f',
   text: '#f2f4f7',
   textMuted: '#a4acb9',
   border: '#343a43',
   shadow: 'rgba(0, 0, 0, 0.42)',
-  tabBar: '#181b1f',
+  tabBar: '#111827',
 };
 
 export type AppTheme = typeof lightTheme;
