@@ -226,6 +226,7 @@ const PublicPortfolio = () => {
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
 
+    document.documentElement.classList.add("portfolio-js-reveal");
     const elements = Array.from(document.querySelectorAll(".portfolio-reveal"));
     if (!elements.length) return undefined;
 
@@ -302,6 +303,12 @@ const PublicPortfolio = () => {
         }
 
         .portfolio-reveal {
+          opacity: 1;
+          filter: blur(0);
+          transform: translate3d(0, 0, 0) rotateX(0) rotateY(0) scale(1);
+        }
+
+        .portfolio-js-reveal .portfolio-reveal {
           opacity: 0;
           filter: blur(14px);
           transform:
@@ -318,7 +325,7 @@ const PublicPortfolio = () => {
           will-change: opacity, filter, transform;
         }
 
-        .portfolio-reveal.is-visible {
+        .portfolio-js-reveal .portfolio-reveal.is-visible {
           opacity: 1;
           filter: blur(0);
           transform: translate3d(0, 0, 0) rotateX(0) rotateY(0) scale(1);

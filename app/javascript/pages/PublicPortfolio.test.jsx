@@ -29,6 +29,8 @@ describe("PublicPortfolio", () => {
     expect(html).toContain("Divyarajsinh Solanki");
     expect(html).toContain("Nexus Hub");
     expect(html).toContain("Flagship Case Study");
+    expect(html).toContain("Feature Map");
+    expect(html).toContain("A large product, organized for a fast technical review.");
     expect(html).toContain("Project Delivery");
     expect(html).toContain("Planning and Focus");
     expect(html).toContain("Collaboration");

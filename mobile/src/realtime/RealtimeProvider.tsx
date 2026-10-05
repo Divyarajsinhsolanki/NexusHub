@@ -11,6 +11,8 @@ type Listener = (event: RealtimeEvent) => void;
 type ChannelRecord = {
   identifier: ChannelIdentifier;
   listeners: Set<Listener>;
+  confirmed: boolean;
+  queue: Array<{ action: string; payload: Record<string, unknown> }>;
   subscription?: Subscription;
 };
 
@@ -130,7 +132,7 @@ export class SharedRealtimeClient {
     const key = identifierKey(identifier);
     let record = this.channels.get(key);
     if (!record) {
-      record = { identifier, listeners: new Set() };
+      record = { identifier, listeners: new Set(), confirmed: false, queue: [] };
       this.channels.set(key, record);
       if (this.consumer) this.createSubscription(record);
     }
@@ -148,9 +150,15 @@ export class SharedRealtimeClient {
   }
 
   perform(identifier: ChannelIdentifier, action: string, payload: Record<string, unknown>) {
-    const subscription = this.channels.get(identifierKey(identifier))?.subscription;
-    if (!subscription) return false;
-    subscription.perform(action, payload);
+    const record = this.channels.get(identifierKey(identifier));
+    if (!record) return false;
+    if (!record.subscription || !record.confirmed) {
+      record.queue.push({ action, payload });
+      if (record.queue.length > 50) record.queue.shift();
+      if (!this.consumer) void this.connect();
+      return false;
+    }
+    record.subscription.perform(action, payload);
     return true;
   }
 
@@ -218,10 +226,13 @@ export class SharedRealtimeClient {
 
   private createSubscription(record: ChannelRecord) {
     if (!this.consumer || record.subscription) return;
+    record.confirmed = false;
     record.subscription = this.consumer.subscriptions.create(record.identifier, {
       connected: () => {
         this.attempts = 0;
         this.clearReconnectTimer();
+        record.confirmed = true;
+        this.flushQueue(record);
         this.onState('connected');
       },
       disconnected: () => {
@@ -251,9 +262,18 @@ export class SharedRealtimeClient {
     // Closing the shared socket removes all of its subscriptions server-side.
     // Sending an unsubscribe for every channel immediately before disconnect
     // races ActionCable and produces duplicate/unknown subscription commands.
-    this.channels.forEach((record) => { record.subscription = undefined; });
+    this.channels.forEach((record) => {
+      record.confirmed = false;
+      record.subscription = undefined;
+    });
     this.consumer?.disconnect();
     this.consumer = undefined;
+  }
+
+  private flushQueue(record: ChannelRecord) {
+    if (!record.subscription || !record.confirmed || !record.queue.length) return;
+    const queued = record.queue.splice(0, record.queue.length);
+    queued.forEach(({ action, payload }) => record.subscription?.perform(action, payload));
   }
 
   private clearReconnectTimer() {

@@ -57,6 +57,31 @@ describe('SharedRealtimeClient', () => {
     expect(endpoints.realtimeToken).toHaveBeenCalledTimes(2);
     client.destroy();
   });
+
+  test('queues channel actions until the subscription is connected', async () => {
+    let callbacks: { connected: () => void } | undefined;
+    const perform = jest.fn();
+    const createSubscription = jest.fn((_identifier, handlers: { connected: () => void }) => {
+      callbacks = handlers;
+      return { perform, unsubscribe: jest.fn() };
+    });
+    jest.mocked(endpoints.realtimeToken).mockResolvedValue({ token: 'token', expires_at: Date.now() + 60_000, url: 'wss://example.test/cable' });
+    jest.mocked(createConsumer).mockReturnValue({ disconnect: jest.fn(), subscriptions: { create: createSubscription } } as never);
+    const client = new SharedRealtimeClient(jest.fn());
+    const identifier = { channel: 'ChatChannel' as const, conversation_id: 7 };
+    client.setActive(true);
+    client.subscribe(identifier, jest.fn());
+
+    expect(client.perform(identifier, 'typing', { conversation_id: 7, is_typing: true })).toBe(false);
+    await flushPromises();
+    expect(perform).not.toHaveBeenCalled();
+
+    callbacks?.connected();
+    expect(perform).toHaveBeenCalledWith('typing', { conversation_id: 7, is_typing: true });
+    expect(client.perform(identifier, 'typing', { conversation_id: 7, is_typing: false })).toBe(true);
+    expect(perform).toHaveBeenLastCalledWith('typing', { conversation_id: 7, is_typing: false });
+    client.destroy();
+  });
 });
 
 async function flushPromises() {

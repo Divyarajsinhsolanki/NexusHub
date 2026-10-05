@@ -58,6 +58,7 @@ class PublicDiscoveryTest < ActionDispatch::IntegrationTest
     get "/"
 
     assert_response :success
+    assert_select 'meta[name="nexus-recaptcha-enabled"][content="true"]', count: 1
     assert_select 'meta[name="nexus-recaptcha-site-key"][content="recaptcha-site-key"]', count: 1
     assert_select 'meta[name="nexus-firebase-api-key"][content="firebase-api-key"]', count: 1
     assert_select 'meta[name="nexus-firebase-auth-domain"][content="example.firebaseapp.com"]', count: 1
