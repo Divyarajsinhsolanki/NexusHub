@@ -1,3 +1,4 @@
+import { canOpenProjectWorkspace } from "../utils/projectAccess";
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
@@ -261,10 +262,11 @@ const OverlayDrawer = ({ open, onClose, side = "left", label, id, className = ""
 };
 
 const ProjectContext = ({ projects, activeProjectId, onNavigate }) => {
+  const { user } = useContext(AuthContext);
   const location = useLocation();
   const activeProject = projects.find((project) => String(project.id) === String(activeProjectId));
   const currentTab = new URLSearchParams(location.search).get("tab") || (location.pathname.endsWith("/issues") ? "issues" : "overview");
-  const dashboardTabs = activeProject ? [
+  const dashboardTabs = canOpenProjectWorkspace(activeProject, user) ? [
     ["overview", "Overview", FiHome],
     ["scheduler", "Scheduler", FiCalendar],
     ["todo", "Todo", FiCheckCircle],
@@ -304,7 +306,7 @@ const ProjectContext = ({ projects, activeProjectId, onNavigate }) => {
         <Link to="/projects">View all</Link>
       </div>
       <div className="nexus-project-switcher">
-        {projects.slice(0, 12).map((project) => (
+        {projects.filter((project) => canOpenProjectWorkspace(project, user)).slice(0, 12).map((project) => (
           <Link
             key={project.id}
             to={`/projects/${project.id}/dashboard`}
@@ -315,7 +317,7 @@ const ProjectContext = ({ projects, activeProjectId, onNavigate }) => {
             <span><strong>{project.name}</strong><small>{project.status || "Running"}</small></span>
           </Link>
         ))}
-        {!projects.length ? <p className="nexus-context-empty">No projects available.</p> : null}
+        {!projects.some((project) => canOpenProjectWorkspace(project, user)) ? <p className="nexus-context-empty">No project workspaces assigned. View all projects to see available teams.</p> : null}
       </div>
     </>
   );

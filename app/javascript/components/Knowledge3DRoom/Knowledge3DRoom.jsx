@@ -229,6 +229,7 @@ export default function Knowledge3DRoom({
   const [threeModules, setThreeModules] = useState(null);
   const [threeError, setThreeError] = useState(null);
   const [expandedCardId, setExpandedCardId] = useState(null);
+  const [viewMode, setViewMode] = useState("overview");
   const [showFilters, setShowFilters] = useState(false);
   const [showCategories, setShowCategories] = useState(false);
 
@@ -695,10 +696,10 @@ export default function Knowledge3DRoom({
   }
 
   return (
-    <div ref={shellRef} className={styles.roomShell} tabIndex={0}>
+    <div ref={shellRef} className={`${styles.roomShell} ${viewMode === "overview" ? styles.overviewMode : ""}`} tabIndex={0}>
       <canvas ref={canvasRef} className={styles.roomCanvas} aria-label="Three.js knowledge room" />
 
-      {!threeModules ? (
+      {!threeModules && viewMode === "room" ? (
         <div className={styles.loadingLayer}>
           <div>
             <span>Loading Three.js room</span>
@@ -713,11 +714,24 @@ export default function Knowledge3DRoom({
           <strong>{filteredCardsLength} visible cards</strong>
         </div>
         <div className={styles.statStrip}>
+          <div className={styles.viewToggle} role="group" aria-label="Knowledge layout">
+            <button type="button" aria-pressed={viewMode === "overview"} onClick={() => setViewMode("overview")}>All cards</button>
+            <button type="button" aria-pressed={viewMode === "room"} onClick={() => setViewMode("room")}>3D room</button>
+          </div>
           <span>{knowledgeItems.filter((item) => item.active).length} MCP active</span>
           <span>{savedCount} saved</span>
           <span>{dueCount} due</span>
         </div>
       </div>
+
+      {viewMode === "overview" && <main className={styles.overviewGrid} aria-label="All knowledge cards" data-wall-interactive="true" style={{ "--overview-columns": Math.max(3, Math.ceil(Math.sqrt(filteredCards.length * 1.8))) }}>
+        {filteredCards.length ? filteredCards.map((card) => <button type="button" key={card.key} className={styles.overviewCard} onClick={() => setExpandedCardId(card.key)}>
+          <span>{card.metadata?.category || card.roomSection || "Knowledge"}</span>
+          <strong>{card.metadata?.title || card.title || "Knowledge card"}</strong>
+          <small>{card.metadata?.summary || "Open to read, save, or review this card."}</small>
+          <FiMaximize2 aria-hidden="true" />
+        </button>) : <div className={styles.emptyWall}>{isLoading ? "Loading knowledge cards…" : "No cards match this view. Try another category or clear your filters."}</div>}
+      </main>}
 
       <div className={styles.searchPanel} data-wall-interactive="true">
         <FiSearch className={styles.searchIcon} />
@@ -809,7 +823,7 @@ export default function Knowledge3DRoom({
         </div>
       ) : null}
 
-      {wallHosts?.feed
+      {viewMode === "room" && wallHosts?.feed
         ? createPortal(
             <WallPanel
               title="Live Knowledge Feed"
@@ -823,7 +837,7 @@ export default function Knowledge3DRoom({
           )
         : null}
 
-      {wallHosts?.inbox
+      {viewMode === "room" && wallHosts?.inbox
         ? createPortal(
             <WallPanel
               title="ChatGPT MCP Inbox"
@@ -837,7 +851,7 @@ export default function Knowledge3DRoom({
           )
         : null}
 
-      {wallHosts?.review
+      {viewMode === "room" && wallHosts?.review
         ? createPortal(
             <WallPanel
               title="Saved And Due Reviews"
@@ -851,7 +865,7 @@ export default function Knowledge3DRoom({
           )
         : null}
 
-      {wallHosts?.history
+      {viewMode === "room" && wallHosts?.history
         ? createPortal(
             <WallPanel
               title="Prompt History"

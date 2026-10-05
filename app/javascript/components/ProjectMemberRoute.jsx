@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { Navigate, useParams } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import { fetchProjects } from "./api";
+import { canOpenProjectWorkspace } from "../utils/projectAccess";
 import PageLoader from "./ui/PageLoader";
 import AccessDeniedRedirect from "./AccessDeniedRedirect";
 
@@ -20,7 +21,7 @@ const ProjectMemberRoute = ({ children }) => {
       .then(({ data }) => {
         const projects = Array.isArray(data) ? data : [];
         const project = projects.find((p) => p.id === Number(projectId));
-        const member = project?.users?.some((u) => u.id === user?.id);
+        const member = canOpenProjectWorkspace(project, user);
         if (mounted) {
           setProject(member ? project : null);
           setIsMember(!!member);

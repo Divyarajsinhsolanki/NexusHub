@@ -1,3 +1,4 @@
+import PostImage from "./PostImage";
 import React, { useContext } from "react";
 import toast from "react-hot-toast";
 import { formatDistanceToNow } from 'date-fns';
@@ -401,15 +402,7 @@ const PostList = ({ posts, refreshPosts, onPostUpdate = () => {}, onPostDelete =
           </div>
           
           {/* Attached Image */}
-          {post.image_url && (
-            <div className="border-t border-b border-slate-100 bg-slate-50">
-              <img 
-                src={post.image_url} 
-                alt="Post content" 
-                className="w-full h-auto max-h-[500px] object-contain mx-auto" 
-              loading="lazy" />
-            </div>
-          )}
+          <PostImage src={post.image_url} />
 
           {/* Post Actions */}
             <div className="px-5 py-3 border-t border-slate-100">

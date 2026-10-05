@@ -28,6 +28,7 @@ function AuthPage({ mode = "login" }) {
 
   return (
     <div className="relative min-h-dvh overflow-x-hidden auth-page bg-shell-bg">
+      <div className="auth-background-design" aria-hidden="true"><span /><span /><span /><div className="auth-background-grid" /></div>
       <div className="relative z-10 flex min-h-dvh items-center px-4 py-10 sm:px-6 lg:px-8">
         {current === "signup" ? (
           <Signup switchToLogin={() => setCurrent("login")} />

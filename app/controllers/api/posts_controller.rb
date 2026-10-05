@@ -102,7 +102,7 @@ class Api::PostsController < Api::BaseController
     {
       id: post.id,
       message: post.message,
-      image_url: post.image.attached? ? rails_blob_url(post.image, disposition: 'attachment', only_path: true) : nil,
+      image_url: post.image.attached? ? rails_blob_url(post.image, disposition: 'inline', only_path: true) : nil,
       created_at: post.created_at.iso8601,
       likes_count: likes_count,
       liked_by_current_user: liked_by_current,

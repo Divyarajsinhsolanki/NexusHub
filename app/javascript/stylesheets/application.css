@@ -3671,3 +3671,13 @@ html[data-nexus-nav="collapsed"] {
 a.member-profile-contact:hover { color: var(--theme-color); }
 .member-profile-view { display: flex; align-items: center; justify-content: center; gap: 0.5rem; margin-top: 1rem; padding: 0.65rem 1rem; border: 1px solid var(--shell-border); border-radius: 10px; color: var(--theme-color); background: rgb(var(--theme-color-rgb) / 0.08); font-size: 0.875rem; font-weight: 600; }
 .member-profile-popover :is(a, button):focus-visible { outline: 2px solid var(--theme-color); outline-offset: 2px; }
+
+.auth-background-design { position: absolute; inset: 0; overflow: hidden; pointer-events: none; background: radial-gradient(ellipse at 80% 20%, rgb(var(--theme-color-rgb) / 0.14), transparent 55%), radial-gradient(ellipse at 10% 90%, rgb(var(--theme-secondary-rgb) / 0.18), transparent 50%); }
+.auth-background-design > span { position: absolute; width: 560px; height: 560px; border: 1px solid rgb(var(--theme-color-rgb) / 0.12); border-radius: 50%; right: -120px; top: -160px; box-shadow: 0 0 0 60px rgb(var(--theme-color-rgb) / 0.025), 0 0 0 120px rgb(var(--theme-color-rgb) / 0.025); }
+.auth-background-design > span:nth-child(2) { width: 280px; height: 280px; top: auto; right: auto; left: -80px; bottom: -60px; }
+.auth-background-design > span:nth-child(3) { width: 100px; height: 100px; top: 18%; right: 40%; border-radius: 24px; transform: rotate(25deg); box-shadow: none; background: rgb(var(--theme-color-rgb) / 0.03); }
+.auth-background-grid { position: absolute; inset: 0; background-image: radial-gradient(rgb(var(--theme-color-rgb) / 0.13) 1px, transparent 1px); background-size: 28px 28px; mask-image: linear-gradient(to bottom, #000, transparent 85%); }
+.project-quick-links { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.project-quick-links a { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--shell-border); border-radius: 8px; padding: 8px 10px; font-size: 12px; font-weight: 600; color: var(--theme-color); background: rgb(var(--theme-color-rgb) / 0.06); }
+.project-quick-links a:hover { background: rgb(var(--theme-color-rgb) / 0.12); }
+.project-quick-links a:focus-visible { outline: 2px solid var(--theme-color); outline-offset: 2px; }

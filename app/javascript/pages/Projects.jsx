@@ -1,3 +1,4 @@
+import { canOpenProjectWorkspace } from "../utils/projectAccess";
 import MemberProfileCard from "../components/ui/MemberProfileCard";
 import React, { useEffect, useState, useContext, useCallback } from "react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -995,6 +996,9 @@ const Projects = () => {
                                                             {projectUsers.length} member{projectUsers.length !== 1 ? 's' : ''}
                                                         </span>
                                                     </div>
+                                                    {canOpenProjectWorkspace(project, user) && <nav className="project-quick-links mt-3" aria-label={`${project.name} sections`}>
+                                                      {PROJECT_WORKSPACE_TABS.slice(0, 3).map(({ key, label, icon: Icon }) => <Link key={key} to={projectWorkspacePath(project, key, projectViewMode)} onClick={(event) => event.stopPropagation()}><Icon aria-hidden="true" />{label}</Link>)}
+                                                    </nav>}
                                                 </motion.div>
                                             );
                                         })}
@@ -1411,7 +1415,7 @@ const Projects = () => {
                                                 </span>
                                             </div>
                                         )}
-                                        {selectedProject.sheet_integration_enabled && selectedProject.sheet_id && (
+                                        {canOpenProjectWorkspace(selectedProject, user) && selectedProject.sheet_integration_enabled && selectedProject.sheet_id && (
                                             <a
                                                 href={`https://docs.google.com/spreadsheets/d/${selectedProject.sheet_id}`}
                                                 target="_blank"
@@ -1421,7 +1425,7 @@ const Projects = () => {
                                                 <FiLink className="h-5 w-5" /> Integrated Google Sheet
                                             </a>
                                         )}
-                                        {selectedProject.sheet_integration_enabled && selectedProject.issue_sheet_id && (
+                                        {canOpenProjectWorkspace(selectedProject, user) && selectedProject.sheet_integration_enabled && selectedProject.issue_sheet_id && (
                                             <a
                                                 href={`https://docs.google.com/spreadsheets/d/${selectedProject.issue_sheet_id}`}
                                                 target="_blank"
@@ -1450,7 +1454,7 @@ const Projects = () => {
                                         </div>
                                     )}
                                 </div>
-                                <nav className="nexus-project-direct-nav" aria-label={`${selectedProject.name} workspace`}>
+                                {canOpenProjectWorkspace(selectedProject, user) ? <nav className="nexus-project-direct-nav" aria-label={`${selectedProject.name} workspace`}>
                                     <div className="nexus-project-direct-nav-heading">
                                         <span>Project workspace</span>
                                         <small>Open a delivery area directly</small>
@@ -1472,7 +1476,7 @@ const Projects = () => {
                                                 );
                                             })}
                                     </div>
-                                </nav>
+                                </nav> : <p className="mt-4 rounded-xl border border-shell-border bg-surface-card p-4 text-sm text-shell-muted">Join this project to access its overview, scheduler, and tasks. Ask a project manager to add you.</p>}
                                 <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
                                     <div className="rounded-xl border border-slate-200 bg-white/80 p-4 shadow-sm">
                                         <p className="text-xs uppercase tracking-wide text-slate-500">Members</p>
@@ -1773,6 +1777,13 @@ const Projects = () => {
                                                         <span className="text-sm text-gray-500 italic">No members yet</span>
                                                     )}
                                                 </div>
+                                                {canOpenProjectWorkspace(project, user) ? (
+                                                  <nav className="project-quick-links" aria-label={`${project.name} sections`}>
+                                                    {PROJECT_WORKSPACE_TABS.slice(0, 3).map(({ key, label, icon: Icon }) => (
+                                                      <Link key={key} to={projectWorkspacePath(project, key, projectViewMode)} onClick={(event) => event.stopPropagation()}><Icon aria-hidden="true" />{label}</Link>
+                                                    ))}
+                                                  </nav>
+                                                ) : <p className="mb-3 text-xs text-shell-muted">Project membership required to open workspace sections.</p>}
                                                 <button className="nexus-project-card-action">
                                                     View Details <FiChevronRight className="w-4 h-4" />
                                                 </button>

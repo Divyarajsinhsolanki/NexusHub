@@ -34,6 +34,15 @@ class PostsTest < ActionDispatch::IntegrationTest
     assert_equal 1, payload.dig("meta", "total_count")
   end
 
+  test "post images use inline URLs for existing attachments" do
+    @post.image.attach(io: StringIO.new("image data"), filename: "old-post.png", content_type: "image/png")
+    get "/api/posts", headers: { "Accept" => "application/json" }
+    assert_response :success
+    image_url = JSON.parse(response.body).fetch("data").first.fetch("image_url")
+    assert_includes image_url, "disposition=inline"
+    assert_includes image_url, "old-post.png"
+  end
+
   private
 
   def login_as(user)
