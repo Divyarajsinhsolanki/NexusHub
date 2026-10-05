@@ -30,6 +30,7 @@ import LoopingVideo from "../components/ui/LoopingVideo";
 import { runtimeMetaValue, runtimeOrBuildValue } from "../config/runtime";
 import nexusProductPoster from "../images/nexus/nexus-product-poster.webp";
 
+import { getContactVerificationToken } from "../lib/recaptcha";
 import usePortfolioMotion from "./usePortfolioMotion";
 import "./PublicPortfolio.css";
 
@@ -161,34 +162,22 @@ const fallbackProject = {
   })),
 };
 
+const PortfolioSocialButtons = ({ links, className = "" }) => (
+  <div className={`pf-social-links ${className}`} aria-label="Social profiles">
+    {[["github", "GitHub", FiGithub], ["linkedin", "LinkedIn", FiLinkedin]].map(([key, label, Icon]) =>
+      links[key] ? <a key={key} href={links[key]} aria-label={label} title={label} target="_blank" rel="noopener noreferrer"><Icon aria-hidden="true" />{label}<FiArrowUpRight aria-hidden="true" /></a> : null
+    )}
+  </div>
+);
+
 const ContactForm = () => {
   const [form, setForm] = useState({ name: "", email: "", message: "" });
   const [status, setStatus] = useState(null);
-  const [ready, setReady] = useState(false);
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
-    if (!RECAPTCHA_SITE_KEY) return undefined;
-    if (window.grecaptcha?.execute) {
-      setReady(true);
-      return undefined;
-    }
-
-    const existing = document.querySelector(
-      'script[data-portfolio-recaptcha="true"]',
-    );
-    if (existing) {
-      existing.addEventListener("load", () => setReady(true), { once: true });
-      return undefined;
-    }
-
-    const script = document.createElement("script");
-    script.dataset.portfolioRecaptcha = "true";
-    script.src = `https://www.google.com/recaptcha/api.js?render=${RECAPTCHA_SITE_KEY}`;
-    script.async = true;
-    script.onload = () => setReady(true);
-    document.body.appendChild(script);
-    return undefined;
+    document.body.classList.add("portfolio-contact-verification");
+    return () => document.body.classList.remove("portfolio-contact-verification");
   }, []);
 
   const submit = async (event) => {
@@ -197,12 +186,7 @@ const ContactForm = () => {
     setStatus(null);
 
     try {
-      if (!RECAPTCHA_SITE_KEY || !window.grecaptcha?.execute)
-        throw new Error("Contact form is not configured yet.");
-      const recaptchaToken = await window.grecaptcha.execute(
-        RECAPTCHA_SITE_KEY,
-        { action: "contact_form_submit" },
-      );
+      const recaptchaToken = await getContactVerificationToken(RECAPTCHA_SITE_KEY);
       await sendContact({ ...form, recaptcha_token: recaptchaToken });
       setForm({ name: "", email: "", message: "" });
       setStatus({
@@ -260,11 +244,12 @@ const ContactForm = () => {
       />
       <button
         type="submit"
-        disabled={!ready || sending}
+        disabled={!RECAPTCHA_SITE_KEY || sending}
         className="pf-button pf-button-primary pf-submit"
       >
         <FiSend /> {sending ? "Sending..." : "Send message"}
       </button>
+      {RECAPTCHA_SITE_KEY && <p className="pf-form-notice">This site is protected by reCAPTCHA and the Google <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a> and <a href="https://policies.google.com/terms" target="_blank" rel="noopener noreferrer">Terms of Service</a> apply.</p>}
       {!RECAPTCHA_SITE_KEY ? (
         <p className="pf-form-notice">
           Contact form verification is being configured.
@@ -555,6 +540,7 @@ const PublicPortfolio = () => {
           ))}
         </nav>
         <div className="pf-header-actions">
+          <PortfolioSocialButtons links={socialLinks} className="pf-header-social" />
           <button
             className="pf-workspace-link"
             onClick={() => navigate("/login")}
@@ -1041,20 +1027,7 @@ const PublicPortfolio = () => {
               Have a product in mind, a challenging problem, or a role to talk
               about? I’d love to hear it.
             </p>
-            <div className="pf-social-links">
-              {socialLinks.github ? (
-                <a href={socialLinks.github} target="_blank" rel="noreferrer">
-                  <FiGithub />
-                  GitHub <FiArrowUpRight />
-                </a>
-              ) : null}
-              {socialLinks.linkedin ? (
-                <a href={socialLinks.linkedin} target="_blank" rel="noreferrer">
-                  <FiLinkedin />
-                  LinkedIn <FiArrowUpRight />
-                </a>
-              ) : null}
-            </div>
+            <PortfolioSocialButtons links={socialLinks} />
           </div>
           <div data-reveal>
             <div className="pf-contact-form-heading">
@@ -1062,6 +1035,7 @@ const PublicPortfolio = () => {
               <span>A conversation starts here.</span>
             </div>
             <ContactForm />
+            <PortfolioSocialButtons links={socialLinks} className="pf-form-social" />
           </div>
         </section>
       </main>

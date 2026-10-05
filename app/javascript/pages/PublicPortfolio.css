@@ -2034,3 +2034,15 @@
     transform: translateY(-6px) rotateY(-3deg) rotateX(1deg);
   }
 }
+
+/* Keep account links legible near the form and in the site header. */
+.pf-social-links { flex-wrap: wrap; gap: 10px; }
+.pf-social-links a { min-height: 42px; padding: 10px 15px; border: 1px solid var(--pf-line); border-radius: 10px; background: rgb(255 255 255 / 0.05); font-size: 13px; font-weight: 600; color: var(--pf-ink); }
+.pf-social-links a:hover { border-color: var(--pf-accent); background: rgb(255 255 255 / 0.09); }
+.pf-social-links a:focus-visible { outline: 2px solid var(--pf-accent); outline-offset: 3px; }
+.pf-header-social { margin-top: 0; gap: 6px; }
+.pf-header-social a { min-height: 36px; padding: 8px 10px; font-size: 12px; }
+.pf-form-notice a { text-decoration: underline; }
+body.portfolio-contact-verification .grecaptcha-badge { visibility: hidden; }
+@media (max-width: 1200px) { .pf-header { padding-inline: 24px; } .pf-brand-name small { display: none; } .pf-desktop-nav { gap: 16px; } }
+@media (max-width: 600px) { .pf-header-social a { padding: 8px; font-size: 0; gap: 0; } .pf-header-social a > svg:first-child { width: 17px; height: 17px; } .pf-header-social a > svg:last-child { display: none; } }
