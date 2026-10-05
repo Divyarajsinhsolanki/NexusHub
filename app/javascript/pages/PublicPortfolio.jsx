@@ -1,8 +1,15 @@
-import React, { useContext, useEffect, useMemo, useState } from "react";
+import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate } from "react-router-dom";
 import {
   FiArrowDown,
+  FiArrowRight,
+  FiArrowLeft,
+  FiBox,
+  FiCpu,
+  FiDatabase,
+  FiGlobe,
+  FiZap,
   FiArrowUpRight,
   FiCheck,
   FiCode,
@@ -23,9 +30,16 @@ import LoopingVideo from "../components/ui/LoopingVideo";
 import { runtimeMetaValue, runtimeOrBuildValue } from "../config/runtime";
 import nexusProductPoster from "../images/nexus/nexus-product-poster.webp";
 
-const RECAPTCHA_ENABLED = runtimeMetaValue("nexus-recaptcha-enabled") === "true";
+import usePortfolioMotion from "./usePortfolioMotion";
+import "./PublicPortfolio.css";
+
+const RECAPTCHA_ENABLED =
+  runtimeMetaValue("nexus-recaptcha-enabled") === "true";
 const RECAPTCHA_SITE_KEY = RECAPTCHA_ENABLED
-  ? runtimeOrBuildValue("nexus-recaptcha-site-key", import.meta.env.VITE_RECAPTCHA_SITE_KEY)
+  ? runtimeOrBuildValue(
+      "nexus-recaptcha-site-key",
+      import.meta.env.VITE_RECAPTCHA_SITE_KEY,
+    )
   : undefined;
 const NEXUS_PRODUCT_LOOP_WEBM = "/media/nexus/nexus-product-loop.webm";
 const NEXUS_PRODUCT_LOOP_MP4 = "/media/nexus/nexus-product-loop.mp4";
@@ -34,28 +48,95 @@ const fallbackProfile = {
   full_name: "Divyarajsinh Solanki",
   headline: "Full-stack engineer building practical Rails and React products",
   location: "India",
-  summary: "I build product-focused web applications from database modeling and secure APIs through responsive interfaces, realtime collaboration, cloud deployment, CI/CD, DNS, email, storage, and production troubleshooting.",
-  skills: ["Ruby on Rails", "React", "PostgreSQL", "AWS EB/EC2", "Route 53", "S3", "SES", "GitHub Actions", "AI-assisted development"],
-  metrics: ["AWS production deploy", "GitHub CI/CD pipeline", "35+ API controllers", "20+ product surfaces"],
-  architecture: ["React and Vite client", "Rails JSON API", "PostgreSQL data model", "AWS Elastic Beanstalk on EC2", "Route 53 DNS and HTTPS", "S3 assets and SES email", "GitHub Actions deployments", "AI-assisted delivery workflow"],
-  engineering_highlights: ["Workspace authorization", "Project delivery workflows", "Realtime chat", "AWS deployment", "CI/CD", "Production troubleshooting"],
+  summary:
+    "I build product-focused web applications from database modeling and secure APIs through responsive interfaces, realtime collaboration, cloud deployment, CI/CD, DNS, email, storage, and production troubleshooting.",
+  skills: [
+    "Ruby on Rails",
+    "React",
+    "PostgreSQL",
+    "AWS EB/EC2",
+    "Route 53",
+    "S3",
+    "SES",
+    "GitHub Actions",
+    "AI-assisted development",
+  ],
+  metrics: [
+    "AWS production deploy",
+    "GitHub CI/CD pipeline",
+    "35+ API controllers",
+    "20+ product surfaces",
+  ],
+  architecture: [
+    "React and Vite client",
+    "Rails JSON API",
+    "PostgreSQL data model",
+    "AWS Elastic Beanstalk on EC2",
+    "Route 53 DNS and HTTPS",
+    "S3 assets and SES email",
+    "GitHub Actions deployments",
+    "AI-assisted delivery workflow",
+  ],
+  engineering_highlights: [
+    "Workspace authorization",
+    "Project delivery workflows",
+    "Realtime chat",
+    "AWS deployment",
+    "CI/CD",
+    "Production troubleshooting",
+  ],
   social_links: { github: "https://github.com/Divyarajsinhsolanki" },
 };
 
 const fallbackProject = {
   title: "Nexus Hub",
-  tagline: "A connected workspace for planning, delivery, collaboration, knowledge, documents, and production-ready cloud deployment.",
-  summary: "Nexus Hub is a full-stack Rails and React product that brings project operations, productivity, team communication, learning tools, PDF workflows, and AWS deployment practice into one application.",
-  stack: ["Ruby 3.3", "Rails 8.0", "React 18", "Vite 6", "PostgreSQL", "Redis", "AWS EB/EC2", "S3", "Route 53", "SES", "GitHub Actions"],
+  tagline:
+    "A connected workspace for planning, delivery, collaboration, knowledge, documents, and production-ready cloud deployment.",
+  summary:
+    "Nexus Hub is a full-stack Rails and React product that brings project operations, productivity, team communication, learning tools, PDF workflows, and AWS deployment practice into one application.",
+  stack: [
+    "Ruby 3.3",
+    "Rails 8.0",
+    "React 18",
+    "Vite 6",
+    "PostgreSQL",
+    "Redis",
+    "AWS EB/EC2",
+    "S3",
+    "Route 53",
+    "SES",
+    "GitHub Actions",
+  ],
   repository_url: "https://github.com/Divyarajsinhsolanki/rails_vite",
   engineering_highlights: fallbackProfile.engineering_highlights,
   case_study: {
-    problem: "Teams often split project delivery, planning, communication, learning, and document work across disconnected tools.",
+    problem:
+      "Teams often split project delivery, planning, communication, learning, and document work across disconnected tools.",
     role: "Designed and implemented the Rails domain model, APIs, React product surfaces, authorization, realtime workflows, AWS deployment, DNS/SSL, SES email, S3 storage, CI/CD, and production debugging.",
-    constraints: ["Protect tenant data", "Keep a broad product understandable", "Offer a safe public demo", "Keep the first AWS setup cost-conscious"],
-    decisions: ["Workspace-scoped Rails APIs", "Synthetic read-only demo workspace", "AWS Elastic Beanstalk on EC2", "Route 53 DNS and HTTPS", "S3 assets, SES email, and GitHub Actions deploys", "AI-assisted code review and deployment debugging"],
-    trade_offs: ["A broad product requires stronger navigation and testing discipline", "Single-server PostgreSQL and Redis reduce cost now but can move to managed AWS services later"],
-    outcomes: ["One connected workspace", "One-click technical review", "Production AWS deployment", "Repeatable local-to-production DB restore workflow"],
+    constraints: [
+      "Protect tenant data",
+      "Keep a broad product understandable",
+      "Offer a safe public demo",
+      "Keep the first AWS setup cost-conscious",
+    ],
+    decisions: [
+      "Workspace-scoped Rails APIs",
+      "Synthetic read-only demo workspace",
+      "AWS Elastic Beanstalk on EC2",
+      "Route 53 DNS and HTTPS",
+      "S3 assets, SES email, and GitHub Actions deploys",
+      "AI-assisted code review and deployment debugging",
+    ],
+    trade_offs: [
+      "A broad product requires stronger navigation and testing discipline",
+      "Single-server PostgreSQL and Redis reduce cost now but can move to managed AWS services later",
+    ],
+    outcomes: [
+      "One connected workspace",
+      "One-click technical review",
+      "Production AWS deployment",
+      "Repeatable local-to-production DB restore workflow",
+    ],
   },
   features: [
     ["Project Delivery", "Projects, Sprints, and Quality", "/projects"],
@@ -63,7 +144,11 @@ const fallbackProject = {
     ["Collaboration", "Teams, Posts, and Real-time Chat", "/posts"],
     ["Knowledge", "Knowledge and Learning Grid", "/knowledge"],
     ["Documents", "PDF Master Workflows", "/pdf-master"],
-    ["Platform", "Cloud Deployment and Product Operations", "/demo#architecture"],
+    [
+      "Platform",
+      "Cloud Deployment and Product Operations",
+      "/demo#architecture",
+    ],
   ].map(([category, title, demo_path], index) => ({
     id: `fallback-${index}`,
     category,
@@ -71,18 +156,10 @@ const fallbackProject = {
     demo_path,
     position: index + 1,
     alt_text: `${title} in Nexus Hub`,
-    summary: "Explore this product area through the guided read-only workspace and inspect the real application screens.",
+    summary:
+      "Explore this product area through the guided read-only workspace and inspect the real application screens.",
   })),
 };
-
-const navItems = [
-  ["About", "about"],
-  ["Case Study", "case-study"],
-  ["Decisions", "decisions"],
-  ["Features", "features"],
-  ["Architecture", "architecture"],
-  ["Contact", "contact"],
-];
 
 const ContactForm = () => {
   const [form, setForm] = useState({ name: "", email: "", message: "" });
@@ -97,7 +174,9 @@ const ContactForm = () => {
       return undefined;
     }
 
-    const existing = document.querySelector('script[data-portfolio-recaptcha="true"]');
+    const existing = document.querySelector(
+      'script[data-portfolio-recaptcha="true"]',
+    );
     if (existing) {
       existing.addEventListener("load", () => setReady(true), { once: true });
       return undefined;
@@ -118,28 +197,43 @@ const ContactForm = () => {
     setStatus(null);
 
     try {
-      if (!RECAPTCHA_SITE_KEY || !window.grecaptcha?.execute) throw new Error("Contact form is not configured yet.");
-      const recaptchaToken = await window.grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: "contact_form_submit" });
+      if (!RECAPTCHA_SITE_KEY || !window.grecaptcha?.execute)
+        throw new Error("Contact form is not configured yet.");
+      const recaptchaToken = await window.grecaptcha.execute(
+        RECAPTCHA_SITE_KEY,
+        { action: "contact_form_submit" },
+      );
       await sendContact({ ...form, recaptcha_token: recaptchaToken });
       setForm({ name: "", email: "", message: "" });
-      setStatus({ type: "success", text: "Message sent. I will reply as soon as possible." });
+      setStatus({
+        type: "success",
+        text: "Message sent. I will reply as soon as possible.",
+      });
     } catch (error) {
-      setStatus({ type: "error", text: error.response?.data?.errors?.join(", ") || error.message || "Message could not be sent." });
+      setStatus({
+        type: "error",
+        text:
+          error.response?.data?.errors?.join(", ") ||
+          error.message ||
+          "Message could not be sent.",
+      });
     } finally {
       setSending(false);
     }
   };
 
   return (
-    <form onSubmit={submit} className="portfolio-depth-card portfolio-reveal portfolio-fly-right min-w-0 rounded-[24px] border border-white/10 bg-white/5 p-4 sm:rounded-[30px] sm:p-7">
+    <form onSubmit={submit} className="pf-contact-form">
       <div className="grid gap-4 sm:grid-cols-2">
         <input
           aria-label="Name"
           required
           placeholder="Your name"
           value={form.name}
-          onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-          className="min-w-0 rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-cyan-300"
+          onChange={(event) =>
+            setForm((current) => ({ ...current, name: event.target.value }))
+          }
+          className="pf-input"
         />
         <input
           aria-label="Email"
@@ -147,8 +241,10 @@ const ContactForm = () => {
           type="email"
           placeholder="Email address"
           value={form.email}
-          onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
-          className="min-w-0 rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-cyan-300"
+          onChange={(event) =>
+            setForm((current) => ({ ...current, email: event.target.value }))
+          }
+          className="pf-input"
         />
       </div>
       <textarea
@@ -157,51 +253,147 @@ const ContactForm = () => {
         rows={5}
         placeholder="Tell me about the role or project"
         value={form.message}
-        onChange={(event) => setForm((current) => ({ ...current, message: event.target.value }))}
-        className="mt-4 min-w-0 w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-cyan-300"
+        onChange={(event) =>
+          setForm((current) => ({ ...current, message: event.target.value }))
+        }
+        className="pf-input pf-textarea"
       />
       <button
         type="submit"
         disabled={!ready || sending}
-        className="mt-4 inline-flex items-center gap-2 rounded-full bg-cyan-300 px-5 py-3 font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
+        className="pf-button pf-button-primary pf-submit"
       >
         <FiSend /> {sending ? "Sending..." : "Send message"}
       </button>
-      {!RECAPTCHA_SITE_KEY ? <p className="mt-3 text-sm text-amber-300">Contact form verification is being configured.</p> : null}
-      {status ? <p className={`mt-3 text-sm ${status.type === "success" ? "text-emerald-300" : "text-rose-300"}`}>{status.text}</p> : null}
+      {!RECAPTCHA_SITE_KEY ? (
+        <p className="pf-form-notice">
+          Contact form verification is being configured.
+        </p>
+      ) : null}
+      {status ? (
+        <p
+          role="status"
+          className={`pf-form-status pf-form-status-${status.type}`}
+        >
+          {status.text}
+        </p>
+      ) : null}
     </form>
   );
 };
 
+const navItems = [
+  ["About", "about"],
+  ["Work", "case-study"],
+  ["Features", "features"],
+  ["Approach", "decisions"],
+  ["Contact", "contact"],
+];
+const featureIcons = [FiLayers, FiZap, FiGlobe, FiCode, FiBox, FiCpu];
+const pad = (value) => String(value).padStart(2, "0");
+
+const SectionLabel = ({ number, children }) => (
+  <p className="pf-section-label">
+    <span>{number} /</span> {children}
+  </p>
+);
+
+const OrbitScene = ({ initials }) => (
+  <div className="pf-orbit-scene" data-hero-scene aria-hidden="true">
+    <div className="pf-scene-grid" />
+    <span className="pf-scene-coordinate pf-coordinate-top">
+      SYSTEMS / CONNECTED
+    </span>
+    <div className="pf-orbit-system">
+      <div className="pf-orbit pf-orbit-one" />
+      <div className="pf-orbit pf-orbit-two" />
+      <div className="pf-orbit pf-orbit-three" />
+      <div className="pf-orbit-core">
+        <span>{initials}</span>
+        <i />
+      </div>
+      <div className="pf-orbit-satellite pf-satellite-one">
+        <FiCode />
+        <span>React</span>
+      </div>
+      <div className="pf-orbit-satellite pf-satellite-two">
+        <FiCpu />
+        <span>Rails</span>
+      </div>
+      <div className="pf-orbit-satellite pf-satellite-three">
+        <FiDatabase />
+        <span>PostgreSQL</span>
+      </div>
+      <span className="pf-orbit-dot pf-dot-one" />
+      <span className="pf-orbit-dot pf-dot-two" />
+    </div>
+    <div className="pf-scene-caption">
+      <span className="pf-crosshair">+</span>
+      <span>Design. Engineer. Connect.</span>
+      <span>∞</span>
+    </div>
+  </div>
+);
+
 const PublicPortfolio = () => {
   const navigate = useNavigate();
   const { handleDemoLogin } = useContext(AuthContext);
-  const [data, setData] = useState({ profile: fallbackProfile, projects: [fallbackProject], seo: {} });
+  const rootRef = useRef(null);
+  const galleryRef = useRef(null);
+  const [data, setData] = useState({
+    profile: fallbackProfile,
+    projects: [fallbackProject],
+    seo: {},
+  });
   const [menuOpen, setMenuOpen] = useState(false);
   const [demoLoading, setDemoLoading] = useState("");
   const [demoError, setDemoError] = useState("");
 
   useEffect(() => {
+    let cancelled = false;
     fetchPortfolio()
       .then(({ data: payload }) => {
-        setData({
-          profile: payload?.profile || fallbackProfile,
-          projects: Array.isArray(payload?.projects) && payload.projects.length ? payload.projects : [fallbackProject],
-          seo: payload?.seo || {},
-        });
+        if (!cancelled)
+          setData({
+            profile: { ...fallbackProfile, ...payload?.profile },
+            projects:
+              Array.isArray(payload?.projects) && payload.projects.length
+                ? payload.projects
+                : [fallbackProject],
+            seo: payload?.seo || {},
+          });
       })
-      .catch(() => setData((current) => current));
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const profile = data.profile || fallbackProfile;
-  const project = data.projects[0];
-  const features = project?.features || [];
+  const profile = data.profile;
+  const project = data.projects[0] || fallbackProject;
+  const features = useMemo(
+    () =>
+      [...(project.features || [])].sort(
+        (a, b) => (a.position || 0) - (b.position || 0),
+      ),
+    [project.features],
+  );
+  const { activeSection, reducedMotion } = usePortfolioMotion(rootRef, [
+    features.length,
+    data,
+  ]);
   const socialLinks = profile.social_links || {};
-  const caseStudy = project?.case_study || fallbackProject.case_study;
+  const caseStudy = { ...fallbackProject.case_study, ...project.case_study };
   const seo = data.seo || {};
-  const browserUrl = typeof window === "undefined" ? "http://localhost:3000/" : window.location.href;
-  const browserOrigin = typeof window === "undefined" ? "http://localhost:3000" : window.location.origin;
-  const initials = profile.full_name.split(/\s+/).map((part) => part[0]).slice(0, 2).join("");
+  const initials = (profile.full_name || fallbackProfile.full_name)
+    .split(/\s+/)
+    .map((part) => part[0])
+    .slice(0, 2)
+    .join("");
+  const browserOrigin =
+    typeof window === "undefined"
+      ? "http://localhost:3000"
+      : window.location.origin;
   const structuredData = {
     "@context": "https://schema.org",
     "@type": "Person",
@@ -212,473 +404,694 @@ const PublicPortfolio = () => {
     knowsAbout: profile.skills || [],
     hasPart: {
       "@type": "SoftwareApplication",
-      name: project?.title || "Nexus Hub",
+      name: project.title,
       applicationCategory: "BusinessApplication",
-      description: project?.summary || profile.summary,
+      description: project.summary,
     },
   };
 
-  const groupedFeatures = useMemo(
-    () => [...features].sort((a, b) => (a.position || 0) - (b.position || 0)),
-    [features]
-  );
-
+  const scrollTo = (id) => {
+    document
+      .getElementById(id)
+      ?.scrollIntoView({
+        behavior: reducedMotion ? "instant" : "smooth",
+        block: "start",
+      });
+    setMenuOpen(false);
+  };
   useEffect(() => {
-    if (typeof window === "undefined") return undefined;
-
-    document.documentElement.classList.add("portfolio-js-reveal");
-    const elements = Array.from(document.querySelectorAll(".portfolio-reveal"));
-    if (!elements.length) return undefined;
-
-    if (!("IntersectionObserver" in window)) {
-      elements.forEach((element) => element.classList.add("is-visible"));
-      return undefined;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (!entry.isIntersecting) return;
-          entry.target.classList.add("is-visible");
-          observer.unobserve(entry.target);
-        });
-      },
-      { rootMargin: "0px 0px -12% 0px", threshold: 0.18 }
-    );
-
-    elements.forEach((element) => observer.observe(element));
-    return () => observer.disconnect();
-  }, [groupedFeatures.length, profile.metrics?.length, profile.architecture?.length]);
+    if (!menuOpen) return undefined;
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") setMenuOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [menuOpen]);
 
   const openDemo = async (path = "/demo") => {
+    if (demoLoading) return;
     setDemoError("");
     setDemoLoading(path);
     try {
       await handleDemoLogin(path);
     } catch (error) {
-      setDemoError(error.response?.data?.error === "demo_disabled" ? "The live demo is not enabled on this deployment." : "The demo could not be started.");
+      setDemoError(
+        error.response?.data?.error === "demo_disabled"
+          ? "The live demo is not enabled on this deployment."
+          : "The demo could not be started. Please try again.",
+      );
     } finally {
       setDemoLoading("");
     }
   };
 
-  const scrollTo = (id) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
-    setMenuOpen(false);
+  const focusFeature = (index, smooth = true) => {
+    const gallery = galleryRef.current;
+    if (!gallery || gallery.dataset.galleryPinned !== "true") return;
+    const track = gallery.querySelector("[data-gallery-track]");
+    const cards = [...track.children];
+    const max = Math.max(
+      1,
+      track.scrollWidth -
+        gallery.querySelector("[data-gallery-viewport]").clientWidth,
+    );
+    const progress = Math.min(1, cards[index].offsetLeft / max);
+    const top = window.scrollY + gallery.getBoundingClientRect().top;
+    window.scrollTo({
+      top: top + progress * (gallery.offsetHeight - window.innerHeight),
+      behavior: smooth && !reducedMotion ? "smooth" : "instant",
+    });
+  };
+  const stepGallery = (direction) => {
+    const gallery = galleryRef.current;
+    if (!gallery) return;
+    const viewport = gallery.querySelector("[data-gallery-viewport]");
+    const track = gallery.querySelector("[data-gallery-track]");
+    const distance = track.scrollWidth - viewport.clientWidth;
+    if (distance <= 0 || gallery.dataset.galleryPinned !== "true") return;
+    const current = -(
+      parseFloat(gallery.style.getPropertyValue("--gallery-shift")) || 0
+    );
+    const step =
+      track.firstElementChild.offsetWidth +
+      (parseFloat(getComputedStyle(track).gap) || 24);
+    const progress =
+      Math.max(0, Math.min(distance, current + direction * step)) / distance;
+    const top = window.scrollY + gallery.getBoundingClientRect().top;
+    window.scrollTo({
+      top: top + progress * (gallery.offsetHeight - window.innerHeight),
+      behavior: reducedMotion ? "instant" : "smooth",
+    });
   };
 
   return (
-    <div className="portfolio-page min-h-dvh overflow-x-hidden bg-[#07111f] text-white">
-      <style>{`
-        .portfolio-page {
-          background:
-            radial-gradient(circle at 50% -20%, rgba(34, 211, 238, 0.18), transparent 34rem),
-            linear-gradient(135deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px),
-            linear-gradient(225deg, rgba(148, 163, 184, 0.06) 1px, transparent 1px),
-            #07111f;
-          background-size: auto, 4.5rem 4.5rem, 4.5rem 4.5rem, auto;
-        }
-
-        .portfolio-perspective {
-          perspective: 1200px;
-          transform-style: preserve-3d;
-        }
-
-        .portfolio-depth-card {
-          transform: translateZ(0) rotateX(0) rotateY(0);
-          transition: transform 360ms ease, border-color 360ms ease, box-shadow 360ms ease, background 360ms ease;
-          will-change: transform;
-        }
-
-        .portfolio-depth-card:hover {
-          border-color: rgba(103, 232, 249, 0.42);
-          box-shadow: 0 28px 70px rgba(8, 47, 73, 0.38);
-          transform: translateY(-8px) rotateX(2deg) rotateY(-2deg);
-        }
-
-        .portfolio-hero-card {
-          animation: portfolioFloat 8s ease-in-out infinite;
-          transform: rotateY(-12deg) rotateX(8deg);
-          transform-style: preserve-3d;
-        }
-
-        .portfolio-reveal {
-          opacity: 1;
-          filter: blur(0);
-          transform: translate3d(0, 0, 0) rotateX(0) rotateY(0) scale(1);
-        }
-
-        .portfolio-js-reveal .portfolio-reveal {
-          opacity: 0;
-          filter: blur(14px);
-          transform:
-            translate3d(var(--reveal-x, 0), var(--reveal-y, 5rem), var(--reveal-z, -7rem))
-            rotateX(var(--reveal-rx, 10deg))
-            rotateY(var(--reveal-ry, 0deg))
-            scale(0.94);
-          transform-origin: center;
-          transition:
-            opacity 900ms cubic-bezier(0.16, 1, 0.3, 1),
-            filter 900ms cubic-bezier(0.16, 1, 0.3, 1),
-            transform 1000ms cubic-bezier(0.16, 1, 0.3, 1);
-          transition-delay: var(--reveal-delay, 0ms);
-          will-change: opacity, filter, transform;
-        }
-
-        .portfolio-js-reveal .portfolio-reveal.is-visible {
-          opacity: 1;
-          filter: blur(0);
-          transform: translate3d(0, 0, 0) rotateX(0) rotateY(0) scale(1);
-        }
-
-        .portfolio-fly-left {
-          --reveal-x: -5rem;
-          --reveal-y: 3rem;
-          --reveal-ry: 12deg;
-        }
-
-        .portfolio-fly-right {
-          --reveal-x: 5rem;
-          --reveal-y: 3rem;
-          --reveal-ry: -12deg;
-        }
-
-        .portfolio-fly-up {
-          --reveal-y: 6rem;
-          --reveal-rx: 14deg;
-        }
-
-        .portfolio-fly-deep {
-          --reveal-y: 5rem;
-          --reveal-z: -14rem;
-          --reveal-rx: 16deg;
-          --reveal-ry: -8deg;
-        }
-
-        .portfolio-stagger > * {
-          --reveal-delay: calc(var(--reveal-index, 0) * 90ms);
-        }
-
-        .portfolio-depth-card.is-visible:hover,
-        .portfolio-depth-card:hover {
-          transform: translateY(-8px) rotateX(2deg) rotateY(-2deg) scale(1.01);
-        }
-
-        .portfolio-depth-card.is-visible:nth-child(even):hover {
-          transform: translateY(-8px) rotateX(2deg) rotateY(2deg) scale(1.01);
-        }
-
-        .portfolio-stage-line {
-          background:
-            linear-gradient(90deg, transparent, rgba(103, 232, 249, 0.42), transparent),
-            linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent);
-        }
-
-        @keyframes portfolioFloat {
-          0%, 100% { transform: rotateY(-12deg) rotateX(8deg) translate3d(0, 0, 0); }
-          50% { transform: rotateY(-7deg) rotateX(4deg) translate3d(0, -14px, 32px); }
-        }
-
-        @keyframes portfolioReveal {
-          from { opacity: 0.35; transform: translateY(34px) rotateX(8deg) scale(0.98); }
-          to { opacity: 1; transform: translateY(0) rotateX(0) scale(1); }
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          .portfolio-hero-card,
-          .portfolio-reveal {
-            animation: none;
-          }
-
-          .portfolio-depth-card,
-          .portfolio-depth-card:hover,
-          .portfolio-hero-card,
-          .portfolio-reveal,
-          .portfolio-reveal.is-visible {
-            transform: none;
-            opacity: 1;
-            filter: none;
-          }
-        }
-      `}</style>
+    <div className="pf-page" ref={rootRef}>
       <Helmet>
-        <title>{seo.title || `${profile.full_name} | Full-stack Rails and React Engineer`}</title>
+        <title>
+          {seo.title || `${profile.full_name} | Full-stack Engineer`}
+        </title>
         <meta name="description" content={seo.description || profile.summary} />
-        <link rel="canonical" href={seo.canonical_url || browserUrl} />
-        <meta property="og:title" content={seo.title || `${profile.full_name} | Full-stack Engineer`} />
-        <meta property="og:description" content={seo.description || project?.summary || profile.summary} />
+        <link rel="canonical" href={seo.canonical_url || `${browserOrigin}/`} />
+        <meta
+          property="og:title"
+          content={seo.title || `${profile.full_name} | Full-stack Engineer`}
+        />
+        <meta
+          property="og:description"
+          content={seo.description || project.summary}
+        />
         <meta property="og:type" content="website" />
-        <meta property="og:url" content={seo.canonical_url || browserUrl} />
+        <meta
+          property="og:url"
+          content={seo.canonical_url || `${browserOrigin}/`}
+        />
         <meta name="twitter:card" content="summary_large_image" />
-        {seo.image_url || project?.cover_image_url ? <meta property="og:image" content={seo.image_url || project.cover_image_url} /> : null}
-        <script type="application/ld+json">{JSON.stringify(structuredData)}</script>
+        {seo.image_url || project.cover_image_url ? (
+          <meta
+            property="og:image"
+            content={seo.image_url || project.cover_image_url}
+          />
+        ) : null}
+        <script type="application/ld+json">
+          {JSON.stringify(structuredData)}
+        </script>
       </Helmet>
-
-      <div className="pointer-events-none fixed inset-0 opacity-70" aria-hidden="true">
-        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/60 to-transparent" />
-        <div className="absolute bottom-0 left-1/2 h-[42rem] w-[120vw] -translate-x-1/2 translate-y-1/2 rounded-[100%] border border-cyan-300/10" />
-      </div>
-
-      <header className="sticky top-0 z-50 border-b border-white/10 bg-[#07111f]/85 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-8">
-          <button onClick={() => scrollTo("top")} className="flex min-w-0 items-center gap-3 text-left">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-cyan-300 font-black text-slate-950">{initials}</span>
-            <span className="min-w-0">
-              <span className="block truncate text-sm font-semibold">{profile.full_name}</span>
-              <span className="block text-xs text-slate-400">Full-stack engineer</span>
-            </span>
+      <a className="pf-skip-link" href="#portfolio-main">
+        Skip to content
+      </a>
+      <div className="pf-scroll-progress" aria-hidden="true" />
+      <header className="pf-header">
+        <a
+          className="pf-brand"
+          href="#top"
+          onClick={(event) => {
+            event.preventDefault();
+            scrollTo("top");
+          }}
+          aria-label={`${profile.full_name}, back to top`}
+        >
+          <span className="pf-brand-symbol">
+            {initials}
+            <span>®</span>
+          </span>
+          <span className="pf-brand-name">
+            {profile.full_name}
+            <small>Independent full-stack engineer</small>
+          </span>
+        </a>
+        <nav className="pf-desktop-nav" aria-label="Portfolio">
+          {navItems.map(([label, id]) => (
+            <a
+              key={id}
+              href={`#${id}`}
+              aria-current={activeSection === id ? "location" : undefined}
+              onClick={(event) => {
+                event.preventDefault();
+                scrollTo(id);
+              }}
+            >
+              {label}
+            </a>
+          ))}
+        </nav>
+        <div className="pf-header-actions">
+          <button
+            className="pf-workspace-link"
+            onClick={() => navigate("/login")}
+          >
+            Workspace <FiArrowUpRight />
           </button>
-          <nav className="hidden items-center gap-5 md:flex">
-            {navItems.map(([label, id]) => (
-              <button key={id} onClick={() => scrollTo(id)} className="text-sm font-medium text-slate-300 hover:text-white">{label}</button>
-            ))}
-            <button onClick={() => navigate("/login")} className="text-sm font-semibold text-slate-300">Workspace login</button>
-            <button onClick={() => openDemo("/demo")} className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-950">Live demo</button>
-          </nav>
-          <button className="rounded-xl border border-white/10 p-2 md:hidden" onClick={() => setMenuOpen((value) => !value)} aria-label="Toggle navigation">
+          <button
+            className="pf-menu-toggle"
+            onClick={() => setMenuOpen((value) => !value)}
+            aria-expanded={menuOpen}
+            aria-controls="portfolio-mobile-nav"
+            aria-label={menuOpen ? "Close navigation" : "Open navigation"}
+          >
             {menuOpen ? <FiX /> : <FiMenu />}
           </button>
         </div>
         {menuOpen ? (
-          <nav className="border-t border-white/10 px-5 py-4 md:hidden">
-            {navItems.map(([label, id]) => (
-              <button key={id} onClick={() => scrollTo(id)} className="block w-full py-2 text-left text-slate-200">{label}</button>
+          <nav
+            id="portfolio-mobile-nav"
+            className="pf-mobile-nav"
+            aria-label="Mobile portfolio"
+          >
+            {navItems.map(([label, id], index) => (
+              <a
+                key={id}
+                href={`#${id}`}
+                onClick={(event) => {
+                  event.preventDefault();
+                  scrollTo(id);
+                }}
+              >
+                <span>{pad(index + 1)}</span>
+                {label}
+                <FiArrowUpRight />
+              </a>
             ))}
-            <button onClick={() => navigate("/login")} className="block w-full py-2 text-left text-slate-200">Workspace login</button>
-            <button onClick={() => openDemo("/demo")} className="mt-2 block w-full rounded-full bg-white px-4 py-2 text-left font-semibold text-slate-950">Live demo</button>
+            <button onClick={() => navigate("/login")}>
+              Open workspace <FiArrowUpRight />
+            </button>
           </nav>
         ) : null}
       </header>
 
-      <main id="top" className="relative">
-        <section className="portfolio-perspective mx-auto grid min-h-[calc(100dvh-4.25rem)] max-w-7xl items-center gap-10 px-4 py-10 sm:px-8 sm:py-14 lg:grid-cols-[minmax(0,1.25fr)_minmax(20rem,0.75fr)] lg:py-16">
-          <div className="min-w-0">
-            <p className="inline-flex max-w-full items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 text-xs font-semibold text-cyan-200 sm:px-4 sm:text-sm">
-              <FiCode /> Rails, React, PostgreSQL
+      <main id="portfolio-main">
+        <section
+          id="top"
+          data-portfolio-section
+          className="pf-hero pf-container"
+        >
+          <div className="pf-hero-content">
+            <p className="pf-eyebrow">
+              <span className="pf-status-dot" /> Engineering with a product
+              mindset
             </p>
-            <h1 className="mt-6 max-w-5xl text-[clamp(2.35rem,12vw,4rem)] font-semibold leading-[1.04] tracking-[-0.04em] sm:text-5xl lg:text-[4.55rem] xl:text-[4.85rem]">
-              I build full-stack products that solve real workflow problems.
+            <h1>
+              From ideas
+              <br />
+              to <span className="pf-serif">impact.</span>
             </h1>
-            <p className="mt-6 max-w-3xl text-base leading-8 text-slate-300 sm:text-lg">{profile.summary}</p>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-              <button onClick={() => openDemo("/demo")} className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-cyan-300 px-6 py-3.5 font-semibold text-slate-950 sm:w-auto">
-                {demoLoading ? "Starting demo..." : "Explore Nexus Hub"} <FiArrowUpRight />
-              </button>
-              <button onClick={() => scrollTo("case-study")} className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/15 px-6 py-3.5 font-semibold sm:w-auto">
-                Read case study <FiArrowDown />
-              </button>
-              {profile.resume_url ? (
-                <a href={profile.resume_url} className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/15 px-6 py-3.5 font-semibold sm:w-auto">
-                  Resume <FiDownload />
-                </a>
-              ) : null}
+            <p className="pf-hero-description">
+              I’m {profile.full_name.split(" ")[0]}. I build thoughtful digital
+              products — from the first interaction to the last line of
+              infrastructure.
+            </p>
+            <div className="pf-hero-actions">
+              <a
+                className="pf-button pf-button-primary"
+                href="#case-study"
+                onClick={(event) => {
+                  event.preventDefault();
+                  scrollTo("case-study");
+                }}
+              >
+                Explore my work <FiArrowDown />
+              </a>
+              <a
+                className="pf-text-link"
+                href="#contact"
+                onClick={(event) => {
+                  event.preventDefault();
+                  scrollTo("contact");
+                }}
+              >
+                Let’s talk <FiArrowUpRight />
+              </a>
             </div>
-            {demoError ? <p className="mt-4 text-amber-300">{demoError}</p> : null}
+            <div className="pf-hero-note">
+              <FiMapPin />
+              <span>Based in {profile.location || "India"}</span>
+              <i />
+              <span>Building for the web</span>
+            </div>
           </div>
-          <div className="relative mx-auto w-full max-w-[20rem] sm:max-w-sm lg:max-w-md">
-            <div className="portfolio-stage-line absolute -bottom-8 left-4 right-4 h-16 rounded-[100%] blur-sm" />
-            <div className="portfolio-hero-card relative rounded-[32px] border border-cyan-200/20 bg-slate-900/90 p-6 shadow-2xl shadow-cyan-950/40 sm:p-7">
-              {profile.avatar_url ? (
-                <img src={profile.avatar_url} alt={`${profile.full_name} portrait`} className="aspect-square w-full rounded-[24px] object-cover" />
-              ) : (
-                <div className="flex aspect-square items-center justify-center rounded-[24px] bg-gradient-to-br from-slate-800 to-slate-950 text-6xl font-semibold text-cyan-300 sm:text-7xl">{initials}</div>
-              )}
-              <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                <div>
-                  <p className="font-semibold">{profile.full_name}</p>
-                  <p className="mt-1 inline-flex items-center gap-2 text-sm text-slate-400"><FiMapPin /> {profile.location}</p>
-                </div>
-                <span className="rounded-full bg-emerald-400/10 px-3 py-1.5 text-xs font-semibold text-emerald-300">Open to opportunities</span>
-              </div>
-            </div>
+          <OrbitScene initials={initials} />
+          <div className="pf-hero-bottom">
+            <span>STRATEGY → DESIGN → DEVELOPMENT</span>
+            <a
+              href="#about"
+              onClick={(event) => {
+                event.preventDefault();
+                scrollTo("about");
+              }}
+            >
+              <span>Scroll to discover</span>
+              <span className="pf-scroll-indicator">
+                <FiArrowDown />
+              </span>
+            </a>
+            <span>PORTFOLIO / {new Date().getFullYear()}</span>
           </div>
         </section>
 
-        <section id="about" className="portfolio-perspective border-y border-white/10 bg-white/[0.03]">
-          <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-8 sm:py-14 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,1.25fr)] lg:py-16">
-            <div className="portfolio-reveal portfolio-fly-left">
-              <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">About</p>
-              <h2 className="mt-4 text-3xl font-semibold leading-tight tracking-[-0.03em] sm:text-4xl">Product thinking with full-stack execution.</h2>
-            </div>
-            <div className="portfolio-reveal portfolio-fly-right">
-              <p className="text-base leading-8 text-slate-300 sm:text-lg">{profile.headline}. My work covers data modeling, API design, authorization, complex UI state, realtime behavior, background processing, integrations, AWS deployment, DNS, HTTPS, email delivery, storage, CI/CD, and AI-assisted debugging.</p>
-              <div className="mt-8 flex flex-wrap gap-2">
-                {(profile.skills || []).map((skill) => <span key={skill} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200">{skill}</span>)}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="portfolio-perspective mx-auto max-w-7xl px-4 py-12 sm:px-8 lg:py-14">
-          <div className="portfolio-stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {(profile.metrics || []).map((metric, index) => (
-              <div key={metric} style={{ "--reveal-index": index }} className="portfolio-depth-card portfolio-reveal portfolio-fly-up rounded-[26px] border border-white/10 bg-white/5 p-6">
-                <FiCheck className="text-cyan-300" />
-                <p className="mt-6 text-xl font-semibold">{metric}</p>
-              </div>
+        <div className="pf-skills-strip" aria-label="Technology stack">
+          <div className="pf-container">
+            {[
+              "Ruby on Rails",
+              "React",
+              "PostgreSQL",
+              "AWS",
+              "Creative engineering",
+            ].map((skill) => (
+              <span key={skill}>
+                <span className="pf-spark" aria-hidden="true">
+                  ✳
+                </span>
+                {skill}
+              </span>
             ))}
           </div>
+        </div>
+
+        <section
+          id="about"
+          data-portfolio-section
+          className="pf-section pf-container pf-about"
+        >
+          <div data-reveal>
+            <SectionLabel number="01">A little about me</SectionLabel>
+            <h2>
+              I connect the dots.
+              <br />
+              <span className="pf-muted">You get the whole picture.</span>
+            </h2>
+          </div>
+          <div className="pf-about-body" data-reveal>
+            <p>{profile.summary}</p>
+            <div className="pf-about-signature">
+              {profile.full_name}
+              <span>Full-stack engineer & product builder</span>
+            </div>
+            {profile.resume_url ? (
+              <a href={profile.resume_url} className="pf-text-link">
+                Download résumé <FiDownload />
+              </a>
+            ) : null}
+          </div>
+          <div className="pf-metrics" data-reveal>
+            {(profile.metrics || []).map((metric, index) => {
+              const numeric = metric.match(/^(\d+\+?)\s+(.*)/);
+              return (
+                <div key={metric}>
+                  <span className="pf-metric-index">{pad(index + 1)} —</span>
+                  <strong>
+                    {numeric ? (
+                      numeric[1]
+                    ) : index === 0 ? (
+                      <FiGlobe />
+                    ) : (
+                      <FiCode />
+                    )}
+                  </strong>
+                  <p>{numeric ? numeric[2] : metric}</p>
+                </div>
+              );
+            })}
+          </div>
         </section>
 
-        <section id="case-study" className="portfolio-perspective mx-auto max-w-7xl px-4 py-12 sm:px-8 sm:py-14 lg:py-16">
-          <div className="grid min-w-0 gap-10 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
-            <div className="portfolio-reveal portfolio-fly-left">
-              <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">Flagship Case Study</p>
-              <h2 className="mt-4 text-3xl font-semibold leading-tight tracking-[-0.03em] sm:text-4xl">{project?.title || "Nexus Hub"}</h2>
-              <p className="mt-5 text-lg leading-8 text-slate-300">{project?.tagline || "One connected workspace for product delivery and personal productivity."}</p>
-              <div className="mt-7 flex flex-wrap gap-2">
-                {(project?.stack || profile.skills || []).map((item) => <span key={item} className="rounded-full bg-cyan-300/10 px-3 py-1.5 text-sm text-cyan-200">{item}</span>)}
+        <section
+          id="case-study"
+          data-portfolio-section
+          className="pf-section pf-case-study"
+        >
+          <div className="pf-container">
+            <div className="pf-section-heading" data-reveal>
+              <div>
+                <SectionLabel number="02">Flagship Case Study</SectionLabel>
+                <h2>
+                  One product.
+                  <br />
+                  <span className="pf-serif">A world of possibilities.</span>
+                </h2>
               </div>
+              <span className="pf-project-year">
+                DESIGN + DEVELOPMENT
+                <br />
+                FULL-STACK PRODUCT
+              </span>
             </div>
-            <div className="min-w-0 space-y-5">
-              <div className="portfolio-depth-card portfolio-reveal portfolio-fly-right rounded-[26px] border border-white/10 bg-gradient-to-br from-white/10 to-white/[0.03] p-5 sm:rounded-[34px] sm:p-9">
-                <p className="text-base leading-8 text-slate-200 sm:text-lg">{project?.summary || "Nexus Hub brings planning, delivery, communication, knowledge, and document tools into one Rails and React product."}</p>
-                <p className="mt-5 leading-7 text-slate-400">{project?.description}</p>
-                <div className="mt-8 grid gap-3 sm:grid-cols-2">
-                  {(project?.engineering_highlights || profile.engineering_highlights || []).map((item) => (
-                    <div key={item} className="flex gap-3 rounded-2xl bg-slate-950/50 p-4 text-sm leading-6 text-slate-300"><FiShield className="mt-1 shrink-0 text-cyan-300" /> {item}</div>
-                  ))}
+            <div className="pf-project-stage" data-reveal>
+              <div className="pf-project-orbit" aria-hidden="true" />
+              <div className="pf-project-window">
+                <div className="pf-window-bar">
+                  <span className="pf-window-dots">
+                    <i />
+                    <i />
+                    <i />
+                  </span>
+                  <span>nexus / connected workspace</span>
+                  <FiArrowUpRight />
                 </div>
-                <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-                  <button onClick={() => openDemo("/demo")} className="w-full rounded-full bg-white px-5 py-3 font-semibold text-slate-950 sm:w-auto">Start guided demo</button>
-                  {project?.repository_url ? <a href={project.repository_url} target="_blank" rel="noreferrer" className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/15 px-5 py-3 font-semibold sm:w-auto"><FiGithub /> View code</a> : null}
-                </div>
-              </div>
-              <div className="portfolio-depth-card portfolio-reveal portfolio-fly-deep overflow-hidden rounded-[30px] border border-cyan-300/12 bg-slate-950 shadow-2xl shadow-cyan-950/30">
                 <LoopingVideo
                   srcWebm={NEXUS_PRODUCT_LOOP_WEBM}
                   srcMp4={NEXUS_PRODUCT_LOOP_MP4}
                   poster={nexusProductPoster}
                   ariaLabel="Animated Nexus Hub workspace product overview"
-                  className="aspect-video w-full object-cover"
+                  className="pf-product-video"
                 />
+              </div>
+              <span className="pf-floating-tag pf-floating-tag-one">
+                <FiLayers /> Six connected product areas
+              </span>
+              <span className="pf-floating-tag pf-floating-tag-two">
+                <span className="pf-status-dot" /> Designed. Built. Deployed.
+              </span>
+            </div>
+            <div className="pf-project-details" data-reveal>
+              <div>
+                <span className="pf-overline">SELECTED WORK / 001</span>
+                <h3>{project.title}</h3>
+                <p>{project.tagline}</p>
+              </div>
+              <div>
+                <p>{project.summary}</p>
+                <div className="pf-project-actions">
+                  <button
+                    className="pf-button pf-button-primary"
+                    onClick={() => openDemo()}
+                    disabled={!!demoLoading}
+                  >
+                    {demoLoading ? "Starting demo…" : "Explore Nexus Hub"}
+                    <FiArrowUpRight />
+                  </button>
+                  {project.repository_url ? (
+                    <a
+                      className="pf-text-link"
+                      href={project.repository_url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      View code <FiGithub />
+                    </a>
+                  ) : null}
+                </div>
+                <div className="pf-stack-tags">
+                  {(project.stack || profile.skills || []).map((item) => (
+                    <span key={item}>{item}</span>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
         </section>
 
-        <section id="decisions" className="portfolio-perspective border-y border-white/10 bg-white/[0.03]">
-          <div className="mx-auto max-w-7xl px-4 py-12 sm:px-8 sm:py-14 lg:py-16">
-            <p className="portfolio-reveal portfolio-fly-left text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">Engineering Decisions</p>
-            <h2 className="portfolio-reveal portfolio-fly-left mt-4 max-w-4xl text-3xl font-semibold leading-tight sm:text-4xl">
-              The reasoning behind the product, not only the feature list.
-            </h2>
-            <div className="portfolio-stagger mt-10 grid gap-5 lg:grid-cols-2">
-              <article style={{ "--reveal-index": 0 }} className="portfolio-depth-card portfolio-reveal portfolio-fly-left rounded-[26px] border border-white/10 bg-slate-950/60 p-5 sm:rounded-[30px] sm:p-7">
-                <p className="text-xs font-bold uppercase tracking-[0.24em] text-cyan-300">Problem</p>
-                <p className="mt-4 text-lg leading-8 text-slate-200">{caseStudy.problem}</p>
-              </article>
-              <article style={{ "--reveal-index": 1 }} className="portfolio-depth-card portfolio-reveal portfolio-fly-right rounded-[26px] border border-white/10 bg-slate-950/60 p-5 sm:rounded-[30px] sm:p-7">
-                <p className="text-xs font-bold uppercase tracking-[0.24em] text-cyan-300">My Role</p>
-                <p className="mt-4 text-lg leading-8 text-slate-200">{caseStudy.role}</p>
-              </article>
-              {[
-                ["Constraints", caseStudy.constraints],
-                ["Technical Decisions", caseStudy.decisions],
-                ["Trade-offs", caseStudy.trade_offs],
-                ["Outcomes", caseStudy.outcomes],
-              ].map(([title, items], index) => (
-                <article key={title} style={{ "--reveal-index": index + 2 }} className="portfolio-depth-card portfolio-reveal portfolio-fly-up rounded-[26px] border border-white/10 bg-white/5 p-5 sm:rounded-[30px] sm:p-7">
-                  <p className="text-xs font-bold uppercase tracking-[0.24em] text-cyan-300">{title}</p>
-                  <ul className="mt-5 space-y-3">
-                    {(items || []).map((item) => (
-                      <li key={item} className="flex gap-3 leading-7 text-slate-300">
-                        <FiCheck className="mt-1 shrink-0 text-cyan-300" aria-hidden="true" />
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section id="features" className="portfolio-perspective border-y border-white/10 bg-white/[0.03]">
-          <div className="mx-auto max-w-7xl px-4 py-12 sm:px-8 sm:py-14 lg:py-16">
-            <p className="portfolio-reveal portfolio-fly-left text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">Feature Map</p>
-            <h2 className="portfolio-reveal portfolio-fly-left mt-4 max-w-3xl text-3xl font-semibold leading-tight sm:text-4xl">A large product, organized for a fast technical review.</h2>
-            <div className="portfolio-stagger mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-              {groupedFeatures.map((feature, index) => (
-                <button key={feature.id || feature.title} style={{ "--reveal-index": index }} onClick={() => openDemo(feature.demo_path || "/demo")} className={`portfolio-depth-card portfolio-reveal ${index % 2 === 0 ? "portfolio-fly-left" : "portfolio-fly-right"} group min-w-0 overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/60 text-left sm:rounded-[28px]`}>
-                  {feature.screenshot_url ? (
-                    <img src={feature.screenshot_url} alt={feature.alt_text || feature.title} loading="lazy" className="aspect-[16/10] w-full object-cover" />
-                  ) : (
-                    <div className="relative flex aspect-[16/10] items-center justify-center overflow-hidden bg-gradient-to-br from-slate-900 via-blue-950 to-cyan-950">
-                      <div className="absolute inset-5 rounded-2xl border border-cyan-200/15 bg-white/5" />
-                      <FiLayers className="relative text-5xl text-cyan-300/70" />
-                    </div>
-                  )}
-                  <div className="p-6">
-                    <p className="text-xs font-bold uppercase tracking-[0.24em] text-cyan-300">0{index + 1} / {feature.category}</p>
-                    <h3 className="mt-3 text-xl font-semibold leading-snug sm:text-2xl">{feature.title}</h3>
-                    <p className="mt-3 leading-7 text-slate-400">{feature.summary}</p>
-                    {feature.review_notes ? (
-                      <p className="mt-4 rounded-2xl border border-cyan-300/10 bg-cyan-300/5 p-3 text-sm leading-6 text-cyan-100">
-                        <span className="font-semibold">What to notice:</span> {feature.review_notes}
-                      </p>
-                    ) : null}
-                    <span className="mt-5 inline-flex items-center gap-2 font-semibold text-white">Open live screen <FiArrowUpRight className="transition group-hover:translate-x-1 group-hover:-translate-y-1" /></span>
-                  </div>
+        <section
+          id="features"
+          data-portfolio-section
+          data-portfolio-gallery
+          ref={galleryRef}
+          className="pf-gallery-section"
+        >
+          <div className="pf-gallery-sticky">
+            <div className="pf-container pf-gallery-heading">
+              <div>
+                <SectionLabel number="03">Feature Map</SectionLabel>
+                <h2>
+                  Built to <span className="pf-serif">work together.</span>
+                </h2>
+                <p>A large product, organized for a fast technical review.</p>
+              </div>
+              <div className="pf-gallery-controls">
+                <span>
+                  SCROLL TO EXPLORE <FiArrowRight />
+                </span>
+                <button
+                  aria-label="Previous feature"
+                  onClick={() => stepGallery(-1)}
+                >
+                  <FiArrowLeft />
                 </button>
-              ))}
+                <button
+                  aria-label="Next feature"
+                  onClick={() => stepGallery(1)}
+                >
+                  <FiArrowRight />
+                </button>
+              </div>
+            </div>
+            <div className="pf-gallery-viewport" data-gallery-viewport>
+              <div className="pf-gallery-track" data-gallery-track>
+                {features.map((feature, index) => {
+                  const Icon = featureIcons[index % featureIcons.length];
+                  return (
+                    <article
+                      key={feature.id || feature.title}
+                      className="pf-feature-card"
+                    >
+                      <button
+                        type="button"
+                        className="pf-feature-hitarea"
+                        aria-label={`Open ${feature.title} live screen`}
+                        onClick={() => openDemo(feature.demo_path || "/demo")}
+                        disabled={!!demoLoading}
+                        onFocus={() => focusFeature(index, false)}
+                      />
+                      <div className="pf-feature-image">
+                        {feature.screenshot_url ? (
+                          <img
+                            src={feature.screenshot_url}
+                            alt={feature.alt_text || feature.title}
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="pf-feature-placeholder">
+                            <Icon />
+                            <span>{feature.category}</span>
+                            <div className="pf-placeholder-lines">
+                              <i />
+                              <i />
+                              <i />
+                            </div>
+                          </div>
+                        )}
+                        <span className="pf-feature-number">
+                          {pad(index + 1)}
+                        </span>
+                        <span className="pf-feature-open">
+                          <FiArrowUpRight />
+                        </span>
+                      </div>
+                      <div className="pf-feature-content">
+                        <p className="pf-overline">{feature.category}</p>
+                        <h3>{feature.title}</h3>
+                        <p>{feature.summary}</p>
+                        {feature.review_notes ? (
+                          <span className="pf-feature-note">
+                            Review focus: {feature.review_notes}
+                          </span>
+                        ) : null}
+                        <span className="pf-feature-link">
+                          Open live screen <FiArrowUpRight />
+                        </span>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="pf-gallery-footer pf-container">
+              <span>
+                {pad(features.length)} PRODUCT AREAS / ONE CONNECTED SYSTEM
+              </span>
+              <div aria-hidden="true" className="pf-gallery-progress">
+                <i />
+              </div>
             </div>
           </div>
         </section>
 
-        <section id="architecture" className="portfolio-perspective mx-auto max-w-7xl px-4 py-12 sm:px-8 sm:py-14 lg:py-16">
-          <div className="grid gap-10 lg:grid-cols-2">
-            <div className="portfolio-reveal portfolio-fly-left">
-              <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">Architecture</p>
-              <h2 className="mt-4 text-3xl font-semibold leading-tight tracking-[-0.03em] sm:text-4xl">Built across the complete application stack.</h2>
-            </div>
-            <div className="portfolio-stagger space-y-3">
-              {(profile.architecture || []).map((item, index) => (
-                <div key={item} style={{ "--reveal-index": index }} className="portfolio-depth-card portfolio-reveal portfolio-fly-right flex min-w-0 items-start gap-4 rounded-2xl border border-white/10 bg-white/5 p-4 sm:items-center sm:gap-5 sm:p-5">
-                  <span className="text-sm font-bold text-cyan-300">0{index + 1}</span>
-                  <span className="min-w-0 text-base font-medium text-slate-200 sm:text-lg">{item}</span>
-                </div>
-              ))}
-            </div>
+        <section
+          id="decisions"
+          data-portfolio-section
+          className="pf-section pf-container pf-approach"
+        >
+          <div className="pf-approach-intro" data-reveal>
+            <SectionLabel number="04">Engineering Decisions</SectionLabel>
+            <h2>
+              Good products.
+              <br />
+              <span className="pf-muted">Considered decisions.</span>
+            </h2>
+            <p>
+              Every interface has a system behind it. Here’s the thinking behind{" "}
+              {project.title}.
+            </p>
           </div>
-          <div className="portfolio-stagger mt-12 grid items-stretch gap-3 md:grid-cols-[1fr_auto_1fr_auto_1fr]">
+          <div className="pf-decision-list">
             {[
-              ["React + Vite", "Public portfolio and authenticated product UI"],
-              ["Rails 8.0", "Authentication, authorization, APIs, jobs, storage, and realtime"],
-              ["PostgreSQL + Redis + S3", "Tenant data, background work, streams, and durable media"],
-            ].map(([title, description], index) => (
-              <React.Fragment key={title}>
-                <div style={{ "--reveal-index": index }} className="portfolio-depth-card portfolio-reveal portfolio-fly-deep rounded-[26px] border border-white/10 bg-white/5 p-6">
-                  <p className="text-lg font-semibold text-white">{title}</p>
-                  <p className="mt-3 leading-7 text-slate-400">{description}</p>
+              ["The challenge", caseStudy.problem, FiBox],
+              ["The constraints", caseStudy.constraints, FiShield],
+              ["My contribution", caseStudy.role, FiCode],
+              ["The decisions", caseStudy.decisions, FiCpu],
+              ["The trade-offs", caseStudy.trade_offs, FiShield],
+              ["The outcomes", caseStudy.outcomes, FiCheck],
+            ].map(([title, content, Icon], index) => (
+              <article className="pf-decision" key={title} data-reveal>
+                <span className="pf-decision-icon">
+                  <Icon />
+                </span>
+                <div>
+                  <span className="pf-overline">{pad(index + 1)}</span>
+                  <h3>{title}</h3>
+                  {Array.isArray(content) ? (
+                    <ul>
+                      {content.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p>{content}</p>
+                  )}
                 </div>
-                {index < 2 ? <div className="hidden items-center text-2xl text-cyan-300 md:flex" aria-hidden="true">→</div> : null}
-              </React.Fragment>
+              </article>
             ))}
           </div>
         </section>
 
-        <section id="contact" className="portfolio-perspective border-t border-white/10 bg-slate-950">
-          <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-8 sm:py-14 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:py-16">
-            <div className="portfolio-reveal portfolio-fly-left">
-              <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-300">Contact</p>
-              <h2 className="mt-4 text-3xl font-semibold leading-tight tracking-[-0.03em] sm:text-4xl">Let’s discuss the role and the problems you need solved.</h2>
-              <div className="mt-7 flex flex-wrap gap-3">
-                {socialLinks.github ? <a href={socialLinks.github} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border border-white/15 px-4 py-2.5"><FiGithub /> GitHub</a> : null}
-                {socialLinks.linkedin ? <a href={socialLinks.linkedin} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border border-white/15 px-4 py-2.5"><FiLinkedin /> LinkedIn</a> : null}
-                <span className="inline-flex items-center gap-2 rounded-full border border-white/15 px-4 py-2.5 text-slate-300"><FiMail /> Contact form</span>
+        <section
+          id="architecture"
+          data-portfolio-section
+          className="pf-section pf-architecture"
+        >
+          <div className="pf-container">
+            <div className="pf-section-heading" data-reveal>
+              <div>
+                <SectionLabel number="05">Architecture</SectionLabel>
+                <h2>
+                  From pixel
+                  <br />
+                  to <span className="pf-serif">production.</span>
+                </h2>
               </div>
+              <p>A connected stack, with intention at every layer.</p>
+            </div>
+            <div className="pf-architecture-flow" data-reveal>
+              {[
+                ["01", "The experience", "React + Vite", FiLayers],
+                ["02", "The engine", "Rails · APIs · Realtime", FiCpu],
+                ["03", "The foundation", "PostgreSQL · Redis · S3", FiDatabase],
+              ].map(([number, title, stack, Icon]) => (
+                <div key={number} className="pf-architecture-node">
+                  <div>
+                    <span>{number}</span>
+                    <Icon />
+                  </div>
+                  <h3>{title}</h3>
+                  <p>{stack}</p>
+                  <span className="pf-node-port" />
+                </div>
+              ))}
+            </div>
+            <div className="pf-architecture-tags" data-reveal>
+              {(profile.architecture || []).map((item) => (
+                <span key={item}>
+                  <FiCheck />
+                  {item}
+                </span>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section
+          id="contact"
+          data-portfolio-section
+          className="pf-section pf-container pf-contact"
+        >
+          <div data-reveal>
+            <SectionLabel number="06">Contact</SectionLabel>
+            <h2>
+              Let’s build
+              <br />
+              something <span className="pf-serif">great.</span>
+              <FiArrowUpRight className="pf-contact-arrow" aria-hidden="true" />
+            </h2>
+            <p>
+              Have a product in mind, a challenging problem, or a role to talk
+              about? I’d love to hear it.
+            </p>
+            <div className="pf-social-links">
+              {socialLinks.github ? (
+                <a href={socialLinks.github} target="_blank" rel="noreferrer">
+                  <FiGithub />
+                  GitHub <FiArrowUpRight />
+                </a>
+              ) : null}
+              {socialLinks.linkedin ? (
+                <a href={socialLinks.linkedin} target="_blank" rel="noreferrer">
+                  <FiLinkedin />
+                  LinkedIn <FiArrowUpRight />
+                </a>
+              ) : null}
+            </div>
+          </div>
+          <div data-reveal>
+            <div className="pf-contact-form-heading">
+              <FiMail />
+              <span>A conversation starts here.</span>
             </div>
             <ContactForm />
           </div>
         </section>
       </main>
-
-      <footer className="border-t border-white/10 bg-[#07111f] px-5 py-7 text-center text-sm text-slate-500">
-        © {new Date().getFullYear()} {profile.full_name}. Built with Rails and React.
+      {demoError ? (
+        <div className="pf-demo-error" role="alert">
+          <span>{demoError}</span>
+          <button
+            aria-label="Dismiss demo error"
+            onClick={() => setDemoError("")}
+          >
+            <FiX />
+          </button>
+        </div>
+      ) : null}
+      <footer className="pf-footer pf-container">
+        <a
+          className="pf-footer-wordmark"
+          href="#top"
+          onClick={(event) => {
+            event.preventDefault();
+            scrollTo("top");
+          }}
+        >
+          {profile.full_name.split(" ")[0].toLowerCase()}
+          <span>®</span>
+        </a>
+        <div>
+          <span>Thoughtfully engineered.</span>
+          <span>
+            © {new Date().getFullYear()} {profile.full_name}
+          </span>
+        </div>
+        <button className="pf-back-top" onClick={() => scrollTo("top")}>
+          Back to top <FiArrowUpRight />
+        </button>
       </footer>
     </div>
   );
 };
-
 export default PublicPortfolio;
