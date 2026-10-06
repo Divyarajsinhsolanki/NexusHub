@@ -20,7 +20,7 @@ import {
   type LucideIcon,
 } from 'lucide-react-native';
 import { useMemo, useRef, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { absoluteAssetUrl, apiErrorMessage } from '../api/client';
@@ -455,7 +455,7 @@ function profileInitials(name: string) {
 }
 
 function openUrl(url?: string | null) {
-  if (url) void WebBrowser.openBrowserAsync(url);
+  if (url) void WebBrowser.openBrowserAsync(url).catch(() => Alert.alert('Unable to open link', 'Please try again.'));
 }
 
 const styles = StyleSheet.create({

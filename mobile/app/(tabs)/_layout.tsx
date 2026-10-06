@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { BriefcaseBusiness, FolderKanban, Inbox, LayoutDashboard, Menu } from 'lucide-react-native';
 import { Tabs } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { endpoints } from '@/src/api/endpoints';
 import { mobileQueryKeys } from '@/src/cache/mobileCache';
@@ -8,8 +9,10 @@ import { useAppTheme } from '@/src/theme';
 
 export default function TabLayout() {
   const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const bottomPadding = Math.max(insets.bottom, 8);
   const home = useQuery({ queryKey: mobileQueryKeys.home, queryFn: endpoints.home });
-  const unread = home.data?.summary.unread_notifications;
+  const unread = home.data?.summary?.unread_notifications;
 
   return (
     <Tabs
@@ -35,8 +38,8 @@ export default function TabLayout() {
           backgroundColor: theme.tabBar,
           borderTopColor: theme.border,
           elevation: 0,
-          height: 66,
-          paddingBottom: 8,
+          height: 58 + bottomPadding,
+          paddingBottom: bottomPadding,
           paddingTop: 6,
           shadowOpacity: 0,
         },

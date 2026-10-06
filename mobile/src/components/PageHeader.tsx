@@ -7,14 +7,14 @@ export function PageHeader({ title, subtitle, action, leading }: { title: string
   const theme = useAppTheme();
   return (
     <View style={[styles.header, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
-      {leading}
+      {leading ? <View style={styles.accessory}>{leading}</View> : null}
       <View style={styles.copy}>
         <Text accessibilityRole="header" adjustsFontSizeToFit minimumFontScale={0.82} numberOfLines={1} style={[styles.title, { color: theme.text }]}>
           {title}
         </Text>
-        {subtitle ? <Text numberOfLines={1} style={[styles.subtitle, { color: theme.textMuted }]}>{subtitle}</Text> : null}
+        {subtitle ? <Text numberOfLines={2} style={[styles.subtitle, { color: theme.textMuted }]}>{subtitle}</Text> : null}
       </View>
-      {action}
+      {action ? <View style={styles.accessory}>{action}</View> : null}
     </View>
   );
 }
@@ -29,7 +29,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
-  copy: { flex: 1, paddingHorizontal: 12 },
+  copy: { flex: 1, minWidth: 0, paddingHorizontal: 8 },
+  accessory: { flexShrink: 0 },
   title: { fontSize: 21, fontWeight: '800', letterSpacing: 0 },
   subtitle: { fontSize: 12, lineHeight: 17, marginTop: 1 },
 });

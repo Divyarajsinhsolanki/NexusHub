@@ -59,7 +59,7 @@ export default function MoreScreen() {
   const openTool = (item: MenuItem) => {
     const next = [item.slug, ...recent.filter((slug) => slug !== item.slug)].slice(0, 4);
     setRecent(next);
-    void AsyncStorage.setItem('nexushub.recent-tools', JSON.stringify(next));
+    void AsyncStorage.setItem('nexushub.recent-tools', JSON.stringify(next)).catch(() => undefined);
     router.push(item.slug === 'profile' ? '/more/profile' : `/more/${item.slug}` as never);
   };
 

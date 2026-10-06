@@ -27,7 +27,7 @@ export function SegmentedControl<T extends string>({ options, value, onChange }:
 }
 
 const styles = StyleSheet.create({
-  container: { borderRadius: 8, flexDirection: 'row', height: 44, padding: 3 },
-  option: { alignItems: 'center', borderColor: 'transparent', borderRadius: 6, borderWidth: 1, flex: 1, justifyContent: 'center' },
-  label: { fontSize: 13, fontWeight: '700' },
+  container: { borderRadius: 8, flexDirection: 'row', minHeight: 50, padding: 3 },
+  option: { alignItems: 'center', borderColor: 'transparent', borderRadius: 6, borderWidth: 1, flex: 1, minWidth: 0, minHeight: 44, paddingHorizontal: 5, paddingVertical: 7, justifyContent: 'center' },
+  label: { fontSize: 13, fontWeight: '700', textAlign: 'center', flexShrink: 1 },
 });

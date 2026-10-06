@@ -7,7 +7,7 @@ import { TouchableScale } from './TouchableScale';
 export function LoadingState({ label = 'Loading' }: { label?: string }) {
   const theme = useAppTheme();
   return (
-    <View accessibilityLabel={label} style={styles.state}>
+    <View accessible accessibilityLabel={label} accessibilityState={{ busy: true }} accessibilityLiveRegion="polite" style={styles.state}>
       <ActivityIndicator color={theme.primary} size="large" />
       <Text style={[styles.message, { color: theme.textMuted }]}>{label}</Text>
     </View>
@@ -43,8 +43,8 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
 
 const styles = StyleSheet.create({
   state: { alignItems: 'center', flex: 1, justifyContent: 'center', padding: 32 },
-  title: { fontSize: 17, fontWeight: '700', marginTop: 12 },
+  title: { fontSize: 17, fontWeight: '700', marginTop: 12, textAlign: 'center' },
   message: { fontSize: 14, lineHeight: 20, marginTop: 6, textAlign: 'center' },
-  retry: { borderRadius: 8, marginTop: 18, paddingHorizontal: 18, paddingVertical: 10 },
+  retry: { alignItems: 'center', borderRadius: 8, justifyContent: 'center', minHeight: 48, marginTop: 18, paddingHorizontal: 18, paddingVertical: 10 },
   retryText: { color: '#ffffff', fontWeight: '700' },
 });
