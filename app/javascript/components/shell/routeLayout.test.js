@@ -21,8 +21,9 @@ describe("workspace route layout metadata", () => {
     expect(getRouteLayout("/teams")).toMatchObject({ mode: "master-detail", context: null, inspector: "activity" });
   });
 
-  it("enables selection inspectors for project and calendar deep links", () => {
-    expect(getRouteLayout("/calendar").inspector).toBe("selection");
+  it("enables project inspectors and keeps planning compact", () => {
+    expect(getRouteLayout("/calendar").inspector).toBeNull();
+    expect(getRouteLayout("/planning")).toMatchObject({ section: "planning", context: null, inspector: null, density: "compact" });
     expect(getRouteLayout("/projects/9/issues").inspector).toBe("selection");
   });
 
@@ -31,6 +32,13 @@ describe("workspace route layout metadata", () => {
     expect(getRouteLayout("/chat/7")).toMatchObject({ panelMode: "drawer", mobileChrome: "thread" });
     expect(getSelectionFromSearch("?tab=todo&task_id=42&custom=yes")).toEqual({ key: "task_id", id: "42" });
     expect(clearSelectionFromSearch("?tab=todo&task_id=42&custom=yes")).toBe("?tab=todo&custom=yes");
+  });
+
+  it("uses the feed's own sidebar on Home and legacy entry points", () => {
+    for (const path of ["/home", "/posts", "/my-work"]) {
+      expect(getRouteLayout(path)).toMatchObject({ section: "workspace", context: null, inspector: null, density: "compact" });
+      expect(getBreadcrumbs(path)).toEqual([{ label: "Home" }]);
+    }
   });
 
   it("builds route-aware breadcrumbs with project names", () => {

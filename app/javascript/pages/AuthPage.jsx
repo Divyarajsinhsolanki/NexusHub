@@ -7,7 +7,7 @@ import { safeReturnPath } from "../utils/safeReturnPath";
 
 const defaultUserPath = (user) => {
   const landingPage = user?.landing_page;
-  if (!landingPage) return "/";
+  if (!landingPage) return "/home";
   return landingPage.startsWith("/") ? landingPage : `/${landingPage}`;
 };
 

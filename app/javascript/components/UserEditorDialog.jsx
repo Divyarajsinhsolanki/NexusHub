@@ -4,7 +4,7 @@ import { Check, X, UserPlus, ShieldCheck } from 'lucide-react';
 import Avatar from './ui/Avatar';
 
 const labels = { first_name: 'First name', last_name: 'Last name', email: 'Email address', job_title: 'Job title', phone_number: 'Phone number', date_of_birth: 'Birth date', password: 'Password', password_confirmation: 'Confirm password' };
-const landingPages = ['demo', 'calendar', 'posts', 'profile', 'vault', 'knowledge', 'worklog', 'projects', 'teams', 'pdf', 'users', 'departments', 'chat', 'notifications'];
+const landingPages = ['home', 'demo', 'calendar', 'posts', 'profile', 'vault', 'knowledge', 'worklog', 'projects', 'teams', 'pdf', 'users', 'departments', 'chat', 'notifications'];
 const roleLabel = (role) => role.replaceAll('_', ' ');
 
 export default function UserEditorDialog({ mode, value, roles, departments, projects = [], onChange, onRoleToggle, onProjectToggle, onClose, onSubmit, busy }) {

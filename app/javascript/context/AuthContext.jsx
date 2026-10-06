@@ -80,7 +80,7 @@ export function AuthProvider({ children }) {
     const { data } = await api.post("/login", credentials);
     setUser(data.user);
     scheduleRefresh(data.exp);
-    navigate(safeReturnPath(returnTo) || (data.user.landing_page ? `/${data.user.landing_page}` : "/"));
+    navigate(safeReturnPath(returnTo) || (data.user.landing_page ? `/${data.user.landing_page}` : "/home"));
     toast.success("Logged in successfully");
   };
 
@@ -107,7 +107,7 @@ export function AuthProvider({ children }) {
       );
       setUser(data.user);
       scheduleRefresh(data.exp);
-      navigate(safeReturnPath(returnTo) || (data.user.landing_page ? `/${data.user.landing_page}` : "/"));
+      navigate(safeReturnPath(returnTo) || (data.user.landing_page ? `/${data.user.landing_page}` : "/home"));
       toast.success("Logged in successfully");
     } catch (error) {
       console.error("Google login failed:", error);

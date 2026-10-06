@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useContext, useMemo, useRef } 
 import { Link } from "react-router-dom";
 import { fetchPostFeed, SchedulerAPI, fetchProjects, getUsers } from "../components/api";
 import { AuthContext } from "../context/AuthContext";
+import Avatar from "../components/ui/Avatar";
 import PostForm from "../components/PostForm";
 import PostList from "../components/PostList";
 import { filterAndSortPosts } from './postFeedUtils';
@@ -90,6 +91,8 @@ const ProjectItem = ({ project }) => (
 
 const PostPage = () => {
   const { user } = useContext(AuthContext);
+  const userName = [user?.first_name, user?.last_name].filter(Boolean).join(" ") || user?.name || user?.email || "Your profile";
+  const roleName = user?.roles?.map(role => role.name).filter(Boolean).join(", ");
   const [posts, setPosts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -211,7 +214,8 @@ const PostPage = () => {
 
   useEffect(() => {
     if (!user) return;
-    const today = new Date().toISOString().split('T')[0];
+    const localDate = new Date();
+    const today = `${localDate.getFullYear()}-${String(localDate.getMonth() + 1).padStart(2, "0")}-${String(localDate.getDate()).padStart(2, "0")}`;
 
     // Run the main data fetches in parallel for performance
     Promise.all([
@@ -232,7 +236,7 @@ const PostPage = () => {
 
         // Filter tasks due today
         const due = tasksData
-          .filter((t) => t.end_date === today && t.status !== 'completed')
+          .filter((t) => t.end_date?.slice(0, 10) === today && !['completed', 'done', 'cancelled', 'archived'].includes(t.status))
           .map((t) => ({
             ...t,
             project: userProjects.find((p) => p.id === t.project_id)
@@ -278,18 +282,17 @@ const PostPage = () => {
   return (
     <>
       <Helmet>
-        <title>Updates Hub</title>
+        <title>Home</title>
         <meta name="description" content="Team updates, discussions, tasks, and workspace activity" />
-        <meta property="og:title" content="Updates Hub" />
+        <meta property="og:title" content="Home" />
         <meta property="og:description" content="Team updates, discussions, tasks, and workspace activity" />
         <meta property="og:type" content="website" />
       </Helmet>
-      <div className="nexus-updates-page">
+      <div className="nexus-updates-page nexus-home-page">
         <header className="nexus-updates-header">
           <div className="nexus-updates-title">
-            <span>Team communication</span>
-            <h1>Updates</h1>
-            <p>Share progress, decisions, questions, and blockers with your workspace.</p>
+            <h1>Home</h1>
+            <p>Posts and updates from your workspace.</p>
           </div>
           <div className="nexus-updates-actions">
             <button type="button" onClick={() => refreshPosts()} disabled={isRefreshing} className="nexus-secondary-action">
@@ -298,11 +301,6 @@ const PostPage = () => {
             </button>
             <Link to="/notifications" className="nexus-secondary-action"><FiBell /> Notifications</Link>
             <button type="button" onClick={handleQuickPost} className="app-primary-button"><FiPlus /> Write update</button>
-          </div>
-          <div className="nexus-updates-stats" aria-label="Update summary">
-            <div><FiMessageSquare /><span><strong>{stats.totalPosts}</strong> updates</span></div>
-            <div><FiUsers /><span><strong>{stats.activeUsers}</strong> contributors loaded</span></div>
-            <div><FiClock /><span>Last activity <strong>{stats.recentActivity}</strong></span></div>
           </div>
         </header>
 
@@ -398,7 +396,15 @@ const PostPage = () => {
             )}
           </main>
 
-          <aside className="nexus-updates-rail" aria-label="Today at a glance">
+          <aside className="nexus-updates-rail" aria-label="Your profile and workspace">
+            <section className="nexus-updates-rail-card nexus-home-profile" aria-label="Your profile">
+              <Link to="/profile" className="nexus-home-profile-main">
+                <Avatar name={userName} src={user?.profile_picture} color={user?.avatar_color} className="h-10 w-10 shrink-0 text-sm" />
+                <span><strong>{userName}</strong>{roleName && <small>{roleName}</small>}</span>
+              </Link>
+              {user?.email && <p className="nexus-home-profile-email">{user.email}</p>}
+              <div className="nexus-home-profile-links"><Link to="/profile">View profile</Link><Link to="/planning">My planning</Link></div>
+            </section>
             <section className="nexus-updates-rail-card">
               <header><span><FiAlertTriangle /> Today</span><strong>{tasks.length}</strong></header>
               {tasks.length > 0 ? (

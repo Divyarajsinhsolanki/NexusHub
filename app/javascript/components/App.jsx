@@ -23,11 +23,10 @@ import { getRouteLayout } from "./shell/routeLayout";
 const Admin = lazy(() => import("../components/Admin/Admin"));
 const AdminImpersonation = lazy(() => import("../pages/AdminImpersonation"));
 const AuthPage = lazy(() => import("../pages/AuthPage"));
-const Calendar = lazy(() => import("../pages/Calendar"));
+const Planning = lazy(() => import("../pages/Planning"));
 const Chat = lazy(() => import("../pages/Chat"));
 const Meeting = lazy(() => import("../pages/Meeting"));
 const Contact = lazy(() => import("../pages/Contact"));
-const DailyMomentumHub = lazy(() => import("../pages/DailyMomentumHub"));
 const DepartmentDetails = lazy(() => import("../pages/DepartmentDetails"));
 const Departments = lazy(() => import("../pages/Departments"));
 const ForgotPassword = lazy(() => import("../pages/ForgotPassword"));
@@ -35,7 +34,6 @@ const IssueTracker = lazy(() => import("../pages/IssueTracker"));
 const KnowledgeDashboard = lazy(() => import("../pages/KnowledgeDashboard"));
 const Legal = lazy(() => import("../pages/Legal"));
 const MetaverseLanding = lazy(() => import("../pages/MetaverseLanding"));
-const MyWork = lazy(() => import("../pages/MyWork"));
 const Notifications = lazy(() => import("../pages/Notifications"));
 const DemoHub = lazy(() => import("../pages/DemoHub"));
 const PdfMaster = lazy(() => import("./PdfMaster"));
@@ -51,7 +49,6 @@ const SprintDashboard = lazy(() => import("../pages/SprintDashboard"));
 const Teams = lazy(() => import("../pages/Teams"));
 const Users = lazy(() => import("../pages/Users"));
 const Vault = lazy(() => import("../pages/Vault"));
-const WorkLog = lazy(() => import("../pages/WorkLog"));
 
 const routeTransitionProps = {
   initial: { opacity: 0, y: 8 },
@@ -93,12 +90,14 @@ const AppRoutes = () => {
             />
 
             <Route path="/demo" element={portfolioEnabled ? <PrivateRoute><DemoHub /></PrivateRoute> : <Navigate to="/login" replace />} />
-            <Route path="/my-work" element={<PrivateRoute><MyWork /></PrivateRoute>} />
+            <Route path="/planning" element={<PrivateRoute><Planning /></PrivateRoute>} />
+            <Route path="/home" element={<PrivateRoute><PostPage /></PrivateRoute>} />
+            <Route path="/my-work" element={<PrivateRoute><Navigate to={`/home${location.search}`} replace /></PrivateRoute>} />
             <Route
               path="/momentum"
               element={
                 <PrivateRoute>
-                  <DailyMomentumHub />
+                  <Planning />
                 </PrivateRoute>
               }
             />
@@ -118,7 +117,7 @@ const AppRoutes = () => {
               path="/posts"
               element={
                 <PrivateRoute>
-                  <PostPage />
+                  <Navigate to={`/home${location.search}`} replace />
                 </PrivateRoute>
               }
             />
@@ -158,7 +157,7 @@ const AppRoutes = () => {
               path="/worklog"
               element={
                 <PrivateRoute>
-                  <WorkLog />
+                  <Planning />
                 </PrivateRoute>
               }
             />
@@ -166,7 +165,7 @@ const AppRoutes = () => {
               path="/calendar"
               element={
                 <PrivateRoute>
-                  <Calendar />
+                  <Planning />
                 </PrivateRoute>
               }
             />

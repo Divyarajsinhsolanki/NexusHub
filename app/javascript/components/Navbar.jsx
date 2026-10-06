@@ -41,22 +41,19 @@ const navigationGroups = [
   {
     label: "Workspace",
     items: [
-      { to: "/my-work", label: "My Work", icon: FiHome },
+      { to: "/home", label: "Home", icon: FiHome },
       { to: "/projects", label: "Projects", icon: FiFolder },
     ],
   },
   {
     label: "Planning",
     items: [
-      { to: "/calendar", label: "Calendar", icon: FiCalendar },
-      { to: "/momentum", label: "Momentum", icon: FiZap },
-      { to: "/worklog", label: "Work Log", icon: FiClock },
+      { to: "/planning", label: "Planning", icon: FiCalendar },
     ],
   },
   {
     label: "Collaboration",
     items: [
-      { to: "/posts", label: "Posts", icon: FiActivity },
       { to: "/teams", label: "Teams", icon: FiUsers },
       { to: "/chat", label: "Chat", icon: FiMessageSquare },
       { to: "/departments", label: "Departments", icon: FiGrid },
@@ -74,13 +71,10 @@ const navigationGroups = [
 
 const contextLinks = {
   planning: [
-    ["/calendar", "Calendar", FiCalendar],
-    ["/momentum", "Momentum Hub", FiZap],
-    ["/worklog", "Work Log", FiClock],
-    ["/vault", "Personal Vault", FiArchive],
+    ["/planning", "Planning", FiCalendar],
   ],
   collaboration: [
-    ["/posts", "Posts and updates", FiActivity],
+    ["/home", "Home and posts", FiHome],
     ["/teams", "Teams", FiUsers],
     ["/users", "People", FiUsers],
     ["/departments", "Departments", FiGrid],
@@ -170,10 +164,15 @@ const RailLink = ({ item, collapsed, onNavigate }) => {
   );
 };
 
-const GlobalRail = ({ collapsed, onToggle, onOpenMobile, mobileOpen }) => (
-  <aside className={`nexus-global-rail ${collapsed ? "nexus-global-rail-collapsed" : ""}`} aria-label="Primary navigation">
+const GlobalRail = ({ collapsed, onToggle, onExpand, onCollapse, onOpenMobile, mobileOpen }) => (
+  <aside className={`nexus-global-rail ${collapsed ? "nexus-global-rail-collapsed" : "nexus-global-rail-expanded"}`} aria-label="Primary navigation"
+    onMouseEnter={onExpand} onMouseLeave={onCollapse}
+    onFocus={(event) => { if (event.target.matches(":focus-visible")) onExpand(); }}
+    onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) onCollapse(); }}
+    onKeyDown={(event) => { if (event.key === "Escape") onCollapse(); }}
+  >
     <div className="nexus-rail-brand-row">
-      <Link to="/my-work" className="nexus-rail-brand" aria-label="NexusHub home">
+      <Link to="/home" onClick={onCollapse} className="nexus-rail-brand" aria-label="NexusHub home">
         <img src={logo} alt="" />
         <span>NexusHub</span>
       </Link>
@@ -189,7 +188,7 @@ const GlobalRail = ({ collapsed, onToggle, onOpenMobile, mobileOpen }) => (
       {navigationGroups.map((group) => (
         <div className="nexus-rail-group" key={group.label}>
           <p>{group.label}</p>
-          {group.items.map((item) => <RailLink key={item.to} item={item} collapsed={collapsed} />)}
+          {group.items.map((item) => <RailLink key={item.to} item={item} collapsed={collapsed} onNavigate={onCollapse} />)}
         </div>
       ))}
     </nav>
@@ -382,7 +381,7 @@ const ActivityInspector = ({ activity, events, error, onRefresh, projectId, titl
       </div>
 
       <section className="nexus-inspector-section">
-        <div className="nexus-section-row"><h3>Upcoming</h3><Link to="/calendar">Calendar</Link></div>
+        <div className="nexus-section-row"><h3>Upcoming</h3><Link to="/planning">Planning</Link></div>
         {eventItems.map((event) => (
           <Link key={event.id} to={`/calendar?event_id=${event.id}`} className="nexus-upcoming-row">
             <span>{formatDate(event.start_at)}</span>
@@ -533,9 +532,9 @@ const MobileDrawer = ({ open, onClose, onLogout, user, hasAdminRole }) => {
 
 const BottomNavigation = ({ onMore }) => {
   const items = [
-    ["/my-work", "My Work", FiHome],
+    ["/home", "Home", FiHome],
     ["/projects", "Projects", FiFolder],
-    ["/calendar", "Calendar", FiCalendar],
+    ["/planning", "Planning", FiCalendar],
     ["/chat", "Chat", FiMessageSquare],
   ];
   return (
@@ -556,9 +555,7 @@ const Navbar = () => {
   const isMobileViewport = useMobileViewport();
   const layout = useMemo(() => getRouteLayout(location.pathname), [location.pathname]);
   const breadcrumbs = useMemo(() => getBreadcrumbs(location.pathname, projects), [location.pathname, projects]);
-  const [collapsed, setCollapsed] = useState(() => {
-    try { return window.localStorage.getItem("nexus:shell:nav-collapsed") === "true"; } catch { return false; }
-  });
+  const [collapsed, setCollapsed] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
@@ -570,11 +567,16 @@ const Navbar = () => {
   const hasAdminRole = user?.roles?.some((role) => ["owner", "admin"].includes(role.name));
 
   useEffect(() => {
-    document.documentElement.dataset.nexusNav = collapsed ? "collapsed" : "expanded";
-    try { window.localStorage.setItem("nexus:shell:nav-collapsed", String(collapsed)); } catch { /* storage is optional */ }
-  }, [collapsed]);
+    const previousNav = document.documentElement.dataset.nexusNav;
+    document.documentElement.dataset.nexusNav = "collapsed";
+    return () => {
+      if (previousNav) document.documentElement.dataset.nexusNav = previousNav;
+      else delete document.documentElement.dataset.nexusNav;
+    };
+  }, []);
 
   useEffect(() => {
+    setCollapsed(true);
     setMobileOpen(false);
     setContextOpen(false);
     setInspectorOpen(false);
@@ -659,6 +661,8 @@ const Navbar = () => {
       <GlobalRail
         collapsed={collapsed}
         onToggle={() => setCollapsed((value) => !value)}
+        onExpand={() => setCollapsed(false)}
+        onCollapse={() => setCollapsed(true)}
         onOpenMobile={openMobile}
         mobileOpen={mobileOpen}
       />

@@ -22,8 +22,9 @@ import {
 } from "lucide-react";
 
 const landingPageOptions = [
+  { value: "home", label: "Home" },
   { value: "calendar", label: "Calendar" },
-  { value: "posts", label: "Posts Feed" },
+  { value: "posts", label: "Home (posts)" },
   { value: "profile", label: "My Profile" },
   { value: "vault", label: "Personal Vault" },
   { value: "knowledge", label: "Knowledge Base" },
@@ -120,7 +121,7 @@ const Settings = () => {
   // State
   const [color, setColor] = useState(initialColor);
   const [darkMode, setDarkMode] = useState(user?.dark_mode || false);
-  const [landingPage, setLandingPage] = useState(user?.landing_page || "posts");
+  const [landingPage, setLandingPage] = useState(user?.landing_page || "home");
   const [saving, setSaving] = useState(false);
   const [savingNotifications, setSavingNotifications] = useState(false);
   const [notificationPrefs, setNotificationPrefs] = useState(defaultNotificationPrefs);
@@ -148,7 +149,7 @@ const Settings = () => {
 
   useEffect(() => {
     setDarkMode(user?.dark_mode || false);
-    setLandingPage(user?.landing_page || "posts");
+    setLandingPage(user?.landing_page || "home");
     setColor(COLOR_MAP[user?.color_theme] || user?.color_theme || "#3b82f6");
     setNotificationPrefs({
       ...defaultNotificationPrefs,

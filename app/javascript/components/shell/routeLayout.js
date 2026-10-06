@@ -4,7 +4,7 @@ const projectMetaversePattern = /^\/projects\/([^/]+)\/metaverse$/;
 const sectionByPath = [
   { match: (path) => path.startsWith("/projects"), section: "projects" },
   { match: (path) => path.startsWith("/profile"), section: "profile" },
-  { match: (path) => ["/calendar", "/momentum", "/worklog"].some((route) => path.startsWith(route)), section: "planning" },
+  { match: (path) => ["/planning", "/calendar", "/momentum", "/worklog"].some((route) => path.startsWith(route)), section: "planning" },
   { match: (path) => ["/posts", "/teams", "/users", "/departments", "/notifications"].some((route) => path.startsWith(route)), section: "collaboration" },
   { match: (path) => ["/knowledge", "/vault", "/pdf"].some((route) => path.startsWith(route)), section: "knowledge" },
   { match: (path) => ["/admin", "/settings"].some((route) => path.startsWith(route)), section: "admin" },
@@ -111,17 +111,21 @@ export const getRouteLayout = (pathname) => {
     };
   }
 
+  if (["/home", "/my-work", "/posts"].includes(pathname)) {
+    return { section: "workspace", mode: "workspace", context: null, inspector: null, panelMode: "drawer", mobileChrome: "default", density: "compact", projectId: null };
+  }
+
   const section = sectionByPath.find(({ match }) => match(pathname))?.section || "workspace";
-  const context = ["planning", "collaboration", "knowledge", "admin"].includes(section) ? section : null;
+  const context = ["collaboration", "knowledge", "admin"].includes(section) ? section : null;
 
   return {
     section,
     mode: "workspace",
     context,
-    inspector: pathname === "/calendar" ? "selection" : pathname === "/settings" || pathname.startsWith("/admin") ? null : "activity",
+    inspector: section === "planning" ? null : pathname === "/calendar" ? "selection" : pathname === "/settings" || pathname.startsWith("/admin") ? null : "activity",
     panelMode: "drawer",
     mobileChrome: "default",
-    density: ["admin", "chat"].includes(section) ? "compact" : "comfortable",
+    density: ["planning", "admin", "chat"].includes(section) ? "compact" : "comfortable",
     projectId: null,
   };
 };
@@ -140,12 +144,14 @@ export const getBreadcrumbs = (pathname, projects = []) => {
   }
 
   const labels = {
-    "/my-work": "My Work",
+    "/home": "Home",
+    "/my-work": "Home",
     "/projects": "Projects",
-    "/calendar": "Calendar",
-    "/momentum": "Momentum Hub",
-    "/worklog": "Work Log",
-    "/posts": "Posts",
+    "/planning": "Planning",
+    "/calendar": "Planning",
+    "/momentum": "Planning",
+    "/worklog": "Planning",
+    "/posts": "Home",
     "/teams": "Teams",
     "/users": "People",
     "/departments": "Departments",

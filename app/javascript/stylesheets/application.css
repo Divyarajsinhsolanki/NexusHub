@@ -3717,3 +3717,59 @@ a.member-profile-contact:hover { color: var(--theme-color); }
 .project-quick-links a { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--shell-border); border-radius: 8px; padding: 8px 10px; font-size: 12px; font-weight: 600; color: var(--theme-color); background: rgb(var(--theme-color-rgb) / 0.06); }
 .project-quick-links a:hover { background: rgb(var(--theme-color-rgb) / 0.12); }
 .project-quick-links a:focus-visible { outline: 2px solid var(--theme-color); outline-offset: 2px; }
+
+/* Home keeps the familiar posts feed with a compact personal sidebar. */
+.nexus-home-page { max-width: 1240px; margin-inline: auto; }
+.nexus-home-page .nexus-updates-header { padding: 0.65rem 0; border: 0; border-bottom: 1px solid var(--nexus-line); border-radius: 0; background: transparent; gap: 0.6rem; }
+.nexus-home-page .nexus-updates-title h1 { font-size: 1.25rem; font-weight: 650; margin: 0; }
+.nexus-home-page .nexus-updates-title p { font-size: 0.75rem; }
+.nexus-home-page .nexus-updates-actions .app-primary-button { min-height: 32px; padding: 0.4rem 0.65rem; border-radius: 5px; }
+.nexus-home-page .nexus-updates-layout { grid-template-columns: minmax(0, 1fr) 280px; gap: 1rem; }
+.nexus-home-page .nexus-updates-rail-card { border-radius: 6px; }
+.nexus-home-profile { padding: 0.85rem; }
+.nexus-home-profile-main { display: flex; gap: 0.65rem; align-items: center; color: var(--nexus-text); }
+.nexus-home-profile-main > span { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
+.nexus-home-profile-main strong { font-size: 0.82rem; font-weight: 600; overflow-wrap: anywhere; }
+.nexus-home-profile-main small { font-size: 0.68rem; color: var(--nexus-muted); text-transform: capitalize; }
+.nexus-home-profile-email { margin: 0.65rem 0; font-size: 0.7rem; color: var(--nexus-muted); overflow-wrap: anywhere; }
+.nexus-home-profile-links { display: flex; justify-content: space-between; gap: 0.5rem; padding-top: 0.65rem; margin-top: 0.65rem; border-top: 1px solid var(--nexus-line); font-size: 0.7rem; color: var(--theme-color); }
+.nexus-home-profile-links a:hover { text-decoration: underline; }
+@media (max-width: 1023px) { .nexus-home-page .nexus-updates-layout { grid-template-columns: minmax(0, 1fr); } }
+
+/* Hover navigation overlays the page so content stays in place. */
+@media (min-width: 768px) {
+  .nexus-global-rail.nexus-global-rail-expanded { width: 232px; box-shadow: 8px 0 24px rgb(15 23 42 / 0.1); }
+  .nexus-global-rail.nexus-global-rail-expanded .nexus-rail-brand-row { justify-content: space-between; padding-inline: 0.75rem; }
+  .nexus-global-rail.nexus-global-rail-expanded .nexus-rail-brand { width: auto; flex: 1; justify-content: flex-start; }
+  .nexus-global-rail.nexus-global-rail-expanded .nexus-rail-brand-row > .nexus-icon-button { position: static; width: 30px; height: 30px; flex-basis: 30px; }
+  .nexus-global-rail.nexus-global-rail-expanded .nexus-rail-brand span,
+  .nexus-global-rail.nexus-global-rail-expanded .nexus-rail-link span,
+  .nexus-global-rail.nexus-global-rail-expanded .nexus-rail-group > p { width: auto; opacity: 1; overflow: visible; }
+  .nexus-global-rail.nexus-global-rail-expanded .nexus-rail-link { justify-content: flex-start; padding-inline: 0.75rem; }
+}
+@media (prefers-reduced-motion: reduce) { .nexus-global-rail { transition: none; } }
+.vault-page { color: var(--nexus-text); font-size: 13px; padding: 16px; }
+.vault-content { max-width: 1200px; margin: 0 auto; }
+.vault-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid var(--nexus-line); }
+.vault-header h1 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 20px; font-weight: 600; }
+.vault-header h1 svg { width: 20px; height: 20px; }
+.vault-header p { margin: 4px 0 0; font-size: 12px; color: var(--nexus-muted); }
+.vault-add { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 5px; background: var(--theme-color); color: white; white-space: nowrap; }
+.vault-summary { display: flex; flex-wrap: wrap; gap: 16px; padding: 12px 0; color: var(--nexus-muted); font-size: 12px; }
+.vault-summary span { display: inline-flex; align-items: center; gap: 5px; }
+.vault-summary strong { color: var(--nexus-text); font-weight: 600; }
+.vault-toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; margin-bottom: 16px; padding: 10px; border: 1px solid var(--nexus-line); border-radius: 5px; background: var(--nexus-panel); }
+.vault-tabs { display: flex; gap: 4px; overflow-x: auto; }
+.vault-tabs button { display: inline-flex; align-items: center; gap: 5px; padding: 6px 9px; border-radius: 4px; color: var(--nexus-muted); white-space: nowrap; font-size: 12px; }
+.vault-tabs button[aria-pressed=true] { color: var(--theme-color); background: var(--nexus-soft-blue); }
+.vault-search { display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 1px solid var(--nexus-line); border-radius: 4px; color: var(--nexus-muted); }
+.vault-search input { min-width: 0; width: 220px; padding: 6px 0; background: transparent; color: var(--nexus-text); outline: none; }
+.vault-search:focus-within { outline: 2px solid var(--theme-color); outline-offset: 2px; }
+.vault-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 12px; align-items: start; }
+.vault-item { padding: 14px; border: 1px solid var(--nexus-line); border-radius: 6px; background: var(--nexus-panel); }
+.vault-item h3 { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.vault-item pre { max-height: 160px; overflow: auto; font-size: 12px; border-radius: 4px; }
+.vault-item .group\/text { max-height: 160px; overflow: auto; padding: 10px; font-size: 12px; border-radius: 4px; }
+.vault-item .rounded-xl { border-radius: 5px; }
+.vault-page button:focus-visible { outline: 2px solid var(--theme-color); outline-offset: 2px; }
+@media (max-width: 640px) { .vault-page { padding: 10px; } .vault-search { width: 100%; } .vault-search input { width: 100%; } }

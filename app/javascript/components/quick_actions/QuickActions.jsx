@@ -27,22 +27,10 @@ const QuickActions = ({ onCreatePost }) => {
       },
     },
     {
-      title: "Open Calendar",
-      description: "See reminders, events, and today’s plan.",
+      title: "Planning",
+      description: "Plan your day and log your work.",
       icon: <FiCalendar className="text-lg" />,
-      onClick: () => navigate("/calendar"),
-    },
-    {
-      title: "Momentum Hub",
-      description: "Review focus, birthdays, and daily wins.",
-      icon: <FiZap className="text-lg" />,
-      onClick: () => navigate("/momentum"),
-    },
-    {
-      title: "My Work Log",
-      description: "Capture hours, priorities, and notes.",
-      icon: <FiCheckSquare className="text-lg" />,
-      onClick: () => navigate("/worklog"),
+      onClick: () => navigate("/planning"),
     },
     {
       title: "Team Chat",
