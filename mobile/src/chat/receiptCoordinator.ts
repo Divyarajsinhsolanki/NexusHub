@@ -32,7 +32,7 @@ export async function sendConversationReceiptOnce(
     if (current?.[state] === messageId) {
       if (state === 'read') {
         current.read = previous.read;
-        current.delivered = Math.max(current.delivered, previous.delivered);
+        if (current.delivered === messageId) current.delivered = Math.max(previous.delivered, current.read);
       } else if (current.read < messageId) {
         current.delivered = previous.delivered;
       }

@@ -1,4 +1,5 @@
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
+import * as Sentry from '@sentry/react-native';
 import { useCallback, useEffect } from 'react';
 
 import type { Message, Notification } from '../api/types';
@@ -30,7 +31,7 @@ function RealtimeSubscription() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const onEvent = useCallback((event: ChatEvent) => {
-    void handleMobileRealtimeEvent(queryClient, event, user?.id);
+    void handleMobileRealtimeEvent(queryClient, event, user?.id).catch((error) => Sentry.captureException(error, { tags: { surface: 'mobile_realtime_sync' } }));
   }, [queryClient, user?.id]);
 
   const connection = useChatRealtime(undefined, onEvent);
@@ -43,13 +44,15 @@ function RealtimeSubscription() {
       queryClient.invalidateQueries({ queryKey: mobileQueryKeys.conversations }),
       queryClient.invalidateQueries({ queryKey: ['conversation'] }),
       queryClient.invalidateQueries({ queryKey: ['messages'] }),
+      queryClient.invalidateQueries({ queryKey: mobileQueryKeys.notifications }),
+      queryClient.invalidateQueries({ queryKey: mobileQueryKeys.home }),
     ]).catch(() => undefined);
   }, [connection, queryClient]);
   return null;
 }
 
 export async function handleMobileRealtimeEvent(queryClient: QueryClient, event: ChatEvent, userId?: number) {
-  const conversationId = numericId(event.conversation_id);
+  const conversationId = numericId(event.conversation_id) || (isRecord(event.call_session) ? numericId(event.call_session.conversation_id) : undefined);
 
   if (event.type === 'notification_received') {
     const notification = normalizeRealtimeNotification(event.notification);
@@ -74,7 +77,14 @@ export async function handleMobileRealtimeEvent(queryClient: QueryClient, event:
   if (event.type === 'message_reactions_updated') {
     const messageId = numericId(event.message_id);
     if (conversationId && messageId && isRecord(event.reactions)) {
-      updateCachedMessage(queryClient, conversationId, messageId, (message) => ({ ...message, reactions: event.reactions as Record<string, number> }));
+      updateCachedMessage(queryClient, conversationId, messageId, (message) => {
+        const reacted = new Set(message.reacted_emojis || []);
+        if (Number(event.last_actor_id) === userId && typeof event.last_actor_emoji === 'string') {
+          if (event.last_actor_action === 'removed') reacted.delete(event.last_actor_emoji);
+          else if (event.last_actor_action === 'added') reacted.add(event.last_actor_emoji);
+        }
+        return { ...message, reactions: event.reactions as Record<string, number>, reacted_emojis: [...reacted] };
+      });
     }
     return;
   }
@@ -104,7 +114,8 @@ export async function handleMobileRealtimeEvent(queryClient: QueryClient, event:
   if (event.type?.startsWith('call_')) {
     if (conversationId) {
       const call = isRecord(event.call_session) ? event.call_session as never : null;
-      updateConversationCaches(queryClient, conversationId, (conversation) => ({ ...conversation, active_call: event.type === 'call_ended' ? null : call || conversation.active_call }));
+      const terminal = event.type === 'call_ended' || (isRecord(event.call_session) && !['active', 'ringing'].includes(String(event.call_session.status)));
+      updateConversationCaches(queryClient, conversationId, (conversation) => ({ ...conversation, active_call: terminal ? null : call || conversation.active_call }));
     }
     await queryClient.invalidateQueries({ queryKey: mobileQueryKeys.home });
   }

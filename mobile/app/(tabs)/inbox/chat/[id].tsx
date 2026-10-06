@@ -1,6 +1,7 @@
 import * as Sentry from '@sentry/react-native';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as DocumentPicker from 'expo-document-picker';
+import { randomUUID } from 'expo-crypto';
 import { Image } from 'expo-image';
 import { Redirect, useFocusEffect, useLocalSearchParams, usePathname, useRouter, type ErrorBoundaryProps } from 'expo-router';
 import { ArrowLeft, FilePlus2, MoreHorizontal, Phone, Send, UsersRound, Video } from 'lucide-react-native';
@@ -28,12 +29,17 @@ import { useRealtimeActions } from '@/src/realtime/RealtimeProvider';
 import { useChatRealtime, type ChatEvent } from '@/src/realtime/useChatRealtime';
 import { useAppTheme } from '@/src/theme';
 
-type MessageDraft = { body: string; attachment: DocumentPicker.DocumentPickerAsset | null };
+type MessageDraft = { body: string; attachment: DocumentPicker.DocumentPickerAsset | null; clientId: string };
 
 export default function ChatRoute() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const conversationId = Number(id);
   const pathname = usePathname();
+  const router = useRouter();
+
+  if (!Number.isSafeInteger(conversationId) || conversationId <= 0) {
+    return <Screen><ErrorState message="This conversation link is invalid." onRetry={() => router.replace('/inbox?mode=chat' as never)} /></Screen>;
+  }
 
   if (pathname.startsWith('/inbox/chat/')) {
     return <Redirect href={`/chat/${conversationId}` as never} />;
@@ -68,6 +74,7 @@ function ChatScreen({ conversationId }: { conversationId: number }) {
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const remoteTypingTimers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
   const failedDrafts = useRef(new Map<number, MessageDraft>());
+  const temporaryIdRef = useRef(0);
   const conversation = useQuery({ queryKey: mobileQueryKeys.conversation(conversationId), queryFn: () => endpoints.conversationSummary(conversationId), enabled: Number.isFinite(conversationId) });
   const messages = useInfiniteQuery({
     queryKey: mobileQueryKeys.messages(conversationId),
@@ -131,7 +138,8 @@ function ChatScreen({ conversationId }: { conversationId: number }) {
       return;
     }
     if (event.type === 'call_ended' || event.type === 'call_missed') {
-      updateConversationCaches(queryClient, conversationId, (current) => ({ ...current, active_call: null }));
+      const call = event.call_session as CallSession | undefined;
+      updateConversationCaches(queryClient, conversationId, (current) => ({ ...current, active_call: call && ['active', 'ringing'].includes(call.status) ? call : null }));
       return;
     }
     if (event.type !== 'message_created') return;
@@ -198,15 +206,18 @@ function ChatScreen({ conversationId }: { conversationId: number }) {
     mutationFn: async (draft: MessageDraft) => {
       const form = new FormData();
       form.append('message[body]', draft.body.trim());
+      form.append('message[client_id]', draft.clientId);
       if (draft.attachment) form.append('message[attachments][]', { uri: draft.attachment.uri, name: draft.attachment.name, type: draft.attachment.mimeType || 'application/octet-stream' } as never);
       return endpoints.createMessage(conversationId, form);
     },
-    onMutate: (draft) => {
-      const temporaryId = -Date.now();
+    onMutate: async (draft) => {
+      await queryClient.cancelQueries({ queryKey: mobileQueryKeys.messages(conversationId) });
+      const temporaryId = -Math.max(Date.now(), temporaryIdRef.current + 1);
+      temporaryIdRef.current = -temporaryId;
       const optimistic: Message = {
         id: temporaryId,
         body: draft.body.trim(),
-        client_id: String(-temporaryId),
+        client_id: draft.clientId,
         created_at: new Date().toISOString(),
         send_state: 'sending',
         user_id: user?.id,
@@ -234,7 +245,7 @@ function ChatScreen({ conversationId }: { conversationId: number }) {
   });
   const sendCurrent = () => {
     if (!body.trim() && !attachment) return;
-    const draft = { body, attachment };
+    const draft = { body, attachment, clientId: randomUUID() };
     setBody('');
     setAttachment(null);
     stopTyping();
@@ -282,8 +293,10 @@ function ChatScreen({ conversationId }: { conversationId: number }) {
     }
   };
   const pickAttachment = async () => {
-    const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true, multiple: false });
-    if (!result.canceled) setAttachment(result.assets[0]);
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true, multiple: false });
+      if (!result.canceled) setAttachment(result.assets[0] || null);
+    } catch (error) { Alert.alert('Unable to attach file', apiErrorMessage(error)); }
   };
   const react = useMutation({
     mutationFn: async ({ message, emoji }: { message: Message; emoji: string }) => {
@@ -383,7 +396,7 @@ function Attachment({ file, mine }: { file: Record<string, unknown> & { id: numb
   const url = /^(https?:|file:|content:|\/)/.test(rawUrl) ? (rawUrl.startsWith('/') ? absoluteAssetUrl(rawUrl) : rawUrl) : '';
   const contentType = String(file.content_type || '');
   const filename = String(file.filename || 'Attachment');
-  const open = () => url && void Linking.openURL(url);
+  const open = () => { if (url) void Linking.openURL(url).catch(() => Alert.alert('Unable to open attachment', 'Try downloading this attachment again.')); };
   if (url && contentType.startsWith('image/') && !imageFailed) return <Pressable accessibilityLabel={`Open ${filename}`} onPress={open}><Image cachePolicy="disk" contentFit="cover" onError={() => setImageFailed(true)} recyclingKey={`${String(file.id)}:${url}`} source={{ uri: url }} style={styles.messageImage} transition={0} /><Text numberOfLines={1} style={[styles.file, { color: mine ? '#dbeafe' : theme.textMuted }]}>{filename}</Text></Pressable>;
   return <Pressable accessibilityLabel={url ? `Open ${filename}` : `${filename} is unavailable`} disabled={!url} onPress={open} style={[styles.fileRow, { backgroundColor: mine ? 'rgba(255,255,255,0.12)' : theme.surfaceMuted }]}><FilePlus2 color={mine ? '#dbeafe' : theme.textMuted} size={17} /><View style={styles.fileCopy}><Text numberOfLines={1} style={[styles.file, { color: mine ? '#dbeafe' : theme.text }]}>{filename}</Text>{imageFailed ? <Text style={[styles.fileFallback, { color: mine ? '#dbeafe' : theme.textMuted }]}>Preview unavailable · Tap to download</Text> : null}</View></Pressable>;
 }
@@ -430,7 +443,7 @@ const styles = StyleSheet.create({
   fileCopy: { flex: 1, paddingVertical: 6 },
   file: { flexShrink: 1, fontSize: 12 },
   fileFallback: { fontSize: 10, marginTop: 2 },
-  messageImage: { borderRadius: 7, height: 150, marginTop: 7, width: 220 },
+  messageImage: { borderRadius: 7, height: 150, marginTop: 7, maxWidth: '100%', width: 220 },
   retryMessage: { marginTop: 7, minHeight: 28, justifyContent: 'center' },
   retryMessageText: { color: '#fecaca', fontSize: 11, fontWeight: '800' },
   reactionChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginLeft: 5, marginTop: -1 },

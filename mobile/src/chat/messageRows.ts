@@ -31,6 +31,8 @@ export function normalizedMessageRows(pages: readonly MessagePage[] | null | und
       const safeId = typeof value.id === 'number' && value.id === id;
       const safeCreatedAt = typeof value.created_at === 'string';
       const safeBody = typeof value.body === 'string';
+      const safeSender = (value.user_name === undefined || typeof value.user_name === 'string')
+        && (value.user_id === undefined || typeof value.user_id === 'number');
       const safeAttachments = value.attachments === undefined || (
         Array.isArray(value.attachments) && value.attachments.every(isRecord)
       );
@@ -41,13 +43,15 @@ export function normalizedMessageRows(pages: readonly MessagePage[] | null | und
 
       // Preserve trusted message object identity. FlatList can then keep
       // unchanged memoized bubbles mounted when one realtime row is appended.
-      if (safeId && safeCreatedAt && safeBody && safeAttachments && safeReactions && safeReactedEmojis) {
+      if (safeId && safeCreatedAt && safeBody && safeSender && safeAttachments && safeReactions && safeReactedEmojis) {
         rows.push(value as Message);
       } else {
         rows.push({
           ...(value as Message),
           id,
           body,
+          user_name: typeof value.user_name === 'string' ? value.user_name : 'Teammate',
+          user_id: Number.isFinite(Number(value.user_id)) ? Number(value.user_id) : undefined,
           created_at: safeCreatedAt ? value.created_at as string : new Date(0).toISOString(),
           attachments: attachments as Message['attachments'],
           reactions: reactions as Message['reactions'],
@@ -65,8 +69,10 @@ export function normalizedMessageRows(pages: readonly MessagePage[] | null | und
 export function normalizedParticipants(value: unknown): ConversationParticipant[] {
   if (!Array.isArray(value)) return [];
   return value.filter((participant): participant is ConversationParticipant => (
-    isRecord(participant) && Number.isFinite(Number(participant.id))
-  ));
+    isRecord(participant) && Number.isSafeInteger(Number(participant.id)) && Number(participant.id) > 0
+  )).map((participant) => typeof participant.id === 'number' && typeof participant.name === 'string'
+    ? participant
+    : { ...participant, id: Number(participant.id), name: typeof participant.name === 'string' ? participant.name : 'Teammate' });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

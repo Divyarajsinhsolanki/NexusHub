@@ -43,6 +43,13 @@ describe('mobile cache policy', () => {
 });
 
 describe('mobile cache data helpers', () => {
+  test('reconciles a pending send by client id before the HTTP response arrives', () => {
+    const queryClient = testQueryClient();
+    queryClient.setQueryData(mobileQueryKeys.messages(5), { pageParams: [undefined], pages: [{ data: [{ ...message(-10, 'Sending'), client_id: 'draft-1' }] }] });
+    appendIncomingMessage(queryClient, 5, { ...message(22, 'Sent'), client_id: 'draft-1' });
+    const cached = queryClient.getQueryData<InfiniteData<CollectionResult<Message>>>(mobileQueryKeys.messages(5));
+    expect(cached?.pages[0].data.map((item) => item.id)).toEqual([22]);
+  });
   test('appends incoming messages once', () => {
     const queryClient = testQueryClient();
     const existing = message(1, 'Hello');

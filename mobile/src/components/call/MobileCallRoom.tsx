@@ -39,9 +39,12 @@ export function MobileCallRoom({ credentials, initialAudio = true, initialVideo 
   useEffect(() => clearDisconnectTimer, [clearDisconnectTimer]);
 
   useEffect(() => {
-    void AudioSession.startAudioSession();
-    return () => { void AudioSession.stopAudioSession(); };
-  }, []);
+    void AudioSession.startAudioSession().catch((error) => {
+      setConnectionIssue('Audio could not start. Check microphone permission and try joining again.');
+      captureCallError(error, 'connect', { call_id: credentials.call_session.id, audio_session: true });
+    });
+    return () => { void AudioSession.stopAudioSession().catch((error) => captureCallError(error, 'leave', { audio_session: true })); };
+  }, [credentials.call_session.id]);
 
   return (
     <LiveKitRoom
@@ -175,7 +178,11 @@ const CallDuration = memo(function CallDuration({ createdAt, startedAt }: { crea
 });
 
 const Control = memo(function Control({ label, onPress, danger, children }: { label: string; onPress: () => void | Promise<unknown>; danger?: boolean; children: React.ReactNode }) {
-  return <View style={styles.controlWrap}><Pressable accessibilityLabel={label} accessibilityRole="button" onPress={onPress} style={[styles.control, { backgroundColor: danger ? '#dc2626' : '#343942' }]}>{children}</Pressable><Text numberOfLines={1} style={styles.controlLabel}>{label}</Text></View>;
+  const press = () => { void Promise.resolve().then(onPress).catch((error) => {
+    captureCallError(error, 'connect', { media_control: true });
+    Alert.alert('Unable to change call setting', 'Check media permissions and try again.');
+  }); };
+  return <View style={styles.controlWrap}><Pressable accessibilityLabel={label} accessibilityRole="button" onPress={press} style={[styles.control, { backgroundColor: danger ? '#dc2626' : '#343942' }]}>{children}</Pressable><Text numberOfLines={1} style={styles.controlLabel}>{label}</Text></View>;
 });
 
 function connectionLabel(state: ConnectionState) {

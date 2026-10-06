@@ -5,6 +5,12 @@ import { resetConversationReceiptTracking, sendConversationReceiptOnce } from '.
 beforeEach(() => resetConversationReceiptTracking());
 
 describe('conversation receipt coordination', () => {
+  test('a failed read does not suppress delivery recovery', async () => {
+    const sender = jest.fn<() => Promise<void>>().mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(undefined);
+    await expect(sendConversationReceiptOnce(7, 12, 31, 'read', sender)).rejects.toThrow('offline');
+    await expect(sendConversationReceiptOnce(7, 12, 31, 'delivered', sender)).resolves.toBe(true);
+    expect(sender).toHaveBeenCalledTimes(2);
+  });
   test('deduplicates receipts shared by root and thread subscriptions', async () => {
     const sender = jest.fn(async () => undefined);
 

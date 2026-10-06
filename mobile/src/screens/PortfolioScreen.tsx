@@ -4,11 +4,9 @@ import * as WebBrowser from 'expo-web-browser';
 import { useRouter } from 'expo-router';
 import {
   ArrowLeft,
-  ArrowRight,
   ArrowUpRight,
   BriefcaseBusiness,
   CheckCircle2,
-  Code2,
   Download,
   ExternalLink,
   GitBranch,
@@ -19,10 +17,9 @@ import {
   PlayCircle,
   ShieldCheck,
   Sparkles,
-  UserPlus,
   type LucideIcon,
 } from 'lucide-react-native';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -42,21 +39,21 @@ type DemoAction = (route?: string) => Promise<void>;
 
 const publicTheme: AppTheme = {
   isDark: false,
-  primary: '#1d4ed8',
-  primaryPressed: '#1e40af',
+  primary: '#087f6d',
+  primaryPressed: '#066353',
   success: '#047857',
   warning: '#b45309',
   danger: '#b91c1c',
   white: '#ffffff',
-  background: '#f7fbff',
+  background: '#ffffff',
   surface: '#ffffff',
   surfaceRaised: '#ffffff',
-  surfaceMuted: '#eaf5ff',
-  surfacePressed: '#deefff',
-  primarySoft: '#dbeafe',
-  text: '#102033',
-  textMuted: '#607086',
-  border: '#d7e7f6',
+  surfaceMuted: '#f1f4f3',
+  surfacePressed: '#e7eeeb',
+  primarySoft: '#dcf3e9',
+  text: '#202623',
+  textMuted: '#626b65',
+  border: '#dce2dd',
   shadow: 'rgba(15, 23, 42, 0.12)',
   tabBar: '#ffffff',
 };
@@ -85,6 +82,8 @@ export function PortfolioScreen({ publicMode = false }: PortfolioScreenProps) {
   const { width } = useWindowDimensions();
   const [demoLoading, setDemoLoading] = useState(false);
   const [demoError, setDemoError] = useState('');
+  const demoPending = useRef(false);
+  const [section, setSection] = useState<'Work' | 'About' | 'Contact'>('Work');
   const portfolio = useQuery({
     queryKey: ['portfolio'],
     queryFn: endpoints.portfolio,
@@ -93,12 +92,14 @@ export function PortfolioScreen({ publicMode = false }: PortfolioScreenProps) {
   const contentWidth = Math.min(width, publicMode ? 820 : 760);
 
   const startDemo: DemoAction = async (route = '/more/demo') => {
+    if (demoPending.current) return;
     if (!publicMode) {
       router.push(route as never);
       return;
     }
 
     setDemoError('');
+    demoPending.current = true;
     setDemoLoading(true);
     try {
       await signInDemo();
@@ -106,6 +107,7 @@ export function PortfolioScreen({ publicMode = false }: PortfolioScreenProps) {
     } catch (error) {
       setDemoError(apiErrorMessage(error));
     } finally {
+      demoPending.current = false;
       setDemoLoading(false);
     }
   };
@@ -116,17 +118,26 @@ export function PortfolioScreen({ publicMode = false }: PortfolioScreenProps) {
       {portfolio.isError ? <ErrorState message={apiErrorMessage(portfolio.error)} onRetry={() => portfolio.refetch()} /> : null}
       {portfolio.data ? (
         <ScrollView
+          style={styles.flex}
           contentContainerStyle={[styles.scroll, publicMode && styles.publicScroll, { maxWidth: contentWidth }]}
           refreshControl={<RefreshControl refreshing={portfolio.isRefetching} onRefresh={() => portfolio.refetch()} tintColor={colors.primary} />}
           showsVerticalScrollIndicator={false}>
           <ProfileHero colors={colors} demoError={demoError} demoLoading={demoLoading} onDemo={startDemo} profile={portfolio.data.profile} publicMode={publicMode} />
+          <View accessibilityRole="tablist" style={[styles.sectionTabs, { borderColor: colors.border }]}>
+            {(['Work', 'About', 'Contact'] as const).map((label) => <Pressable accessibilityRole="tab" accessibilityState={{ selected: section === label }} key={label} onPress={() => setSection(label)} style={[styles.sectionTab, { borderBottomColor: section === label ? colors.primary : 'transparent' }]}><Text style={[styles.sectionTabLabel, { color: section === label ? colors.primary : colors.textMuted }]}>{label}</Text></Pressable>)}
+          </View>
+          {section === 'Work' ? <>
           <PortfolioOverview colors={colors} profile={portfolio.data.profile} projectCount={portfolio.data.projects.length} />
           <CaseStudySection colors={colors} onDemo={startDemo} profile={portfolio.data.profile} projects={portfolio.data.projects} publicMode={publicMode} />
+          <MoreProjects colors={colors} projects={portfolio.data.projects} />
+          <FeatureMap colors={colors} onDemo={startDemo} projects={portfolio.data.projects} publicMode={publicMode} />
+          </> : null}
+          {section === 'About' ? <>
+          <View style={styles.section}><Text style={[styles.sectionTitle, { color: colors.text }]}>About</Text><Text style={[styles.projectSummary, { color: colors.text }]}>{portfolio.data.profile?.summary}</Text></View>
           <DecisionSection colors={colors} project={featuredProject(portfolio.data.projects)} />
           <ArchitectureSection colors={colors} profile={portfolio.data.profile} project={featuredProject(portfolio.data.projects)} />
-          <FeatureMap colors={colors} onDemo={startDemo} projects={portfolio.data.projects} publicMode={publicMode} />
-          <SocialContactSection colors={colors} profile={portfolio.data.profile} publicMode={publicMode} />
-          {publicMode ? <PublicFooter colors={colors} onDemo={startDemo} /> : null}
+          </> : null}
+          {section === 'Contact' ? <SocialContactSection colors={colors} profile={portfolio.data.profile} publicMode={publicMode} /> : null}
         </ScrollView>
       ) : null}
     </>
@@ -141,30 +152,26 @@ export function PortfolioScreen({ publicMode = false }: PortfolioScreenProps) {
   }
 
   return (
-    <SafeAreaView edges={['top']} style={[styles.publicScreen, { backgroundColor: colors.background }]}>
+    <SafeAreaView edges={['top', 'bottom']} style={[styles.publicScreen, { backgroundColor: colors.background }]}>
       <OfflineBanner />
-      <PublicHeader colors={colors} onDemo={startDemo} />
+      <PublicHeader colors={colors} />
       <View style={styles.flex}>{content}</View>
     </SafeAreaView>
   );
 }
 
-function PublicHeader({ colors, onDemo }: { colors: PortfolioColors; onDemo: DemoAction }) {
+function PublicHeader({ colors }: { colors: PortfolioColors }) {
   const router = useRouter();
   return (
     <View style={[styles.publicHeader, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
       <View style={styles.brand}>
         <Image accessibilityLabel="Nexus Hub" contentFit="contain" source={require('../../assets/images/nexus-logo.webp')} style={styles.logo} />
-        <View>
+        <View style={styles.brandCopy}>
           <Text style={[styles.brandName, { color: colors.text }]}>Nexus Hub</Text>
           <Text style={[styles.brandDetail, { color: colors.textMuted }]}>ENGINEERING PORTFOLIO</Text>
         </View>
       </View>
       <View style={styles.publicHeaderActions}>
-        <Pressable accessibilityRole="button" onPress={() => onDemo('/more/demo')} style={[styles.headerDemoButton, { backgroundColor: colors.primary }]}>
-          <PlayCircle color="#ffffff" size={16} />
-          <Text style={styles.headerDemoLabel}>Demo</Text>
-        </Pressable>
         <Pressable accessibilityRole="button" onPress={() => router.push('/login')} style={[styles.signInButton, { borderColor: colors.border, backgroundColor: colors.surface }]}>
           <LogIn color={colors.text} size={17} />
           <Text style={[styles.signInLabel, { color: colors.text }]}>Sign in</Text>
@@ -175,14 +182,11 @@ function PublicHeader({ colors, onDemo }: { colors: PortfolioColors; onDemo: Dem
 }
 
 function ProfileHero({ colors, demoError, demoLoading, onDemo, profile, publicMode }: { colors: PortfolioColors; demoError: string; demoLoading: boolean; onDemo: DemoAction; profile: PortfolioProfile | null; publicMode: boolean }) {
-  const router = useRouter();
   if (!profile) return <EmptyState title="Portfolio profile unavailable" message="Publish a portfolio profile to show it here." />;
 
-  const contactUrl = `${(process.env.EXPO_PUBLIC_WEB_URL || '').replace(/\/$/, '')}/contact`;
   const initials = profileInitials(profile.full_name);
   return (
     <View style={[styles.hero, publicMode && styles.publicHero]}>
-      <View style={[styles.heroHalo, { backgroundColor: colors.surfaceMuted }]} />
       <View style={styles.identity}>
         {profile.avatar_url ? (
           <Image accessibilityLabel={profile.full_name} contentFit="cover" source={{ uri: absoluteAssetUrl(profile.avatar_url) }} style={[styles.avatar, { backgroundColor: colors.surfaceMuted }]} transition={180} />
@@ -196,17 +200,13 @@ function ProfileHero({ colors, demoError, demoLoading, onDemo, profile, publicMo
           {profile.location ? <View style={styles.location}><MapPin color={colors.textMuted} size={14} /><Text style={[styles.locationText, { color: colors.textMuted }]}>{profile.location}</Text></View> : null}
         </View>
       </View>
-      <Text style={[styles.summary, { color: colors.text }]}>{profile.summary}</Text>
-      <View style={styles.skills}>{profile.skills.slice(0, 10).map((skill) => <View key={skill} style={[styles.skill, { backgroundColor: colors.surfaceMuted }]}><Text style={[styles.skillText, { color: colors.text }]}>{skill}</Text></View>)}</View>
+      <Text numberOfLines={3} style={[styles.summary, { color: colors.text }]}>{profile.summary}</Text>
+      <View style={styles.skills}>{profile.skills.slice(0, 4).map((skill) => <View key={skill} style={[styles.skill, { backgroundColor: colors.surfaceMuted }]}><Text style={[styles.skillText, { color: colors.text }]}>{skill}</Text></View>)}</View>
       <View style={styles.heroActions}>
-        {socialLinks(profile).map((link) => <ActionButton key={link.label} colors={colors} icon={ExternalLink} label={link.label} onPress={() => openUrl(link.url)} />)}
-        {publicMode ? <ActionButton colors={colors} icon={PlayCircle} label={demoLoading ? 'Opening demo...' : 'View demo'} onPress={() => onDemo('/more/demo')} primary /> : null}
-        {publicMode ? <ActionButton colors={colors} icon={UserPlus} label="Create account" onPress={() => router.push('/signup')} /> : null}
+        {publicMode ? <ActionButton colors={colors} disabled={demoLoading} icon={PlayCircle} label={demoLoading ? 'Opening demo...' : 'View demo'} onPress={() => onDemo('/more/demo')} primary /> : null}
         {profile.resume_url ? <ActionButton colors={colors} icon={Download} label="Resume" onPress={() => openUrl(absoluteAssetUrl(profile.resume_url))} /> : null}
-        {publicMode && process.env.EXPO_PUBLIC_WEB_URL ? <ActionButton colors={colors} icon={MessageCircle} label="Contact" onPress={() => openUrl(contactUrl)} /> : null}
       </View>
       {demoError ? <Text accessibilityRole="alert" style={[styles.demoError, { color: colors.danger }]}>{demoError}</Text> : null}
-      {publicMode ? <Pressable accessibilityRole="button" onPress={() => router.push('/login')} style={styles.workspaceLink}><Text style={[styles.workspaceLabel, { color: colors.primary }]}>Already have a workspace? Sign in</Text><ArrowRight color={colors.primary} size={16} /></Pressable> : null}
     </View>
   );
 }
@@ -233,7 +233,7 @@ function CaseStudySection({ colors, onDemo, profile, projects, publicMode }: { c
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
         <View>
-          <Text style={[styles.eyebrow, { color: colors.primary }]}>FLAGSHIP CASE STUDY</Text>
+          <Text style={[styles.eyebrow, { color: colors.primary }]}>SELECTED WORK</Text>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>{project.title}</Text>
         </View>
         {project.featured ? <Text style={[styles.featured, { backgroundColor: colors.surfaceMuted, color: colors.text }]}>FEATURED</Text> : null}
@@ -251,6 +251,26 @@ function CaseStudySection({ colors, onDemo, profile, projects, publicMode }: { c
       </View>
     </View>
   );
+}
+
+function MoreProjects({ colors, projects }: { colors: PortfolioColors; projects: PortfolioProject[] }) {
+  const featured = featuredProject(projects);
+  const others = projects.filter((project) => project.id !== featured?.id);
+  if (!others.length) return null;
+  return <View style={styles.section}>
+    <Text style={[styles.sectionTitle, { color: colors.text }]}>More work</Text>
+    <View style={styles.projectList}>{others.map((project) => <View key={project.id} style={[styles.projectCard, { borderColor: colors.border }]}>
+      {project.cover_image_url ? <Image accessibilityLabel={`${project.title} cover`} contentFit="cover" source={{ uri: absoluteAssetUrl(project.cover_image_url) }} style={styles.projectCardImage} /> : null}
+      <View style={styles.projectCardBody}>
+        <Text style={[styles.projectCardTitle, { color: colors.text }]}>{project.title}</Text>
+        <Text style={[styles.projectSummary, { color: colors.textMuted }]}>{project.summary}</Text>
+        <View style={styles.projectActions}>
+          {project.live_url ? <ActionButton colors={colors} icon={ArrowUpRight} label="Live project" onPress={() => openUrl(project.live_url)} /> : null}
+          {project.repository_url ? <ActionButton colors={colors} icon={GitBranch} label="Repository" onPress={() => openUrl(project.repository_url)} /> : null}
+        </View>
+      </View>
+    </View>)}</View>
+  </View>;
 }
 
 function DecisionSection({ colors, project }: { colors: PortfolioColors; project?: PortfolioProject }) {
@@ -357,24 +377,12 @@ function SocialContactSection({ colors, profile, publicMode }: { colors: Portfol
   );
 }
 
-function PublicFooter({ colors, onDemo }: { colors: PortfolioColors; onDemo: DemoAction }) {
-  return (
-    <View style={[styles.footer, { borderTopColor: colors.border }]}>
-      <Image accessibilityLabel="Nexus Hub" contentFit="contain" source={require('../../assets/images/nexus-logo.webp')} style={styles.footerLogo} />
-      <Text style={[styles.footerTitle, { color: colors.text }]}>Bring the work into one focused workspace.</Text>
-      <Text style={[styles.footerText, { color: colors.textMuted }]}>Projects, delivery, knowledge, collaboration, and document workflows are ready to inspect in the read-only demo.</Text>
-      <ActionButton colors={colors} icon={PlayCircle} label="View demo" onPress={() => onDemo('/more/demo')} primary />
-      <Text style={[styles.copyright, { color: colors.textMuted }]}>Nexus Hub</Text>
-    </View>
-  );
-}
-
 function PortfolioSkeleton({ colors }: { colors: PortfolioColors }) {
   return <View accessibilityLabel="Loading portfolio" style={styles.skeleton}><View style={[styles.skeletonAvatar, { backgroundColor: colors.surfaceMuted }]} /><View style={styles.skeletonCopy}><View style={[styles.skeletonLine, { backgroundColor: colors.surfaceMuted, width: '74%' }]} /><View style={[styles.skeletonLine, { backgroundColor: colors.surfaceMuted, width: '92%' }]} /><View style={[styles.skeletonLine, { backgroundColor: colors.surfaceMuted, width: '58%' }]} /></View><View style={[styles.skeletonHero, { backgroundColor: colors.surfaceMuted }]} /><View style={[styles.skeletonLine, { backgroundColor: colors.surfaceMuted, marginTop: 28, width: '42%' }]} /><View style={[styles.skeletonCover, { backgroundColor: colors.surfaceMuted }]} /></View>;
 }
 
-function ActionButton({ colors, icon: Icon, label, onPress, primary = false }: { colors: PortfolioColors; icon: LucideIcon; label: string; onPress: () => void; primary?: boolean }) {
-  return <Pressable accessibilityRole="button" onPress={onPress} style={[styles.action, { backgroundColor: primary ? colors.primary : colors.surface, borderColor: primary ? colors.primary : colors.border }]}><Icon color={primary ? '#ffffff' : colors.text} size={17} /><Text style={[styles.actionLabel, { color: primary ? '#ffffff' : colors.text }]}>{label}</Text></Pressable>;
+function ActionButton({ colors, disabled, icon: Icon, label, onPress, primary = false }: { colors: PortfolioColors; disabled?: boolean; icon: LucideIcon; label: string; onPress: () => void; primary?: boolean }) {
+  return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={[styles.action, { backgroundColor: primary ? colors.primary : colors.surface, borderColor: primary ? colors.primary : colors.border, opacity: disabled ? 0.6 : 1 }]}><Icon color={primary ? '#ffffff' : colors.text} size={17} /><Text style={[styles.actionLabel, { color: primary ? '#ffffff' : colors.text }]}>{label}</Text></Pressable>;
 }
 
 function IconButton({ label, onPress, children }: { label: string; onPress: () => void; children: React.ReactNode }) {
@@ -459,16 +467,14 @@ const styles = StyleSheet.create({
   publicHeaderActions: { alignItems: 'center', flexDirection: 'row', gap: 8 },
   brand: { alignItems: 'center', flex: 1, flexDirection: 'row', flexShrink: 1, minWidth: 0 },
   logo: { borderRadius: 7, height: 40, marginRight: 10, width: 40 },
+  brandCopy: { flex: 1, minWidth: 0 },
   brandName: { fontSize: 17, fontWeight: '900' },
   brandDetail: { fontSize: 8, fontWeight: '800', letterSpacing: 0, marginTop: 2 },
-  headerDemoButton: { alignItems: 'center', borderRadius: 7, flexDirection: 'row', gap: 6, minHeight: 42, paddingHorizontal: 11 },
-  headerDemoLabel: { color: '#ffffff', fontSize: 12, fontWeight: '800' },
   signInButton: { alignItems: 'center', borderRadius: 7, borderWidth: 1, flexDirection: 'row', flexShrink: 0, gap: 7, minHeight: 42, paddingHorizontal: 11 },
   signInLabel: { fontSize: 13, fontWeight: '800' },
   iconButton: { alignItems: 'center', height: 44, justifyContent: 'center', width: 44 },
-  hero: { overflow: 'hidden', paddingHorizontal: 20, paddingBottom: 30, paddingTop: 28 },
-  publicHero: { paddingTop: 34 },
-  heroHalo: { borderRadius: 999, height: 190, opacity: 0.78, position: 'absolute', right: -66, top: -76, width: 190 },
+  hero: { overflow: 'hidden', paddingHorizontal: 20, paddingBottom: 20, paddingTop: 24 },
+  publicHero: { paddingTop: 24 },
   identity: { alignItems: 'center', flexDirection: 'row' },
   avatar: { borderRadius: 8, height: 88, width: 88 },
   avatarFallback: { alignItems: 'center', justifyContent: 'center' },
@@ -479,27 +485,33 @@ const styles = StyleSheet.create({
   headline: { fontSize: 14, fontWeight: '600', lineHeight: 20, marginTop: 5 },
   location: { alignItems: 'center', flexDirection: 'row', gap: 4, marginTop: 7 },
   locationText: { fontSize: 12 },
-  summary: { fontSize: 15, lineHeight: 23, marginTop: 22 },
+  summary: { fontSize: 14, lineHeight: 21, marginTop: 18 },
   skills: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 17 },
   skill: { borderRadius: 5, paddingHorizontal: 9, paddingVertical: 6 },
   skillText: { fontSize: 11, fontWeight: '700' },
   heroActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 21 },
-  workspaceLink: { alignItems: 'center', alignSelf: 'flex-start', flexDirection: 'row', gap: 6, minHeight: 44, marginTop: 10 },
-  workspaceLabel: { fontSize: 12, fontWeight: '800' },
   demoError: { fontSize: 12, lineHeight: 18, marginTop: 12 },
   action: { alignItems: 'center', borderRadius: 7, borderWidth: 1, flexDirection: 'row', gap: 7, minHeight: 44, paddingHorizontal: 13 },
   actionLabel: { fontSize: 12, fontWeight: '800' },
-  overviewBand: { borderBottomWidth: 1, borderTopWidth: 1, paddingHorizontal: 20, paddingVertical: 21 },
+  overviewBand: { borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 20, paddingVertical: 21 },
   metricGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
-  metric: { minWidth: 88 },
+  metric: { flexBasis: '44%', minWidth: 0 },
   metricValue: { fontSize: 22, fontWeight: '900' },
   metricLabel: { fontSize: 10, fontWeight: '700', marginTop: 3 },
   overviewSection: { marginTop: 20, paddingTop: 18 },
   overviewTitle: { fontSize: 14, fontWeight: '800', marginBottom: 9 },
   highlight: { alignItems: 'flex-start', flexDirection: 'row', gap: 9, marginTop: 8 },
   highlightText: { flex: 1, fontSize: 12, lineHeight: 18 },
-  section: { paddingHorizontal: 20, paddingTop: 34 },
-  sectionHeader: { alignItems: 'flex-start', flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
+  section: { paddingHorizontal: 20, paddingTop: 26 },
+  sectionTabs: { borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', paddingHorizontal: 20 },
+  sectionTab: { alignItems: 'center', borderBottomWidth: 2, flex: 1, justifyContent: 'center', minHeight: 48 },
+  sectionTabLabel: { fontSize: 14, fontWeight: '700' },
+  projectList: { gap: 16, marginTop: 16 },
+  projectCard: { borderRadius: 8, borderWidth: 1, overflow: 'hidden' },
+  projectCardImage: { aspectRatio: 16 / 9, width: '100%' },
+  projectCardBody: { padding: 16 },
+  projectCardTitle: { fontSize: 18, fontWeight: '800' },
+  sectionHeader: { alignItems: 'flex-start', flexWrap: 'wrap', flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
   eyebrow: { fontSize: 9, fontWeight: '900', letterSpacing: 0 },
   sectionTitle: { fontSize: 22, fontWeight: '900', letterSpacing: 0, lineHeight: 28, marginTop: 5 },
   sectionCount: { fontSize: 11, marginTop: 10 },
@@ -517,11 +529,11 @@ const styles = StyleSheet.create({
   stackText: { fontSize: 10, fontWeight: '700' },
   projectActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 17 },
   decisionGrid: { gap: 10, marginTop: 16 },
-  decisionCard: { borderRadius: 8, borderWidth: 1, padding: 15 },
+  decisionCard: { borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 16 },
   decisionTitle: { fontSize: 14, fontWeight: '900', marginTop: 10 },
   decisionBody: { fontSize: 13, lineHeight: 20, marginTop: 7 },
   listGrid: { gap: 10, marginTop: 10 },
-  listCard: { borderRadius: 8, borderWidth: 1, padding: 15 },
+  listCard: { borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 16 },
   listTitle: { fontSize: 14, fontWeight: '900', marginBottom: 5 },
   listItem: { alignItems: 'flex-start', flexDirection: 'row', gap: 8, marginTop: 9 },
   listItemText: { flex: 1, fontSize: 12, lineHeight: 18 },
@@ -544,13 +556,9 @@ const styles = StyleSheet.create({
   featureNote: { borderRadius: 6, fontSize: 11, lineHeight: 16, marginTop: 9, overflow: 'hidden', padding: 9 },
   openRoute: { alignItems: 'center', flexDirection: 'row', gap: 5, marginTop: 11 },
   openRouteText: { fontSize: 12, fontWeight: '900' },
-  socialBand: { borderRadius: 8, borderWidth: 1, marginHorizontal: 20, marginTop: 34, padding: 18 },
+  socialBand: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: 26, paddingHorizontal: 20, paddingVertical: 24 },
   socialActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 15 },
-  footer: { alignItems: 'flex-start', borderTopWidth: StyleSheet.hairlineWidth, marginHorizontal: 20, marginTop: 42, paddingTop: 30 },
-  footerLogo: { borderRadius: 7, height: 42, width: 42 },
   footerTitle: { fontSize: 21, fontWeight: '900', letterSpacing: 0, lineHeight: 27, marginTop: 15 },
-  footerText: { fontSize: 13, lineHeight: 20, marginBottom: 17, marginTop: 7, maxWidth: 420 },
-  copyright: { fontSize: 10, fontWeight: '700', marginTop: 28 },
   skeleton: { padding: 20 },
   skeletonAvatar: { borderRadius: 8, height: 88, width: 88 },
   skeletonCopy: { gap: 10, left: 124, position: 'absolute', right: 20, top: 30 },

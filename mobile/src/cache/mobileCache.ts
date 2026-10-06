@@ -174,7 +174,7 @@ export function appendIncomingMessage(
       if (hasMessage(previous, incoming.id)) return previous;
 
       const pages = previous.pages.map((page, index) => (
-        index === 0 ? { ...page, data: [...safeMessageData(page.data), incoming] } : { ...page, data: safeMessageData(page.data) }
+        index === 0 ? { ...page, data: [...safeMessageData(page.data).filter((message) => !matchesPendingMessage(message, incoming)), incoming] } : { ...page, data: safeMessageData(page.data).filter((message) => !matchesPendingMessage(message, incoming)) }
       ));
 
       return { ...previous, pages };
@@ -416,6 +416,11 @@ function hasMessage(data: InfiniteData<CollectionResult<Message>>, messageId: nu
 function safeMessageData(value: unknown): Message[] {
   if (!Array.isArray(value)) return [];
   return value.filter((message): message is Message => Boolean(message && typeof message === 'object'));
+}
+
+function matchesPendingMessage(message: Message, incoming: Message) {
+  return Number(message.id) < 0 && incoming.id > 0 && Boolean(incoming.client_id)
+    && message.client_id === incoming.client_id && Number(message.user_id) === Number(incoming.user_id);
 }
 
 type ConversationCache = CollectionResult<Conversation> | InfiniteData<CollectionResult<Conversation>>;

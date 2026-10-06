@@ -88,10 +88,12 @@ class Chat::ReceiptManagerTest < ActiveSupport::TestCase
     broadcasts = []
 
     ActionCable.server.stub(:broadcast, ->(stream, payload) { broadcasts << [stream, payload] }) do
-      @conversation.messages.create!(workspace: @workspace, user: @sender, body: "Background delivery")
+      @conversation.messages.create!(workspace: @workspace, user: @sender, body: "Background delivery", client_id: "mobile-draft-1")
     end
 
     message_streams = broadcasts.filter_map { |stream, payload| stream if payload[:type] == "message_created" }
+    message_payloads = broadcasts.filter_map { |_stream, payload| payload[:message] if payload[:type] == "message_created" }
+    assert message_payloads.all? { |message| message[:client_id] == "mobile-draft-1" }
     assert_includes message_streams, Chat::Broadcaster.conversation_stream(@workspace.id, @conversation.id)
     assert_includes message_streams, Chat::Broadcaster.user_stream(@workspace.id, @recipient.id)
     assert_includes message_streams, Chat::Broadcaster.user_stream(@workspace.id, @third_user.id)

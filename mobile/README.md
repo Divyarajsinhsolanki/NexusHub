@@ -55,7 +55,7 @@ eas env:create --name GOOGLE_SERVICES_JSON --type file --value ./google-services
 eas env:create --name GOOGLE_SERVICE_INFO_PLIST --type file --value ./GoogleService-Info.plist --visibility secret --environment preview
 ```
 
-Repeat the Preview values for `production`. Keep all files outside Git; local development files can be placed in `mobile/.firebase/` and referenced by `GOOGLE_SERVICES_JSON` and `GOOGLE_SERVICE_INFO_PLIST` in `.env.local`. Render must define `FIREBASE_PROJECT_ID=temppdfmodifier` so Rails verifies the Firebase token audience.
+Repeat the Preview values for `production`. Keep all files outside Git; local development files can be placed in `mobile/.firebase/` and referenced by `GOOGLE_SERVICES_JSON` and `GOOGLE_SERVICE_INFO_PLIST` in `.env.local`. Elastic Beanstalk must define `FIREBASE_PROJECT_ID=temppdfmodifier` so Rails verifies the Firebase token audience.
 
 After adding native credentials, create a new binary:
 
@@ -113,6 +113,34 @@ npx eas-cli build --profile development --platform android
 npx eas-cli build --profile preview --platform all
 ```
 
-Set EAS secrets for `EXPO_PUBLIC_API_URL`, `EXPO_PUBLIC_WEB_URL`, `EAS_PROJECT_ID`, Firebase/Google, Sentry, LiveKit server credentials, and platform signing credentials. `development`, `preview`, and `production` channels use app-version runtime gating so incompatible native changes require a new binary.
+For AWS releases, set these public EAS variables in both `preview` and `production`:
+
+```text
+EXPO_PUBLIC_API_URL=https://divyarajsinh.com/api/v1
+EXPO_PUBLIC_WEB_URL=https://divyarajsinh.com
+EXPO_PUBLIC_ALLOW_LOOPBACK=false
+EXPO_PUBLIC_ALLOW_INSECURE_DEV=false
+```
+
+Set `APP_VARIANT` to the matching environment name for OTA exports, along with `EAS_PROJECT_ID`, public Firebase/Google configuration, and the required native signing credentials. Keep `GOOGLE_SERVICES_JSON` as a secret file for Android builds. Set `GOOGLE_NATIVE_AUTH_ANDROID=true` only in environments whose installed Android binary already includes Google configuration; this preserves Google login during OTA exports where secret files are unavailable.
+
+LiveKit API keys and secrets belong only on the Rails server in Elastic Beanstalk, never in Expo. The authenticated API supplies call tokens and the media server URL. Chat and foreground notifications obtain their authenticated WebSocket URL from `/api/v1/realtime`; background push additionally requires valid EAS FCM/APNs credentials and device notification permission.
+
+Publish Android JavaScript/configuration fixes with `eas update --channel preview --environment preview --platform android`. Restart the installed app to download and apply the update. Repeat for the production channel when appropriate. Native domain associations, plugins, permissions, and Firebase files require a new binary; `development`, `preview`, and `production` channels use app-version runtime gating, so incompatible native changes also require a new app version.
 
 The app stores access and refresh tokens in native SecureStore. Refresh tokens rotate after every use; failed refresh clears the local session.
+
+## Chat And Call Verification
+
+Mobile and web use the same Rails conversations, message receipts, reaction events, and call sessions. Mobile obtains a short-lived WebSocket token from `/api/v1/realtime/token`; no permanent media or WebSocket credentials belong in the app.
+
+`src/realtime/nativeConsumer.ts` adapts ActionCable's browser visibility monitor for React Native while retaining its heartbeat polling. AppState and network recovery are owned by the shared realtime provider. Run its real-consumer regression tests when upgrading ActionCable; do not add browser-global shims to the native runtime.
+
+Before releasing, run `npm run typecheck` and `npm test`, then verify with a real phone and browser:
+
+1. Open a chat, send messages in both directions, and verify the thread stays connected.
+2. Background or disconnect the phone, send from the web, then return and verify recovery and receipts.
+3. React from either device, retry a failed send, and confirm no duplicate messages.
+4. Start audio/video calls from either device, answer or decline on the other, and verify shared call state after leaving a group call or ending it for everyone.
+
+Source changes and commits alone do not update an installed binary. Publish a compatible OTA update or build a new binary only when a release is explicitly requested.

@@ -28,6 +28,7 @@ export default function LoginScreen() {
   const authQuery = returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : '';
   const { signIn, signInWithGoogle, signInDemo } = useAuth();
   const authPending = useRef(false);
+  const passwordRef = useRef<TextInput>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [demoLoading, setDemoLoading] = useState(false);
@@ -87,7 +88,7 @@ export default function LoginScreen() {
   return (
     <AuthScaffold
       title="Welcome back"
-      subtitle="Sign in to review your day, move work forward, and stay close to your team."
+      subtitle="Sign in to Nexus Hub."
       footer={
         <View style={styles.footer}><Text style={[styles.footerText, { color: theme.textMuted }]}>New to Nexus Hub?{' '}
           <Text accessibilityRole="link" onPress={() => router.push(`/signup${authQuery}` as never)} style={{ color: theme.primary, fontWeight: '700' }}>Create an account</Text>
@@ -104,6 +105,8 @@ export default function LoginScreen() {
             autoCapitalize="none"
             autoComplete="email"
             keyboardType="email-address"
+            returnKeyType="next"
+            onSubmitEditing={() => passwordRef.current?.focus()}
             onBlur={onBlur}
             onChangeText={(next) => { setFeedback(null); onChange(next); }}
             placeholder="you@company.com"
@@ -117,7 +120,7 @@ export default function LoginScreen() {
 
       <View style={styles.passwordHeader}>
         <Text style={[styles.label, { color: theme.text }]}>Password</Text>
-        <Pressable accessibilityRole="link" onPress={() => router.push('/forgot-password')}>
+        <Pressable accessibilityRole="link" onPress={() => router.push(`/forgot-password${authQuery}` as never)} style={styles.forgotLink}>
           <Text style={[styles.forgot, { color: theme.primary }]}>Forgot password?</Text>
         </Pressable>
       </View>
@@ -130,6 +133,11 @@ export default function LoginScreen() {
               accessibilityLabel="Password"
               editable={!busy}
               autoComplete="password"
+              autoCapitalize="none"
+              autoCorrect={false}
+              ref={passwordRef}
+              returnKeyType="go"
+              onSubmitEditing={() => { if (!busy) void submit(); }}
               onBlur={onBlur}
               onChangeText={(next) => { setFeedback(null); onChange(next); }}
               placeholder="Password"
@@ -169,14 +177,10 @@ export default function LoginScreen() {
           </Pressable>
         </>
       ) : null}
-      <View style={[styles.demoPanel, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
-        <View style={styles.demoCopy}>
-          <Text style={[styles.demoTitle, { color: theme.text }]}>Explore before signing up</Text>
-          <Text style={[styles.demoText, { color: theme.textMuted }]}>Open a safe, read-only workspace with realistic project data.</Text>
-        </View>
-        <Pressable accessibilityRole="button" disabled={demoLoading || isSubmitting || googleLoading} onPress={demo} style={[styles.demoButton, { backgroundColor: theme.text }]}>
-          <PlayCircle color={theme.background} size={19} />
-          <Text style={[styles.demoButtonLabel, { color: theme.background }]}>{demoLoading ? 'Opening...' : 'View demo'}</Text>
+      <View style={[styles.demoPanel, { borderColor: theme.border }]}>
+        <Pressable accessibilityRole="button" disabled={busy} onPress={demo} style={[styles.demoButton, { backgroundColor: theme.surfaceMuted }]}>
+          <PlayCircle color={theme.primary} size={19} />
+          <Text style={[styles.demoButtonLabel, { color: theme.text }]}>{demoLoading ? 'Opening...' : 'View demo'}</Text>
         </Pressable>
       </View>
     </AuthScaffold>
@@ -185,27 +189,25 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   label: { fontSize: 14, fontWeight: '700', marginBottom: 8 },
-  input: { borderRadius: 12, borderWidth: 1, fontSize: 16, minHeight: 52, paddingHorizontal: 14 },
+  input: { borderRadius: 8, borderWidth: 1, fontSize: 16, minHeight: 52, paddingHorizontal: 14 },
   passwordInput: { paddingRight: 48 },
   eye: { alignItems: 'center', height: 52, justifyContent: 'center', position: 'absolute', right: 2, top: 0, width: 44 },
   passwordHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginTop: 17 },
   forgot: { fontSize: 13, fontWeight: '700', marginBottom: 8 },
+  forgotLink: { justifyContent: 'center', minHeight: 44 },
   error: { fontSize: 12, marginTop: 5 },
-  feedback: { alignItems: 'flex-start', borderRadius: 12, borderWidth: 1, flexDirection: 'row', gap: 10, marginBottom: 14, marginTop: 14, padding: 12 },
+  feedback: { alignItems: 'flex-start', borderRadius: 8, borderWidth: 1, flexDirection: 'row', gap: 10, marginBottom: 14, marginTop: 14, padding: 12 },
   feedbackCopy: { flex: 1 },
   feedbackTitle: { fontSize: 13, fontWeight: '800' },
   feedbackMessage: { fontSize: 12, lineHeight: 17, marginTop: 3 },
   dividerRow: { alignItems: 'center', flexDirection: 'row', marginVertical: 22 },
   divider: { flex: 1, height: 1 },
   dividerText: { fontSize: 13, marginHorizontal: 12 },
-  googleButton: { alignItems: 'center', borderRadius: 12, borderWidth: 1, flexDirection: 'row', justifyContent: 'center', minHeight: 50 },
+  googleButton: { alignItems: 'center', borderRadius: 8, borderWidth: 1, flexDirection: 'row', justifyContent: 'center', minHeight: 50 },
   googleMark: { alignItems: 'center', backgroundColor: '#ffffff', borderColor: '#d9dee7', borderRadius: 10, borderWidth: 1, height: 22, justifyContent: 'center', width: 22 },
   googleMarkText: { color: '#4285f4', fontSize: 14, fontWeight: '900' },
   googleLabel: { fontSize: 15, fontWeight: '700', marginLeft: 9 },
-  demoPanel: { borderRadius: 12, borderWidth: 1, marginTop: 18, padding: 14 },
-  demoCopy: { marginBottom: 13 },
-  demoTitle: { fontSize: 15, fontWeight: '800' },
-  demoText: { fontSize: 12, lineHeight: 18, marginTop: 4 },
+  demoPanel: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: 24, paddingTop: 20 },
   demoButton: { alignItems: 'center', borderRadius: 6, flexDirection: 'row', gap: 8, justifyContent: 'center', minHeight: 46 },
   demoButtonLabel: { fontSize: 14, fontWeight: '800' },
   footer: { alignItems: 'center', gap: 13 },

@@ -205,6 +205,7 @@ module Chat
       def serialize_message(message)
         {
           id: message.id,
+          client_id: message.client_id,
           body: message.body,
           user_id: message.user_id,
           user_name: message.user.full_name,

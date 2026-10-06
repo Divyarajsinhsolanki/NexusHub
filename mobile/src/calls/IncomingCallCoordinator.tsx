@@ -70,6 +70,14 @@ export function IncomingCallCoordinator() {
   }, [clearRingTimer]);
 
   useEffect(() => {
+    clearRingTimer();
+    setIncoming(null);
+    setIncomingError('');
+    settledCallIds.current.clear();
+    actionRef.current = null;
+  }, [clearRingTimer, user?.id]);
+
+  useEffect(() => {
     if (!incoming) clearRingTimer();
   }, [clearRingTimer, incoming]);
 

@@ -38,15 +38,17 @@ export default function CallScreen() {
   const finishLocally = useCallback((callSession?: CallSession) => {
     const conversationId = callSession?.conversation_id || credentials.data?.call_session.conversation_id;
     if (conversationId) {
-      updateConversationCaches(queryClient, conversationId, (conversation) => ({ ...conversation, active_call: null }));
+      const call = callSession || credentials.data?.call_session;
+      updateConversationCaches(queryClient, conversationId, (conversation) => ({ ...conversation, active_call: call && ['active', 'ringing'].includes(call.status) ? call : null }));
       void Promise.all([
         queryClient.invalidateQueries({ queryKey: mobileQueryKeys.conversations }),
         queryClient.invalidateQueries({ queryKey: mobileQueryKeys.conversation(conversationId) }),
         queryClient.invalidateQueries({ queryKey: mobileQueryKeys.home }),
       ]);
     }
+    queryClient.removeQueries({ queryKey: ['call', callId] });
     close();
-  }, [close, credentials.data?.call_session.conversation_id, queryClient]);
+  }, [callId, close, credentials.data?.call_session, queryClient]);
 
   useEffect(() => {
     if (pathname.startsWith('/inbox/call/')) router.replace(`/call/${callId}` as never);
@@ -57,9 +59,13 @@ export default function CallScreen() {
   }, [callId, credentials.error]);
 
   useCallRealtime(credentials.data?.call_session.public_id, (event) => {
+    if (event.call_session && Number(event.call_session.id) === callId) {
+      queryClient.setQueryData(['call', callId], (previous: typeof credentials.data) => previous ? { ...previous, call_session: { ...previous.call_session, ...event.call_session as CallSession, can_end: previous.call_session.can_end } } : previous);
+    }
     if (event.type === 'call_ended') {
       recordCallBreadcrumb('end', { call_id: callId, remote: true });
-      void finishLocally(credentials.data?.call_session);
+      const ended = event.call_session as CallSession | undefined;
+      finishLocally(ended || (credentials.data ? { ...credentials.data.call_session, status: 'ended' } : undefined));
     }
   });
 
@@ -85,7 +91,7 @@ export default function CallScreen() {
           const refreshed = await endpoints.conversationSummary(conversationId);
           updateConversationCaches(queryClient, conversationId, () => refreshed);
           if (Number(refreshed.active_call?.id) !== callId) {
-            finishLocally(credentials.data?.call_session);
+            finishLocally(refreshed.active_call || { ...credentials.data!.call_session, status: 'ended' });
             return;
           }
         } catch { /* The original leave error remains actionable. */ }

@@ -20,6 +20,29 @@ afterEach(() => {
 });
 
 describe('handleMobileRealtimeEvent', () => {
+  test('syncs the current user reaction added or removed on the web', async () => {
+    const queryClient = testQueryClient();
+    queryClient.setQueryData(mobileQueryKeys.messages(7), { pageParams: [undefined], pages: [{ data: [message(2, 'Hello')] }] });
+    const event = { type: 'message_reactions_updated', conversation_id: 7, message_id: 2, last_actor_id: 1, last_actor_emoji: 'thumbs-up', last_actor_action: 'added', reactions: { 'thumbs-up': 1 } };
+    await handleMobileRealtimeEvent(queryClient, event, 1);
+    const rows = () => queryClient.getQueryData<InfiniteData<CollectionResult<Message>>>(mobileQueryKeys.messages(7))!.pages[0].data;
+    expect(rows()[0].reacted_emojis).toEqual(['thumbs-up']);
+    await handleMobileRealtimeEvent(queryClient, { ...event, last_actor_action: 'removed', reactions: {} }, 1);
+    expect(rows()[0].reacted_emojis).toEqual([]);
+  });
+
+  test('handles user-stream call events without a top-level conversation id', async () => {
+    const queryClient = testQueryClient();
+    queryClient.setQueryData(mobileQueryKeys.conversation(7), { id: 7, active_call: null });
+    const call = { id: 11, conversation_id: 7, status: 'ringing' };
+    await handleMobileRealtimeEvent(queryClient, { type: 'call_ringing', call_session: call }, 1);
+    expect(queryClient.getQueryData<Conversation>(mobileQueryKeys.conversation(7))?.active_call?.id).toBe(11);
+    await handleMobileRealtimeEvent(queryClient, { type: 'call_missed', call_session: { ...call, status: 'active' } }, 1);
+    expect(queryClient.getQueryData<Conversation>(mobileQueryKeys.conversation(7))?.active_call?.status).toBe('active');
+    await handleMobileRealtimeEvent(queryClient, { type: 'call_ended', call_session: { ...call, status: 'ended' } }, 1);
+    expect(queryClient.getQueryData<Conversation>(mobileQueryKeys.conversation(7))?.active_call).toBeNull();
+  });
+
   test('refreshes chats on reconnect so messages sent while backgrounded are recovered', async () => {
     const queryClient = testQueryClient();
     const keys = [mobileQueryKeys.conversations, mobileQueryKeys.conversation(7), mobileQueryKeys.messages(7)];

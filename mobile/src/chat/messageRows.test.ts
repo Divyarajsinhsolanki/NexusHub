@@ -3,6 +3,10 @@ import { describe, expect, test } from '@jest/globals';
 import { normalizedMessageRows, normalizedParticipants } from './messageRows';
 
 describe('chat response normalization', () => {
+  test('sanitizes sender objects before rendering native Text', () => {
+    const rows = normalizedMessageRows([{ data: [{ id: 1, body: 'Hello', created_at: '2026-10-06T00:00:00Z', user_id: '5', user_name: { name: 'Bad cached name' } }] }]);
+    expect(rows[0]).toMatchObject({ user_id: 5, user_name: 'Teammate' });
+  });
   test('drops malformed and duplicate cached rows without crashing', () => {
     const rows = normalizedMessageRows([
       { data: [{ id: 2, body: 'Newest', created_at: '2026-08-26T10:00:00Z' }] },

@@ -44,7 +44,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       appVariant,
       eas: easProjectId ? { projectId: easProjectId } : undefined,
       googleNativeAuth: {
-        android: Boolean(googleServicesJson),
+        // OTA exports cannot access EAS secret files; preserve the existing binary's capability.
+        android: Boolean(googleServicesJson || process.env.GOOGLE_NATIVE_AUTH_ANDROID === 'true'),
         ios: Boolean(googleServiceInfoPlist && googleIosUrlScheme),
       },
     },

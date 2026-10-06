@@ -8,6 +8,7 @@ import { endpoints } from '../../api/endpoints';
 import type { Conversation, EntityRecord } from '../../api/types';
 import { useAuth } from '../../auth/AuthProvider';
 import { mobileQueryKeys } from '../../cache/mobileCache';
+import { normalizedParticipants } from '../../chat/messageRows';
 import { useAppTheme } from '../../theme';
 import { Avatar } from '../Avatar';
 import { PrimaryButton } from '../PrimaryButton';
@@ -23,7 +24,7 @@ export function ConversationDetailsSheet({ conversationId, onClose, onConversati
   const [confirmDelete, setConfirmDelete] = useState('');
   const conversation = useQuery({ queryKey: mobileQueryKeys.conversation(conversationId), queryFn: () => endpoints.conversationSummary(conversationId), enabled: visible });
   const workspaceUsers = useQuery({ queryKey: ['users', 'conversation-members', conversationId], queryFn: () => endpoints.users({ per_page: 100 }), enabled: visible && adding });
-  const current = conversation.data;
+  const current = useMemo(() => conversation.data ? { ...conversation.data, participants: normalizedParticipants(conversation.data.participants) } : undefined, [conversation.data]);
   const available = useMemo(() => {
     const memberIds = new Set(current?.participants?.map((participant) => participant.id) || []);
     return (workspaceUsers.data?.data || []).filter((person) => !memberIds.has(person.id));

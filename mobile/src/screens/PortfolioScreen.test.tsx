@@ -61,7 +61,11 @@ test('shows the published portfolio before login and exposes authentication acti
 
   expect(await screen.findByText('Divyaraj Sinh')).toBeTruthy();
   expect(screen.getAllByText('Nexus Hub').length).toBeGreaterThan(0);
+  await fireEvent.press(screen.getByRole('tab', { name: 'About' }));
+  expect(screen.getByRole('tab', { name: 'About', selected: true })).toBeTruthy();
   expect(screen.getByText('Built across the application stack.')).toBeTruthy();
+  await fireEvent.press(screen.getByRole('tab', { name: 'Contact' }));
+  expect(screen.getByText('Review the work or start a conversation.')).toBeTruthy();
   await fireEvent.press(screen.getByRole('button', { name: 'Sign in' }));
   expect(mockPush).toHaveBeenCalledWith('/login');
   await screen.unmount();

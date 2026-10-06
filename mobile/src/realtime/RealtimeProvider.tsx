@@ -1,11 +1,13 @@
 import NetInfo from '@react-native-community/netinfo';
-import { createConsumer, type Consumer, type Subscription } from '@rails/actioncable';
+import * as Sentry from '@sentry/react-native';
+import { type Consumer, type Subscription } from '@rails/actioncable';
 import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
 import { endpoints } from '../api/endpoints';
 import { useAuth } from '../auth/AuthProvider';
 import type { ChannelIdentifier, RealtimeEvent, RealtimeState } from './types';
+import { createMobileConsumer } from './nativeConsumer';
 
 type Listener = (event: RealtimeEvent) => void;
 type ChannelRecord = {
@@ -121,6 +123,7 @@ export class SharedRealtimeClient {
   private destroyed = false;
   private online = true;
   private reconnectTimer?: ReturnType<typeof setTimeout>;
+  private generation = 0;
 
   constructor(private readonly onState: (state: RealtimeState) => void) {}
 
@@ -134,9 +137,9 @@ export class SharedRealtimeClient {
     if (!record) {
       record = { identifier, listeners: new Set(), confirmed: false, queue: [] };
       this.channels.set(key, record);
-      if (this.consumer) this.createSubscription(record);
     }
     record.listeners.add(listener);
+    if (this.consumer) this.createSubscription(record);
     if (!this.consumer) void this.connect();
 
     return () => {
@@ -163,6 +166,7 @@ export class SharedRealtimeClient {
   }
 
   setActive(active: boolean) {
+    if (this.active === active) { if (active) void this.connect(); return; }
     this.active = active;
     if (active) this.reconnect();
     else {
@@ -173,6 +177,7 @@ export class SharedRealtimeClient {
   }
 
   setOnline(online: boolean) {
+    if (this.online === online) { if (online) void this.connect(); return; }
     this.online = online;
     if (!online) {
       this.clearReconnectTimer();
@@ -201,23 +206,26 @@ export class SharedRealtimeClient {
     if (this.destroyed || !this.online || !this.active || this.consumer) return;
     if (this.connectPromise) return this.connectPromise;
     this.onState('connecting');
+    const generation = this.generation;
 
     this.connectPromise = (async () => {
       try {
         const credentials = await endpoints.realtimeToken();
-        if (this.destroyed || !this.active || !this.online) return;
-        const separator = credentials.url.includes('?') ? '&' : '?';
-        const url = credentials.url.includes('token=') ? credentials.url : `${credentials.url}${separator}token=${encodeURIComponent(credentials.token)}`;
-        this.consumer = createConsumer(url);
+        if (this.destroyed || !this.active || !this.online || generation !== this.generation) return;
+        const url = new URL(credentials.url);
+        if (!['ws:', 'wss:'].includes(url.protocol)) throw new Error('Invalid realtime URL');
+        url.searchParams.set('token', credentials.token);
+        this.consumer = createMobileConsumer(url.toString());
         this.channels.forEach((record) => this.createSubscription(record));
-        this.attempts = 0;
       } catch {
         if (!this.destroyed) {
+          this.teardownConsumer();
           this.onState('disconnected');
           this.scheduleReconnect();
         }
       } finally {
         this.connectPromise = undefined;
+        if (generation !== this.generation && !this.reconnectTimer) void this.connect();
       }
     })();
 
@@ -226,9 +234,12 @@ export class SharedRealtimeClient {
 
   private createSubscription(record: ChannelRecord) {
     if (!this.consumer || record.subscription) return;
+    const consumer = this.consumer;
+    const isCurrent = () => this.consumer === consumer && this.channels.get(identifierKey(record.identifier)) === record;
     record.confirmed = false;
     record.subscription = this.consumer.subscriptions.create(record.identifier, {
       connected: () => {
+        if (!isCurrent()) return;
         this.attempts = 0;
         this.clearReconnectTimer();
         record.confirmed = true;
@@ -236,21 +247,34 @@ export class SharedRealtimeClient {
         this.onState('connected');
       },
       disconnected: () => {
+        if (!isCurrent()) return;
+        record.confirmed = false;
         this.onState('disconnected');
         this.scheduleReconnect();
       },
       rejected: () => {
-        this.onState('disconnected');
-        this.scheduleReconnect(true);
+        if (!isCurrent()) return;
+        record.confirmed = false;
+        record.queue = [];
+        // An inaccessible thread must not repeatedly disconnect every other channel.
+        this.onState([...this.channels.values()].some((channel) => channel.confirmed) ? 'connected' : 'disconnected');
+        Sentry.captureMessage('Mobile realtime subscription rejected', { level: 'warning', tags: { channel: record.identifier.channel } });
       },
-      received: (event: RealtimeEvent) => record.listeners.forEach((listener) => listener(event)),
+      received: (event: RealtimeEvent) => {
+        if (!isCurrent() || !event || typeof event !== 'object' || typeof event.type !== 'string') return;
+        record.listeners.forEach((listener) => {
+          try { listener(event); } catch (error) {
+            Sentry.captureException(error, { tags: { surface: 'mobile_realtime_listener' } });
+          }
+        });
+      },
     });
   }
 
-  private scheduleReconnect(rejected = false) {
+  private scheduleReconnect() {
     if (this.destroyed || !this.active || !this.online || this.reconnectTimer) return;
     this.attempts += 1;
-    const delay = rejected ? Math.min(1_000 * 2 ** this.attempts, 20_000) : Math.min(750 * 2 ** this.attempts, 12_000);
+    const delay = Math.min(750 * 2 ** this.attempts, 12_000);
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = undefined;
       this.teardownConsumer();
@@ -259,6 +283,9 @@ export class SharedRealtimeClient {
   }
 
   private teardownConsumer() {
+    this.generation += 1;
+    const consumer = this.consumer;
+    this.consumer = undefined;
     // Closing the shared socket removes all of its subscriptions server-side.
     // Sending an unsubscribe for every channel immediately before disconnect
     // races ActionCable and produces duplicate/unknown subscription commands.
@@ -266,8 +293,7 @@ export class SharedRealtimeClient {
       record.confirmed = false;
       record.subscription = undefined;
     });
-    this.consumer?.disconnect();
-    this.consumer = undefined;
+    consumer?.disconnect();
   }
 
   private flushQueue(record: ChannelRecord) {
