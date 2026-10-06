@@ -46,7 +46,8 @@ Rails.application.configure do
   # config.assume_ssl = true
 
   # Force all access to the app over SSL, use Strict-Transport-Security, and use secure cookies.
-  config.assume_ssl = true
+  # Nginx supplies X-Forwarded-Proto; assuming SSL bypasses HTTP redirects.
+  config.assume_ssl = false
   config.force_ssl = true
   config.ssl_options = {
     redirect: { exclude: ->(request) { request.path == "/up" } }
@@ -153,7 +154,7 @@ Rails.application.configure do
   config.hosts += allowed_hosts
 
   cable_origins = allowed_hosts.flat_map do |host|
-    ["https://#{host}", "http://#{host}"]
+    ["https://#{host}"]
   end.uniq
   config.action_cable.url = "#{app_protocol == "https" ? "wss" : "ws"}://#{app_host}/cable"
   config.action_cable.allowed_request_origins = cable_origins if cable_origins.any?

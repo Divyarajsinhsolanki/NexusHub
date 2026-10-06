@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2027_08_18_000000) do
+ActiveRecord::Schema[8.1].define(version: 2027_08_19_000000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1002,6 +1002,17 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_18_000000) do
     t.index ["workspace_id"], name: "index_users_on_workspace_id"
   end
 
+  create_table "web_sessions", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "expires_at", null: false
+    t.string "password_fingerprint", null: false
+    t.datetime "revoked_at"
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["expires_at"], name: "index_web_sessions_on_expires_at"
+    t.index ["user_id"], name: "index_web_sessions_on_user_id"
+  end
+
   create_table "work_categories", force: :cascade do |t|
     t.string "color"
     t.datetime "created_at", null: false
@@ -1237,6 +1248,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_18_000000) do
   add_foreign_key "user_skills", "workspaces"
   add_foreign_key "users", "departments"
   add_foreign_key "users", "workspaces"
+  add_foreign_key "web_sessions", "users"
   add_foreign_key "work_categories", "workspaces"
   add_foreign_key "work_log_tags", "work_logs"
   add_foreign_key "work_log_tags", "work_tags"

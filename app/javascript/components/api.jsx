@@ -20,7 +20,12 @@ api.interceptors.request.use((config) => {
 });
 
 api.interceptors.response.use(
-  response => response,
+  response => {
+    const csrfToken = response.headers?.["x-csrf-token"];
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    if (csrfToken && meta) meta.content = csrfToken;
+    return response;
+  },
   async error => {
     const { config, response } = error;
 

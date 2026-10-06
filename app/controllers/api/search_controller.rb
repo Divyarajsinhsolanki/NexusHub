@@ -47,7 +47,7 @@ class Api::SearchController < Api::BaseController
   end
 
   def search_issues(pattern)
-    Issue.where("title ILIKE ? OR issue_key ILIKE ? OR issue_description ILIKE ?", pattern, pattern, pattern)
+    Issue.visible_to(current_user).where("title ILIKE ? OR issue_key ILIKE ? OR issue_description ILIKE ?", pattern, pattern, pattern)
       .includes(:project)
       .order(updated_at: :desc)
       .limit(MAX_PER_TYPE)

@@ -20,6 +20,16 @@ class Project < ApplicationRecord
   }, default: 'running'
 
   validates :name, presence: true
+
+  def self.accessible_to(user)
+    return none unless user
+
+    workspace_projects = where(workspace_id: user.workspace_id)
+    return workspace_projects if user.owner? || user.admin?
+
+    membership_ids = ProjectUser.where(user_id: user.id, status: "active").select(:project_id)
+    workspace_projects.where(owner_id: user.id).or(workspace_projects.where(id: membership_ids))
+  end
   validates :name, uniqueness: { scope: :workspace_id }
   validate :end_date_not_before_start_date
 

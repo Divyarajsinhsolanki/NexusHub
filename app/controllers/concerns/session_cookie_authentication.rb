@@ -3,9 +3,10 @@ module SessionCookieAuthentication
 
   private
 
-  def set_jwt_cookie!(user)
-    access_token = JwtService.encode({ user_id: user.id }, exp: 15.minutes.from_now)
-    refresh_token = JwtService.encode({ user_id: user.id }, exp: 7.days.from_now)
+  def set_jwt_cookie!(user, web_session: nil)
+    web_session ||= WebSession.issue_for!(user)
+    access_token = web_session.token(type: "web_access", expires_at: 15.minutes.from_now)
+    refresh_token = web_session.token(type: "web_refresh", expires_at: web_session.expires_at)
 
     cookies.signed[:access_token] = {
       value: access_token,
@@ -20,11 +21,13 @@ module SessionCookieAuthentication
       httponly: true,
       secure: Rails.env.production?,
       same_site: :lax,
-      expires: 7.days.from_now
+      expires: web_session.expires_at
     }
   end
 
   def clear_jwt_cookies!
+    WebSession.authenticate(cookies.signed[:refresh_token], type: "web_refresh")&.revoke!
+    WebSession.authenticate(cookies.signed[:access_token], type: "web_access")&.revoke!
     cookies.delete(:access_token, httponly: true)
     cookies.delete(:refresh_token, httponly: true)
   end

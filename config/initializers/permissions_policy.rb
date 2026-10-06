@@ -1,13 +1,4 @@
-# Be sure to restart your server when you modify this file.
-
-# Define an application-wide HTTP permissions policy. For further
-# information see: https://developers.google.com/web/updates/2018/06/feature-policy
-
-# Rails.application.config.permissions_policy do |policy|
-#   policy.camera      :none
-#   policy.gyroscope   :none
-#   policy.microphone  :none
-#   policy.usb         :none
-#   policy.fullscreen  :self
-#   policy.payment     :self, "https://secure.example.com"
-# end
+# Rails currently emits the older Feature-Policy syntax from its policy DSL.
+# Send the modern header explicitly; calls remain enabled on our own origin.
+Rails.application.config.action_dispatch.default_headers["Permissions-Policy"] =
+  "camera=(self), microphone=(self), geolocation=(), usb=(), payment=()"

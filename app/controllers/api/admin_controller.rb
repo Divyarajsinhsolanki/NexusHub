@@ -124,11 +124,14 @@ class Api::AdminController < Api::BaseController
   end
 
   def admin_model_names
-    Rails.cache.fetch("api_admin_model_names", expires_in: 12.hours) do
+    Rails.cache.fetch("api_admin_model_names_v2", expires_in: 12.hours) do
       Rails.application.eager_load!
 
       not_needed_tables = %w[
         ApplicationRecord
+        WebSession
+        MobileSession
+        McpAccessToken
         ActiveStorage::Blob
         ActiveStorage::Attachment
         ActiveStorage::VariantRecord

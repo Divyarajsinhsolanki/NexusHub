@@ -27,6 +27,7 @@ class Api::PasswordsController < Api::BaseController
     )
 
     if user.errors.empty?
+      MobileSession.where(user: user).active.find_each(&:revoke!)
       render json: { message: "Password updated successfully." }
     else
       render json: { errors: user.errors.full_messages }, status: :unprocessable_entity
@@ -45,6 +46,8 @@ class Api::PasswordsController < Api::BaseController
       password: password_params[:password],
       password_confirmation: password_params[:password_confirmation]
     )
+      MobileSession.where(user: current_user).active.find_each(&:revoke!)
+      set_jwt_cookie!(current_user)
       render json: { message: "Password changed successfully." }
     else
       render json: { errors: current_user.errors.full_messages }, status: :unprocessable_entity

@@ -1,5 +1,6 @@
 class PagesController < ApplicationController
   def index
+    response.set_header("X-Robots-Tag", "noindex, nofollow") unless public_portfolio_page?
     respond_to do |format|
       format.html
       format.any { head :not_acceptable }

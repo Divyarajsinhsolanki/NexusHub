@@ -4,8 +4,9 @@ require 'open-uri'
 
 class Api::AuthController < Api::BaseController
   include Rails.application.routes.url_helpers
-  skip_before_action :authenticate_user!, only: [:login, :signup, :refresh]
+  skip_before_action :authenticate_user!, only: [:login, :signup, :refresh, :logout]
   skip_before_action :enforce_demo_read_only!, only: [:login, :signup, :refresh, :logout]
+  after_action :expose_csrf_token, only: [:login, :logout]
 
   def signup
     user = User.new(user_params)
@@ -71,6 +72,8 @@ class Api::AuthController < Api::BaseController
     return render json: { error: "Account locked" }, status: :unauthorized if user.locked?
 
     Current.workspace = user.workspace
+    clear_jwt_cookies!
+    reset_session
     set_jwt_cookie!(user)
     render json: {
       message: "Login successful",
@@ -80,12 +83,12 @@ class Api::AuthController < Api::BaseController
   end
 
   def refresh
-    refresh_token = cookies.signed[:refresh_token]
-    payload = JwtService.decode(refresh_token)
+    web_session = WebSession.authenticate(cookies.signed[:refresh_token], type: "web_refresh")
 
-    if payload && (user = User.find_by(id: payload["user_id"]))
+    if web_session
+      user = web_session.user
       Current.workspace = user.workspace
-      set_jwt_cookie!(user)
+      set_jwt_cookie!(user, web_session: web_session)
       render json: {
         user: authentication_user_payload(user),
         exp: 15.minutes.from_now.to_i
@@ -104,6 +107,8 @@ class Api::AuthController < Api::BaseController
 
   def logout
     clear_jwt_cookies!
+    sign_out(:user)
+    reset_session
     render json: { message: "Logged out successfully" }
   end
 
@@ -151,7 +156,7 @@ class Api::AuthController < Api::BaseController
   end
 
   def update_profile
-    current_user.update(user_params)
+    current_user.update(user_params.except(:password, :uid))
 
     if current_user.errors.any?
       render json: { errors: current_user.errors.full_messages }, status: :unprocessable_entity
@@ -169,6 +174,11 @@ class Api::AuthController < Api::BaseController
   end
 
   private
+
+  def expose_csrf_token
+    response.set_header("X-CSRF-Token", form_authenticity_token)
+    response.set_header("Cache-Control", "no-store")
+  end
 
   def user_params
     permitted = params.require(:auth).permit(

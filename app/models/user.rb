@@ -8,6 +8,10 @@ class User < ApplicationRecord
 
   enum :status, { invited: "invited", active: "active", locked: "locked" }, default: "invited"
 
+  def active_for_authentication?
+    super && !locked?
+  end
+
   LANDING_PAGES = %w[demo calendar posts profile vault knowledge worklog projects teams pdf users departments chat notifications].freeze
   AVAILABILITY_LABELS = {
     'available_now' => 'Available Now',
@@ -46,6 +50,7 @@ class User < ApplicationRecord
   has_one_attached :profile_picture
   has_one_attached :cover_photo
   belongs_to :workspace
+  has_many :web_sessions, dependent: :destroy
   has_many :posts, dependent: :destroy, inverse_of: :user
   has_many :tasks, foreign_key: :assigned_to_user, inverse_of: :assigned_user
   has_many :developed_tasks, class_name: 'Task', foreign_key: :developer_id, inverse_of: :developer

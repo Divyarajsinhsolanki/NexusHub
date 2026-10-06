@@ -1,14 +1,12 @@
 class Api::IssuesController < Api::BaseController
   include Rails.application.routes.url_helpers
-  before_action :require_project_id!, only: [:create, :update, :destroy, :import_from_sheet]
+  before_action :require_project_id!
+  before_action :authorize_project!
   before_action :set_issue, only: [:update, :destroy]
   around_action :log_project_dashboard_exceptions
 
   def index
-    return render json: { error: "project_id required" }, status: :unprocessable_entity unless params[:project_id].present?
-
-    issues = Issue.includes(:reporter, :assignee_user)
-                  .where(project_id: params[:project_id])
+    issues = @project.issues.includes(:reporter, :assignee_user)
                   .order(created_at: :desc)
     render json: issues.map { |i| serialize_issue(i) }
   end
@@ -48,7 +46,7 @@ class Api::IssuesController < Api::BaseController
   end
 
   def import_from_sheet
-    project = Project.find(@project_id)
+    project = @project
     unless project.sheet_integration_enabled?
       log_sheet_event(:warn, 'Issue sheet import blocked: integration disabled', payload: { project_id: project.id })
       return render json: { error: "Sheet integration is disabled for this project" }, status: :unprocessable_entity
@@ -87,10 +85,14 @@ class Api::IssuesController < Api::BaseController
       exception: e,
       payload: { project_id: @project_id, sheet_name: sheet_name, spreadsheet_id: spreadsheet_id }
     )
-    render json: { error: e.message }, status: :unprocessable_entity
+    render json: { error: "Issue import failed. Please check the sheet configuration and try again." }, status: :unprocessable_entity
   end
 
   private
+
+  def authorize_project!
+    @project = Project.accessible_to(current_user).find(@project_id)
+  end
 
   def set_issue
     @issue = Issue.find_by!(id: params[:id], project_id: @project_id)
@@ -126,7 +128,7 @@ class Api::IssuesController < Api::BaseController
 
   def serialize_issue(issue)
     media_urls = issue.media_files.map { |f| url_for(f) }
-    issue.as_json.merge(
+    issue.as_json.symbolize_keys.merge(
       media_files: media_urls,
       media_urls: issue.media_urls || [],
       attachment_urls: issue.attachment_urls || [],

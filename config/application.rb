@@ -17,8 +17,7 @@ module RailsVite
     # not contain `.rb` files, or that should not be reloaded or eager loaded.
     # Common ones are `templates`, `generators`, or `middleware`, for example.
     config.autoload_lib(ignore: %w(assets tasks))
-    config.middleware.use ActionDispatch::Cookies
-    config.middleware.use Rack::Attack
+    # Rails and the Rack::Attack railtie install their middleware automatically.
     config.middleware.use ApiV1EnvelopeMiddleware
     config.hosts << ENV["ALLOWED_NGROK_HOST"] if Rails.env.development? && ENV["ALLOWED_NGROK_HOST"].present?
     config.hosts << "system.tail54b0b0.ts.net"

@@ -6,8 +6,13 @@ class ApplicationController < ActionController::Base
   before_action :enforce_demo_read_only_request!
   after_action :finish_current_request
   rescue_from StandardError, with: :notify_unhandled_exception
+  helper_method :public_portfolio_page?
 
   private
+
+  def public_portfolio_page?
+    PortfolioAccess.enabled? && %w[/ /contact /legal].include?(request.path)
+  end
 
   def notify_unhandled_exception(error)
     send_exception_notification(error)
@@ -31,7 +36,7 @@ class ApplicationController < ActionController::Base
     {
       request_id: request.request_id,
       method: request.request_method,
-      path: request.fullpath,
+      path: request.filtered_path,
       controller: params[:controller],
       action: params[:action],
       user_id: Current.user&.id,
@@ -81,7 +86,7 @@ class ApplicationController < ActionController::Base
       method: request.request_method,
       host: request.host,
       path: request.path,
-      fullpath: request.fullpath.to_s.first(500),
+      fullpath: request.filtered_path.to_s.first(500),
       format: request.format&.ref,
       status: response.status,
       duration_ms: duration_ms,
@@ -91,7 +96,7 @@ class ApplicationController < ActionController::Base
       workspace_id: Current.workspace&.id,
       remote_ip: request.remote_ip,
       forwarded_for: request.headers["X-Forwarded-For"].to_s.first(250).presence,
-      referer: request.referer.to_s.first(500).presence,
+      referer: request.referer.to_s.split(/[?#]/, 2).first.to_s.first(500).presence,
       user_agent: user_agent.first(500),
       device: device_details(user_agent),
       params: request.filtered_parameters.except("controller", "action")
@@ -171,14 +176,7 @@ class ApplicationController < ActionController::Base
   end
 
   def user_from_access_cookie
-    token = cookies.signed[:access_token]
-    return nil if token.blank?
-
-    payload = JwtService.decode(token)
-    user_id = payload[:user_id]
-    return nil if user_id.blank?
-
-    User.find_by(id: user_id)
+    WebSession.authenticate(cookies.signed[:access_token], type: "web_access")&.user
   rescue StandardError
     nil
   end

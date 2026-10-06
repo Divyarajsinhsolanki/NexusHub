@@ -1,9 +1,12 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
-    <title><%= PortfolioAccess.enabled? ? "Divyarajsinh Solanki | Full-stack Engineer" : "Nexus Hub | Workspace Login" %></title>
+    <title><%= public_portfolio_page? ? "Divyarajsinh Solanki | Full-stack Engineer" : "Nexus Hub | Workspace Login" %></title>
+    <% unless public_portfolio_page? %>
+      <meta name="robots" content="noindex, nofollow">
+    <% end %>
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <meta name="description" content="<%= PortfolioAccess.enabled? ? "Portfolio of Divyarajsinh Solanki, a full-stack Ruby on Rails and React engineer building Nexus Hub." : "Sign in or create a Nexus Hub workspace." %>">
+    <meta name="description" content="<%= public_portfolio_page? ? "Portfolio of Divyarajsinh Solanki, a full-stack Ruby on Rails and React engineer building Nexus Hub." : "Sign in or create a Nexus Hub workspace." %>">
     <meta name="nexus-portfolio-enabled" content="<%= PortfolioAccess.enabled? %>">
     <% recaptcha_enabled = ActiveModel::Type::Boolean.new.cast(ENV["RECAPTCHA_ENABLED"]) || ENV["VITE_RECAPTCHA_SITE_KEY"].present? %>
     <meta name="nexus-recaptcha-enabled" content="<%= recaptcha_enabled %>">

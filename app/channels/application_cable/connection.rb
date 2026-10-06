@@ -18,6 +18,7 @@ module ApplicationCable
       return if payload.blank? || payload[:error].present? || payload[:type] != "cable_access"
 
       session = MobileSession.active.includes(:user, :impersonated_user).find_by(id: payload[:mobile_session_id])
+      return if payload[:mobile_session_id].present? && (session.nil? || session.user.locked?)
       user = session&.effective_user || User.find_by(id: payload[:user_id])
       return if user.blank? || user.locked? || user.id != payload[:user_id].to_i
 
@@ -25,9 +26,7 @@ module ApplicationCable
     end
 
     def jwt_cookie_user
-      token = cookies.signed[:access_token]
-      payload = JwtService.decode(token)
-      User.find_by(id: payload["user_id"]) if payload
+      WebSession.authenticate(cookies.signed[:access_token], type: "web_access")&.user
     rescue StandardError
       nil
     end

@@ -5,6 +5,8 @@ class Issue < ApplicationRecord
   belongs_to :reporter, class_name: 'User', optional: true
   belongs_to :assignee_user, class_name: 'User', optional: true
 
+  scope :visible_to, ->(user) { where(project_id: Project.accessible_to(user).select(:id)) }
+
   STATUSES = [
     'New',
     'In Progress',

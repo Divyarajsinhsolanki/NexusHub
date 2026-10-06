@@ -117,8 +117,8 @@ module Mcp
           sprints: Sprint.count,
           tasks: Task.count,
           open_tasks: Task.where.not(status: Serializer.completed_statuses).count,
-          issues: Issue.count,
-          open_issues: Issue.where.not(status: Serializer.closed_issue_statuses).count,
+          issues: Issue.visible_to(user).count,
+          open_issues: Issue.visible_to(user).where.not(status: Serializer.closed_issue_statuses).count,
           teams: Team.count,
           skills: Skill.count,
           knowledge_bookmarks: user.knowledge_bookmarks.count,
@@ -157,7 +157,7 @@ module Mcp
 
       blocked_tasks = my_tasks.where(status: "blocked").order(updated_at: :desc).limit(8)
       upcoming_events = accessible_events(Time.current, future).order(:start_at).limit(12)
-      severe_issues = Issue.includes(:project, :assignee_user)
+      severe_issues = Issue.visible_to(user).includes(:project, :assignee_user)
         .where(severity: %w[High Critical])
         .where.not(status: Serializer.closed_issue_statuses)
         .order(Arel.sql("CASE severity WHEN 'Critical' THEN 0 WHEN 'High' THEN 1 ELSE 2 END"), :due_date)
@@ -618,7 +618,7 @@ module Mcp
     end
 
     def list_issues(args)
-      scope = Issue.includes(:project, :assignee_user, :reporter).order(updated_at: :desc)
+      scope = Issue.visible_to(user).includes(:project, :assignee_user, :reporter).order(updated_at: :desc)
       scope = scope.where(project_id: args[:project_id]) if args[:project_id].present?
       scope = scope.where(status: args[:status]) if args[:status].present?
       scope = scope.where(severity: args[:severity]) if args[:severity].present?
@@ -631,7 +631,7 @@ module Mcp
     def create_issue(args)
       ensure_write_allowed!
       attrs = issue_attrs(args)
-      assert_workspace_record!(Project, attrs[:project_id])
+      Project.accessible_to(user).find(attrs[:project_id])
       attrs[:reporter_id] ||= user.id
       assert_workspace_user!(attrs[:reporter_id]) if attrs[:reporter_id].present?
       assert_workspace_user!(attrs[:assignee_user_id]) if attrs[:assignee_user_id].present?
@@ -643,9 +643,9 @@ module Mcp
 
     def update_issue(args)
       ensure_write_allowed!
-      issue = Issue.find(required_id(args, :id))
+      issue = Issue.visible_to(user).find(required_id(args, :id))
       attrs = issue_attrs(args)
-      assert_workspace_record!(Project, attrs[:project_id]) if attrs[:project_id].present?
+      Project.accessible_to(user).find(attrs[:project_id]) if attrs[:project_id].present?
       assert_workspace_user!(attrs[:reporter_id]) if attrs[:reporter_id].present?
       assert_workspace_user!(attrs[:assignee_user_id]) if attrs[:assignee_user_id].present?
       issue.update!(attrs)
@@ -1145,7 +1145,7 @@ module Mcp
     end
 
     def search_issues(pattern)
-      Issue.where("title ILIKE ? OR issue_key ILIKE ? OR issue_description ILIKE ?", pattern, pattern, pattern)
+      Issue.visible_to(user).where("title ILIKE ? OR issue_key ILIKE ? OR issue_description ILIKE ?", pattern, pattern, pattern)
         .includes(:project)
         .order(updated_at: :desc)
         .limit(8)
@@ -1292,7 +1292,7 @@ module Mcp
         .order(:end_date)
         .limit(8)
       blocked_tasks = my_tasks.where(status: "blocked").order(updated_at: :desc).limit(8)
-      severe_issues = Issue.includes(:project, :assignee_user)
+      severe_issues = Issue.visible_to(user).includes(:project, :assignee_user)
         .where(severity: %w[High Critical])
         .where.not(status: Serializer.closed_issue_statuses)
         .order(Arel.sql("CASE severity WHEN 'Critical' THEN 0 WHEN 'High' THEN 1 ELSE 2 END"), :due_date)
@@ -1439,7 +1439,7 @@ module Mcp
     end
 
     def apply_issue_escalation_action(action)
-      issue = Issue.find(action.dig(:issue, :id))
+      issue = Issue.visible_to(user).find(action.dig(:issue, :id))
       note = "Escalated by Workspace Autopilot on #{Time.current.to_date}."
       issue.update!(
         status: "Need to discuss",

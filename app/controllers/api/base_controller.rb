@@ -1,7 +1,11 @@
 class Api::BaseController < ApplicationController
   include SessionCookieAuthentication
 
-  protect_from_forgery with: :null_session
+  # Cookie credentials require a real CSRF check; bearer-only native requests do not.
+  protect_from_forgery with: :exception, unless: :bearer_only_request?
+  rescue_from ActionController::InvalidAuthenticityToken do
+    render json: { error: "Invalid authenticity token" }, status: :unprocessable_entity
+  end
   # Legacy API controllers share this base class. Normalize expected client
   # input/resource errors here so they do not reach ApplicationController's
   # catch-all handler, which re-raises them as 500 responses.
@@ -47,6 +51,12 @@ class Api::BaseController < ApplicationController
 
   private
 
+  def bearer_only_request?
+    request.authorization.to_s.match?(/\ABearer /i) &&
+      cookies[:access_token].blank? && cookies[:refresh_token].blank? &&
+      !request.env["warden"]&.authenticated?(:user)
+  end
+
   def authentication_user
     bearer_token_user || jwt_cookie_user || devise_session_user
   end
@@ -60,9 +70,7 @@ class Api::BaseController < ApplicationController
   end
 
   def jwt_cookie_user
-    token = cookies.signed[:access_token]
-    payload = JwtService.decode(token)
-    User.find_by(id: payload["user_id"]) if payload
+    WebSession.authenticate(cookies.signed[:access_token], type: "web_access")&.user
   end
 
   def bearer_token_user
@@ -119,7 +127,7 @@ class Api::BaseController < ApplicationController
   def basic_request_context(extra = {})
     {
       method: request.request_method,
-      path: request.fullpath,
+      path: request.filtered_path,
       project_id: params[:project_id],
       resource_id: params[:id]
     }.merge(extra).compact
