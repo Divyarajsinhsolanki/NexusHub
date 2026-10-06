@@ -124,6 +124,20 @@ class PortfolioAuthorizationTest < ActionDispatch::IntegrationTest
     assert_equal 2, feature.tour_position
   end
 
+  test "admin searches the selected column and escapes wildcard characters" do
+    workspace = Workspace.create!(name: "Search Admin", slug: "search-admin", kind: "private")
+    login(create_user(workspace, "search-admin@example.test", site_admin: true))
+    Role.find_or_create_by!(name: "owner")
+    get "/api/admin/Role", params: { q: "OWN", search_column: "name" }
+    assert_response :success
+    assert_equal ["owner"], JSON.parse(response.body).fetch("records").map { |row| row["name"] }
+    get "/api/admin/Role", params: { q: "%", search_column: "name" }
+    assert_response :success
+    assert_empty JSON.parse(response.body).fetch("records")
+    get "/api/admin/Role", params: { q: "owner", search_column: "not_a_column" }
+    assert_response :unprocessable_entity
+  end
+
   private
 
   def create_user(workspace, email, site_admin: false)

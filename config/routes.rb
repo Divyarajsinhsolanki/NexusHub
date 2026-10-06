@@ -183,6 +183,7 @@ Rails.application.routes.draw do
           post :end, action: :end_call
         end
       end
+      post "meet", to: "/api/meetings#create"
       get "meet/:public_id", to: "/api/meetings#show"
       post "meet/:public_id/join", to: "/api/meetings#join"
 
@@ -388,6 +389,7 @@ Rails.application.routes.draw do
         post :end, action: :end_call
       end
     end
+    post "meet", to: "meetings#create"
     get "meet/:public_id", to: "meetings#show"
     post "meet/:public_id/join", to: "meetings#join"
 

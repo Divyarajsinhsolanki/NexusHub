@@ -10,6 +10,10 @@ The Rails app serves both the JSON API and the React entrypoint. Vite handles th
 - Project and sprint management with task boards, sprint logs, issue tracking, members, project settings, and project vault items.
 - Work-log and momentum views for daily planning, priorities, tags, notes, meetings, and progress review.
 - Team features for departments, skills, endorsements, posts, comments, likes, chat, and mentions.
+- Quick meetings from Chat with shareable links: guests sign in and return to the
+  meeting without gaining workspace chat access. User cards offer message,
+  voice-call, and video-call actions. Owner user management includes accessible
+  add/edit dialogs with separate details and access settings.
 - Calendar events, reminders, Google calendar links, ICS import/export, and deadline tracking.
 - Knowledge dashboard with coding tips, news, words, phrases, bookmarks, reminders, and optional third-party API feeds.
 - PDF Master tools for upload, edit, annotate, sign, watermark, stamp, merge, split, compress, encrypt, decrypt, protect, export, undo, and redo.

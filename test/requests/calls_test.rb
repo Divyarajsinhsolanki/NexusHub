@@ -32,6 +32,31 @@ class CallsTest < ActionDispatch::IntegrationTest
     clear_performed_jobs
   end
 
+  test "quick meetings wait for external guests without a ringing timeout" do
+    login(@caller)
+    assert_no_enqueued_jobs(only: CallSessionTimeoutJob) do
+      post "/api/meet", params: { call_type: "video" }
+    end
+    assert_response :created
+    payload = JSON.parse(response.body).fetch("call_session")
+    assert_equal "active", payload.fetch("status")
+    assert_equal "video", payload.fetch("call_type")
+    get "/api/meet/#{payload.fetch('public_id')}"
+    assert_response :success
+    post "/api/meet/#{payload.fetch('public_id')}/join"
+    assert_response :success
+    post "/api/calls/#{payload.fetch('id')}/end"
+    assert_response :success
+  end
+
+  test "invalid quick meeting type rolls back its conversation" do
+    login(@caller)
+    assert_no_difference "Conversation.unscoped.count" do
+      post "/api/meet", params: { call_type: "invalid" }
+    end
+    assert_response :unprocessable_entity
+  end
+
   test "only conversation participants can create calls" do
     login(@outsider)
 

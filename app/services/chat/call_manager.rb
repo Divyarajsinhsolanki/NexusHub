@@ -11,7 +11,7 @@ module Chat
       @user = user
     end
 
-    def create_call(conversation:, call_type:)
+    def create_call(conversation:, call_type:, meeting: false)
       normalized_call_type = call_type.to_s
       unless CallSession.call_types.key?(normalized_call_type)
         raise InvalidTransition, "Unsupported call type"
@@ -28,7 +28,8 @@ module Chat
           workspace: conversation.workspace,
           initiator: user,
           call_type: normalized_call_type,
-          status: "ringing",
+          status: meeting ? "active" : "ringing",
+          started_at: meeting ? Time.current : nil,
           livekit_room_name: livekit_room_name(conversation)
         )
 
@@ -46,7 +47,7 @@ module Chat
       call_session = call_session.reload
       Chat::Broadcaster.broadcast_call_ringing(call_session)
       Chat::Broadcaster.broadcast_call_event(call_session, "call_started")
-      CallSessionTimeoutJob.set(wait: RING_TIMEOUT).perform_later(call_session.id)
+      CallSessionTimeoutJob.set(wait: RING_TIMEOUT).perform_later(call_session.id) unless meeting
       call_session
     rescue ActiveRecord::RecordNotUnique
       raise ActiveCallExists, "There is already an active call in this conversation"

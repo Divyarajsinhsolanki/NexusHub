@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { Copy, LogIn, Mic, MicOff, PhoneOff, Video, VideoOff } from "lucide-react";
 import CallRoom from "../components/chat/CallRoom";
 import { endCall, fetchMeeting, joinMeeting, leaveCall } from "../components/api";
@@ -10,13 +10,14 @@ const liveStatuses = new Set(["ringing", "active"]);
 const Meeting = () => {
   const { publicId } = useParams();
   const navigate = useNavigate();
-  const [callSession, setCallSession] = useState(null);
-  const [credentials, setCredentials] = useState(null);
+  const location = useLocation();
+  const [callSession, setCallSession] = useState(location.state?.callSession || null);
+  const [credentials, setCredentials] = useState(location.state?.credentials || null);
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState("");
   const [microphoneEnabled, setMicrophoneEnabled] = useState(true);
-  const [cameraEnabled, setCameraEnabled] = useState(true);
+  const [cameraEnabled, setCameraEnabled] = useState(location.state?.callSession?.call_type !== 'audio');
 
   const loadMeeting = useCallback(async () => {
     try {
@@ -24,6 +25,7 @@ const Meeting = () => {
       setError("");
       const { data } = await fetchMeeting(publicId);
       setCallSession(data.call_session);
+      if (!liveStatuses.has(data.call_session?.status)) setCredentials(null);
       setCameraEnabled(data.call_session?.call_type === "video");
     } catch (requestError) {
       setError(requestError?.response?.status === 404 ? "This meeting link is invalid." : "Unable to load this meeting.");
@@ -34,6 +36,7 @@ const Meeting = () => {
 
   useEffect(() => {
     loadMeeting();
+    setCredentials(location.state?.credentials || null);
   }, [loadMeeting]);
 
   useEffect(() => {

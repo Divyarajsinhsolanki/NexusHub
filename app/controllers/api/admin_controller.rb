@@ -26,6 +26,20 @@ class Api::AdminController < Api::BaseController
 
     filters = filter_params
     records = records.where(filters) if filters.present?
+    if params[:q].present?
+      columns = @model.columns.reject { |column| hidden_admin_column?(column) }
+      if params[:search_column].present?
+        columns = columns.select { |column| column.name == params[:search_column] }
+        return render json: { error: "Invalid search column" }, status: :unprocessable_entity if columns.empty?
+      end
+      connection = @model.connection
+      table = connection.quote_table_name(@model.table_name)
+      predicates = columns.map do |column|
+        "CAST(#{table}.#{connection.quote_column_name(column.name)} AS TEXT) ILIKE :query"
+      end
+      query = "%#{ActiveRecord::Base.sanitize_sql_like(params[:q].to_s.first(200))}%"
+      records = records.where(predicates.join(" OR "), query: query) if predicates.any?
+    end
 
     total_count = records.count
     records = records.offset((page - 1) * per_page).limit(per_page)
@@ -190,7 +204,7 @@ class Api::AdminController < Api::BaseController
     raw_filters = params[:filters]
     return unless raw_filters.is_a?(ActionController::Parameters)
 
-    raw_filters.permit(@model.column_names.map(&:to_sym))
+    raw_filters.permit(@model.column_names.map(&:to_sym)).reject { |_, value| value == "" }
   end
 
   def json_column?(column)

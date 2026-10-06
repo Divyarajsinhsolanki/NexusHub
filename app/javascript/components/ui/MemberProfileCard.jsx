@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { FiBriefcase, FiExternalLink, FiMail, FiPhone, FiX } from "react-icons/fi";
 import Avatar from "./Avatar";
+import MemberContactActions from "./MemberContactActions";
 
 export const profileCardPosition = (anchor, card, viewport) => {
   const margin = 12;
@@ -144,6 +145,7 @@ const MemberProfileCard = ({ member = {}, compact = false, children, className =
           {typeof member.allocation_percentage === "number" && <p className="text-xs">Allocation: {member.allocation_percentage}%</p>}
         </div>
         {member.bio && <p className="mt-4 text-sm leading-6 text-shell-muted break-words">{member.bio}</p>}
+        <div className="mt-4"><MemberContactActions userId={member.id} onNavigate={close} /></div>
         <div className="mt-4 flex flex-wrap gap-3 text-sm">
           {Object.entries({ linkedin: "LinkedIn", github: "GitHub", twitter: "Twitter", website: "Website" }).map(([key, label]) => {
             const href = safeSocialUrl(member.social_links?.[key]);

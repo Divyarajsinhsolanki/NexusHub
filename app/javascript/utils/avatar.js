@@ -1,5 +1,12 @@
 export const DEFAULT_AVATAR_COLOR = '#6366f1';
 
+export const generateAvatarColor = (seed = '') => {
+  const palette = ['#047857', '#b91c1c', '#7e22ce', '#0369a1', '#be185d', '#a16207', '#0f766e', '#4338ca'];
+  let hash = 0;
+  for (const character of String(seed)) hash = (Math.imul(hash, 31) + character.charCodeAt(0)) | 0;
+  return palette[(hash >>> 0) % palette.length];
+};
+
 export const normalizeAvatarColor = (color, fallback = DEFAULT_AVATAR_COLOR) => (
   /^#[0-9a-f]{6}$/i.test((color || '').trim()) ? color.trim().toLowerCase() : fallback
 );

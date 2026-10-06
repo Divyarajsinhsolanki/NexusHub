@@ -1,5 +1,6 @@
 import React, { Suspense, useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import QuickMeetingButton from "../components/chat/QuickMeetingButton";
 import { format, formatDistanceToNow, isSameDay, isThisYear, isToday, isYesterday } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -3132,6 +3133,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
               </button>
             </div>
             <p className="chat-inbox-subtitle">A space for every conversation.</p>
+            <QuickMeetingButton />
 
             <div className="chat-inbox-search">
               <FiSearch aria-hidden="true" />

@@ -1,6 +1,19 @@
 class Api::MeetingsController < Api::BaseController
-  before_action :set_call_session
+  before_action :set_call_session, only: [:show, :join]
   rescue_from Chat::CallManager::InvalidTransition, with: :render_invalid_transition
+
+  def create
+    unless Chat::LivekitTokenGenerator.configured?
+      return render json: { error: "livekit_not_configured", message: Chat::LivekitTokenGenerator.configuration_error }, status: :service_unavailable
+    end
+
+    call_session = Conversation.transaction do
+      conversation = Conversation.create!(workspace: current_user.workspace, creator: current_user, conversation_type: "group", title: "Quick meeting")
+      conversation.conversation_participants.create!(workspace: current_user.workspace, user: current_user)
+      Chat::CallManager.new(user: current_user).create_call(conversation: conversation, call_type: params[:call_type].presence || "video", meeting: true)
+    end
+    render json: { call_session: Chat::CallSerializer.call(call_session, current_user: current_user) }, status: :created
+  end
 
   def show
     render json: { call_session: Chat::CallSerializer.call(@call_session, current_user: current_user) }
@@ -24,7 +37,7 @@ class Api::MeetingsController < Api::BaseController
   end
 
   def render_invalid_transition(error)
-    status = @call_session&.live? ? :unprocessable_entity : :gone
+    status = action_name == "create" || @call_session&.live? ? :unprocessable_entity : :gone
     render json: { error: "invalid_call_transition", message: error.message }, status: status
   end
 end

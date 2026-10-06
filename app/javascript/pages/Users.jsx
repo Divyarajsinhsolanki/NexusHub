@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import { toast } from "react-hot-toast";
 import { 
-  Search, Edit2, Trash2, X, Check, Upload, PencilLine,
-  Mail, Calendar, Users as UsersIcon, MessageSquare, UserPlus
+  Search, Edit2, Trash2, X, Upload, PencilLine,
+  Mail, Calendar, Users as UsersIcon, UserPlus
 } from "lucide-react";
 import {
   getUsers,
@@ -15,11 +15,12 @@ import {
   fetchProjects,
   fetchRoles,
   fetchDepartments,
-  startDirectConversation,
   updatePresence,
 } from "../components/api";
 import { subscribeToPresence } from "../lib/chatCable";
-import { buildAvatarStyle, getAvatarInitial, normalizeAvatarColor } from "../utils/avatar";
+import UserEditorDialog from "../components/UserEditorDialog";
+import MemberContactActions from "../components/ui/MemberContactActions";
+import { buildAvatarStyle, generateAvatarColor, getAvatarInitial, normalizeAvatarColor } from "../utils/avatar";
 
 const DEFAULT_CREATE_FORM = {
   first_name: "",
@@ -57,7 +58,7 @@ const UserProfileAvatar = ({ user }) => {
   return (
     <div
       className="flex w-20 h-20 items-center justify-center rounded-2xl border-4 border-white text-2xl font-bold shadow-md"
-      style={buildAvatarStyle(normalizeAvatarColor(user.avatar_color))}
+      style={buildAvatarStyle(normalizeAvatarColor(user.avatar_color, generateAvatarColor(user.id || displayName)))}
       aria-label={`${displayName}'s initials`}
     >
       {getAvatarInitial(displayName)}
@@ -67,7 +68,6 @@ const UserProfileAvatar = ({ user }) => {
 
 const Users = () => {
   const { user: currentUser } = React.useContext(AuthContext);
-  const navigate = useNavigate();
   // --- State Management ---
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState("");
@@ -99,6 +99,7 @@ const Users = () => {
 
   // Modal State
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [isUpdatingUser, setIsUpdatingUser] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const usersPerPage = 8;
@@ -165,7 +166,7 @@ const Users = () => {
       job_title: user.job_title || "",
       phone_number: user.phone_number || "",
       bio: user.bio || "",
-      landing_page: user.landing_page || "",
+      landing_page: user.landing_page || "profile",
     });
   };
 
@@ -272,6 +273,7 @@ const Users = () => {
   const handleUpdate = async (e) => {
     e.preventDefault();
     if (!editingId) return;
+    setIsUpdatingUser(true);
     try {
       const data = new FormData();
       // Append fields (simplified for brevity)
@@ -286,10 +288,14 @@ const Users = () => {
       });
       
       await updateUser(editingId, data);
+      toast.success("User updated successfully.");
       setEditingId(null);
       fetchData(); // Refresh list
     } catch (error) {
       console.error("Update failed", error);
+      toast.error(error.response?.data?.errors?.join(', ') || 'Unable to update user.');
+    } finally {
+      setIsUpdatingUser(false);
     }
   };
 
@@ -359,15 +365,6 @@ const Users = () => {
     }
   };
 
-
-  const handleStartChat = async (userId) => {
-    try {
-      const { data } = await startDirectConversation(userId);
-      navigate(`/chat/${data.id}`);
-    } catch (error) {
-      console.error("Failed to start chat", error);
-    }
-  };
 
   const filteredUsers = users.filter(u =>
     `${u.first_name} ${u.last_name} ${u.email}`.toLowerCase().includes(search.toLowerCase())
@@ -472,7 +469,7 @@ const Users = () => {
         </div>
 
         {/* Footer Actions */}
-        <div className="bg-gray-50 px-6 py-4 border-t border-gray-100 flex justify-between items-center opacity-80 group-hover:opacity-100 transition-opacity">
+        <div className="bg-gray-50 px-6 py-4 border-t border-gray-100 flex flex-wrap gap-3 justify-between items-center opacity-80 group-hover:opacity-100 transition-opacity">
             <div className="flex items-center gap-3">
               <Link
                 to={`/profile/${user.id}`}
@@ -480,11 +477,7 @@ const Users = () => {
               >
                 View profile
               </Link>
-              {currentUser?.id !== user.id && (
-                <button type="button" onClick={() => handleStartChat(user.id)} className="text-sm font-medium text-blue-600 hover:text-blue-800 inline-flex items-center gap-1">
-                  <MessageSquare size={14} /> Text
-                </button>
-              )}
+              {currentUser?.id !== user.id && <MemberContactActions userId={user.id} />}
             </div>
             {canEditUsers ? (
               <div className="flex items-center gap-4">
@@ -617,201 +610,7 @@ const Users = () => {
         )}
       </div>
 
-      {createModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 pt-6 backdrop-blur-sm sm:items-center sm:pt-4">
-          <form
-            onSubmit={handleCreateUser}
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl p-6 relative max-h-[90vh] overflow-y-auto"
-          >
-            <button
-              type="button"
-              onClick={closeCreateModal}
-              className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
-              disabled={isCreatingUser}
-            >
-              <X size={18} />
-            </button>
-
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                <UserPlus size={18} />
-              </div>
-              <div>
-                <p className="text-xs uppercase text-gray-500 font-semibold tracking-wide">
-                  User Management
-                </p>
-                <h3 className="text-lg font-bold text-gray-900">Create user</h3>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase">First Name</label>
-                <input
-                  type="text"
-                  name="first_name"
-                  value={createForm.first_name}
-                  onChange={handleCreateChange}
-                  className="w-full mt-1 p-2 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
-                  required
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase">Last Name</label>
-                <input
-                  type="text"
-                  name="last_name"
-                  value={createForm.last_name}
-                  onChange={handleCreateChange}
-                  className="w-full mt-1 p-2 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
-                  required
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase">Email</label>
-                <input
-                  type="email"
-                  name="email"
-                  value={createForm.email}
-                  onChange={handleCreateChange}
-                  className="w-full mt-1 p-2 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
-                  required
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase">Job Title</label>
-                <input
-                  type="text"
-                  name="job_title"
-                  value={createForm.job_title}
-                  onChange={handleCreateChange}
-                  className="w-full mt-1 p-2 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
-                  required
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase">Password</label>
-                <input
-                  type="password"
-                  name="password"
-                  value={createForm.password}
-                  onChange={handleCreateChange}
-                  className="w-full mt-1 p-2 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
-                  required
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase">Confirm Password</label>
-                <input
-                  type="password"
-                  name="password_confirmation"
-                  value={createForm.password_confirmation}
-                  onChange={handleCreateChange}
-                  className="w-full mt-1 p-2 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
-                  required
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="text-xs font-semibold text-gray-500 uppercase">Department</label>
-                <select
-                  name="department_id"
-                  value={createForm.department_id}
-                  onChange={handleCreateChange}
-                  className="w-full mt-1 p-2 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
-                >
-                  <option value="">None</option>
-                  {departments.map((department) => (
-                    <option key={department.id} value={department.id}>
-                      {department.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="mt-5">
-              <label className="text-xs font-semibold text-gray-500 uppercase mb-2 block">Roles</label>
-              <div className="flex flex-wrap gap-2">
-                {roles.map((role) => (
-                  <button
-                    key={role}
-                    type="button"
-                    onClick={() => handleCreateRoleToggle(role)}
-                    className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                      createForm.role_names.includes(role)
-                        ? "bg-indigo-600 text-white border-indigo-600"
-                        : "bg-white text-gray-600 border-gray-200 hover:border-indigo-300"
-                    }`}
-                  >
-                    {formatRole(role)}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="mt-5">
-              <div className="flex items-center justify-between gap-3 mb-2">
-                <label className="text-xs font-semibold text-gray-500 uppercase block">Projects</label>
-                <span className="text-xs text-gray-500">
-                  {createForm.project_ids.length} selected
-                </span>
-              </div>
-
-              <div className="max-h-56 overflow-y-auto rounded-xl border border-gray-200 bg-gray-50 p-3">
-                {projects.length === 0 ? (
-                  <p className="text-sm text-gray-500">No projects available.</p>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {projects.map((project) => {
-                      const checked = createForm.project_ids.includes(project.id);
-
-                      return (
-                        <label
-                          key={project.id}
-                          className={`flex items-start gap-3 rounded-lg border px-3 py-2 cursor-pointer transition-colors ${
-                            checked ? "border-indigo-300 bg-white" : "border-transparent bg-white/70 hover:border-gray-200"
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => handleCreateProjectToggle(project.id)}
-                            className="mt-1 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                          />
-                          <span className="min-w-0">
-                            <span className="block text-sm font-medium text-gray-800">{project.name}</span>
-                            {project.description && (
-                              <span className="block text-xs text-gray-500 truncate">{project.description}</span>
-                            )}
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="mt-6 flex gap-3 justify-end">
-              <button
-                type="button"
-                onClick={closeCreateModal}
-                disabled={isCreatingUser}
-                className="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isCreatingUser}
-                className="px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 shadow-md shadow-indigo-200 transition-colors disabled:opacity-60"
-              >
-                {isCreatingUser ? "Creating..." : "Create user"}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+      {createModalOpen && <UserEditorDialog mode="create" value={createForm} roles={roles} departments={departments} projects={projects} onChange={handleCreateChange} onRoleToggle={handleCreateRoleToggle} onProjectToggle={handleCreateProjectToggle} onClose={closeCreateModal} onSubmit={handleCreateUser} busy={isCreatingUser} />}
 
       {/* Photo Update Modal */}
       {photoModalOpen && photoModalUser && (
@@ -892,40 +691,7 @@ const Users = () => {
         </div>
       )}
 
-      {/* Custom Modal for Deletion */}
-      {editingId && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 pt-6 backdrop-blur-sm sm:items-center sm:pt-4">
-          <form onSubmit={handleUpdate} className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl p-6 relative max-h-[90vh] overflow-y-auto">
-            <button type="button" onClick={closeEditModal} className="absolute right-3 top-3 text-gray-400 hover:text-gray-600">
-              <X size={18} />
-            </button>
-            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-              <Edit2 size={18} className="text-indigo-600" /> Edit User Profile
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div><label className="text-xs font-semibold text-gray-500 uppercase">First Name</label><input type="text" name="first_name" value={formData.first_name} onChange={handleChange} className="w-full mt-1 p-2 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" required /></div>
-              <div><label className="text-xs font-semibold text-gray-500 uppercase">Last Name</label><input type="text" name="last_name" value={formData.last_name} onChange={handleChange} className="w-full mt-1 p-2 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" required /></div>
-              <div className="md:col-span-2"><label className="text-xs font-semibold text-gray-500 uppercase">Email</label><input type="email" name="email" value={formData.email} onChange={handleChange} className="w-full mt-1 p-2 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" required /></div>
-              <div><label className="text-xs font-semibold text-gray-500 uppercase">Department</label><select name="department_id" value={formData.department_id} onChange={handleChange} className="w-full mt-1 p-2 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"><option value="">None</option>{departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select></div>
-              <div><label className="text-xs font-semibold text-gray-500 uppercase">Birth Date</label><input type="date" name="date_of_birth" value={formData.date_of_birth?.split('T')[0]} onChange={handleChange} className="w-full mt-1 p-2 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" /></div>
-              <div><label className="text-xs font-semibold text-gray-500 uppercase">Job Title</label><input type="text" name="job_title" value={formData.job_title} onChange={handleChange} className="w-full mt-1 p-2 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" /></div>
-              <div><label className="text-xs font-semibold text-gray-500 uppercase">Phone Number</label><input type="text" name="phone_number" value={formData.phone_number} onChange={handleChange} className="w-full mt-1 p-2 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" /></div>
-              <div className="md:col-span-2"><label className="text-xs font-semibold text-gray-500 uppercase">Landing Page</label><input type="text" name="landing_page" value={formData.landing_page} onChange={handleChange} className="w-full mt-1 p-2 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" /></div>
-              <div className="md:col-span-2"><label className="text-xs font-semibold text-gray-500 uppercase">Bio</label><textarea name="bio" value={formData.bio} onChange={handleChange} rows={3} className="w-full mt-1 p-2 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" /></div>
-              <div><label className="text-xs font-semibold text-gray-500 uppercase">Profile Picture</label><input type="file" name="profile_picture" accept="image/*" onChange={handleChange} className="w-full mt-1 p-2 bg-gray-50 border rounded-lg text-sm" /></div>
-              <div><label className="text-xs font-semibold text-gray-500 uppercase">Cover Photo</label><input type="file" name="cover_photo" accept="image/*" onChange={handleChange} className="w-full mt-1 p-2 bg-gray-50 border rounded-lg text-sm" /></div>
-            </div>
-            <div className="mt-4">
-              <label className="text-xs font-semibold text-gray-500 uppercase mb-2 block">Roles</label>
-              <div className="flex flex-wrap gap-2">{roles.map((role) => (<button key={role} type="button" onClick={() => handleRoleChange(role)} className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${formData.roles.includes(role) ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-gray-600 border-gray-200 hover:border-indigo-300"}`}>{formatRole(role)}</button>))}</div>
-            </div>
-            <div className="mt-6 flex gap-3 justify-end">
-              <button type="button" onClick={closeEditModal} className="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors">Cancel</button>
-              <button type="submit" className="px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 shadow-md shadow-indigo-200 transition-colors inline-flex items-center gap-2"><Check size={16} /> Save changes</button>
-            </div>
-          </form>
-        </div>
-      )}
+      {editingId && <UserEditorDialog mode="edit" value={formData} roles={roles} departments={departments} onChange={handleChange} onRoleToggle={handleRoleChange} onClose={closeEditModal} onSubmit={handleUpdate} busy={isUpdatingUser} />}
 
       {deleteModalOpen && (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 pt-6 backdrop-blur-sm transition-opacity sm:items-center sm:pt-4">

@@ -109,6 +109,8 @@ function DynamicAdminTable({ table }) {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({});
+  const [query, setQuery] = useState('');
+  const [searchColumn, setSearchColumn] = useState('');
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -133,6 +135,8 @@ function DynamicAdminTable({ table }) {
         setColumns(cols);
         setCurrentPage(1);
         setFilters({});
+        setQuery('');
+        setSearchColumn('');
       } catch (error) {
         console.error("Failed to fetch meta:", error);
         toast.error('Failed to load table metadata');
@@ -145,8 +149,7 @@ function DynamicAdminTable({ table }) {
   const fetchRecords = async () => {
     setLoading(true);
     try {
-      const params = { page: currentPage, per_page: perPage };
-      if (Object.keys(filters).length) params.filters = filters;
+      const params = { page: currentPage, per_page: perPage, ...filters };
 
       const recRes = await getRecords(table, params);
       setRecords(recRes.data.records);
@@ -163,7 +166,12 @@ function DynamicAdminTable({ table }) {
     if (columns.length > 0) {
       fetchRecords();
     }
-  }, [table, currentPage, perPage, columns]);
+  }, [table, currentPage, perPage, columns, filters]);
+
+  const applySearch = () => {
+    setCurrentPage(1);
+    setFilters(query.trim() ? { q: query.trim(), search_column: searchColumn } : {});
+  };
 
   // Modal Handlers
   const openCreateModal = () => {
@@ -255,17 +263,26 @@ function DynamicAdminTable({ table }) {
       {/* Toolbar */}
       <div className="p-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-2">
+          <select aria-label="Filter column" value={searchColumn} onChange={(event) => setSearchColumn(event.target.value)} className="min-w-0 rounded-lg border border-gray-200 px-2 py-2 text-sm">
+            <option value="">All columns</option>
+            {columns.map((column) => <option key={column.name} value={column.name}>{column.name}</option>)}
+          </select>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
               placeholder="Filter records..."
+              aria-label="Filter records"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => { if (event.key === 'Enter') applySearch(); }}
               className="pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-64"
             />
           </div>
-          <button className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg border border-gray-200">
+          <button onClick={applySearch} title="Apply filter" aria-label="Apply filter" className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg border border-gray-200">
             <Filter className="w-4 h-4" />
           </button>
+          {Object.keys(filters).length > 0 && <button aria-label="Clear filter" title="Clear filter" onClick={() => { setQuery(''); setFilters({}); setCurrentPage(1); }} className="p-2 rounded-lg border border-gray-200"><X className="w-4 h-4" /></button>}
         </div>
 
         <div className="flex items-center gap-3">

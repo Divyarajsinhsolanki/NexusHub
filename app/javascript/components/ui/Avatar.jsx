@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
+import { buildAvatarStyle, generateAvatarColor, normalizeAvatarColor } from "../../utils/avatar";
 
-const Avatar = ({ name, src, className = "" }) => {
+const Avatar = ({ name, src, color, className = "" }) => {
   const [imageFailed, setImageFailed] = useState(false);
   const hasValidSrc = src && src !== "null" && src !== "";
   const displayName = (name || "").trim();
@@ -25,7 +26,8 @@ const Avatar = ({ name, src, className = "" }) => {
   const initial = displayName ? displayName.charAt(0).toUpperCase() : "?";
   return (
     <div
-      className={`flex items-center justify-center rounded-full bg-theme font-bold text-white ${className}`.trim()}
+      className={`flex items-center justify-center rounded-full font-bold ${className}`.trim()}
+      style={buildAvatarStyle(normalizeAvatarColor(color, generateAvatarColor(displayName)))}
       aria-label={altText}
     >
       {initial}

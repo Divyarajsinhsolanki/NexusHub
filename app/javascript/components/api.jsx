@@ -367,6 +367,7 @@ export const declineCall = (callId) => api.post(`/calls/${callId}/decline`);
 export const leaveCall = (callId) => api.post(`/calls/${callId}/leave`);
 export const endCall = (callId, reason = "ended") => api.post(`/calls/${callId}/end`, { reason });
 export const fetchMeeting = (publicId) => api.get(`/meet/${publicId}`);
+export const createMeeting = (callType = 'video') => api.post('/meet', { call_type: callType });
 export const joinMeeting = (publicId) => api.post(`/meet/${publicId}/join`);
 
 // NOTIFICATION ENDPOINTS

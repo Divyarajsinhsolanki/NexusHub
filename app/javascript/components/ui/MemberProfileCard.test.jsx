@@ -4,6 +4,10 @@ import { cleanup, fireEvent, render, screen, act } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import MemberProfileCard, { profileCardPosition } from "./MemberProfileCard";
+vi.mock('../../context/AuthContext', async () => {
+  const { createContext } = await import('react');
+  return { AuthContext: createContext({ user: { id: 1 } }) };
+});
 
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 const member = { id: 42, full_name: "Alex Rivera", profile_picture_url: "/avatar.png", email: "alex@example.com", phone: "123456", allocation_percentage: 0 };
