@@ -1,7 +1,7 @@
 import React, { useContext, useState, useEffect, useMemo } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { SchedulerAPI, fetchProjects, updateProject } from '../components/api';
-import { CalendarDaysIcon, ChevronDownIcon, ChevronUpIcon, CubeTransparentIcon } from '@heroicons/react/24/outline';
+import { CalendarDaysIcon, CubeTransparentIcon } from '@heroicons/react/24/outline';
 import SprintOverview from './SprintOverview';
 import Scheduler from '../components/Scheduler/Scheduler';
 import TodoBoard from '../components/TodoBoard/TodoBoard';
@@ -526,14 +526,6 @@ export default function SprintDashboard() {
                     Use the sprint manager to swap windows, review dates, and shift this dashboard into the correct execution lane.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setIsHeaderExpanded((value) => !value)}
-                  className="shell-button-secondary shrink-0 bg-white/10 px-3.5 py-2 text-white shadow-none hover:bg-white/16"
-                >
-                  {isHeaderExpanded ? <ChevronUpIcon className="h-5 w-5" /> : <ChevronDownIcon className="h-5 w-5" />}
-                  {isHeaderExpanded ? 'Hide' : 'Manage'}
-                </button>
               </div>
             </div>
           </div>
@@ -585,6 +577,8 @@ export default function SprintDashboard() {
 
               <button
                 type="button"
+                aria-expanded={isHeaderExpanded}
+                aria-controls="project-sprint-manager"
                 onClick={() => setIsHeaderExpanded((value) => !value)}
                 className="shell-button-secondary px-4 py-2.5"
               >
@@ -595,7 +589,7 @@ export default function SprintDashboard() {
           </div>
 
           {isHeaderExpanded ? (
-            <div className="shell-panel shell-panel-strong rounded-[30px] px-4 py-5 sm:px-5">
+            <div id="project-sprint-manager" className="shell-panel shell-panel-strong rounded-lg px-4 py-4">
               <SprintManager
                 onSprintChange={handleSprintChange}
                 projectId={projectId}

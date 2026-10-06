@@ -3654,6 +3654,42 @@ html[data-nexus-nav="collapsed"] {
 .auth-login-card {
   box-shadow: 0 20px 60px rgb(15 23 42 / 0.08);
 }
+
+.auth-orb-panel .landing-hero-3d > .grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+}
+.auth-orb-panel .landing-hero-3d h1 {
+  font-size: 1.875rem;
+  line-height: 1.2;
+}
+.auth-orb-panel .landing-orb-stage {
+  container-type: inline-size;
+  max-width: 320px;
+  overflow: hidden;
+}
+.auth-orb-panel .landing-orb-perspective {
+  --orbit-radius: calc(50cqw - 76px);
+}
+.auth-orb-panel .landing-feature-card,
+.auth-orb-panel .landing-particles {
+  display: none;
+}
+.project-task-viewport {
+  height: 420px;
+  min-width: 0;
+  overflow: auto;
+  scrollbar-gutter: stable;
+}
+.project-task-viewport thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.project-task-viewport:focus-visible {
+  outline: 2px solid var(--theme-color);
+  outline-offset: 2px;
+}
 .nexus-rail-link { transition: color 150ms ease, background-color 150ms ease; }
 .nexus-rail-link:focus-visible { outline: 2px solid var(--theme-color); outline-offset: 2px; }
 .nexus-global-rail .nexus-icon-button:hover { color: var(--theme-color); background: var(--nexus-soft-blue); }

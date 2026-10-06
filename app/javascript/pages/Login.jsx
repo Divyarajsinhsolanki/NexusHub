@@ -51,9 +51,9 @@ const Login = ({ switchToSignup }) => {
   }, [searchParams]);
 
   return (
-    <div className="w-full">
-      <div className="mx-auto grid w-full max-w-6xl items-center gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(340px,0.8fr)] lg:gap-8 xl:gap-10">
-        <div className="auth-orb-panel hidden lg:block">
+    <div className="w-full px-4 py-6 sm:px-8 lg:px-10">
+      <div className="mx-auto grid w-full max-w-6xl items-center gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(340px,0.85fr)] lg:gap-12">
+        <div className="auth-orb-panel hidden min-w-0 lg:block">
           <WorkspaceOrb />
         </div>
 

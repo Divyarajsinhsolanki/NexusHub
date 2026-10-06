@@ -6,7 +6,7 @@ import SpinnerOverlay from '../components/ui/SpinnerOverlay';
 import { FiX } from 'react-icons/fi';
 import { CalendarDaysIcon, FunnelIcon, PlusCircleIcon, Squares2X2Icon } from '@heroicons/react/24/outline';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
-import { getAvatarInitial } from '/utils/avatar';
+import { getAvatarInitial } from '../utils/avatar';
 import { groupTasksByAssignment } from '../utils/sprintViewUtils';
 
 
@@ -1376,12 +1376,12 @@ const SprintOverview = ({ sprintId, onSprintChange, projectId, sheetIntegrationE
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-sky-100 px-4 pb-6 pt-1 font-sans text-gray-800 sm:px-6">
+        <div className="px-4 pb-6 pt-1 font-sans text-gray-800 sm:px-6">
             {processing && <SpinnerOverlay />}
-            <div className="mx-auto max-w-[96rem] rounded-[26px] bg-white p-4 shadow-lg sm:p-5">
+            <div className="mx-auto max-w-[96rem] py-4">
                 <div className="mb-4 space-y-3">
                     <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                        <h1 className="flex items-center text-[1.75rem] font-bold text-transparent bg-clip-text bg-gradient-to-r from-[var(--theme-color)] to-[var(--theme-color)]">
+                        <h1 className="flex items-center text-xl font-bold text-gray-900">
                             <Squares2X2Icon className="mr-2 h-7 w-7" />Sprint Task Manager
                         </h1>
                         <div className="flex flex-wrap gap-2">
@@ -1452,7 +1452,7 @@ const SprintOverview = ({ sprintId, onSprintChange, projectId, sheetIntegrationE
                 </div>
 
                 {/* Tasks Table */}
-                <div className="overflow-x-auto bg-white rounded-xl shadow-md">
+                <div aria-label="Sprint tasks" tabIndex={0} className="project-task-viewport bg-white rounded-lg border border-gray-200">
                     <DragDropContext onDragEnd={onDragEnd}>
                         <table className="min-w-full divide-y divide-gray-200">
                             <thead className="bg-gray-50">
@@ -1562,11 +1562,11 @@ const SprintOverview = ({ sprintId, onSprintChange, projectId, sheetIntegrationE
             </div>
 
             {/* Backlog Tasks */}
-            <div className="max-w-8xl mx-auto bg-white rounded-xl shadow-lg p-4 mt-8">
-                <div className="flex justify-between items-center mb-4">
-                    <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-[var(--theme-color)] to-[var(--theme-color)] flex items-center">
+            <div className="max-w-[96rem] mx-auto py-4 mt-4 border-t border-gray-200">
+                <div className="flex flex-wrap gap-3 justify-between items-center mb-4">
+                    <h2 className="text-xl font-bold text-gray-900 flex items-center">
                         <CalendarDaysIcon className="h-7 w-7 mr-2" />Backlog
-                    </h1>
+                    </h2>
                     <div className="flex space-x-2">
                         <button
                             onClick={() => { setAddingToBacklog(true); setShowAddModal(true); }}
@@ -1585,7 +1585,7 @@ const SprintOverview = ({ sprintId, onSprintChange, projectId, sheetIntegrationE
                         )}
                     </div>
                 </div>
-                <div className="overflow-x-auto bg-white rounded-xl shadow-md">
+                <div aria-label="Backlog tasks" tabIndex={0} className="project-task-viewport bg-white rounded-lg border border-gray-200">
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                             <tr>

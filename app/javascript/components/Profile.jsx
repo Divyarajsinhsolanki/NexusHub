@@ -576,15 +576,6 @@ const Profile = () => {
               loading="lazy" />
             )}
             <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,17,32,0.08),rgba(7,17,32,0.72))]" />
-            <div className="absolute left-6 top-6 flex flex-wrap items-center gap-2">
-              <span className="shell-chip border-white/25 bg-slate-950/35 text-white/88 shadow-none backdrop-blur-md">
-                <span className="shell-chip-dot" />
-                Profile Console
-              </span>
-              <span className="shell-chip border-white/25 bg-white/10 text-white/82 shadow-none backdrop-blur-md">
-                {viewingOtherProfile ? "Team profile" : "Personal profile"}
-              </span>
-            </div>
 
             {/* Cover Photo Edit Button */}
             {editMode && !viewingOtherProfile && (

@@ -224,18 +224,18 @@ const ProfileStyleStatCard = ({ icon: Icon, label, value, detail, tone = "blue" 
     const selectedTone = tones[tone] || tones.blue;
 
     return (
-        <div className={`rounded-xl border p-6 ${selectedTone.wrapper}`}>
+        <div className="min-w-0 border-l border-zinc-200 px-3 py-2 dark:border-zinc-700">
             <div className="flex items-center justify-between">
                 <div>
-                    <p className={`text-sm font-medium ${selectedTone.label}`}>{label}</p>
-                    <h3 className={`mt-1 text-2xl font-bold ${selectedTone.value}`}>{value}</h3>
+                    <p className={`break-words text-xs font-medium ${selectedTone.label}`}>{label}</p>
+                    <h3 className={`mt-1 text-xl font-bold ${selectedTone.value}`}>{value}</h3>
                 </div>
-                <div className={`rounded-lg p-3 ${selectedTone.iconBg}`}>
-                    <Icon className={`h-6 w-6 ${selectedTone.icon}`} />
+                <div className={`hidden rounded-md p-2 sm:block ${selectedTone.iconBg}`}>
+                    <Icon className={`h-4 w-4 ${selectedTone.icon}`} />
                 </div>
             </div>
             {detail && (
-                <p className={`mt-4 text-sm ${selectedTone.detail}`}>{detail}</p>
+                <p className={`mt-2 text-xs ${selectedTone.detail}`}>{detail}</p>
             )}
         </div>
     );
@@ -250,7 +250,7 @@ const TeamCard = ({ team, isSelected, onClick }) => {
             onClick={onClick}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            className={`w-full text-left p-4 rounded-xl border transition-all duration-200 ${isSelected
+            className={`w-full min-w-0 text-left p-3 rounded-lg border transition-colors ${isSelected
                     ? 'bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-blue-200 dark:border-blue-800 shadow-md'
                     : 'bg-white dark:bg-zinc-800/50 border-zinc-100 dark:border-zinc-700/50 hover:border-zinc-200 dark:hover:border-zinc-600 hover:shadow-md'
                 }`}
@@ -801,8 +801,8 @@ const Teams = () => {
     return (
         <div className="flex min-h-screen flex-col bg-zinc-50 text-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 lg:h-screen lg:flex-row">
             {/* Sidebar */}
-            <aside className="flex max-h-[42dvh] w-full flex-shrink-0 flex-col border-b border-zinc-100 bg-white dark:border-zinc-700 dark:bg-zinc-800 lg:max-h-none lg:w-80 lg:border-b-0 lg:border-r">
-                <div className="p-5 border-b border-zinc-100 dark:border-zinc-700 bg-gradient-to-r from-blue-600 to-indigo-600">
+            <aside className="flex max-h-[36dvh] w-full flex-shrink-0 flex-col border-b border-zinc-100 bg-white dark:border-zinc-700 dark:bg-zinc-800 lg:max-h-none lg:w-64 lg:border-b-0 lg:border-r">
+                <div className="p-3 border-b border-zinc-100 dark:border-zinc-700 bg-emerald-700">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="p-2 bg-white/20 rounded-lg">
@@ -872,7 +872,7 @@ const Teams = () => {
 
             {/* Main Content */}
             <main className="min-w-0 flex-1 overflow-y-auto">
-                <div className="p-4 sm:p-6 lg:p-8">
+                <div className="p-4 lg:p-5">
                     {isFormVisible ? (
                         // Create/Edit Form
                         <motion.div
@@ -954,14 +954,14 @@ const Teams = () => {
                         <motion.div
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
-                            className="space-y-5 sm:space-y-8"
+                            className="space-y-5"
                         >
                             {/* Header */}
-                            <div className="rounded-2xl border border-zinc-100 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 sm:p-6">
+                            <div className="border-b border-zinc-200 pb-4 dark:border-zinc-700">
                                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                                     <div className="min-w-0">
-                                        <h1 className="text-3xl font-bold text-zinc-900 dark:text-white">{selectedTeam.name}</h1>
-                                        <p className="text-zinc-600 dark:text-zinc-400 mt-2 max-w-2xl">
+                                        <h1 className="break-words text-2xl font-bold text-zinc-900 dark:text-white">{selectedTeam.name}</h1>
+                                        <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1 max-w-2xl">
                                             {selectedTeam.description || 'No description provided.'}
                                         </p>
                                     </div>
@@ -986,7 +986,7 @@ const Teams = () => {
                                 </div>
 
                                 {/* Quick Stats */}
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+                                <div className="grid grid-cols-3 gap-2 mt-4">
                                     <ProfileStyleStatCard
                                         icon={FiUsers}
                                         label="Active Members"
@@ -1012,7 +1012,7 @@ const Teams = () => {
                             </div>
 
                             {/* Members Section */}
-                            <section id="team-members-section" className="bg-white dark:bg-zinc-800 rounded-2xl shadow-sm border border-zinc-100 dark:border-zinc-700 p-6">
+                            <section id="team-members-section" className="border-b border-zinc-200 pb-4 dark:border-zinc-700">
                                 <h2 className="text-lg font-semibold text-zinc-800 dark:text-white mb-4 flex items-center gap-2">
                                     <FiUsers className="w-5 h-5 text-blue-500" />
                                     Team Members

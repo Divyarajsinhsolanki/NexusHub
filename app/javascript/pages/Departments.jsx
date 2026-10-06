@@ -198,11 +198,11 @@ const Departments = () => {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-zinc-900 pb-20">
       {/* Header Section similar to Projects */}
-      <div className="border-b border-slate-200 bg-white px-4 py-6 dark:border-zinc-800 dark:bg-zinc-900 sm:px-6 sm:py-8">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="border-b border-slate-200 bg-white px-4 py-4 dark:border-zinc-800 dark:bg-zinc-900 sm:px-6">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Departments</h1>
-            <p className="mt-1 text-slate-500 dark:text-slate-400">Manage your organization's structure and teams.</p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Organization structure and members</p>
           </div>
 
           <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
@@ -236,10 +236,10 @@ const Departments = () => {
       </div>
 
       {/* Content Area */}
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
+      <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6">
 
         {/* Search & Filter Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <div className="relative w-full flex-1 sm:max-w-md">
             <FiSearch className="absolute left-3 top-3 text-slate-400" />
             <input
@@ -281,7 +281,7 @@ const Departments = () => {
             )}
           </div>
         ) : (
-          <div className={viewMode === 'grid' ? "grid gap-6 sm:grid-cols-2 lg:grid-cols-3" : "flex flex-col gap-4"}>
+          <div className={viewMode === 'grid' ? "grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "flex flex-col gap-3"}>
             {filteredDepartments.map(dept => (
               <DepartmentCard
                 key={dept.id}
@@ -364,18 +364,18 @@ const DepartmentCard = ({ department, viewMode, canManage, onEdit, onDelete }) =
 
   if (viewMode === 'list') {
     return (
-      <div className="group flex items-center justify-between p-4 bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl hover:shadow-md transition">
-        <div className="flex items-center gap-4 flex-1">
-          <div className="h-10 w-10 rounded-lg bg-[var(--theme-color-light)] flex items-center justify-center text-[var(--theme-color)]">
+      <div className="group flex min-w-0 items-center justify-between gap-3 p-3 bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg transition-colors">
+        <div className="flex min-w-0 items-center gap-3 flex-1">
+          <div className="h-10 w-10 shrink-0 rounded-lg bg-[var(--theme-color-light)] flex items-center justify-center text-[var(--theme-color)]">
             <FiBriefcase className="text-xl" />
           </div>
-          <div>
-            <h3 className="font-semibold text-slate-900 dark:text-white">{department.name}</h3>
+          <div className="min-w-0">
+            <h3 className="break-words text-sm font-semibold text-slate-900 dark:text-white">{department.name}</h3>
             <p className="text-sm text-slate-500 line-clamp-1">{department.description || "No description"}</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-6">
+        <div className="flex shrink-0 items-center gap-3">
           <div className="hidden sm:block text-right">
             <p className="text-xs text-slate-400 uppercase">Members</p>
             <p className="font-medium text-slate-700 dark:text-slate-300">{department.users_count || 0}</p>
@@ -419,10 +419,10 @@ const DepartmentCard = ({ department, viewMode, canManage, onEdit, onDelete }) =
   }
 
   return (
-    <div className="group relative bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-2xl p-6 hover:shadow-lg hover:-translate-y-1 transition-all duration-200">
-      <div className="flex justify-between items-start mb-4">
-        <div className="h-12 w-12 rounded-xl bg-[var(--theme-color-light)]/20 flex items-center justify-center text-[var(--theme-color)]">
-          <FiBriefcase className="text-2xl" />
+    <div className="group relative flex min-w-0 flex-col bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg p-4 transition-colors hover:border-slate-400">
+      <div className="flex justify-between items-start mb-2">
+        <div className="h-9 w-9 rounded-lg bg-[var(--theme-color-light)]/20 flex items-center justify-center text-[var(--theme-color)]">
+          <FiBriefcase className="text-lg" />
         </div>
         {canManage && (
           <div className="relative z-10 group/menu">
@@ -441,8 +441,8 @@ const DepartmentCard = ({ department, viewMode, canManage, onEdit, onDelete }) =
         )}
       </div>
 
-      <Link to={`/departments/${department.id}`} className="relative z-10 block mb-4">
-        <h3 className="text-lg font-bold text-slate-900 dark:text-white group-hover:text-[var(--theme-color)] transition-colors">
+      <Link to={`/departments/${department.id}`} className="relative z-10 block mb-3">
+        <h3 className="break-words text-base font-bold text-slate-900 dark:text-white group-hover:text-[var(--theme-color)] transition-colors">
           {department.name}
         </h3>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 line-clamp-2 min-h-[2.5em]">
@@ -450,7 +450,7 @@ const DepartmentCard = ({ department, viewMode, canManage, onEdit, onDelete }) =
         </p>
       </Link>
 
-      <div className="mt-auto pt-4 border-t border-slate-100 dark:border-zinc-700 flex items-center justify-between">
+      <div className="mt-auto pt-3 border-t border-slate-100 dark:border-zinc-700 flex items-center justify-between">
         <div>
           <p className="text-xs text-slate-400 uppercase mb-1 font-semibold">Team</p>
           {members.length > 0 ? (
