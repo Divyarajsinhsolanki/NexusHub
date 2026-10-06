@@ -223,13 +223,15 @@ export default function Knowledge3DRoom({
   SavedBookmarkFooter,
   feedback,
   setFeedback,
+  initialViewMode = 'overview',
 }) {
   const shellRef = useRef(null);
   const canvasRef = useRef(null);
+  const focusCategoryRef = useRef(null);
   const [threeModules, setThreeModules] = useState(null);
   const [threeError, setThreeError] = useState(null);
   const [expandedCardId, setExpandedCardId] = useState(null);
-  const [viewMode, setViewMode] = useState("overview");
+  const [viewMode, setViewMode] = useState(initialViewMode);
   const [showFilters, setShowFilters] = useState(false);
   const [showCategories, setShowCategories] = useState(false);
 
@@ -304,7 +306,7 @@ export default function Knowledge3DRoom({
       wallHosts.review.className = `${styles.wallPanel} ${styles.reviewWall}`;
       wallHosts.history.className = `${styles.wallPanel} ${styles.historyWall}`;
 
-      renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, preserveDrawingBuffer: true });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
       renderer.setClearColor(0x09111f, 1);
       renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -486,6 +488,12 @@ export default function Knowledge3DRoom({
         camera.rotation.y = controls.yaw;
         camera.rotation.x = controls.pitch;
       };
+      focusCategoryRef.current = (category) => {
+        controls.yaw = ['saved', 'due'].includes(category) ? -Math.PI / 2 : ['mcp', 'archived'].includes(category) ? Math.PI / 2 : category === 'history' ? Math.PI : 0;
+        controls.pitch = 0;
+        setCameraRotation();
+      };
+      focusCategoryRef.current(activeCategory);
 
       const moveCamera = (distance, strafe = 0) => {
         const forward = new THREE.Vector3(0, 0, -1).applyEuler(camera.rotation);
@@ -602,6 +610,7 @@ export default function Knowledge3DRoom({
       window.addEventListener("keydown", handleKeyDown);
 
       return () => {
+        focusCategoryRef.current = null;
         cancelAnimationFrame(frameId);
         shell.removeEventListener("pointerdown", handlePointerDown);
         shell.removeEventListener("pointermove", handlePointerMove);
@@ -639,6 +648,8 @@ export default function Knowledge3DRoom({
       return undefined;
     }
   }, [threeModules, threeError, wallHosts]);
+
+  useEffect(() => { focusCategoryRef.current?.(activeCategory); }, [activeCategory, threeModules]);
 
   const renderCard = useCallback(
     (card, index, fallback = false) => {

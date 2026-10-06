@@ -170,6 +170,7 @@ class Api::AuthController < Api::BaseController
       current_user.cover_photo = params[:auth][:cover_photo]
     end
 
+    Chat::Broadcaster.broadcast_profile_updated(current_user.reload)
     render json: { message: "User details updated successfully" }
   end
 

@@ -242,6 +242,11 @@ const PdfDocumentCanvas = ({
   const [containerWidth, setContainerWidth] = useState(800);
   const [pageSize, setPageSize] = useState({ width: 612, height: 792 });
   const [error, setError] = useState("");
+  const [retry, setRetry] = useState(0);
+
+  useEffect(() => {
+    setError("");
+  }, [documentRecord?.id, documentRecord?.current_version_id, documentRecord?.content_url]);
 
   useEffect(() => {
     if (!containerRef.current) return undefined;
@@ -402,6 +407,7 @@ const PdfDocumentCanvas = ({
           <AlertTriangle className="mx-auto mb-3 h-8 w-8" />
           <p className="font-bold">This PDF could not be displayed.</p>
           <p className="mt-1 text-sm">{error}</p>
+          <button type="button" className="mt-4 underline" onClick={() => { setError(""); setRetry((value) => value + 1); }}>Retry preview</button>
         </div>
       ) : (
         <div
@@ -409,7 +415,7 @@ const PdfDocumentCanvas = ({
           style={{ width: renderWidth, height: renderHeight }}
         >
           <Document
-            key={`${documentRecord.id}-${documentRecord.current_version_id}`}
+            key={`${documentRecord.id}-${documentRecord.current_version_id}-${retry}`}
             file={`${documentRecord.content_url}?version=${documentRecord.current_version_id}`}
             onLoadSuccess={(value) => {
               setError("");

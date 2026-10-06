@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("react-pdf", () => ({
-  Document: ({ children }) => <div>{children}</div>,
+  Document: ({ children, onLoadError }) => <div>{children}<button onClick={() => onLoadError?.(new Error('Failed to fetch'))}>Simulate PDF failure</button></div>,
   Page: () => <div>PDF page</div>,
   pdfjs: { GlobalWorkerOptions: {} },
 }));
@@ -39,6 +39,7 @@ const Harness = ({
   activeTool = "select",
   initialShapes = [initialTextShape],
   initialSelectedShapeId = "text-1",
+  record = documentRecord,
 }) => {
   const [shapes, setShapes] = useState(initialShapes);
   const [selectedShapeId, setSelectedShapeId] = useState(initialSelectedShapeId);
@@ -46,7 +47,7 @@ const Harness = ({
   return (
     <>
       <PdfDocumentCanvas
-        documentRecord={documentRecord}
+        documentRecord={record}
         pageNumber={1}
         zoom={1}
         activeTool={activeTool}
@@ -77,6 +78,16 @@ const setSvgBounds = () => {
 };
 
 describe("PdfDocumentCanvas", () => {
+  it('can retry a failed preview and recover when another document is selected', async () => {
+    const { rerender } = render(<Harness />);
+    fireEvent.click(screen.getByText('Simulate PDF failure'));
+    expect(screen.getByText('Failed to fetch')).toBeTruthy();
+    fireEvent.click(screen.getByText('Retry preview'));
+    expect(screen.getByText('PDF page')).toBeTruthy();
+    fireEvent.click(screen.getByText('Simulate PDF failure'));
+    rerender(<Harness record={{ ...documentRecord, id: 43, content_url: '/another.pdf' }} />);
+    await waitFor(() => expect(screen.getByText('PDF page')).toBeTruthy());
+  });
   afterEach(() => {
     cleanup();
   });

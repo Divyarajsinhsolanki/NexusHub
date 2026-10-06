@@ -67,6 +67,7 @@ const ChatLauncher = () => {
       if (["conversation_refresh", "conversation_hidden", "conversation_removed", "conversation_deleted"].includes(payload?.type)) {
         load();
       }
+      if (payload?.type === "message_receipt_updated" && Number(payload.user_id) === Number(user?.id) && payload.read_message_id) load();
 
       if (payload?.type === "conversation_removed") {
         setActiveCall((previous) => Number(previous?.conversation_id) === Number(payload.conversation_id) ? null : previous);

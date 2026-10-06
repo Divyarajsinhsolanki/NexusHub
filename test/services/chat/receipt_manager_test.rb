@@ -49,6 +49,14 @@ class Chat::ReceiptManagerTest < ActiveSupport::TestCase
     assert_equal @second_message.id, @conversation.conversation_participants.find_by!(user: @third_user).last_delivered_message_id
   end
 
+  test "reading a message clears its notifications without reading newer messages" do
+    first = Notification.create!(recipient: @recipient, actor: @sender, notifiable: @first_message, action: "chat_message")
+    second = Notification.create!(recipient: @recipient, actor: @sender, notifiable: @second_message, action: "chat_message")
+    Chat::ReceiptManager.new(user: @recipient).update(conversation: @conversation, message_id: @first_message.id, state: "read")
+    assert first.reload.read_at.present?
+    assert_nil second.reload.read_at
+  end
+
   test "non-members and messages from another conversation are rejected" do
     assert_raises(ActiveRecord::RecordNotFound) do
       Chat::ReceiptManager.new(user: @outsider).update(conversation: @conversation, message_id: @second_message.id, state: "read")

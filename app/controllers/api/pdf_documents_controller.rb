@@ -51,7 +51,7 @@ class Api::PdfDocumentsController < Api::BaseController
   end
 
   def content
-    redirect_to rails_blob_path(@document.current_version.file, only_path: true), allow_other_host: false
+    redirect_to rails_storage_proxy_path(@document.current_version.file, only_path: true), allow_other_host: false
   end
 
   def download

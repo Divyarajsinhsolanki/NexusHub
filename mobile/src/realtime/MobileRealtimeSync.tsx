@@ -1,7 +1,9 @@
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import * as Sentry from '@sentry/react-native';
 import { useCallback, useEffect } from 'react';
+import { AppState } from 'react-native';
 
+import { endpoints } from '../api/endpoints';
 import type { Message, Notification } from '../api/types';
 import { useAuth } from '../auth/AuthProvider';
 import { sendConversationReceiptOnce } from '../chat/receiptCoordinator';
@@ -18,8 +20,7 @@ import {
 } from '../cache/mobileCache';
 import { normalizeMobileDeepLink } from '../navigation/deepLinks';
 import { type ChatEvent, useChatRealtime } from './useChatRealtime';
-
-const recentMessageEvents = new Map<number, number>();
+import { useRealtimeChannel } from './RealtimeProvider';
 
 export function MobileRealtimeSync() {
   const { user } = useAuth();
@@ -35,6 +36,18 @@ function RealtimeSubscription() {
   }, [queryClient, user?.id]);
 
   const connection = useChatRealtime(undefined, onEvent);
+  useRealtimeChannel({ channel: 'PresenceChannel' }, onEvent);
+
+  useEffect(() => {
+    if (user?.demo_account) return;
+    const publish = () => {
+      if (AppState.currentState === 'active') void endpoints.presence().catch(() => undefined);
+    };
+    publish();
+    const timer = setInterval(publish, 30_000);
+    const subscription = AppState.addEventListener('change', (state) => { if (state === 'active') publish(); });
+    return () => { clearInterval(timer); subscription.remove(); };
+  }, [user?.id, user?.demo_account]);
 
   useEffect(() => {
     if (connection !== 'connected') return;
@@ -52,6 +65,33 @@ function RealtimeSubscription() {
 }
 
 export async function handleMobileRealtimeEvent(queryClient: QueryClient, event: ChatEvent, userId?: number) {
+  if (event.type === 'user_profile_updated') {
+    const update = (message: Message): Message => !message || typeof message !== 'object' ? message : ({ ...message,
+      ...(Number(message.user_id) === Number(event.user_id) ? { user_name: event.user_name, user_profile_picture: typeof event.user_profile_picture === 'string' ? event.user_profile_picture : null } : {}),
+      reply_to: message.reply_to && Number(message.reply_to.user_id) === Number(event.user_id) ? { ...message.reply_to, user_name: event.user_name || message.reply_to.user_name } : message.reply_to,
+    });
+    queryClient.setQueriesData<{ pages: Array<{ data: Message[] }> }>({ queryKey: ['messages'] }, (data) => Array.isArray(data?.pages) ? { ...data, pages: data.pages.map((page) => page && Array.isArray(page.data) ? ({ ...page, data: page.data.map(update) }) : page) } : data);
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: mobileQueryKeys.conversations }),
+      queryClient.invalidateQueries({ queryKey: ['conversation'] }),
+      queryClient.invalidateQueries({ queryKey: ['users'] }),
+      queryClient.invalidateQueries({ queryKey: ['messages'] }),
+    ]);
+    return;
+  }
+  if (event.type === 'presence' || (event.user_id && typeof event.online === 'boolean' && event.last_seen_at)) {
+    const ids = new Set<number>();
+    for (const [, conversation] of queryClient.getQueriesData<{ id: number }>({ queryKey: ['conversation'] })) {
+      if (conversation?.id) ids.add(conversation.id);
+    }
+    const list = queryClient.getQueryData<{ pages?: Array<{ data: Array<{ id: number }> }>; data?: Array<{ id: number }> }>(mobileQueryKeys.conversations);
+    (list?.pages?.flatMap((page) => page.data) || list?.data || []).forEach((conversation) => ids.add(conversation.id));
+    ids.forEach((id) => updateConversationCaches(queryClient, id, (conversation) => ({
+      ...conversation,
+      participants: Array.isArray(conversation.participants) ? conversation.participants.map((participant) => Number(participant.id) === Number(event.user_id) ? { ...participant, online: Boolean(event.online), last_seen_at: typeof event.last_seen_at === 'string' ? event.last_seen_at : participant.last_seen_at } : participant) : [],
+    })));
+    return;
+  }
   const conversationId = numericId(event.conversation_id) || (isRecord(event.call_session) ? numericId(event.call_session.conversation_id) : undefined);
 
   if (event.type === 'notification_received') {
@@ -65,8 +105,7 @@ export async function handleMobileRealtimeEvent(queryClient: QueryClient, event:
     const message = normalizeRealtimeMessage(event.message);
     if (conversationId && message) {
       appendIncomingMessage(queryClient, conversationId, message);
-      updateConversationPreview(queryClient, conversationId, message);
-      recentMessageEvents.set(conversationId, Date.now());
+      updateConversationPreview(queryClient, conversationId, message, userId);
       if (Number(message.user_id) !== Number(userId)) {
         void sendConversationReceiptOnce(userId, conversationId, message.id, 'delivered').catch(() => undefined);
       }
@@ -90,7 +129,6 @@ export async function handleMobileRealtimeEvent(queryClient: QueryClient, event:
   }
 
   if (event.type === 'conversation_refresh') {
-    if (conversationId && Date.now() - Number(recentMessageEvents.get(conversationId) || 0) < 750) return;
     await refreshConversationCaches(queryClient, conversationId, false);
     return;
   }
@@ -103,6 +141,11 @@ export async function handleMobileRealtimeEvent(queryClient: QueryClient, event:
       delivered_at: event.delivered_at,
       read_at: event.read_at,
     });
+    if (Number(event.user_id) === Number(userId) && event.read_message_id) {
+      await refreshConversationCaches(queryClient, conversationId, false);
+      await queryClient.invalidateQueries({ queryKey: mobileQueryKeys.home });
+      await queryClient.invalidateQueries({ queryKey: mobileQueryKeys.notifications });
+    }
     return;
   }
 

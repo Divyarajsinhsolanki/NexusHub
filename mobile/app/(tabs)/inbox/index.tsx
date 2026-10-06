@@ -12,6 +12,7 @@ import { endpoints } from '@/src/api/endpoints';
 import type { CollectionResult, Conversation, EntityRecord, Post } from '@/src/api/types';
 import { applyPostToFeed, mobileQueryKeys, updatePostInFeed } from '@/src/cache/mobileCache';
 import { normalizedParticipants } from '@/src/chat/messageRows';
+import { isParticipantOnline, usePresenceNow } from '@/src/chat/presence';
 import { Avatar } from '@/src/components/Avatar';
 import { PageHeader } from '@/src/components/PageHeader';
 import { PrimaryButton } from '@/src/components/PrimaryButton';
@@ -105,13 +106,14 @@ function ConversationList({ conversations, loadingMore, onEndReached }: { conver
 }
 
 function ConversationRow({ conversation }: { conversation: Conversation }) {
+  const presenceNow = usePresenceNow();
   const theme = useAppTheme();
   const router = useRouter();
   const { user } = useAuth();
   const participants = normalizedParticipants(conversation.participants);
   const other = participants.find((participant) => participant.id !== user?.id);
   const group = conversation.conversation_type === 'group';
-  const online = !group && Boolean(other?.online);
+  const online = !group && Boolean(other && isParticipantOnline(other, presenceNow));
   return <Pressable accessibilityLabel={`Open ${conversationTitle(conversation)}`} accessibilityRole="button" onPress={() => router.push(`/chat/${conversation.id}` as never)} style={({ pressed }) => [styles.conversation, { backgroundColor: pressed ? theme.surfaceMuted : theme.background, borderBottomColor: theme.border }]}><View><Avatar name={conversationTitle(conversation)} size={48} uri={!group ? absoluteAssetUrl(other?.profile_picture) : undefined} /><View style={[styles.presence, { backgroundColor: online ? theme.success : theme.border, borderColor: theme.background }]} /></View><View style={styles.conversationCopy}><View style={styles.conversationTitleRow}><Text numberOfLines={1} style={[styles.name, { color: theme.text }]}>{conversationTitle(conversation)}</Text>{conversation.muted ? <MicOff color={theme.textMuted} size={14} /> : null}</View><Text numberOfLines={1} style={[styles.preview, { color: theme.textMuted }]}>{conversationPreview(conversation)}</Text></View><View style={styles.conversationMeta}>{conversation.active_call ? <PhoneCall color={theme.success} size={17} /> : null}{conversation.unread_count ? <View style={[styles.badge, { backgroundColor: theme.primary }]}><Text style={styles.badgeText}>{conversation.unread_count > 99 ? '99+' : conversation.unread_count}</Text></View> : null}<Text style={[styles.kind, { color: theme.textMuted }]}>{group ? `${participants.length} people` : online ? 'Online' : ''}</Text></View></Pressable>;
 }
 

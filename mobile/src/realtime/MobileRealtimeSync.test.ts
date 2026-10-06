@@ -9,6 +9,9 @@ import { handleMobileRealtimeEvent, MobileRealtimeSync } from './MobileRealtimeS
 import { useChatRealtime } from './useChatRealtime';
 
 jest.mock('./useChatRealtime', () => ({ useChatRealtime: jest.fn() }));
+jest.mock('@sentry/react-native', () => ({ captureException: jest.fn() }));
+jest.mock('./RealtimeProvider', () => ({ useRealtimeChannel: jest.fn() }));
+jest.mock('../api/endpoints', () => ({ endpoints: { presence: jest.fn(async () => ({})), updateConversationReceipt: jest.fn(async () => ({})) } }));
 jest.mock('../auth/AuthProvider', () => ({ useAuth: () => ({ user: { id: 1 } }) }));
 
 let clients: QueryClient[] = [];
@@ -20,6 +23,41 @@ afterEach(() => {
 });
 
 describe('handleMobileRealtimeEvent', () => {
+  test('profile changes update cached authors and quoted reply names', async () => {
+    const client = testQueryClient();
+    client.setQueryData(mobileQueryKeys.messages(7), { pageParams: [undefined], pages: [{ data: [{ ...message(20, 'Reply'), user_id: 2, user_name: 'Old name', reply_to: { id: 19, user_id: 2, user_name: 'Old name', body: 'Original' } }] }] });
+    await handleMobileRealtimeEvent(client, { type: 'user_profile_updated', user_id: 2, user_name: 'New name', user_profile_picture: '/new.png' }, 1);
+    const row = client.getQueryData<InfiniteData<CollectionResult<Message>>>(mobileQueryKeys.messages(7))!.pages[0].data[0];
+    expect(row.user_name).toBe('New name');
+    expect(row.user_profile_picture).toBe('/new.png');
+    expect(row.reply_to?.user_name).toBe('New name');
+  });
+  test('counts incoming messages once and preserves a newer preview', async () => {
+    const client = testQueryClient();
+    client.setQueryData(mobileQueryKeys.conversations, { data: [{ id: 7, unread_count: 0, participants: [] }] });
+    const event = { type: 'message_created', conversation_id: 7, message: { ...message(20, 'Latest'), user_id: 2 } };
+    await handleMobileRealtimeEvent(client, event, 1);
+    await handleMobileRealtimeEvent(client, event, 1);
+    await handleMobileRealtimeEvent(client, { ...event, message: { ...event.message, id: 19, body: 'Older' } }, 1);
+    expect(client.getQueryData<CollectionResult<Conversation>>(mobileQueryKeys.conversations)?.data[0]).toMatchObject({ unread_count: 1, last_message: { id: 20 } });
+  });
+  test('refreshes inbox counts when the current user reads on another device', async () => {
+    const client = testQueryClient();
+    client.setQueryData(mobileQueryKeys.conversations, { data: [{ id: 7, unread_count: 2 }] });
+    client.setQueryData(mobileQueryKeys.conversation(7), { id: 7, participants: [{ id: 1 }] });
+    await handleMobileRealtimeEvent(client, { type: 'message_receipt_updated', conversation_id: 7, user_id: 1, read_message_id: 20 }, 1);
+    expect(client.getQueryState(mobileQueryKeys.conversations)?.isInvalidated).toBe(true);
+  });
+
+  test('updates online presence in the inbox and open conversation', async () => {
+    const client = testQueryClient();
+    const conversation = { id: 7, participants: [{ id: 2, online: false }] };
+    client.setQueryData(mobileQueryKeys.conversations, { pageParams: [1], pages: [{ data: [conversation] }] });
+    client.setQueryData(mobileQueryKeys.conversation(7), conversation);
+    await handleMobileRealtimeEvent(client, { type: 'presence', user_id: 2, online: true, last_seen_at: new Date().toISOString() }, 1);
+    expect(client.getQueryData<Conversation>(mobileQueryKeys.conversation(7))?.participants?.[0].online).toBe(true);
+    expect(client.getQueryData<InfiniteData<CollectionResult<Conversation>>>(mobileQueryKeys.conversations)?.pages[0].data[0].participants?.[0].online).toBe(true);
+  });
   test('syncs the current user reaction added or removed on the web', async () => {
     const queryClient = testQueryClient();
     queryClient.setQueryData(mobileQueryKeys.messages(7), { pageParams: [undefined], pages: [{ data: [message(2, 'Hello')] }] });

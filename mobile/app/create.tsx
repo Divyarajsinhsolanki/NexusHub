@@ -1,4 +1,3 @@
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
@@ -17,6 +16,7 @@ import type { Post } from '@/src/api/types';
 import { useAuth } from '@/src/auth/AuthProvider';
 import { applyPostToFeed } from '@/src/cache/mobileCache';
 import { PrimaryButton } from '@/src/components/PrimaryButton';
+import { CreateDateField } from '@/src/components/CreateDateField';
 import { draftStore } from '@/src/storage/draftStore';
 import { useAppTheme } from '@/src/theme';
 
@@ -41,7 +41,7 @@ export default function CreateScreen() {
   const restoredIdentity = useRef<unknown>(null);
   const messageClientId = useRef(Crypto.randomUUID());
   const projects = useQuery({ queryKey: ['projects'], queryFn: endpoints.projects, enabled: type === 'issue' || type === 'task' });
-  const conversations = useQuery({ queryKey: ['conversations'], queryFn: () => endpoints.conversations(), enabled: type === 'message' });
+  const conversations = useQuery({ queryKey: ['conversations', 'create-options'], queryFn: () => endpoints.conversations(), enabled: type === 'message' });
   const [projectId, setProjectId] = useState<number | undefined>(params.projectId ? Number(params.projectId) : undefined);
   const [conversationId, setConversationId] = useState<number | undefined>();
   const draftIdentity = useMemo(() => user ? { key: `create:${type}`, userId: user.id, workspaceId: user.workspace.id } : null, [type, user?.id, user?.workspace.id]);
@@ -121,7 +121,7 @@ export default function CreateScreen() {
       {type === 'document' ? <Pressable onPress={pickDocument} style={[styles.filePicker, { backgroundColor: theme.surface, borderColor: theme.border }]}><FilePlus2 color={theme.primary} size={28} /><Text style={[styles.fileTitle, { color: theme.text }]}>{document?.name || 'Choose a PDF document'}</Text><Text style={[styles.fileDetail, { color: theme.textMuted }]}>PDF files up to your workspace quota</Text></Pressable> : null}
       <Field editable={!restoringDraft && !save.isPending} label={type === 'post' || type === 'message' ? 'Message' : type === 'document' ? 'Document title (optional)' : 'Title'} onChangeText={setTitle} placeholder={type === 'work_log' ? 'What did you work on?' : 'Add a clear title'} value={title} />
       {type !== 'document' ? <Field editable={!restoringDraft && !save.isPending} label={detailLabel} multiline onChangeText={setDescription} placeholder="Add useful context" value={description} /> : null}
-      {type === 'event' || type === 'work_log' ? <View><Text style={[styles.label, { color: theme.text }]}>{type === 'event' ? 'Starts at' : 'Log date'}</Text><View style={[styles.datePicker, { backgroundColor: theme.surface, borderColor: theme.border }]}><DateTimePicker display="default" mode={type === 'event' ? 'datetime' : 'date'} onChange={(_, value) => value && setDate(value)} value={date} /></View></View> : null}
+      {type === 'event' || type === 'work_log' ? <View><Text style={[styles.label, { color: theme.text }]}>{type === 'event' ? 'Starts at' : 'Log date'}</Text><View style={[styles.datePicker, { backgroundColor: theme.surface, borderColor: theme.border }]}><CreateDateField date={date} includeTime={type === 'event'} onChange={setDate} /></View></View> : null}
       {(type === 'issue' || type === 'task') && projects.data?.length ? <ChoiceList label="Project" selected={projectId} onSelect={setProjectId} rows={projects.data.map((project) => ({ id: project.id, title: project.name }))} optional={type === 'task'} /> : null}
       {type === 'message' && conversations.data ? <ChoiceList label="Conversation" selected={conversationId} onSelect={setConversationId} rows={conversations.data.data.map((conversation) => ({ id: conversation.id, title: conversation.title || `Conversation ${conversation.id}` }))} /> : null}
       {type === 'post' || type === 'issue' ? <Pressable accessibilityLabel="Add photo attachment" onPress={pickImage} style={[styles.attachmentButton, { borderColor: theme.border }]}><FilePlus2 color={theme.primary} size={19} /><Text style={[styles.attachmentText, { color: theme.text }]}>{image?.fileName || 'Add photo attachment'}</Text></Pressable> : null}

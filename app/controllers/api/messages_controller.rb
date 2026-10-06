@@ -7,7 +7,7 @@ class Api::MessagesController < Api::BaseController
   def index
     limit = requested_limit
     scope = @conversation.messages
-      .includes(:message_reactions, user: { profile_picture_attachment: :blob })
+      .includes(:message_reactions, reply_to: [:user, :attachments_attachments], user: { profile_picture_attachment: :blob })
       .with_attached_attachments
       .order(id: :desc)
     scope = scope.where("messages.id < ?", params[:before_id].to_i) if params[:before_id].present?
@@ -35,6 +35,9 @@ class Api::MessagesController < Api::BaseController
 
     message = @conversation.messages.new(message_params)
     message.user = current_user
+    if message.reply_to_id && !@conversation.messages.where(id: message.reply_to_id, message_type: 'message').exists?
+      return render json: { errors: ['Reply target must be a message in this conversation'] }, status: :unprocessable_entity
+    end
 
     if message.save
       @conversation.touch
@@ -59,7 +62,7 @@ class Api::MessagesController < Api::BaseController
   end
 
   def message_params
-    params.require(:message).permit(:body, :client_id, attachments: [])
+    params.require(:message).permit(:body, :client_id, :reply_to_id, attachments: [])
   end
 
   def requested_limit
@@ -69,7 +72,7 @@ class Api::MessagesController < Api::BaseController
   end
 
   def serialize_message(message)
-    {
+    message.chat_context.merge({
       id: message.id,
       client_id: message.client_id,
       body: message.body,
@@ -80,6 +83,6 @@ class Api::MessagesController < Api::BaseController
       attachments: message.attachments.map { |attachment| { id: attachment.id, url: rails_blob_url(attachment, only_path: true), download_url: rails_blob_url(attachment, only_path: true, disposition: "attachment"), content_type: attachment.content_type, filename: attachment.filename.to_s, byte_size: attachment.byte_size } },
       reactions: message.reaction_counts,
       reacted_emojis: message.reacted_emojis_for(current_user)
-    }
+    })
   end
 end

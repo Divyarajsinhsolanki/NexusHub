@@ -465,6 +465,9 @@ export type ConversationReceipt = {
 };
 
 export type Message = EntityRecord & {
+  message_type?: 'message' | 'system';
+  reply_to_id?: number | null;
+  reply_to?: { id: number; body: string; user_id: number; user_name: string; attachment_count?: number } | null;
   body?: string;
   content?: string;
   user_id?: number;

@@ -1,12 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Archive, Bell, BookOpen, Bookmark, Box, Clock, Cpu, Folder, GraduationCap, LayoutGrid, Newspaper, RefreshCw, Search, TrendingUp, X } from 'lucide-react';
 import {
   FiBook,
   FiBookmark,
   FiClock,
   FiFolder,
-  FiSearch,
-  FiStar,
   FiX,
   FiBell,
   FiCheckCircle,
@@ -37,9 +35,17 @@ import EnglishPhraseCard from "../components/Knowledge/EnglishPhraseCard";
 import ImageOfTheDayCard from "../components/Knowledge/ImageOfTheDayCard";
 import DailyQuizCard from "../components/Knowledge/DailyQuizCard";
 import StudyReminderCard from "../components/Knowledge/StudyReminderCard";
-import Knowledge3DRoom from "../components/Knowledge3DRoom/Knowledge3DRoom";
+import './KnowledgeDashboard.css';
 import { KnowledgeBookmarksProvider, useKnowledgeBookmarks } from "../context/KnowledgeBookmarksContext";
 import { archiveKnowledgeItem, fetchKnowledgeItems, fetchKnowledgePromptRuns } from "../components/api";
+
+const Knowledge3DRoom = lazy(() => import('../components/Knowledge3DRoom/Knowledge3DRoom'));
+
+class KnowledgeRoomBoundary extends React.Component {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  render() { return this.state.failed ? <div className="knowledge-empty"><h2>The room is unavailable</h2><button onClick={this.props.onClose}>Return to library</button></div> : this.props.children; }
+}
 
 const generatedBookmarkPayload = (item) => ({
   cardType: "mcp_knowledge_item",
@@ -68,36 +74,21 @@ const generatedBookmarkPayload = (item) => ({
 });
 
 // Category Tab Component
-const CategoryTab = ({ category, isActive, onClick, index }) => (
-  <motion.button
-    initial={{ opacity: 0, y: 10 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.3, delay: index * 0.05 }}
-    onClick={onClick}
-    className={`relative flex items-center gap-1.5 rounded-[18px] border px-3 py-2.5 text-sm font-semibold whitespace-nowrap transition-all duration-300 ${
-      isActive
-        ? "border-slate-950 bg-slate-950 text-white shadow-[0_18px_34px_rgb(15_23_42_/_0.18)]"
-        : "border-white/70 bg-white/68 text-slate-600 hover:bg-white hover:text-slate-950"
-    }`}
-  >
-    <span className="text-lg">{category.icon}</span>
-    <span>{category.name}</span>
-    {isActive && (
-      <motion.div
-        layoutId="activeTabIndicator"
-        className="absolute inset-0 -z-10 rounded-2xl bg-slate-950"
-        transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-      />
-    )}
-  </motion.button>
-);
+const CategoryTab = ({ category, isActive, onClick }) => {
+  const Icon = category.Icon;
+  return <button type="button" aria-pressed={isActive} onClick={onClick} className={`knowledge-nav-item ${isActive ? 'is-active' : ''}`}><Icon size={17} /><span>{category.name}</span>{category.count !== undefined && <small>{category.count}</small>}</button>;
+};
 
 function KnowledgeDashboardContent() {
   const [activeCategory, setActiveCategory] = useState("all");
+  const [view, setView] = useState('library');
+  const [selectedCollection, setSelectedCollection] = useState('');
+  const [sort, setSort] = useState('default');
   const [uiLoading, setUiLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [filters, setFilters] = useState({ reminderDue: false, hasNotes: false });
   const [modalOpen, setModalOpen] = useState(false);
+  const [bookmarkSaving, setBookmarkSaving] = useState(false);
   const [pendingBookmark, setPendingBookmark] = useState(null);
   const [collectionName, setCollectionName] = useState("");
   const [lastCollectionName, setLastCollectionName] = useState("");
@@ -106,12 +97,15 @@ function KnowledgeDashboardContent() {
   const [knowledgeItems, setKnowledgeItems] = useState([]);
   const [promptRuns, setPromptRuns] = useState([]);
   const [generatedLoading, setGeneratedLoading] = useState(true);
+  const [loadVersion, setLoadVersion] = useState(0);
 
   const {
     bookmarks,
     dueBookmarks,
     collections,
     loading: bookmarksLoading,
+    error: bookmarksError,
+    refresh: refreshBookmarks,
     createBookmark,
     deleteBookmark,
     findBookmark,
@@ -152,7 +146,7 @@ function KnowledgeDashboardContent() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [loadVersion]);
 
   const savedCount = bookmarks.length;
   const dueCount = dueBookmarks.length;
@@ -161,16 +155,16 @@ function KnowledgeDashboardContent() {
 
   const categories = useMemo(
     () => [
-      { id: "all", name: "All", icon: "🌐" },
-      { id: "news", name: "News", icon: "📰" },
-      { id: "learning", name: "Learning", icon: "🎓" },
-      { id: "stocks", name: "Stocks", icon: "📈" },
-      { id: "tech", name: "Tech", icon: "💻" },
-      { id: "mcp", name: `ChatGPT Inbox (${activeGeneratedCount})`, icon: "🤖" },
-      { id: "history", name: `Prompt History (${promptRuns.length})`, icon: "🕘" },
-      { id: "saved", name: `Saved (${savedCount})`, icon: "⭐" },
-      { id: "due", name: `Due (${dueCount})`, icon: "🔔" },
-      { id: "archived", name: `Archived (${archivedGeneratedCount})`, icon: "🗄️" },
+      { id: "all", name: "Discover", Icon: LayoutGrid },
+      { id: "news", name: "News", Icon: Newspaper },
+      { id: "learning", name: "Learning", Icon: GraduationCap },
+      { id: "stocks", name: "Markets", Icon: TrendingUp },
+      { id: "tech", name: "Technology", Icon: Cpu },
+      { id: "mcp", name: 'ChatGPT inbox', Icon: BookOpen, count: activeGeneratedCount },
+      { id: "history", name: 'Prompt history', Icon: Clock, count: promptRuns.length },
+      { id: "saved", name: 'Saved', Icon: Bookmark, count: savedCount },
+      { id: "due", name: 'Review due', Icon: Bell, count: dueCount },
+      { id: "archived", name: 'Archived', Icon: Archive, count: archivedGeneratedCount },
     ],
     [activeGeneratedCount, archivedGeneratedCount, dueCount, promptRuns.length, savedCount]
   );
@@ -489,9 +483,10 @@ function KnowledgeDashboardContent() {
           cardType: bookmark.card_type,
         },
         bookmark,
-        metadata: definition ?? {
-          title: bookmark.payload?.title || bookmark.payload?.question || "Saved item",
-          summary: bookmark.payload?.summary || bookmark.payload?.answer || "",
+        metadata: {
+          ...definition,
+          title: bookmark.payload?.title || bookmark.payload?.question || definition?.title || "Saved item",
+          summary: [bookmark.payload?.summary, bookmark.payload?.answer, bookmark.payload?.word, definition?.summary, ...(Array.isArray(bookmark.payload?.definitions) ? bookmark.payload.definitions : []).map((entry) => typeof entry === 'string' ? entry : entry?.text || entry?.definition)].filter(Boolean).join(' '),
           body: bookmark.payload?.body,
           tags: bookmark.payload?.tags || [],
         },
@@ -610,7 +605,7 @@ function KnowledgeDashboardContent() {
   const isLoading =
     uiLoading ||
     generatedLoading ||
-    (bookmarksLoading && activeCategory !== "saved" && activeCategory !== "due");
+    bookmarksLoading;
   const hasSearch = searchQuery.trim().length > 0;
   const filtersActive = Object.values(filters).some(Boolean);
   const currentDate = new Date().toLocaleDateString("en-US", {
@@ -619,11 +614,34 @@ function KnowledgeDashboardContent() {
     month: "long",
     day: "numeric",
   });
+  const visibleCards = useMemo(() => {
+    const cards = filteredCards.filter((card) => !selectedCollection || card.bookmark?.collection_name === selectedCollection);
+    return sort === 'title' ? [...cards].sort((a, b) => String(a.metadata?.title || '').localeCompare(String(b.metadata?.title || ''))) : cards;
+  }, [filteredCards, selectedCollection, sort]);
+  const selectCategory = (id) => { setActiveCategory(id); setSelectedCollection(''); };
+  const clearFilters = () => { setSearchQuery(''); setFilters({ reminderDue: false, hasNotes: false }); setSelectedCollection(''); };
+  const activeLabel = categories.find((category) => category.id === activeCategory)?.name || 'Discover';
 
   return (
     <>
-      <Knowledge3DRoom
-        filteredCards={filteredCards}
+      <section className={`knowledge-library ${view === 'room' ? 'knowledge-room-view' : ''}`}>
+        <header className="knowledge-page-header"><div><span className="knowledge-date">{currentDate}</span><h1>Knowledge</h1><p>A little curiosity, every day.</p></div><div className="knowledge-view-switch" role="group" aria-label="Knowledge view"><button type="button" aria-pressed={view === 'library'} onClick={() => setView('library')}><LayoutGrid size={16} /> Library</button><button type="button" aria-pressed={view === 'room'} onClick={() => setView('room')}><Box size={16} /> 3D room</button></div></header>
+        {view === 'library' ? <div className="knowledge-workspace">
+          <aside className="knowledge-sidebar" aria-label="Knowledge navigation">
+            <span className="knowledge-nav-label">Explore</span><nav aria-label="Topics">{categories.slice(0, 5).map((category) => <CategoryTab key={category.id} category={category} isActive={activeCategory === category.id} onClick={() => selectCategory(category.id)} />)}</nav>
+            <span className="knowledge-nav-label">Your library</span><nav aria-label="Library">{categories.slice(5).map((category) => <CategoryTab key={category.id} category={category} isActive={activeCategory === category.id} onClick={() => selectCategory(category.id)} />)}</nav>
+            {collections.length > 0 && <div className="knowledge-collections"><span className="knowledge-nav-label">Collections</span>{collections.map((name) => <button type="button" key={name} className={`knowledge-nav-item ${selectedCollection === name ? 'is-active' : ''}`} onClick={() => { setActiveCategory('saved'); setSelectedCollection(name); }}><Folder size={16} /><span>{name}</span><small>{bookmarks.filter((bookmark) => bookmark.collection_name === name).length}</small></button>)}</div>}
+          </aside>
+          <div className="knowledge-main">
+            <div className="knowledge-toolbar"><label className="knowledge-search"><Search size={18} /><input type="search" aria-label="Search knowledge" placeholder="Search topics, articles, saved notes..." value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} />{searchQuery && <button type="button" aria-label="Clear search" title="Clear search" onClick={() => setSearchQuery('')}><X size={16} /></button>}</label><select aria-label="Sort knowledge" value={sort} onChange={(event) => setSort(event.target.value)}><option value="default">Recommended</option><option value="title">Title A-Z</option></select><button type="button" className="knowledge-refresh" title="Refresh knowledge" aria-label="Refresh knowledge" disabled={isLoading} onClick={() => { setFeedback(null); setLoadVersion((version) => version + 1); void refreshBookmarks?.(); }}><RefreshCw size={17} /></button></div>
+            <div className="knowledge-results-header"><div><h2>{selectedCollection || activeLabel}</h2><span>{isLoading ? 'Loading...' : `${visibleCards.length} items`}</span></div><div className="knowledge-filters">{filterOptions.map((option) => <label key={option.key}><input type="checkbox" checked={filters[option.key]} onChange={(event) => setFilters((current) => ({ ...current, [option.key]: event.target.checked }))} />{option.label}</label>)}{(hasSearch || filtersActive || selectedCollection) && <button type="button" onClick={clearFilters}>Clear</button>}</div></div>
+            {bookmarksError && <div role="alert" className="knowledge-notice">{bookmarksError}<button type="button" onClick={refreshBookmarks}>Retry</button></div>}
+            {feedback && <div role={feedback.type === 'error' ? 'alert' : 'status'} className={`knowledge-notice ${feedback.type}`}><span>{feedback.message}</span><button type="button" aria-label="Dismiss notification" title="Dismiss" onClick={() => setFeedback(null)}><X size={16} /></button></div>}
+            {isLoading ? <div className="knowledge-grid" aria-label="Loading knowledge" aria-busy="true">{Array.from({ length: 6 }, (_, index) => <div className="knowledge-skeleton" key={index}><span /><span /><span /></div>)}</div> : visibleCards.length ? <div className="knowledge-grid">{visibleCards.map((card) => { const Component = card.Component; return <div className="knowledge-entry" key={card.key}><Component {...card.props} />{card.bookmark && ['saved', 'due'].includes(activeCategory) && <SavedBookmarkFooter bookmark={card.bookmark} onRemove={() => handleBookmarkToggle({ cardType: card.bookmark.card_type, sourceId: card.bookmark.source_id, payload: card.bookmark.payload })} onMarkReviewed={() => bookmarkHelpers.markReviewed(card.bookmark)} />}</div>; })}</div> : <div className="knowledge-empty"><BookOpen size={32} /><h3>{hasSearch || filtersActive ? 'No matching items' : activeCategory === 'due' ? 'You are all caught up' : 'Nothing here yet'}</h3><p>{hasSearch || filtersActive ? 'Try a different search or clear the filters.' : 'Your knowledge will appear here when it is available.'}</p>{(hasSearch || filtersActive) && <button type="button" onClick={clearFilters}>Clear filters</button>}</div>}
+          </div>
+        </div> : <KnowledgeRoomBoundary onClose={() => setView('library')}><Suspense fallback={<div className="knowledge-empty" role="status">Opening the room...</div>}><Knowledge3DRoom
+        initialViewMode="room"
+        filteredCards={visibleCards}
         categories={categories}
         activeCategory={activeCategory}
         setActiveCategory={setActiveCategory}
@@ -634,7 +652,7 @@ function KnowledgeDashboardContent() {
         isLoading={isLoading}
         savedCount={savedCount}
         dueCount={dueCount}
-        filteredCardsLength={filteredCards.length}
+        filteredCardsLength={visibleCards.length}
         promptRuns={promptRuns}
         knowledgeItems={knowledgeItems}
         generatedLoading={generatedLoading}
@@ -644,11 +662,13 @@ function KnowledgeDashboardContent() {
         SavedBookmarkFooter={SavedBookmarkFooter}
         feedback={feedback}
         setFeedback={setFeedback}
-      />
+      /></Suspense></KnowledgeRoomBoundary>}
+      </section>
 
       {/* Premium Bookmark Modal */}
       <BookmarkModal
         open={modalOpen}
+        saving={bookmarkSaving}
         bookmark={pendingBookmark}
         collectionName={collectionName}
         reminderIntervalDays={reminderIntervalDays}
@@ -660,7 +680,8 @@ function KnowledgeDashboardContent() {
           setPendingBookmark(null);
         }}
         onSubmit={async () => {
-          if (!pendingBookmark) return;
+          if (!pendingBookmark || bookmarkSaving) return;
+          setBookmarkSaving(true);
           try {
             const created = await createBookmark({
               cardType: pendingBookmark.cardType,
@@ -676,6 +697,8 @@ function KnowledgeDashboardContent() {
             return created;
           } catch (err) {
             setFeedback({ type: "error", message: err.message });
+          } finally {
+            setBookmarkSaving(false);
           }
         }}
       />
@@ -714,6 +737,7 @@ function GeneratedKnowledgeCard({ item, isSaved, onSave, onArchive }) {
 
       {item.summary ? <p className="line-clamp-3 text-sm leading-6 text-slate-600">{item.summary}</p> : null}
       {!item.summary && item.body ? <p className="line-clamp-4 text-sm leading-6 text-slate-600">{item.body}</p> : null}
+      {item.body && <details className="knowledge-read"><summary><BookOpen size={14} /> Read full note</summary><p className="whitespace-pre-wrap text-sm">{item.body}</p></details>}
 
       <div className="mt-auto space-y-3">
         {tags.length ? (
@@ -783,11 +807,11 @@ function PromptRunCard({ run }) {
       </div>
       <h3 className="line-clamp-4 text-base font-semibold leading-snug text-slate-950">{run.prompt}</h3>
       <div className="mt-auto grid grid-cols-2 gap-2 text-xs">
-        <div className="rounded-xl bg-slate-50 p-3">
+        <div className="border-t border-slate-100 pt-3">
           <span className="block text-slate-500">Cards</span>
           <strong className="text-lg text-slate-950">{run.item_count || 0}</strong>
         </div>
-        <div className="rounded-xl bg-slate-50 p-3">
+        <div className="border-t border-slate-100 pt-3">
           <span className="block text-slate-500">Status</span>
           <strong className="text-sm capitalize text-slate-950">{run.status || "completed"}</strong>
         </div>
@@ -803,7 +827,7 @@ function SavedBookmarkFooter({ bookmark, onRemove, onMarkReviewed }) {
   const isDue = nextReminder ? nextReminder <= new Date() : false;
 
   return (
-    <div className="border-t border-gray-100 px-4 py-4 bg-gradient-to-br from-gray-50 to-indigo-50/30">
+    <div className="knowledge-saved-footer">
       <div className="flex flex-wrap justify-between gap-3">
         <div className="space-y-1.5 text-sm">
           {bookmark.collection_name && (
@@ -830,10 +854,10 @@ function SavedBookmarkFooter({ bookmark, onRemove, onMarkReviewed }) {
           <button
             type="button"
             onClick={onMarkReviewed}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-xs font-semibold shadow-sm hover:shadow-md hover:shadow-emerald-200 transition-all duration-200"
+            className="flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
           >
             <FiCheckCircle className="h-3.5 w-3.5" />
-            Reviewed
+            Mark reviewed
           </button>
           <button
             type="button"
@@ -853,6 +877,7 @@ function SavedBookmarkFooter({ bookmark, onRemove, onMarkReviewed }) {
 
 function BookmarkModal({
   open,
+  saving,
   bookmark,
   collectionName,
   reminderIntervalDays,
@@ -862,150 +887,48 @@ function BookmarkModal({
   onClose,
   onSubmit,
 }) {
+  const dialog = useRef(null);
+  const close = useRef(onClose);
+  close.current = onClose;
+  useEffect(() => {
+    if (!open) return;
+    const previousFocus = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    dialog.current?.querySelector('input')?.focus();
+    const onKey = (event) => {
+      if (event.key === 'Escape') close.current();
+      if (event.key !== 'Tab') return;
+      const fields = [...dialog.current.querySelectorAll('button:not(:disabled), input, select')];
+      const first = fields[0]; const last = fields.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = previousOverflow; previousFocus?.focus(); };
+  }, [open]);
   if (!open) return null;
 
-  return (
-    <AnimatePresence>
-      {open && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center px-4"
-          onClick={onClose}
-        >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            transition={{ type: "spring", duration: 0.4 }}
-            className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Gradient header */}
-            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
-
-            <div className="p-6 space-y-5">
-              {/* Header */}
-              <div className="flex justify-between items-start">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 shadow-lg shadow-indigo-200">
-                    <FiStar className="h-5 w-5 text-white" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-gray-900">Save to Collection</h2>
-                    <p className="text-sm text-gray-500">Organize and set review reminders</p>
-                  </div>
-                </div>
-                <button
-                  onClick={onClose}
-                  className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
-                >
-                  <FiX className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Card preview */}
-              {(bookmark?.title || bookmark?.subtitle) && (
-                <div className="p-4 rounded-xl bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-100">
-                  {bookmark?.title && (
-                    <p className="font-semibold text-gray-900">{bookmark.title}</p>
-                  )}
-                  {bookmark?.subtitle && (
-                    <p className="text-sm text-gray-600 mt-1 line-clamp-2">{bookmark.subtitle}</p>
-                  )}
-                </div>
-              )}
-
-              {/* Collection field */}
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                  <FiFolder className="h-4 w-4 text-indigo-500" />
-                  Collection
-                </label>
-                <select
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                  value={collectionName || ""}
-                  onChange={(event) => onCollectionChange(event.target.value)}
-                >
-                  <option value="">No collection</option>
-                  {collections.map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  type="text"
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                  placeholder="Or create a new collection..."
-                  value={collectionName || ""}
-                  onChange={(event) => onCollectionChange(event.target.value)}
-                />
-              </div>
-
-              {/* Reminder field */}
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                  <FiBell className="h-4 w-4 text-purple-500" />
-                  Reminder Frequency
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    min="1"
-                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all pr-16"
-                    value={reminderIntervalDays}
-                    onChange={(event) => onReminderChange(Number(event.target.value) || 1)}
-                  />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-gray-500">days</span>
-                </div>
-                <p className="text-xs text-gray-500">You'll be reminded to review this card after the specified number of days.</p>
-              </div>
-
-              {/* Actions */}
-              <div className="flex justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-5 py-2.5 text-sm font-semibold text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-xl transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={onSubmit}
-                  className="px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl shadow-lg shadow-indigo-200 hover:shadow-xl hover:shadow-indigo-300 transition-all duration-200"
-                >
-                  <span className="flex items-center gap-2">
-                    <FiBookmark className="h-4 w-4" />
-                    Save Bookmark
-                  </span>
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+    <form ref={dialog} className="knowledge-modal" role="dialog" aria-modal="true" aria-labelledby="bookmark-dialog-title" onClick={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); void onSubmit(); }}>
+      <header><h2 id="bookmark-dialog-title">Save to collection</h2><button type="button" aria-label="Close bookmark dialog" title="Close" onClick={onClose}><X size={20} /></button></header>
+      <div className="knowledge-modal-preview"><strong>{bookmark?.title}</strong><p>{bookmark?.subtitle}</p></div>
+      <label htmlFor="bookmark-collection">Collection</label><input id="bookmark-collection" list="bookmark-collections" placeholder="Choose or create a collection" value={collectionName || ''} onChange={(event) => onCollectionChange(event.target.value)} /><datalist id="bookmark-collections">{collections.map((name) => <option key={name} value={name} />)}</datalist>
+      <label htmlFor="bookmark-reminder">Review every (days)</label><input id="bookmark-reminder" type="number" min="1" max="365" required value={reminderIntervalDays} onChange={(event) => onReminderChange(Number(event.target.value))} />
+      <div className="knowledge-modal-actions"><button type="button" onClick={onClose}>Cancel</button><button type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save bookmark'}</button></div>
+    </form>
+  </div>;
 }
 
 function SavedBookmarkFallback({ savedBookmark }) {
+  const payload = savedBookmark?.payload || {};
   return (
     <div className="p-5 space-y-3">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-gray-200 to-gray-300">
-          <FiBookmark className="h-5 w-5 text-gray-600" />
-        </div>
-        <div>
-          <h3 className="font-semibold text-gray-900">Saved item</h3>
-          <p className="text-sm text-gray-500">Card type not recognized</p>
-        </div>
-      </div>
-      <pre className="bg-gray-50 border border-gray-100 rounded-xl p-4 text-xs text-gray-600 overflow-auto max-h-48">
-        {JSON.stringify(savedBookmark?.payload, null, 2)}
-      </pre>
+      <span className="text-xs text-gray-500">{savedBookmark?.collection_name || 'Saved item'}</span>
+      <h3 className="font-semibold">{payload.title || payload.question || 'Saved knowledge'}</h3>
+      <p className="text-sm text-gray-500">{payload.summary || payload.answer}</p>
+      {payload.body && <p className="whitespace-pre-wrap text-sm">{payload.body}</p>}
+      {(payload.source_url || payload.url) && <a href={payload.source_url || payload.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm">Read source <FiExternalLink /></a>}
     </div>
   );
 }

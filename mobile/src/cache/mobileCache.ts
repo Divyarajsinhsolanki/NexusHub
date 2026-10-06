@@ -226,11 +226,16 @@ export function updateConversationPreview(
   queryClient: QueryClient,
   conversationId: number,
   incoming: Message,
+  currentUserId?: number,
 ) {
   queryClient.setQueryData<ConversationCache>(mobileQueryKeys.conversations, (previous) => transformConversationCache(previous, (rows) => {
     const existing = rows.find((conversation) => Number(conversation.id) === Number(conversationId));
     if (!existing) return rows;
-    return [{ ...existing, last_message: incoming, last_message_at: incoming.created_at }, ...rows.filter((item) => Number(item.id) !== Number(conversationId))];
+    const previousId = Number(existing.last_message_id || (typeof existing.last_message === 'object' ? existing.last_message?.id : 0));
+    if (incoming.id > 0 && previousId > incoming.id) return rows;
+    const readId = Number((Array.isArray(existing.participants) ? existing.participants : []).find((participant) => Number(participant.id) === Number(currentUserId))?.last_read_message_id || 0);
+    const unread = currentUserId !== undefined && Number(incoming.user_id) !== Number(currentUserId) && incoming.id > previousId && incoming.id > readId;
+    return [{ ...existing, last_message: incoming, last_message_id: incoming.id, last_message_at: incoming.created_at, unread_count: (existing.unread_count || 0) + (unread ? 1 : 0) }, ...rows.filter((item) => Number(item.id) !== Number(conversationId))];
   }, true));
 }
 

@@ -1,6 +1,5 @@
 import React, { useContext, useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
-import AuthBackground from "../components/ui/AuthBackground";
 import Login from "./Login";
 import Signup from "./Signup";
 import { AuthContext } from "../context/AuthContext";
@@ -28,16 +27,13 @@ function AuthPage({ mode = "login" }) {
   }
 
   return (
-    <div className="relative min-h-dvh overflow-x-hidden auth-page bg-shell-bg">
-      <AuthBackground />
-      <div className="relative z-10 flex min-h-dvh items-center px-4 py-10 sm:px-6 lg:px-8">
+    <>
         {current === "signup" ? (
           <Signup switchToLogin={() => setCurrent("login")} />
         ) : (
           <Login switchToSignup={() => setCurrent("signup")} />
         )}
-      </div>
-    </div>
+    </>
   );
 }
 

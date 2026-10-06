@@ -5,19 +5,26 @@ class Message < ApplicationRecord
 
   belongs_to :conversation
   belongs_to :user
+  belongs_to :reply_to, class_name: 'Message', optional: true
   has_many_attached :attachments
   has_many :message_reactions, dependent: :destroy
 
   validate :body_or_attachment_present
+  validate :reply_belongs_to_conversation
+  validates :message_type, inclusion: { in: %w[message system] }
   validates :client_id, uniqueness: { scope: [:conversation_id, :user_id] }, allow_nil: true
 
   after_create :restore_hidden_participants
   after_create_commit :update_conversation_last_message
   after_create_commit :broadcast_message
-  after_create_commit :notify_participants
   after_destroy_commit :refresh_conversation_last_message
 
   private
+
+  def reply_belongs_to_conversation
+    return unless reply_to
+    errors.add(:reply_to, 'must be a regular message in this conversation') if reply_to.conversation_id != conversation_id || reply_to.message_type != 'message'
+  end
 
   def body_or_attachment_present
     return if body.present? || attachments.attached?
@@ -26,6 +33,8 @@ class Message < ApplicationRecord
   end
 
   def broadcast_message
+    # Receipts can arrive immediately after delivery; create notifications first.
+    notify_participants
     Chat::Broadcaster.broadcast_message_created(self)
   end
 
@@ -52,6 +61,18 @@ class Message < ApplicationRecord
 
   public
 
+  def chat_context
+    {
+      message_type: message_type,
+      reply_to_id: reply_to_id,
+      reply_to: reply_to && {
+        id: reply_to.id, body: reply_to.body.to_s.truncate(300),
+        user_id: reply_to.user_id, user_name: reply_to.user.full_name,
+        attachment_count: reply_to.attachments.size
+      }
+    }
+  end
+
   def reaction_counts
     message_reactions.group(:emoji).count
   end
@@ -63,6 +84,7 @@ class Message < ApplicationRecord
   end
 
   def notify_participants
+    return if message_type == 'system'
     memberships_by_user_id = conversation.conversation_participants.index_by(&:user_id)
     recipients = conversation.participants.where.not(id: user_id).reject do |recipient|
       memberships_by_user_id[recipient.id]&.muted?

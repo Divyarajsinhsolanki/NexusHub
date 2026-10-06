@@ -5,6 +5,7 @@ import { format, formatDistanceToNow, isSameDay, isThisYear, isToday, isYesterda
 import { motion, AnimatePresence } from "framer-motion";
 import {
   FiArrowLeft,
+  FiCornerUpLeft,
   FiArrowUpRight,
   FiAtSign,
   FiBellOff,
@@ -410,7 +411,7 @@ const MentionText = ({ text, query }) => (
   </span>
 );
 
-const RichMessageText = ({ text = "", isMe, searchQuery, mentionLookups }) => {
+const RichMessageText = ({ text = "", isMe, searchQuery, mentionLookups, children }) => {
   const segments = tokenizeChatMessage(text, mentionLookups);
   const baseTagClass = isMe
     ? "border-blue-200 bg-blue-100/80 text-blue-800 hover:bg-blue-100"
@@ -465,6 +466,7 @@ const RichMessageText = ({ text = "", isMe, searchQuery, mentionLookups }) => {
           </Link>
         );
       })}
+      {children}
     </span>
   );
 };
@@ -789,7 +791,7 @@ const MessageAttachmentCard = ({ attachment, isMe, searchQuery }) => {
   );
 };
 
-const MessageBubble = React.memo(({ message, isMe, showAvatar, onToggleReaction, participants, conversationType, searchQuery, mentionLookups }) => {
+const MessageBubble = React.memo(({ message, isMe, showAvatar, onToggleReaction, onReply, participants, conversationType, searchQuery, mentionLookups }) => {
   const [isReactionPickerOpen, setIsReactionPickerOpen] = useState(false);
   const [isReactionPickerExpanded, setIsReactionPickerExpanded] = useState(false);
   const [customReactionEmoji, setCustomReactionEmoji] = useState("");
@@ -844,6 +846,9 @@ const MessageBubble = React.memo(({ message, isMe, showAvatar, onToggleReaction,
     setIsReactionPickerOpen(false);
   };
 
+  if (message.message_type === "system") return <div className="py-2 text-center text-xs text-slate-500" role="note">{message.body} · {timeString}</div>;
+  const metadata = <span className="nx-chat-inline-meta"><time dateTime={message.created_at}>{timeString}</time>{isMe && <span title={receiptTitle} aria-label={receiptTitle} className={`inline-flex ${allRead ? "text-indigo-600" : "text-slate-400"}`}><FiCheck className="h-3 w-3" />{allDelivered && <FiCheck className="-ml-1 h-3 w-3" />}</span>}</span>;
+
   return (
     <div data-outgoing={isMe} data-group-start={showAvatar} className={`nx-chat-message group/bubble flex w-full ${showAvatar ? "pt-3" : "pt-0.5"} ${isMe ? "justify-end" : "justify-start"}`}>
       <div className={`flex min-w-0 max-w-[94%] gap-2.5 md:max-w-[78%] ${isMe ? "flex-row-reverse" : "flex-row"}`}>
@@ -867,7 +872,8 @@ const MessageBubble = React.memo(({ message, isMe, showAvatar, onToggleReaction,
                 : "rounded-tl-md border-slate-200/70 bg-white text-slate-800 shadow-sm shadow-slate-100/60 dark:border-zinc-800 dark:bg-zinc-900 dark:text-slate-200"
             } ${searchQuery.trim() ? "ring-2 ring-amber-300/60" : ""}`}
           >
-            {message.body && <RichMessageText text={message.body} isMe={isMe} searchQuery={searchQuery} mentionLookups={mentionLookups} />}
+            {message.reply_to && <blockquote className="mb-2 border-l-2 border-sky-500 pl-2 text-xs"><strong>{message.reply_to.user_name}</strong><p className="line-clamp-2">{message.reply_to.body || "Attachment"}</p></blockquote>}
+            {message.body && <RichMessageText text={message.body} isMe={isMe} searchQuery={searchQuery} mentionLookups={mentionLookups}>{!message.attachments?.length && metadata}</RichMessageText>}
 
             {message.attachments?.length > 0 && (
               <div className={`grid gap-2 ${message.body ? "mt-3" : ""} ${message.attachments.length > 1 ? "sm:grid-cols-2" : "grid-cols-1"}`}>
@@ -882,9 +888,11 @@ const MessageBubble = React.memo(({ message, isMe, showAvatar, onToggleReaction,
               </div>
             )}
 
+            {(!message.body || message.attachments?.length > 0) && <div className="text-right">{metadata}</div>}
           </div>
 
-          <div className={`nx-chat-message-meta flex min-h-6 items-center gap-1.5 px-1 text-[10px] text-slate-400 dark:text-slate-500 ${isMe ? "flex-row-reverse" : ""}`}>
+          <div className="nx-chat-message-tools">
+            <button type="button" onClick={() => onReply(message)} aria-label={`Reply to ${message.user_name}`} title="Reply" className="chat-icon-button"><FiCornerUpLeft /></button>
             <button
               ref={reactionTriggerRef}
               type="button"
@@ -896,19 +904,6 @@ const MessageBubble = React.memo(({ message, isMe, showAvatar, onToggleReaction,
             >
               <FiSmile className="h-3.5 w-3.5" />
             </button>
-            <span className="inline-flex items-center gap-1 whitespace-nowrap">
-              <time dateTime={message.created_at}>{timeString}</time>
-              {isMe && (
-                <span
-                  className={`inline-flex items-center ${allRead ? "text-indigo-600 dark:text-indigo-300" : "text-slate-400 dark:text-slate-500"}`}
-                  title={receiptTitle}
-                  aria-label={receiptTitle}
-                >
-                  <FiCheck className="h-3.5 w-3.5" />
-                  {allDelivered && <FiCheck className="-ml-1.5 h-3.5 w-3.5" />}
-                </span>
-              )}
-            </span>
           </div>
 
           {reactionEntries.length > 0 && (
@@ -1126,6 +1121,8 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   const [tasks, setTasks] = useState([]);
 
   const [messageBody, setMessageBody] = useState("");
+  const [replyTo, setReplyTo] = useState(null);
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [attachments, setAttachments] = useState([]);
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const [isSending, setIsSending] = useState(false);
@@ -1196,6 +1193,8 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
 
   useEffect(() => {
     setSendError("");
+    setReplyTo(null);
+    setEmojiPickerOpen(false);
   }, [conversationId]);
 
   useEffect(() => {
@@ -1420,11 +1419,19 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
 
   const applyReceiptUpdate = useCallback((payload) => {
     if (!payload?.conversation_id || !payload?.user_id) return;
+    const summary = allConversationsRef.current.find((conversation) => Number(conversation.id) === Number(payload.conversation_id));
+    const activeLatestId = Number(activeConversationRef.current?.id) === Number(payload.conversation_id) ? activeConversationRef.current?.messages?.slice(-1)[0]?.id : undefined;
+    const clearsUnread = Number(payload.user_id) === Number(user?.id) && Number(payload.read_message_id) >= Number(summary?.last_message_id || activeLatestId || Infinity);
+    if (clearsUnread && summary?.unread_count) {
+      setConversationListMeta((previous) => previous ? { ...previous, unread_count: Math.max(0, (previous.unread_count || 0) - summary.unread_count) } : previous);
+      allConversationsRef.current = allConversationsRef.current.map((conversation) => Number(conversation.id) === Number(payload.conversation_id) ? { ...conversation, unread_count: 0 } : conversation);
+    }
 
     const updateConversation = (conversation) => {
       if (!conversation || Number(conversation.id) !== Number(payload.conversation_id)) return conversation;
       return {
         ...conversation,
+        ...(clearsUnread ? { unread_count: 0 } : {}),
         participants: (conversation.participants || []).map((participant) => (
           Number(participant.id) === Number(payload.user_id)
             ? (() => {
@@ -1459,7 +1466,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       }
       return nextConversation;
     });
-  }, []);
+  }, [user?.id]);
 
   const acknowledgeReceipt = useCallback(async (targetConversationId, messageId, state) => {
     if (!targetConversationId || !messageId || user?.demo_account) return;
@@ -1633,7 +1640,13 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
 
     try {
       const { data } = await fetchConversation(id);
-      setActiveConversation(data);
+      if (Number(currentConversationIdRef.current) !== Number(id)) return;
+      setActiveConversation((previous) => {
+        if (Number(previous?.id) !== Number(id)) return data;
+        const messages = new Map((data.messages || []).map((message) => [Number(message.id), message]));
+        (previous.messages || []).forEach((message) => messages.set(Number(message.id), message));
+        return { ...data, messages: [...messages.values()].sort((left, right) => Number(left.id) - Number(right.id)) };
+      });
       setMessagePageMeta(data.messages_meta || null);
       if (isLiveCall(data.active_call)) {
         setActiveCall(data.active_call);
@@ -1649,6 +1662,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       lastConversationDetailLoadedRef.current = { id, at: Date.now() };
       setConversations((previous) => mergeConversationGroups(previous, [data], false));
     } catch (error) {
+      if (Number(currentConversationIdRef.current) !== Number(id)) return;
       if (error?.response?.status === 404) {
         removeConversationLocally(id);
         return;
@@ -1659,7 +1673,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       setMessagePageMeta(null);
     } finally {
       if (Number(conversationDetailInFlightRef.current) === Number(id)) conversationDetailInFlightRef.current = null;
-      setIsConversationLoading(false);
+      if (Number(currentConversationIdRef.current) === Number(id)) setIsConversationLoading(false);
     }
   }, [removeConversationLocally]);
 
@@ -2387,8 +2401,29 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
 
   useEffect(() => {
     const userSub = subscribeToUserChat((payload) => {
+      if (payload?.type === "user_profile_updated") {
+        const updateMessage = (message) => ({ ...message,
+          ...(Number(message.user_id) === Number(payload.user_id) ? { user_name: payload.user_name, user_profile_picture: payload.user_profile_picture } : {}),
+          reply_to: message.reply_to && Number(message.reply_to.user_id) === Number(payload.user_id) ? { ...message.reply_to, user_name: payload.user_name } : message.reply_to
+        });
+        const updateConversation = (conversation) => conversation && ({ ...conversation,
+          messages: conversation.messages?.map(updateMessage),
+          participants: conversation.participants?.map((person) => Number(person.id) === Number(payload.user_id) ? { ...person, name: payload.user_name, profile_picture: payload.user_profile_picture } : person)
+        });
+        Object.entries(conversationCacheRef.current).forEach(([id, conversation]) => { conversationCacheRef.current[id] = updateConversation(conversation); });
+        setActiveConversation(updateConversation);
+        setUsers((previous) => previous.map((person) => Number(person.id) === Number(payload.user_id) ? { ...person, full_name: payload.user_name, profile_picture: payload.user_profile_picture } : person));
+        setReplyTo((previous) => previous ? updateMessage(previous) : previous);
+      }
       if (payload?.type === "message_created" && payload.message) {
         applyRealtimeMessageSummary(payload.conversation_id, payload.message);
+        if (Number(payload.conversation_id) === Number(conversationId)) {
+          mergeMessagesIntoActiveConversation(conversationId, [payload.message]);
+          if (isAtLatestMessagesRef.current) {
+            scrollMessagesToBottom(40);
+            if (document.visibilityState === "visible" && document.hasFocus()) acknowledgeReceipt(conversationId, payload.message.id, "read");
+          } else setHasUnreadBelow(true);
+        }
         if (Number(payload.message.user_id) !== Number(user?.id)) {
           acknowledgeReceipt(payload.conversation_id, payload.message.id, "delivered");
         }
@@ -2404,6 +2439,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
 
       if (payload?.type === "message_receipt_updated") {
         applyReceiptUpdate(payload);
+        if (Number(payload.user_id) === Number(user?.id) && payload.read_message_id) refreshConversationSummary(payload.conversation_id);
       }
 
       if (["conversation_hidden", "conversation_removed", "conversation_deleted"].includes(payload?.type)) {
@@ -2423,7 +2459,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     });
 
     return () => userSub.unsubscribe();
-  }, [acknowledgeReceipt, applyCallSessionUpdate, applyReactionUpdate, applyReceiptUpdate, applyRealtimeMessageSummary, conversationId, handleIncomingCall, refreshConversationSummary, removeConversationLocally, user?.id]);
+  }, [acknowledgeReceipt, applyCallSessionUpdate, applyReactionUpdate, applyReceiptUpdate, applyRealtimeMessageSummary, conversationId, handleIncomingCall, mergeMessagesIntoActiveConversation, refreshConversationSummary, removeConversationLocally, scrollMessagesToBottom, user?.id]);
 
   useEffect(() => {
     if (!conversationId) return undefined;
@@ -2951,6 +2987,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     try {
       const formData = new FormData();
       formData.append("message[body]", messageBody);
+      if (replyTo) formData.append("message[reply_to_id]", replyTo.id);
       attachments.forEach((file) => formData.append("message[attachments][]", file));
 
       const { data: newMessage } = await sendMessage(conversationId, formData);
@@ -2981,6 +3018,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       delete draftCacheRef.current[String(conversationId)];
       if (String(currentConversationIdRef.current) === String(conversationId)) {
         setMessageBody("");
+        setReplyTo(null);
         setAttachments([]);
         setComposerSelection({ start: 0, end: 0 });
         setActiveMentionIndex(0);
@@ -3678,6 +3716,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                                     isMe={Number(message.user_id) === Number(user?.id)}
                                     showAvatar={showAvatar}
                                     onToggleReaction={handleToggleReaction}
+                                    onReply={(message) => { setReplyTo(message); composerTextareaRef.current?.focus(); }}
                                     participants={conversationParticipants}
                                     conversationType={activeConversation.conversation_type}
                                     searchQuery={deferredThreadSearchQuery}
@@ -3779,6 +3818,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                       )}
 
                       {sendError && <p role="alert" className="chat-compose-error">{sendError}</p>}
+                      {replyTo && <div className="flex items-center gap-2 border-l-2 border-sky-500 px-3 py-2 text-sm"><div className="min-w-0 flex-1"><strong>{replyTo.user_name}</strong><p className="truncate">{replyTo.body || "Attachment"}</p></div><button type="button" aria-label="Cancel reply" title="Cancel reply" onClick={() => setReplyTo(null)}><FiX /></button></div>}
                       <form
                         onSubmit={handleSendMessage}
                         onDragOver={handleDragOverAttachments}
@@ -3861,6 +3901,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                         </div>
                         <div className="chat-composer-toolbar">
                           <div className="chat-composer-tools">
+                            <div className="relative"><button type="button" className="chat-icon-button" disabled={isSending} title="Choose emoji" aria-label="Choose emoji" aria-expanded={emojiPickerOpen} onClick={() => setEmojiPickerOpen((open) => !open)}><FiSmile /></button>{emojiPickerOpen && <div role="dialog" aria-label="Emoji picker" className="absolute bottom-full left-0 z-30 mb-2 grid w-64 grid-cols-6 gap-1 rounded-lg border bg-white p-2 shadow-lg dark:bg-zinc-900" onKeyDown={(event) => { if (event.key === "Escape") setEmojiPickerOpen(false); }}>{REACTION_EMOJIS.map((emoji) => <button type="button" key={emoji} aria-label={`Insert ${emoji}`} className="p-2 text-xl hover:bg-slate-100 dark:hover:bg-zinc-800" onClick={() => { insertComposerText(emoji); setEmojiPickerOpen(false); }}>{emoji}</button>)}</div>}</div>
                             <button type="button" className="chat-icon-button" disabled={isSending} title="Add attachments" aria-label="Add attachments" onClick={() => fileInputRef.current?.click()}><FiPaperclip /></button>
                             <button type="button" className="chat-icon-button" disabled={isSending} title="Mention a teammate" aria-label="Mention a teammate" onClick={() => insertComposerText("@")}><FiAtSign /></button>
                             <button type="button" className="chat-icon-button" disabled={isSending} title="Link a task" aria-label="Link a task" onClick={() => insertComposerText("#")}><FiHash /></button>

@@ -107,6 +107,7 @@ class Api::ConversationsController < Api::BaseController
     invited_calls = Conversation.transaction do
       users.each do |user|
         @conversation.conversation_participants.create!(workspace: @conversation.workspace, user: user)
+        @conversation.messages.create!(user: current_user, message_type: 'system', body: "#{current_user.full_name} added #{user.full_name}")
       end
       invite_users_to_live_calls(users)
     end
@@ -382,6 +383,7 @@ class Api::ConversationsController < Api::BaseController
 
     Conversation.transaction do
       @conversation.conversation_participants.find_by!(user_id: user.id).destroy!
+      @conversation.messages.create!(user: current_user, message_type: 'system', body: user.id == current_user.id ? "#{user.full_name} left the group" : "#{current_user.full_name} removed #{user.full_name}")
       live_calls.each do |call_session|
         if call_session.initiator_id == user.id
           call_session.call_participants.where(status: "ringing").update_all(status: "missed", left_at: Time.current, updated_at: Time.current)
@@ -498,7 +500,7 @@ class Api::ConversationsController < Api::BaseController
 
     if include_messages
       message_page = conversation.messages
-        .includes(:message_reactions, user: { profile_picture_attachment: :blob })
+        .includes(:message_reactions, reply_to: [:user, :attachments_attachments], user: { profile_picture_attachment: :blob })
         .with_attached_attachments
         .order(id: :desc)
         .limit(Api::MessagesController::DEFAULT_PAGE_SIZE + 1)
@@ -520,7 +522,7 @@ class Api::ConversationsController < Api::BaseController
   end
 
   def serialize_message(message)
-    {
+    message.chat_context.merge({
       id: message.id,
       body: message.body,
       user_id: message.user_id,
@@ -530,6 +532,6 @@ class Api::ConversationsController < Api::BaseController
       attachments: message.attachments.map { |attachment| { id: attachment.id, url: rails_blob_url(attachment, only_path: true), download_url: rails_blob_url(attachment, only_path: true, disposition: "attachment"), content_type: attachment.content_type, filename: attachment.filename.to_s, byte_size: attachment.byte_size } },
       reactions: message.reaction_counts,
       reacted_emojis: message.reacted_emojis_for(current_user)
-    }
+    })
   end
 end

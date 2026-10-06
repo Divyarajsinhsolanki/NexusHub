@@ -4,28 +4,9 @@ import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import submitForm from "../utils/formSubmit";
 import { toast } from "react-hot-toast";
 import SpinnerOverlay from "../components/ui/SpinnerOverlay";
-import WorkspaceOrb from "../components/landing/WorkspaceOrb";
+import AuthLayout from "../components/ui/AuthLayout";
 import { firebaseEnabled } from "../firebaseFlags";
 import { safeReturnPath } from "../utils/safeReturnPath";
-
-const signupMetrics = [
-  ["2 min", "Quick setup"],
-  ["SSO", "Google ready"],
-  ["Vault", "Secure profile"],
-];
-
-const signupFeatures = [
-  {
-    title: "Team Launch",
-    metric: "Ready",
-    copy: "Create your profile, join the workspace, and start planning from one premium command deck.",
-  },
-  {
-    title: "Smart Flow",
-    metric: "AI",
-    copy: "Unlock momentum, knowledge prompts, chat, tasks, and vault access with a focused account.",
-  },
-];
 
 const Signup = ({ switchToLogin }) => {
   const { handleGoogleLogin } = useContext(AuthContext);
@@ -82,25 +63,12 @@ const Signup = ({ switchToLogin }) => {
   };
 
   return (
-    <div className="w-full">
+    <AuthLayout>
       {loading && <SpinnerOverlay />}
-      <div className="mx-auto grid w-full max-w-6xl items-center gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.84fr)] lg:gap-8 xl:gap-10">
-        <div className="auth-orb-panel hidden lg:block">
-          <WorkspaceOrb
-            eyebrow="Start NexusHub"
-            title="Build your workspace identity in one polished flow."
-            description="Create an account to unlock sprints, conversations, knowledge signals, secure vaults, and a calmer daily operating rhythm."
-            metrics={signupMetrics}
-            featureCards={signupFeatures}
-          />
-        </div>
+            <h2 className="mb-2 font-bold">Create your account</h2>
+            <p className="mb-6 text-sm text-shell-muted">A fresh start for you and your team.</p>
 
-        <div className="flex justify-start sm:justify-center lg:justify-end">
-          <div className="w-full max-w-xs rounded-2xl border border-shell-border bg-surface-elevated p-6 shadow-shell-lg transition-transform duration-200 hover:-translate-y-1 sm:max-w-md sm:p-7">
-            <h2 className="mb-1 text-center text-2xl font-bold text-shell-text-strong">Create account</h2>
-            <p className="mb-6 text-center text-sm text-shell-muted">Join the workspace and start your command deck.</p>
-
-            <form onSubmit={handleSubmit} className="space-y-4" encType="multipart/form-data">
+            <form onSubmit={handleSubmit} className="space-y-4" encType="multipart/form-data" aria-busy={loading}>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-sm font-semibold text-shell-muted-strong required-label" htmlFor="first_name">
@@ -183,6 +151,7 @@ const Signup = ({ switchToLogin }) => {
 
               <button
                 type="submit"
+                disabled={loading}
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-shell-primary py-2.5 font-semibold text-white shadow-lg shadow-theme/20 transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-theme/25"
               >
                 Sign Up
@@ -234,16 +203,13 @@ const Signup = ({ switchToLogin }) => {
               Already have an account?{" "}
               <button
                 type="button"
-                onClick={switchToLogin}
+                onClick={switchToLogin || (() => navigate('/login'))}
                 className="font-semibold text-theme transition hover:text-theme/80"
               >
                 Log in
               </button>
             </p>
-          </div>
-        </div>
-      </div>
-    </div>
+    </AuthLayout>
   );
 };
 

@@ -309,6 +309,7 @@ export class SharedRealtimeClient {
 }
 
 function identifierKey(identifier: ChannelIdentifier) {
+  if (identifier.channel === 'PresenceChannel') return 'PresenceChannel';
   if (identifier.channel === 'CallChannel') return `call:${identifier.public_id}`;
   return `chat:${identifier.conversation_id || 'user'}`;
 }

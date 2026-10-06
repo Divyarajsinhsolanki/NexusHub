@@ -7,6 +7,7 @@ import { requestPasswordReset } from "../components/api";
 import ForgotPassword from "./ForgotPassword";
 vi.mock("../components/api", () => ({ requestPasswordReset: vi.fn() }));
 vi.mock("../components/landing/WorkspaceOrb", () => ({ default: () => null }));
+vi.mock("../components/ui/AuthWorkspaceScene", () => ({ default: () => <div>Workspace scene</div> }));
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 const setup = () => render(<MemoryRouter initialEntries={["/forgot-password"]}><Routes><Route path="/forgot-password" element={<ForgotPassword />} /><Route path="/login" element={<p>Sign-in destination</p>} /></Routes></MemoryRouter>);
 it("prevents duplicate reset requests and shows account-safe confirmation", async () => {

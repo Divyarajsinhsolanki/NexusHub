@@ -26,11 +26,21 @@ beforeEach(() => {
   jest.mocked(draftStore.remove).mockRejectedValue(new Error('No storage'));
 });
 
-async function setup() {
+async function setup(inboxCache?: unknown) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  if (inboxCache) client.setQueryData(['conversations'], inboxCache);
   const screen = await render(<QueryClientProvider client={client}><CreateScreen /></QueryClientProvider>);
   return { screen, client };
 }
+
+test('message creation does not reuse the paginated inbox cache', async () => {
+  const inbox = { pages: [{ data: [{ id: 99, title: 'Cached chat' }] }], pageParams: [undefined] };
+  const { screen, client } = await setup(inbox);
+  await fireEvent.press(screen.getByRole('tab', { name: 'Message' }));
+  await waitFor(() => expect(endpoints.conversations).toHaveBeenCalled());
+  expect(client.getQueryData(['conversations'])).toEqual(inbox);
+  await screen.unmount(); client.clear();
+});
 
 test('personal tasks stay personal and successful saves survive storage and haptic failures', async () => {
   const { screen, client } = await setup();

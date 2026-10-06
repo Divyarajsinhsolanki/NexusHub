@@ -18,6 +18,14 @@ class PdfDocumentsTest < ActionDispatch::IntegrationTest
     assert_equal before_count + 1, PdfDocument.unscoped.count
     document_id = JSON.parse(response.body).fetch("id")
 
+    get "/api/pdf_documents/#{document_id}/content"
+    assert_response :redirect
+    assert_includes response.location, "/rails/active_storage/blobs/proxy/"
+    follow_redirect!
+    assert_response :success
+    assert_equal "application/pdf", response.media_type
+    assert response.body.start_with?("%PDF")
+
     get "/api/pdf_documents"
     assert_response :success
     assert_equal "Contract", JSON.parse(response.body).dig("documents", 0, "title")

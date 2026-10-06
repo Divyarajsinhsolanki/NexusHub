@@ -7,6 +7,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import Avatar from './ui/Avatar';
+import { browserNotificationPermission, notificationPath, showBrowserNotification } from '../lib/browserNotifications';
 
 const NotificationCenter = () => {
   const navigate = useNavigate();
@@ -15,6 +16,16 @@ const NotificationCenter = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(null);
+  const [permission, setPermission] = useState(browserNotificationPermission);
+  const seenNotifications = useRef(new Set());
+
+  const enableBrowserNotifications = async () => {
+    try {
+      setPermission(await window.Notification.requestPermission());
+    } catch {
+      toast.error('Browser notifications are unavailable.');
+    }
+  };
 
   useEffect(() => {
     loadNotifications();
@@ -22,6 +33,9 @@ const NotificationCenter = () => {
     // Replace polling with real-time subscription
     const sub = subscribeToUserChat((payload) => {
       if (payload?.type === "notification_received") {
+        if (!payload.notification || seenNotifications.current.has(payload.notification.id)) return;
+        seenNotifications.current.add(payload.notification.id);
+        if (seenNotifications.current.size > 500) seenNotifications.current.delete(seenNotifications.current.values().next().value);
         setNotifications(prev => [payload.notification, ...prev]);
         setUnreadCount(prev => prev + 1);
         if (payload.notification?.message) {
@@ -34,9 +48,7 @@ const NotificationCenter = () => {
         }
 
         // Show browser notification if permitted
-        if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
-          new window.Notification(payload.notification.message);
-        }
+        showBrowserNotification(payload.notification, navigate);
       }
     });
 
@@ -76,15 +88,15 @@ const NotificationCenter = () => {
   };
 
   const handleOpenNotification = async (notification, closePopover) => {
-    const conversationId = notification.metadata?.conversation_id;
+    const path = notificationPath(notification);
 
     if (!notification.read_at) {
       await handleMarkRead(notification.id);
     }
 
-    if (conversationId) {
+    if (path) {
       closePopover?.();
-      navigate(`/chat/${conversationId}`);
+      navigate(path);
     }
   };
 
@@ -158,6 +170,8 @@ const NotificationCenter = () => {
                     )}
                   </div>
 
+                  {permission === 'default' && <button type="button" className="mb-4 flex items-center gap-2 text-sm text-theme" onClick={enableBrowserNotifications}><Bell size={16} />Enable browser notifications</button>}
+                  {permission === 'denied' && <p className="mb-4 text-xs text-shell-muted">Browser notifications are blocked in your browser's site settings.</p>}
                   <div className="space-y-4 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
                     {loadError ? (
                       <p className="py-8 text-center text-sm text-danger">{loadError}</p>

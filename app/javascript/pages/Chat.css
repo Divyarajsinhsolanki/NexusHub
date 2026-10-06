@@ -245,3 +245,9 @@
 .dark .nexus-chat-page .nx-chat-attachment { border-color: #36384b; background: #20212d; }
 .dark .nexus-chat-page .nx-chat-attachment a { color: #edeef7; }
 .dark .nexus-chat-page .nx-chat-attachment a:hover { color: #c2bfff; }
+.nexus-chat-page .nx-chat-inline-meta { display: inline-flex; align-items: center; gap: 3px; margin-left: 8px; white-space: nowrap; font-size: 10px; line-height: 1; color: var(--chat-text-muted, #64748b); vertical-align: baseline; }
+.nexus-chat-page .nx-chat-message-tools { display: flex; position: absolute; top: 0; right: calc(100% + 6px); width: 64px; z-index: 2; background: var(--chat-panel); border: 1px solid var(--chat-border); border-radius: 6px; opacity: 0; pointer-events: none; }
+.nexus-chat-page .nx-chat-message[data-outgoing="false"] .nx-chat-message-tools { left: calc(100% + 6px); right: auto; }
+.nexus-chat-page .nx-chat-message:hover .nx-chat-message-tools,
+.nexus-chat-page .nx-chat-message:focus-within .nx-chat-message-tools { opacity: 1; pointer-events: auto; }
+@media (hover: none), (max-width: 767px) { .nexus-chat-page .nx-chat-message-tools { position: static; opacity: 1; pointer-events: auto; align-self: flex-end; } }

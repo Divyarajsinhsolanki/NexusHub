@@ -7,6 +7,7 @@ import { endpoints } from '../api/endpoints';
 import { mobileQueryKeys } from '../cache/mobileCache';
 
 const mockPerform = jest.fn();
+jest.mock('@sentry/react-native', () => ({ captureException: jest.fn(), addBreadcrumb: jest.fn(), captureMessage: jest.fn() }));
 jest.mock('expo-router', () => ({
   useLocalSearchParams: () => ({ id: '7' }),
   usePathname: () => '/chat/7',
@@ -24,7 +25,7 @@ jest.mock('../api/endpoints', () => ({ endpoints: { createMessage: jest.fn(), up
 jest.mock('expo-crypto', () => ({ randomUUID: () => 'stable-client-draft' }));
 
 test('opens a cached chat safely and sends an idempotent message', async () => {
-  const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, gcTime: Infinity, retry: false } } });
+  const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, gcTime: Infinity, retry: false }, mutations: { gcTime: Infinity } } });
   client.setQueryData(mobileQueryKeys.conversation(7), { id: 7, title: 'Team chat', participants: { obsolete: true } });
   client.setQueryData(mobileQueryKeys.messages(7), {
     pageParams: [undefined],
@@ -43,4 +44,21 @@ test('opens a cached chat safely and sends an idempotent message', async () => {
   await waitFor(() => expect(screen.getByText(/Reply from mobile/)).toBeTruthy());
   await screen.unmount();
   client.clear();
+});
+
+test('long press can select a reply and preserve its target when sending', async () => {
+  jest.clearAllMocks();
+  const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, gcTime: Infinity, retry: false }, mutations: { gcTime: Infinity } } });
+  client.setQueryData(mobileQueryKeys.conversation(7), { id: 7, title: 'Replies', participants: [] });
+  client.setQueryData(mobileQueryKeys.messages(7), { pageParams: [undefined], pages: [{ data: [{ id: 10, body: 'Original message', user_id: 2, user_name: 'Teammate', created_at: '2026-10-06T00:00:00Z' }] }] });
+  jest.mocked(endpoints.createMessage).mockResolvedValue({ id: 11, body: 'Quoted reply', user_id: 5, created_at: '2026-10-06T00:01:00Z', reply_to: { id: 10, body: 'Original message', user_id: 2, user_name: 'Teammate' } });
+  const screen = await render(<QueryClientProvider client={client}><ChatRoute /></QueryClientProvider>);
+  await fireEvent(screen.getByText(/Original message/), 'longPress');
+  await fireEvent.press(screen.getByRole('button', { name: 'Reply to message' }));
+  expect(screen.getByText('Reply to Teammate')).toBeTruthy();
+  await fireEvent.changeText(screen.getByPlaceholderText('Message'), 'Quoted reply');
+  await fireEvent.press(screen.getByRole('button', { name: 'Send message' }));
+  await waitFor(() => expect(endpoints.createMessage).toHaveBeenCalledTimes(1));
+  expect(jest.mocked(endpoints.createMessage).mock.calls[0][1].get('message[reply_to_id]')).toBe('10');
+  await screen.unmount(); client.clear();
 });

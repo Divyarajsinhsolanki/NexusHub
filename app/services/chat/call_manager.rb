@@ -34,7 +34,7 @@ module Chat
         )
 
         conversation.conversation_participants.includes(:user).find_each do |membership|
-          status = membership.user_id == user.id ? "joined" : "ringing"
+          status = membership.user_id == user.id && !meeting ? "joined" : "ringing"
           call_session.call_participants.create!(
             workspace: conversation.workspace,
             user: membership.user,
@@ -48,6 +48,7 @@ module Chat
       Chat::Broadcaster.broadcast_call_ringing(call_session)
       Chat::Broadcaster.broadcast_call_event(call_session, "call_started")
       CallSessionTimeoutJob.set(wait: RING_TIMEOUT).perform_later(call_session.id) unless meeting
+      EmptyMeetingTimeoutJob.set(wait: 5.minutes).perform_later(call_session.id) if meeting
       call_session
     rescue ActiveRecord::RecordNotUnique
       raise ActiveCallExists, "There is already an active call in this conversation"
@@ -207,6 +208,19 @@ module Chat
       missed_participants.each { |participant| notify_missed_call(call_session, participant) }
       Chat::Broadcaster.broadcast_call_event(call_session, "call_missed", user_ids: missed_participants.map(&:user_id)) if missed_participants.any?
       Chat::Broadcaster.broadcast_call_event(call_session, "call_ended") unless call_session.live?
+      call_session
+    end
+
+    def expire_empty_meeting(call_session)
+      call_session.with_lock do
+        call_session.reload
+        return call_session unless call_session.live?
+        return call_session if joined_participants(call_session).exists?
+
+        call_session.call_participants.where(status: "ringing").update_all(status: "missed", left_at: Time.current, updated_at: Time.current)
+        end_call!(call_session, "ended", "empty")
+      end
+      Chat::Broadcaster.broadcast_call_event(call_session.reload, "call_ended")
       call_session
     end
 

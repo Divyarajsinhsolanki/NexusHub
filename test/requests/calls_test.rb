@@ -57,6 +57,26 @@ class CallsTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_entity
   end
 
+  test "an abandoned quick meeting ends but a joined meeting remains active" do
+    login(@caller)
+    post "/api/meet", params: { call_type: "video" }
+    assert_response :created
+    call = CallSession.unscoped.find(JSON.parse(response.body).fetch("call_session").fetch("id"))
+    assert_not call.call_participants.where(status: "joined").exists?
+    EmptyMeetingTimeoutJob.perform_now(call.id)
+    assert_equal "ended", call.reload.status
+
+    post "/api/meet", params: { call_type: "video" }
+    call = CallSession.unscoped.find(JSON.parse(response.body).fetch("call_session").fetch("id"))
+    post "/api/meet/#{call.public_id}/join"
+    assert_response :success
+    EmptyMeetingTimeoutJob.perform_now(call.id)
+    assert_equal "active", call.reload.status
+    post "/api/calls/#{call.id}/leave"
+    assert_response :success
+    assert_equal "ended", call.reload.status
+  end
+
   test "only conversation participants can create calls" do
     login(@outsider)
 

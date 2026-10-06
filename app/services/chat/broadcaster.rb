@@ -65,6 +65,13 @@ module Chat
         end
       end
 
+      def broadcast_profile_updated(user)
+        payload = { type: 'user_profile_updated', user_id: user.id, user_name: user.full_name,
+          user_profile_picture: user.profile_picture.attached? ? Rails.application.routes.url_helpers.rails_blob_path(user.profile_picture, only_path: true) : nil }
+        user.workspace.users.pluck(:id).each { |id| broadcast(user_stream(user.workspace_id, id), payload) }
+        user.conversations.each { |conversation| broadcast_conversation_refresh(conversation) }
+      end
+
       def broadcast_conversation_hidden(conversation, user_id)
         broadcast(user_stream(conversation.workspace_id, user_id), {
           type: "conversation_hidden",
@@ -203,7 +210,7 @@ module Chat
       end
 
       def serialize_message(message)
-        {
+        message.chat_context.merge({
           id: message.id,
           client_id: message.client_id,
           body: message.body,
@@ -223,7 +230,7 @@ module Chat
           end,
           reactions: message.reaction_counts,
           reacted_emojis: []
-        }
+        })
       end
 
       def serialize_call(call_session, current_user: nil)

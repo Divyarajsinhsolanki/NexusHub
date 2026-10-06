@@ -98,6 +98,10 @@ async function update<T>(path: string, body: unknown) {
 }
 
 export const endpoints = {
+  async presence() {
+    const response = await api.post('/users/presence');
+    return unwrapData(response.data);
+  },
   async config() {
     const response = await api.get<ApiEnvelope<MobileConfig>>('/mobile_config');
     return unwrapData(response.data);

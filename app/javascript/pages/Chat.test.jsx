@@ -22,6 +22,7 @@ const apiMocks = vi.hoisted(() => ({
 
 const cableMocks = vi.hoisted(() => ({
   conversationCallback: null,
+  userCallback: null,
   statusCallback: null,
   sendToConversation: vi.fn(),
 }));
@@ -88,7 +89,7 @@ vi.mock("../lib/chatCable", () => ({
     return { unsubscribe: vi.fn() };
   }),
   subscribeToPresence: vi.fn(() => ({ unsubscribe: vi.fn() })),
-  subscribeToUserChat: vi.fn(() => ({ unsubscribe: vi.fn() })),
+  subscribeToUserChat: vi.fn((callback) => { cableMocks.userCallback = callback; return { unsubscribe: vi.fn() }; }),
 }));
 
 vi.mock("../context/AuthContext", async () => {
@@ -212,6 +213,13 @@ describe("mobile chat performance behavior", () => {
     expect(apiMocks.fetchConversationMessages).not.toHaveBeenCalled();
   });
 
+  it("renders messages from the user stream when the thread subscription misses them", async () => {
+    renderChat();
+    await screen.findByText("Initial message");
+    await act(async () => cableMocks.userCallback({ type: "message_created", conversation_id: 1, message: { id: 12, user_id: 2, user_name: "Anita Rao", body: "User stream message", created_at: "2026-08-12T08:02:00Z", reactions: {}, reacted_emojis: [] } }));
+    expect(within(screen.getByLabelText("Conversation messages")).getByText("User stream message")).toBeTruthy();
+  });
+
   it("loads add-member candidates only when group management opens", async () => {
     const newcomer = { id: 3, first_name: "Mira", last_name: "Shah", email: "mira@example.com", job_title: "Product Designer" };
     const updatedGroup = { ...groupConversation, participants: [...groupConversation.participants, { id: 3, name: "Mira Shah", is_creator: false }] };
@@ -239,6 +247,38 @@ describe("mobile chat performance behavior", () => {
 
 
 describe("chat composer and keyboard controls", () => {
+  it("quotes a selected message and sends its reply target", async () => {
+    apiMocks.sendMessage.mockResolvedValue({ data: { id: 99, user_id: 1, user_name: 'Current User', body: 'Quoted reply', created_at: '2026-10-06T08:00:00Z', reply_to: { ...conversation.messages[0] } } });
+    renderChat();
+    fireEvent.click(await screen.findByRole('button', { name: 'Reply to Anita Rao' }));
+    expect(screen.getByRole('button', { name: 'Cancel reply' })).toBeTruthy();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Message' }), { target: { value: 'Quoted reply' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+    await waitFor(() => expect(apiMocks.sendMessage).toHaveBeenCalled());
+    expect(apiMocks.sendMessage.mock.calls[0][1].get('message[reply_to_id]')).toBe('10');
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Cancel reply' })).toBeNull());
+    const bubble = screen.getAllByText('Quoted reply').map((element) => element.closest('.nx-chat-message-bubble')).find(Boolean);
+    expect(bubble.querySelector('time')).toBeTruthy();
+  });
+
+  it("inserts composer emojis and updates message authors after a profile event", async () => {
+    renderChat();
+    const composer = await screen.findByRole('textbox', { name: 'Message' });
+    fireEvent.click(screen.getByRole('button', { name: 'Choose emoji' }));
+    const option = within(screen.getByRole('dialog', { name: 'Emoji picker' })).getAllByRole('button')[0];
+    const emoji = option.textContent;
+    fireEvent.click(option);
+    expect(composer.value).toContain(emoji);
+    await act(async () => cableMocks.userCallback({ type: 'user_profile_updated', user_id: 2, user_name: 'Anita Updated', user_profile_picture: '/new-avatar.png' }));
+    expect(await screen.findByRole('button', { name: 'Reply to Anita Updated' })).toBeTruthy();
+  });
+
+  it("renders membership logs separately from message bubbles", async () => {
+    apiMocks.fetchConversation.mockResolvedValue({ data: { ...conversation, messages: [{ ...conversation.messages[0], message_type: 'system', body: 'Current User added Anita Rao' }] } });
+    renderChat();
+    expect((await screen.findByRole('note')).textContent).toContain('Current User added Anita Rao');
+    expect(screen.queryByRole('button', { name: 'Reply to Anita Rao' })).toBeNull();
+  });
   it("keeps the draft visible when sending fails and allows retry", async () => {
     const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
     apiMocks.sendMessage.mockRejectedValueOnce(new Error("Offline"));

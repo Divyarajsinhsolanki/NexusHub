@@ -4,8 +4,7 @@ import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { firebaseEnabled } from "../firebaseFlags";
 import { toast } from "react-hot-toast";
 import { FiArrowRight, FiEye, FiEyeOff, FiLock } from "react-icons/fi";
-import logo from "../images/logo.webp";
-import WorkspaceOrb from "../components/landing/WorkspaceOrb";
+import AuthLayout from "../components/ui/AuthLayout";
 import { safeReturnPath } from "../utils/safeReturnPath";
 
 const Login = ({ switchToSignup }) => {
@@ -51,15 +50,7 @@ const Login = ({ switchToSignup }) => {
   }, [searchParams]);
 
   return (
-    <div className="w-full px-4 py-6 sm:px-8 lg:px-10">
-      <div className="mx-auto grid w-full max-w-6xl items-center gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(340px,0.85fr)] lg:gap-12">
-        <div className="auth-orb-panel hidden min-w-0 lg:block">
-          <WorkspaceOrb />
-        </div>
-
-        <div className="flex justify-center lg:justify-end">
-          <div className="auth-login-card w-full max-w-md rounded-2xl border border-shell-border bg-surface-elevated p-6 sm:p-9">
-            <div className="mb-7 flex items-center gap-3"><img src={logo} alt="" className="h-10 w-10 rounded-xl object-contain" /><span className="text-lg font-bold text-shell-text-strong">NexusHub</span></div>
+    <AuthLayout>
             <h2 className="mb-1 text-3xl font-bold text-shell-text-strong">Welcome back</h2>
             <p className="mb-7 text-sm text-shell-muted">Sign in to continue where you left off.</p>
 
@@ -188,10 +179,7 @@ const Login = ({ switchToSignup }) => {
                 Sign Up
               </button>
             </p>
-          </div>
-        </div>
-      </div>
-    </div>
+    </AuthLayout>
   );
   
 };

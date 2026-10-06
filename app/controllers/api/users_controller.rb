@@ -54,6 +54,7 @@ class Api::UsersController < Api::BaseController
 
     if @user.update(user_params)
       assign_roles!(@user, role_names) if role_names
+      Chat::Broadcaster.broadcast_profile_updated(@user)
       render json: serialize_user(@user)
     else
       render json: { errors: @user.errors.full_messages }, status: :unprocessable_entity
@@ -72,6 +73,7 @@ class Api::UsersController < Api::BaseController
     online = current_user.last_seen_at.present? && current_user.last_seen_at >= ONLINE_WINDOW.ago
 
     ActionCable.server.broadcast("workspace_#{current_user.workspace_id}:presence", {
+      type: "presence",
       user_id: current_user.id,
       last_seen_at: current_user.last_seen_at,
       online: online
@@ -84,6 +86,7 @@ class Api::UsersController < Api::BaseController
   def update_profile
     @user = current_user
     if @user.update(user_params)
+      Chat::Broadcaster.broadcast_profile_updated(@user)
       render json: serialize_user(@user)
     else
       render json: { errors: @user.errors.full_messages }, status: :unprocessable_entity

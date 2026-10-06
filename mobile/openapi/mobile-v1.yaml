@@ -708,6 +708,7 @@ paths:
                   properties:
                     body: { type: string, maxLength: 4000 }
                     client_id: { type: string, maxLength: 100 }
+                    reply_to_id: { type: [integer, 'null'], description: A regular message in the same conversation. }
       responses:
         "201": { $ref: "#/components/responses/GenericSuccess" }
   /conversations/{id}/receipt:

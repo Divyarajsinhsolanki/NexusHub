@@ -9,6 +9,7 @@ import Login from "./Login";
 vi.mock("../context/AuthContext", () => ({ AuthContext: React.createContext({}) }));
 vi.mock("../firebaseFlags", () => ({ firebaseEnabled: false }));
 vi.mock("../components/landing/WorkspaceOrb", () => ({ default: () => null }));
+vi.mock("../components/ui/AuthWorkspaceScene", () => ({ default: () => <div>Workspace scene</div> }));
 afterEach(cleanup);
 const setup = (handleLogin) => render(
   <MemoryRouter initialEntries={["/login?return_to=%2Fprojects"]}>

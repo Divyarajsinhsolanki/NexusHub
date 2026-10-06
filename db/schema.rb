@@ -434,12 +434,15 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_19_000000) do
     t.string "client_id"
     t.bigint "conversation_id", null: false
     t.datetime "created_at", null: false
+    t.string "message_type", default: "message", null: false
+    t.bigint "reply_to_id"
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.bigint "workspace_id", null: false
     t.index ["conversation_id", "created_at"], name: "index_messages_on_conversation_id_and_created_at"
     t.index ["conversation_id", "user_id", "client_id"], name: "idx_messages_conversation_user_client", unique: true, where: "(client_id IS NOT NULL)"
     t.index ["conversation_id"], name: "index_messages_on_conversation_id"
+    t.index ["reply_to_id"], name: "index_messages_on_reply_to_id"
     t.index ["user_id"], name: "index_messages_on_user_id"
     t.index ["workspace_id", "conversation_id", "id"], name: "idx_messages_workspace_conversation_cursor"
     t.index ["workspace_id"], name: "index_messages_on_workspace_id"
@@ -1172,6 +1175,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_19_000000) do
   add_foreign_key "message_reactions", "users"
   add_foreign_key "message_reactions", "workspaces"
   add_foreign_key "messages", "conversations"
+  add_foreign_key "messages", "messages", column: "reply_to_id", on_delete: :nullify
   add_foreign_key "messages", "users"
   add_foreign_key "messages", "workspaces"
   add_foreign_key "mobile_devices", "users"

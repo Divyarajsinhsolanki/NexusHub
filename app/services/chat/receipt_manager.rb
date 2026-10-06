@@ -37,6 +37,11 @@ module Chat
         end
       end
 
+      if normalized_state == "read"
+        user.notifications.unread.where(notifiable_type: "Message", notifiable_id: conversation.messages.where("id <= ?", membership.last_read_message_id).select(:id))
+          .update_all(read_at: now, updated_at: now)
+      end
+
       Chat::Broadcaster.broadcast_message_receipt_updated(conversation, membership) if changed
       membership
     end

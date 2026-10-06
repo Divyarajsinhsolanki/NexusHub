@@ -2,7 +2,7 @@
   "expo": {
     "name": "Nexus Hub",
     "slug": "nexushub",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "nexushub",
@@ -17,6 +17,7 @@
       }
     },
     "android": {
+      "softwareKeyboardLayoutMode": "resize",
       "package": "com.nexushub.mobile",
       "permissions": [
         "CAMERA",
@@ -48,6 +49,7 @@
       ],
       "expo-secure-store",
       "expo-image",
+      "expo-video",
       "expo-sharing",
       [
         "expo-notifications",

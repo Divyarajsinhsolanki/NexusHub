@@ -13,6 +13,7 @@ jest.mock('../api/endpoints', () => {
   return { endpoints: { realtimeToken: jestGlobals.fn() } };
 });
 jest.mock('../auth/AuthProvider', () => ({ useAuth: () => ({ user: null }) }));
+jest.mock('@sentry/react-native', () => ({ captureException: jest.fn(), captureMessage: jest.fn() }));
 
 afterEach(() => { jest.clearAllMocks(); jest.useRealTimers(); });
 

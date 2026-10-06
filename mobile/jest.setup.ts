@@ -55,3 +55,7 @@ jest.mock('lucide-react-native', () => {
     },
   );
 });
+jest.mock('expo-video', () => ({
+  VideoView: require('react-native').View,
+  useVideoPlayer: () => ({ status: 'readyToPlay', play: jest.fn(), pause: jest.fn() }),
+}));

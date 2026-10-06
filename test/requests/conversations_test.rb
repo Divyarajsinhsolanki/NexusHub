@@ -154,6 +154,10 @@ class ConversationsTest < ActionDispatch::IntegrationTest
     assert_equal true, payload.fetch("can_manage_members")
     assert_equal [@creator.id, @participant.id, newcomer.id].sort, payload.fetch("participants").pluck("id").sort
     assert_equal true, payload.fetch("participants").find { |participant| participant.fetch("id") == @creator.id }.fetch("is_creator")
+    log = group.messages.order(:id).last
+    assert_equal 'system', log.message_type
+    assert_includes log.body, "added #{newcomer.full_name}"
+    assert_equal 0, Notification.where(notifiable: log).count
   end
 
   test "regular group members cannot rename or add people" do
@@ -193,6 +197,7 @@ class ConversationsTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_not group.reload.participant_ids.include?(@participant.id)
+    assert_includes group.messages.order(:id).last.body, "removed #{@participant.full_name}"
     removed_call_participant = call_session.call_participants.find_by!(user: @participant)
     assert_equal "left", removed_call_participant.reload.status
     assert removed_call_participant.left_at.present?

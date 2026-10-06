@@ -3376,6 +3376,8 @@ export interface operations {
                     message: {
                         body: string;
                         client_id?: string;
+                        /** @description A regular message in the same conversation. */
+                        reply_to_id?: number | null;
                     };
                 };
             };

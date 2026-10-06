@@ -40,16 +40,18 @@ export function normalizedMessageRows(pages: readonly MessagePage[] | null | und
       const safeReactedEmojis = value.reacted_emojis === undefined || (
         Array.isArray(value.reacted_emojis) && value.reacted_emojis.every((emoji) => typeof emoji === 'string')
       );
+      const safeReply = value.reply_to == null || (isRecord(value.reply_to) && Number.isSafeInteger(value.reply_to.id) && typeof value.reply_to.body === 'string' && typeof value.reply_to.user_name === 'string' && typeof value.reply_to.user_id === 'number');
 
       // Preserve trusted message object identity. FlatList can then keep
       // unchanged memoized bubbles mounted when one realtime row is appended.
-      if (safeId && safeCreatedAt && safeBody && safeSender && safeAttachments && safeReactions && safeReactedEmojis) {
+      if (safeId && safeCreatedAt && safeBody && safeSender && safeAttachments && safeReactions && safeReactedEmojis && safeReply) {
         rows.push(value as Message);
       } else {
         rows.push({
           ...(value as Message),
           id,
           body,
+          reply_to: safeReply ? value.reply_to as Message['reply_to'] : null,
           user_name: typeof value.user_name === 'string' ? value.user_name : 'Teammate',
           user_id: Number.isFinite(Number(value.user_id)) ? Number(value.user_id) : undefined,
           created_at: safeCreatedAt ? value.created_at as string : new Date(0).toISOString(),
