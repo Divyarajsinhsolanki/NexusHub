@@ -30,6 +30,7 @@ const ChatLauncher = () => {
   const [isCallConnecting, setIsCallConnecting] = useState(false);
   const [callError, setCallError] = useState("");
   const isChatRoute = location.pathname.startsWith("/chat");
+  const isPdfEditorRoute = location.pathname.startsWith("/pdf-master");
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -225,7 +226,7 @@ const ChatLauncher = () => {
         </Suspense>
       )}
 
-      {!isChatRoute && (
+      {!isChatRoute && !isPdfEditorRoute && (
         <Link to="/chat" className="fixed bottom-6 right-6 z-40 inline-flex items-center gap-2 rounded-full bg-theme px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-theme/25 hover:bg-theme/90">
           <MessageCircle size={18} />
           Chat

@@ -25,6 +25,7 @@ class PdfDocument < ApplicationRecord
            dependent: :destroy,
            inverse_of: :pdf_document
   has_one_attached :thumbnail
+  has_many :edit_layers, class_name: "PdfDocumentEditLayer", dependent: :destroy
 
   validates :title, :original_filename, presence: true
   validates :title, length: { maximum: 160 }
@@ -61,9 +62,7 @@ class PdfDocument < ApplicationRecord
   end
 
   def storage_bytes
-    return versions.sum { |version| version.byte_size.to_i } if versions.loaded?
-
-    versions.sum(:byte_size)
+    self.class.storage_blob_scope(edit_layers.select(:id), versions.select(:id), operation_ids: operations.select(:id)).sum(:byte_size)
   end
 
   def self.document_limit_for(user)
@@ -75,11 +74,14 @@ class PdfDocument < ApplicationRecord
   end
 
   def self.storage_bytes_for(user)
-    PdfDocumentVersion
+    documents = PdfDocument.unscoped.where(user_id: user.id)
+    versions = PdfDocumentVersion
       .unscoped
       .joins(:pdf_document)
       .where(pdf_documents: { user_id: user.id })
-      .sum(:byte_size)
+    layers = PdfDocumentEditLayer.unscoped.where(pdf_document_id: documents.select(:id))
+    operations = PdfDocumentOperation.unscoped.where(user_id: user.id)
+    storage_blob_scope(layers.select(:id), versions.select(:id), operation_ids: operations.select(:id)).sum(:byte_size)
   end
 
   def self.document_count_for_workspace(workspace)
@@ -91,6 +93,18 @@ class PdfDocument < ApplicationRecord
   def self.storage_bytes_for_workspace(workspace)
     return 0 unless workspace
 
-    PdfDocumentVersion.unscoped.where(workspace_id: workspace.id).sum(:byte_size)
+    versions = PdfDocumentVersion.unscoped.where(workspace_id: workspace.id)
+    layers = PdfDocumentEditLayer.unscoped.where(workspace_id: workspace.id)
+    operations = PdfDocumentOperation.unscoped.where(workspace_id: workspace.id)
+    storage_blob_scope(layers.select(:id), versions.select(:id), operation_ids: operations.select(:id)).sum(:byte_size)
+  end
+
+  def self.storage_blob_scope(layer_ids, version_ids, operation_ids: nil)
+    attachments = ActiveStorage::Attachment.where(record_type: "PdfDocumentVersion", record_id: version_ids, name: "file")
+      .or(ActiveStorage::Attachment.where(record_type: "PdfDocumentEditLayer", record_id: layer_ids))
+    if operation_ids
+      attachments = attachments.or(ActiveStorage::Attachment.where(record_type: "PdfDocumentOperation", record_id: operation_ids, name: "source_files"))
+    end
+    ActiveStorage::Blob.where(id: attachments.select(:blob_id))
   end
 end

@@ -17,32 +17,22 @@ module PdfDocuments
     MAX_TEXT_EXTRACTION_PAGES = 500
     MAX_IMAGE_EXPORT_PAGES = 100
     MAX_ARTIFACT_BYTES = 100.megabytes
-    ANNOTATION_TYPES = %w[text watermark highlight rectangle arrow pen].freeze
     REDACTION_MODES = %w[black blank strike replace].freeze
 
-    def initialize(document:, user:)
+    def initialize(document:, user:, source_version: nil, operation_record: nil)
       @document = document
       @user = user
+      @source_version = source_version || document.current_version
+      @operation_record = operation_record
     end
 
-    def edit!(kind:, parameters:, base_version_id:, asset: nil)
-      raise ArgumentError, "Unlock this PDF before editing it." if @document.encrypted? && kind.to_s != "unlock"
-
-      with_source do |source_path|
-        with_output do |output_path|
-          dispatch_edit(kind.to_s, source_path, output_path, parameters.deep_symbolize_keys, asset)
-          Manager.append_version!(
-            document: @document,
-            created_by: @user,
-            path: output_path,
-            operation: kind,
-            base_version_id:
-          )
-        end
-      end
+    def edit!(kind:, parameters:, base_version_id:, asset: nil, assets: {})
+      LayerPipeline.new(document: @document, user: @user, version: @source_version, operation: @operation_record)
+        .edit!(kind: kind.to_s, parameters:, base_version_id:, asset:, assets:)
     end
 
     def protect!(password:, base_version_id:)
+      raise ArgumentError, "Unlock this PDF before protecting it again." if @source_version.encrypted?
       validate_password!(password)
       with_source do |source_path|
         with_output do |output_path|
@@ -55,6 +45,8 @@ module PdfDocuments
             created_by: @user,
             path: output_path,
             operation: "protect",
+            edit_state: LayerPipeline.state_for(@source_version),
+            operation_record: @operation_record,
             base_version_id:
           )
         end
@@ -72,6 +64,8 @@ module PdfDocuments
             created_by: @user,
             path: output_path,
             operation: "unlock",
+            edit_state: LayerPipeline.state_for(@source_version),
+            operation_record: @operation_record,
             base_version_id:
           )
         end
@@ -81,22 +75,13 @@ module PdfDocuments
     end
 
     def compress!(base_version_id:)
-      with_source do |source_path|
-        with_output do |output_path|
-          PdfMaster::Modify.compress_pdf(source_path, output_path)
-          Manager.append_version!(
-            document: @document,
-            created_by: @user,
-            path: output_path,
-            operation: "compress",
-            base_version_id:
-          )
-        end
-      end
+      LayerPipeline.new(document: @document, user: @user, version: @source_version, operation: @operation_record)
+        .compress!(base_version_id:)
     end
 
     def extract_text!
-      validate_page_count!(@document.page_count, MAX_TEXT_EXTRACTION_PAGES, "Text extraction")
+      raise ArgumentError, "Unlock this PDF before exporting it." if @source_version&.encrypted?
+      validate_page_count!(@source_version&.page_count || @document.page_count, MAX_TEXT_EXTRACTION_PAGES, "Text extraction")
 
       with_source do |source_path|
         create_artifact!(
@@ -113,13 +98,14 @@ module PdfDocuments
     end
 
     def export_images!
-      validate_page_count!(@document.page_count, MAX_IMAGE_EXPORT_PAGES, "Image export")
+      raise ArgumentError, "Unlock this PDF before exporting it." if @source_version&.encrypted?
+      validate_page_count!(@source_version&.page_count || @document.page_count, MAX_IMAGE_EXPORT_PAGES, "Image export")
 
       with_source do |source_path|
         Dir.mktmpdir("pdf-images") do |directory|
           prefix = File.join(directory, "page")
           _stdout, stderr, status = run_command(
-            ["pdftoppm", "-png", "-r", "144", source_path, prefix],
+            ["pdftoppm", "-cropbox", "-png", "-r", "144", source_path, prefix],
             timeout: 120
           )
           raise ArgumentError, "Image export failed." unless status.success?
@@ -154,336 +140,17 @@ module PdfDocuments
     end
 
     def redact!(regions:, base_version_id:)
-      regions = Array(regions)
-      raise ArgumentError, "Too many redaction areas." if regions.length > MAX_REDACTIONS
-
-      grouped = regions.group_by { |region| Integer(region["page_number"] || region[:page_number]) }
-      raise ArgumentError, "Draw at least one redaction area." if grouped.empty?
-
-      with_source do |source_path|
-        grouped.each_key { |page_number| page_dimensions(source_path, page_number) }
-        with_output do |output_path|
-          source_pdf = CombinePDF.load(source_path)
-          rebuilt = CombinePDF.new
-
-          source_pdf.pages.each_with_index do |page, index|
-            page_number = index + 1
-            if grouped.key?(page_number)
-              rebuilt << rasterized_redacted_page(source_path, page_number, grouped[page_number])
-            else
-              rebuilt << page
-            end
-          end
-          rebuilt.save(output_path)
-          Manager.append_version!(
-            document: @document,
-            created_by: @user,
-            path: output_path,
-            operation: "redact",
-            base_version_id:
-          )
-        end
-      end
+      LayerPipeline.new(document: @document, user: @user, version: @source_version, operation: @operation_record)
+        .redact!(regions:, base_version_id:, processor: self)
     end
 
     private
-
-    def dispatch_edit(kind, source_path, output_path, params, asset)
-      FileUtils.cp(source_path, output_path)
-
-      case kind
-      when "reorder_pages"
-        PdfMaster::Modify.reorder_pages(source_path, params.fetch(:page_order), output_path)
-      when "delete_pages"
-        pages = page_numbers!(params.fetch(:page_numbers))
-        raise ArgumentError, "A PDF must keep at least one page." if pages.length >= @document.page_count
-
-        PdfMaster::Modify.delete_pages(source_path, pages, output_path)
-      when "rotate_pages"
-        pages = page_numbers!(params.fetch(:page_numbers))
-        degrees = Integer(params.fetch(:degrees))
-        raise ArgumentError, "Rotation must be a multiple of 90 degrees." unless (degrees % 90).zero?
-
-        PdfMaster::Modify.rotate_pages(source_path, pages, degrees, output_path)
-      when "duplicate_pages"
-        pages = page_numbers!(params.fetch(:page_numbers))
-        raise ArgumentError, "The result would contain too many pages." if @document.page_count + pages.length > MAX_PAGES
-
-        PdfMaster::Modify.duplicate_pages(output_path, *pages)
-      when "add_blank_page"
-        raise ArgumentError, "The result would contain too many pages." if @document.page_count >= MAX_PAGES
-
-        PdfMaster::Modify.add_blank_page_like(source_path, Integer(params.fetch(:position)),
-                                              params[:reference_page_number], output_path)
-      when "crop"
-        crop_page!(output_path, params)
-      when "annotations"
-        add_annotations!(source_path, output_path, mapped_shapes(source_path, params.fetch(:shapes)))
-      when "image"
-        add_image!(source_path, output_path, params, asset)
-      else
-        raise ArgumentError, "Unsupported PDF operation."
-      end
-    end
-
-    def crop_page!(path, params)
-      page_number = Integer(params.fetch(:page_number))
-      dimensions = page_dimensions(path, page_number)
-      validate_rectangle!(params, display_dimensions(dimensions), label: "Crop")
-      mapped = CoordinateMapper.new(**dimensions).rectangle(
-        x: params.fetch(:x), y: params.fetch(:y),
-        width: params.fetch(:width), height: params.fetch(:height)
-      )
-      raise ArgumentError, "Crop area is too small." if mapped[:width] < 10 || mapped[:height] < 10
-
-      PdfMaster::Modify.crop_page(path, page_number, mapped[:x], mapped[:bottom],
-                                  mapped[:width], mapped[:height])
-    end
-
-    def mapped_shapes(path, shapes)
-      shapes = Array(shapes)
-      raise ArgumentError, "Add at least one annotation." if shapes.empty?
-      raise ArgumentError, "Too many annotations." if shapes.length > MAX_SHAPES
-      total_points = shapes.sum { |shape| Array(shape["points"] || shape[:points]).length }
-      raise ArgumentError, "Pen drawing contains too many points." if total_points > MAX_PEN_POINTS
-
-      shapes.group_by { |shape| Integer(shape["page_number"] || shape[:page_number]) }.transform_values do |page_shapes|
-        page_number = Integer(page_shapes.first["page_number"] || page_shapes.first[:page_number])
-        dimensions = page_dimensions(path, page_number)
-        display = display_dimensions(dimensions)
-        mapper = CoordinateMapper.new(**dimensions)
-
-        page_shapes.map do |raw|
-          shape = raw.deep_symbolize_keys
-          validate_annotation!(shape, display)
-          case shape[:type].to_s
-          when "pen"
-            shape.merge(points: Array(shape[:points]).map do |point|
-              x, y = mapper.point(point[:x], point[:y])
-              { x:, y: }
-            end)
-          when "arrow"
-            x, y = mapper.point(shape[:x], shape[:y])
-            x2, y2 = mapper.point(shape[:x2], shape[:y2])
-            shape.merge(x:, y:, x2:, y2:)
-          else
-            rectangle = mapper.rectangle(x: shape[:x], y: shape[:y],
-                                         width: shape[:width], height: shape[:height])
-            shape.merge(x: rectangle[:x], y: rectangle[:y],
-                        width: rectangle[:width], height: rectangle[:height])
-          end
-        end
-      end
-    end
-
-    def add_annotations!(source_path, output_path, shapes_by_page)
-      source_pdf = CombinePDF.load(source_path)
-
-      Dir.mktmpdir("pdf-annotations") do |directory|
-        shapes_by_page.each do |page_number, shapes|
-          target_page = source_pdf.pages[page_number - 1]
-          raise ArgumentError, "Invalid page number." unless target_page
-
-          width = target_page.mediabox[2] - target_page.mediabox[0]
-          height = target_page.mediabox[3] - target_page.mediabox[1]
-          overlay_path = File.join(directory, "page-#{page_number}.pdf")
-
-          Prawn::Document.generate(overlay_path, page_size: [width, height], margin: 0) do |pdf|
-            shapes.each { |shape| draw_annotation_shape(pdf, shape) }
-          end
-
-          target_page << CombinePDF.load(overlay_path).pages.first
-        end
-
-        source_pdf.save(output_path)
-      end
-    end
-
-    def draw_annotation_shape(pdf, shape)
-      case shape[:type].to_s
-      when "text"
-        draw_annotation_text(pdf, shape, opacity: annotation_opacity(shape, default: 1.0))
-      when "watermark"
-        draw_annotation_text(pdf, shape, opacity: annotation_opacity(shape, default: 0.25))
-      when "highlight"
-        draw_annotation_rectangle(pdf, shape, fill: annotation_color(shape[:fill_color], "FDE047"),
-                                              opacity: annotation_opacity(shape, default: 0.35),
-                                              stroke: false)
-      when "rectangle"
-        draw_annotation_rectangle(pdf, shape, fill: optional_annotation_color(shape[:fill_color]),
-                                              opacity: annotation_opacity(shape, default: 1.0),
-                                              stroke: true)
-      when "arrow"
-        draw_annotation_arrow(pdf, shape)
-      when "pen"
-        draw_annotation_pen(pdf, shape)
-      end
-    end
-
-    def draw_annotation_text(pdf, shape, opacity:)
-      pdf.save_graphics_state do
-        pdf.fill_color(annotation_color(shape[:color], "111827"))
-        pdf.font("Helvetica", style: :bold)
-        pdf.transparent(opacity) do
-          pdf.text_box(
-            shape[:text].to_s,
-            at: [shape[:x].to_f + 4, shape[:y].to_f - 4],
-            width: [shape[:width].to_f - 8, 1].max,
-            height: [shape[:height].to_f, 1].max,
-            size: annotation_size(shape[:font_size], default: 18, min: 8, max: 96),
-            overflow: :shrink_to_fit
-          )
-        end
-      end
-    end
-
-    def draw_annotation_rectangle(pdf, shape, fill:, opacity:, stroke:)
-      pdf.save_graphics_state do
-        pdf.line_width(annotation_size(shape[:stroke_width], default: 3, min: 0.5, max: 24))
-        pdf.stroke_color(annotation_color(shape[:color], "DC2626"))
-        pdf.fill_color(fill) if fill
-
-        pdf.transparent(opacity) do
-          if fill && stroke
-            pdf.fill_and_stroke_rectangle([shape[:x].to_f, shape[:y].to_f],
-                                          shape[:width].to_f, shape[:height].to_f)
-          elsif fill
-            pdf.fill_rectangle([shape[:x].to_f, shape[:y].to_f],
-                               shape[:width].to_f, shape[:height].to_f)
-          else
-            pdf.stroke_rectangle([shape[:x].to_f, shape[:y].to_f],
-                                 shape[:width].to_f, shape[:height].to_f)
-          end
-        end
-      end
-    end
-
-    def draw_annotation_arrow(pdf, shape)
-      x1 = shape[:x].to_f
-      y1 = shape[:y].to_f
-      x2 = shape[:x2].to_f
-      y2 = shape[:y2].to_f
-      angle = Math.atan2(y2 - y1, x2 - x1)
-      head_size = [annotation_size(shape[:stroke_width], default: 3, min: 0.5, max: 24) * 4, 10].max
-      head = [
-        [x2, y2],
-        [x2 - head_size * Math.cos(angle - Math::PI / 6), y2 - head_size * Math.sin(angle - Math::PI / 6)],
-        [x2 - head_size * Math.cos(angle + Math::PI / 6), y2 - head_size * Math.sin(angle + Math::PI / 6)]
-      ]
-
-      pdf.save_graphics_state do
-        pdf.stroke_color(annotation_color(shape[:color], "DC2626"))
-        pdf.fill_color(annotation_color(shape[:color], "DC2626"))
-        pdf.line_width(annotation_size(shape[:stroke_width], default: 3, min: 0.5, max: 24))
-        pdf.cap_style(:round)
-        pdf.stroke_line([x1, y1], [x2, y2])
-        pdf.fill_polygon(*head)
-      end
-    end
-
-    def draw_annotation_pen(pdf, shape)
-      points = Array(shape[:points]).map { |point| [point[:x].to_f, point[:y].to_f] }
-      return if points.length < 2
-
-      pdf.save_graphics_state do
-        pdf.stroke_color(annotation_color(shape[:color], "DC2626"))
-        pdf.line_width(annotation_size(shape[:stroke_width], default: 3, min: 0.5, max: 24))
-        pdf.cap_style(:round)
-        pdf.join_style(:round)
-        pdf.stroke do
-          pdf.move_to(points.first)
-          points.drop(1).each { |point| pdf.line_to(point) }
-        end
-      end
-    end
-
-    def annotation_color(color, fallback)
-      optional_annotation_color(color) || fallback
-    end
-
-    def optional_annotation_color(color)
-      return if color.blank?
-
-      color.to_s.delete_prefix("#").upcase
-    end
-
-    def annotation_opacity(shape, default:)
-      value = Float(shape[:opacity].presence || default)
-      value.finite? ? value.clamp(0.0, 1.0) : default
-    rescue TypeError, ArgumentError
-      default
-    end
-
-    def annotation_size(value, default:, min:, max:)
-      size = Float(value.presence || default)
-      size.finite? ? size.clamp(min, max) : default
-    rescue TypeError, ArgumentError
-      default
-    end
-
-    def add_image!(source_path, output_path, params, asset)
-      raise ArgumentError, "Choose a PNG or JPG image." unless asset.respond_to?(:path)
-      raise ArgumentError, "Image must be 10MB or smaller." if asset.size.to_i > 10.megabytes
-      unless %w[image/png image/jpeg].include?(asset.content_type.to_s)
-        raise ArgumentError, "Image must be a PNG or JPG."
-      end
-
-      image = MiniMagick::Image.open(asset.path)
-      unless image.width.to_i.between?(8, 4000) && image.height.to_i.between?(8, 4000)
-        raise ArgumentError, "Image dimensions must be between 8px and 4000px."
-      end
-
-      page_number = Integer(params.fetch(:page_number))
-      dimensions = page_dimensions(source_path, page_number)
-      validate_rectangle!(params, display_dimensions(dimensions), label: "Image")
-      mapped = CoordinateMapper.new(**dimensions).rectangle(
-        x: params.fetch(:x), y: params.fetch(:y),
-        width: params.fetch(:width), height: params.fetch(:height)
-      )
-      add_image_overlay!(source_path, output_path, asset.path, page_number, mapped)
-    end
-
-    def add_image_overlay!(source_path, output_path, image_path, page_number, rectangle)
-      source_pdf = CombinePDF.load(source_path)
-      target_page = source_pdf.pages[page_number - 1]
-      raise ArgumentError, "Invalid page number." unless target_page
-
-      width = target_page.mediabox[2] - target_page.mediabox[0]
-      height = target_page.mediabox[3] - target_page.mediabox[1]
-
-      Dir.mktmpdir("pdf-image") do |directory|
-        overlay_path = File.join(directory, "page-#{page_number}.pdf")
-        Prawn::Document.generate(overlay_path, page_size: [width, height], margin: 0) do |pdf|
-          pdf.image(
-            image_path,
-            at: [rectangle[:x].to_f, rectangle[:y].to_f],
-            fit: [rectangle[:width].to_f, rectangle[:height].to_f]
-          )
-        end
-
-        target_page << CombinePDF.load(overlay_path).pages.first
-        source_pdf.save(output_path)
-      end
-    end
-
-    def page_dimensions(path, page_number)
-      HexaPDF::Document.open(path) do |document|
-        unless page_number.to_i.between?(1, document.pages.count)
-          raise ArgumentError, "Invalid page number."
-        end
-
-        page = document.pages[page_number - 1]
-
-        box = page.box(:media)
-        { width: box.width, height: box.height, rotation: (page[:Rotate] || 0) }
-      end
-    end
 
     def rasterized_redacted_page(source_path, page_number, regions)
       Dir.mktmpdir("pdf-redaction") do |directory|
         prefix = File.join(directory, "page")
         _stdout, stderr, status = run_command(
-          ["pdftoppm", "-f", page_number.to_s, "-l", page_number.to_s, "-singlefile",
+          ["pdftoppm", "-cropbox", "-f", page_number.to_s, "-l", page_number.to_s, "-singlefile",
            "-png", "-r", "200", source_path, prefix],
           timeout: 120
         )
@@ -491,11 +158,8 @@ module PdfDocuments
 
         image_path = "#{prefix}.png"
         image = MiniMagick::Image.open(image_path)
-        scale = 200.0 / 72.0
-        page_dimensions = {
-          width: image.width * 72.0 / 200.0,
-          height: image.height * 72.0 / 200.0
-        }
+        page_dimensions = PageGeometry.for_page(HexaPDF::Document.open(source_path).pages[page_number - 1]).display_size
+        scale_x, scale_y = image.width / page_dimensions[:width], image.height / page_dimensions[:height]
         normalized_regions = regions.map do |region|
           validate_rectangle!(region, page_dimensions, label: "Redaction")
           mode = (region["redaction_mode"] || region[:redaction_mode] || "black").to_s
@@ -507,6 +171,7 @@ module PdfDocuments
             if replacement_text.length > MAX_REPLACEMENT_TEXT_LENGTH
               raise ArgumentError, "Replacement text is too long."
             end
+            Editor.new(document: @document, user: @user).validate_text!(replacement_text)
           end
 
           color = (region["replacement_color"] || region[:replacement_color] || region["color"] || region[:color] || "#111827").to_s
@@ -531,15 +196,15 @@ module PdfDocuments
         end
         image.combine_options do |command|
           normalized_regions.each do |region|
-            x1 = region[:x] * scale
-            y1 = region[:y] * scale
-            x2 = x1 + region[:width] * scale
-            y2 = y1 + region[:height] * scale
+            x1 = region[:x] * scale_x
+            y1 = region[:y] * scale_y
+            x2 = x1 + region[:width] * scale_x
+            y2 = y1 + region[:height] * scale_y
 
             if region[:mode] == "strike"
               command.fill("none")
               command.stroke(region[:color])
-              command.strokewidth(region[:stroke_width] * scale)
+              command.strokewidth(region[:stroke_width] * [scale_x, scale_y].min)
               command.draw("line #{x1},#{(y1 + y2) / 2.0} #{x2},#{(y1 + y2) / 2.0}")
             else
               cover_color = region[:mode] == "black" ? "black" : "white"
@@ -552,10 +217,10 @@ module PdfDocuments
         end
         image.write(image_path)
 
-        page_width = image.width * 72.0 / 200.0
-        page_height = image.height * 72.0 / 200.0
+        page_width, page_height = page_dimensions.values_at(:width, :height)
         page_pdf = File.join(directory, "page.pdf")
         Prawn::Document.generate(page_pdf, page_size: [page_width, page_height], margin: 0) do |pdf|
+          pdf.font(Editor::FONT_PATH)
           pdf.image image_path, at: [0, page_height], width: page_width, height: page_height
           normalized_regions.select { |region| region[:mode] == "replace" }.each do |region|
             padding = 2
@@ -586,20 +251,22 @@ module PdfDocuments
 
     def create_artifact_from_path!(kind:, path:, filename:, content_type:)
       validate_artifact_size!(path)
-      artifact = @user.pdf_document_artifacts.create!(
-        workspace: @user.workspace,
-        pdf_document: @document,
-        kind:,
-        expires_at: 24.hours.from_now
-      )
-      artifact.file.attach(
-        io: File.open(path, "rb"),
-        filename:,
-        content_type:,
-        identify: false
-      )
+      blob = File.open(path, "rb") { |io| ActiveStorage::Blob.create_and_upload!(io:, filename:, content_type:, identify: false) }
+      artifact = PdfDocumentArtifact.transaction do
+        @operation_record&.lock!
+        if @operation_record&.status == "completed"
+          next @user.pdf_document_artifacts.find(@operation_record.result.fetch("artifact_id"))
+        end
+        generated = @user.pdf_document_artifacts.create!(workspace: @user.workspace,
+          pdf_document: @document, pdf_document_operation: @operation_record, kind:, expires_at: 24.hours.from_now)
+        generated.file.attach(blob)
+        Manager.complete_operation!(@operation_record, { artifact_id: generated.id })
+        generated
+      end
       PurgePdfDocumentArtifactsJob.set(wait: 24.hours).perform_later
       artifact
+    ensure
+      Manager.purge_unattached!(blob)
     end
 
     def validate_page_count!(page_count, limit, label)
@@ -618,42 +285,6 @@ module PdfDocuments
       raise ArgumentError, "Password must be at least 8 characters." if password.to_s.length < 8
     end
 
-    def page_numbers!(values)
-      pages = Array(values).map { |value| Integer(value) }.uniq
-      raise ArgumentError, "Choose at least one page." if pages.empty?
-      unless pages.all? { |page| page.between?(1, @document.page_count.to_i) }
-        raise ArgumentError, "One or more page numbers are invalid."
-      end
-
-      pages
-    end
-
-    def validate_annotation!(shape, dimensions)
-      type = shape[:type].to_s
-      raise ArgumentError, "Unsupported annotation type." unless ANNOTATION_TYPES.include?(type)
-
-      validate_color!(shape[:color])
-      validate_color!(shape[:fill_color]) if shape[:fill_color].present?
-
-      case type
-      when "pen"
-        points = Array(shape[:points])
-        raise ArgumentError, "Pen drawing needs at least two points." if points.length < 2
-        points.each { |point| validate_point!(point, dimensions) }
-      when "arrow"
-        validate_point!(shape, dimensions)
-        validate_point!({ x: shape[:x2], y: shape[:y2] }, dimensions)
-      else
-        validate_rectangle!(shape, dimensions, label: "Annotation")
-      end
-
-      if %w[text watermark].include?(type)
-        text = shape[:text].to_s
-        raise ArgumentError, "Annotation text is required." if text.blank?
-        raise ArgumentError, "Annotation text is too long." if text.length > MAX_TEXT_LENGTH
-      end
-    end
-
     def validate_rectangle!(value, dimensions, label:)
       x = finite_number!(value.fetch(:x, value["x"]))
       y = finite_number!(value.fetch(:y, value["y"]))
@@ -665,14 +296,6 @@ module PdfDocuments
          y + height > dimensions[:height] + 1
         raise ArgumentError, "#{label} area must stay inside the page."
       end
-    end
-
-    def validate_point!(value, dimensions)
-      x = finite_number!(value.fetch(:x, value["x"]))
-      y = finite_number!(value.fetch(:y, value["y"]))
-      return if x.between?(0, dimensions[:width] + 1) && y.between?(0, dimensions[:height] + 1)
-
-      raise ArgumentError, "Annotation must stay inside the page."
     end
 
     def validate_color!(color)
@@ -690,18 +313,9 @@ module PdfDocuments
       raise ArgumentError, "Coordinates must be valid numbers."
     end
 
-    def display_dimensions(dimensions)
-      if [90, 270].include?(dimensions[:rotation].to_i % 360)
-        { width: dimensions[:height], height: dimensions[:width] }
-      else
-        dimensions.slice(:width, :height)
-      end
-    end
-
     def with_source(&block)
-      raise ArgumentError, "Document has no current PDF." unless @document.current_version&.file&.attached?
-
-      @document.current_version.file.open { |file| block.call(file.path) }
+      raise ArgumentError, "Source PDF version is no longer available. Reload and try again." unless @source_version&.file&.attached?
+      @source_version.file.open { |file| block.call(file.path) }
     end
 
     def with_output

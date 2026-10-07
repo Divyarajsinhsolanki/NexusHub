@@ -16,7 +16,7 @@ The Rails app serves both the JSON API and the React entrypoint. Vite handles th
   add/edit dialogs with separate details and access settings.
 - Calendar events, reminders, Google calendar links, ICS import/export, and deadline tracking.
 - Knowledge dashboard with coding tips, news, words, phrases, bookmarks, reminders, and optional third-party API feeds.
-- PDF Master tools for upload, edit, annotate, sign, watermark, stamp, merge, split, compress, encrypt, decrypt, protect, export, undo, and redo.
+- [PDF Master](docs/PDF_MASTER.md) with organized editing, annotations, page tools, security, and export; autosaved editable text, images, visual signatures, and page numbers; document Find, custom splitting, merge, compression, and undo/redo.
 - Optional Google Sheets integration for sprint tasks, logs, and issue imports.
 - Optional Keka integration for attendance and employee details.
 - Public one-page engineering portfolio with a Nexus Hub case study, feature gallery, resume/media administration, and a read-only guided demo.

@@ -1,12 +1,10 @@
 class Api::PdfDocumentsController < Api::BaseController
   before_action :set_document, only: %i[
-    show update destroy content download undo redo restore_original
+    show update destroy content download undo redo restore_original editor_background editor_asset operations
   ]
 
   def index
-    # The serializer needs the complete (bounded) version history to calculate
-    # storage and undo/redo state. Preloading it avoids three queries per row.
-    documents = current_user.pdf_documents.includes(:current_version, :versions, thumbnail_attachment: :blob)
+    documents = current_user.pdf_documents.includes(thumbnail_attachment: :blob)
       .order(updated_at: :desc)
     if params[:q].present?
       pattern = "%#{ActiveRecord::Base.sanitize_sql_like(params[:q].to_s.strip)}%"
@@ -16,14 +14,43 @@ class Api::PdfDocumentsController < Api::BaseController
       )
     end
 
+    # Library cards only need version identifiers and sizes. Loading full edit
+    # snapshots for every history node would make this endpoint unnecessarily large.
+    documents = documents.to_a
+    summaries = PdfDocumentVersion.where(pdf_document_id: documents.map(&:id))
+      .select(:id, :pdf_document_id, :version_number, :byte_size)
+      .order(:version_number).group_by(&:pdf_document_id)
+    documents.each do |document|
+      versions = summaries.fetch(document.id, [])
+      document.association(:versions).target = versions
+      document.association(:current_version).target = versions.find { |version| version.id == document.current_version_id }
+    end
     render json: {
-      documents: documents.map { |document| serialize(document) },
+      documents: documents.map { |document| serialize(document, include_editor: false) },
       usage: PdfDocuments::Manager.user_usage(current_user)
     }
   end
 
   def show
     render json: serialize(@document)
+  end
+
+  def editor_background
+    layer = editor_layer!
+    redirect_to rails_storage_proxy_path(layer.background, only_path: true), allow_other_host: false
+  end
+
+  def editor_asset
+    layer = editor_layer!
+    attachment = layer.asset_map[params.require(:asset_id).to_s]
+    raise ActiveRecord::RecordNotFound unless attachment
+    redirect_to rails_storage_proxy_path(attachment, only_path: true), allow_other_host: false
+  end
+
+  def operations
+    render json: { operations: @document.operations.order(created_at: :desc).limit(20).map { |operation|
+      PdfDocuments::OperationSerializer.new(operation, context: self, include_document: false).as_json
+    } }
   end
 
   def create
@@ -93,7 +120,12 @@ class Api::PdfDocumentsController < Api::BaseController
     @document = current_user.pdf_documents.find(params[:id])
   end
 
-  def serialize(document)
-    PdfDocuments::Serializer.new(document, context: self).as_json
+  def editor_layer!
+    raise ActiveRecord::RecordNotFound if @document.encrypted?
+    @document.edit_layers.find(params.require(:layer_id))
+  end
+
+  def serialize(document, include_editor: true)
+    PdfDocuments::Serializer.new(document, context: self, include_editor:).as_json
   end
 end

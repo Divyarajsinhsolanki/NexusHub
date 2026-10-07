@@ -281,6 +281,7 @@ export const fetchDailyMomentum = () => api.get('/daily_momentum');
 // PDF DOCUMENTS
 export const fetchPdfDocuments = (params = {}) => api.get('/pdf_documents', { params });
 export const fetchPdfDocument = (id) => api.get(`/pdf_documents/${id}`);
+export const fetchPdfDocumentOperations = (id) => api.get(`/pdf_documents/${id}/operations`);
 export const uploadPdfDocument = (file, title, onUploadProgress) => {
   const data = new FormData();
   data.append('file', file);
@@ -296,14 +297,16 @@ export const undoPdfDocument = (id) => api.post(`/pdf_documents/${id}/undo`);
 export const redoPdfDocument = (id) => api.post(`/pdf_documents/${id}/redo`);
 export const restorePdfDocument = (id) => api.post(`/pdf_documents/${id}/restore_original`);
 export const createPdfDocumentOperation = (payload, asset) => {
-  if (!asset) return api.post('/pdf_document_operations', payload);
+  if (!asset || (!(asset instanceof File) && !Object.keys(asset).length)) return api.post('/pdf_document_operations', payload);
 
   const data = new FormData();
   data.append('kind', payload.kind);
   if (payload.pdf_document_id) data.append('pdf_document_id', payload.pdf_document_id);
   if (payload.base_version_id) data.append('base_version_id', payload.base_version_id);
   data.append('parameters', JSON.stringify(payload.parameters || {}));
-  data.append('asset', asset);
+  if (payload.password) data.append('password', payload.password);
+  if (asset instanceof File) data.append('asset', asset);
+  else Object.entries(asset).forEach(([id, file]) => data.append(`assets[${id}]`, file));
   return api.post('/pdf_document_operations', data, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });

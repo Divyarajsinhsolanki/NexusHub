@@ -49,7 +49,7 @@ class PdfDocumentTest < ActiveSupport::TestCase
     changed&.close!
   end
 
-  test "uses preloaded versions for storage and history summaries" do
+  test "uses one aggregate storage query and preloaded versions for history summaries" do
     original = create_test_pdf(text: "original")
     changed = create_test_pdf(text: "changed")
     document = PdfDocuments::Manager.create_from_path!(
@@ -78,7 +78,8 @@ class PdfDocumentTest < ActiveSupport::TestCase
     ensure
       ActiveSupport::Notifications.unsubscribe(subscriber)
     end
-    assert_empty queries
+    assert_equal 1, queries.length
+    assert_match(/SUM.*active_storage_blobs/, queries.first)
   ensure
     original&.close!
     changed&.close!

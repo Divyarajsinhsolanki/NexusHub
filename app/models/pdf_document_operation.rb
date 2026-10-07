@@ -6,6 +6,7 @@ class PdfDocumentOperation < ApplicationRecord
   belongs_to :user, inverse_of: :pdf_document_operations
   belongs_to :pdf_document, optional: true, inverse_of: :operations
   belongs_to :base_version, class_name: "PdfDocumentVersion", optional: true
+  has_many_attached :source_files
   has_many :artifacts,
            class_name: "PdfDocumentArtifact",
            dependent: :destroy,

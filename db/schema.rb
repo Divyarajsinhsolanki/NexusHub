@@ -528,6 +528,16 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_19_000000) do
     t.index ["workspace_id"], name: "index_pdf_document_artifacts_on_workspace_id"
   end
 
+  create_table "pdf_document_edit_layers", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.jsonb "geometry", default: [], null: false
+    t.bigint "pdf_document_id", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "workspace_id", null: false
+    t.index ["pdf_document_id"], name: "index_pdf_document_edit_layers_on_pdf_document_id"
+    t.index ["workspace_id"], name: "index_pdf_document_edit_layers_on_workspace_id"
+  end
+
   create_table "pdf_document_operations", force: :cascade do |t|
     t.bigint "base_version_id"
     t.datetime "completed_at"
@@ -555,6 +565,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_19_000000) do
     t.bigint "byte_size", default: 0, null: false
     t.datetime "created_at", null: false
     t.bigint "created_by_id", null: false
+    t.bigint "edit_layer_id"
     t.boolean "encrypted", default: false, null: false
     t.jsonb "metadata", default: {}, null: false
     t.string "operation", null: false
@@ -565,6 +576,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_19_000000) do
     t.integer "version_number", null: false
     t.bigint "workspace_id", null: false
     t.index ["created_by_id"], name: "index_pdf_document_versions_on_created_by_id"
+    t.index ["edit_layer_id"], name: "index_pdf_document_versions_on_edit_layer_id"
     t.index ["pdf_document_id", "version_number"], name: "idx_pdf_document_versions_number", unique: true
     t.index ["pdf_document_id"], name: "index_pdf_document_versions_on_pdf_document_id"
     t.index ["workspace_id"], name: "index_pdf_document_versions_on_workspace_id"
@@ -1190,10 +1202,13 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_19_000000) do
   add_foreign_key "pdf_document_artifacts", "pdf_documents"
   add_foreign_key "pdf_document_artifacts", "users"
   add_foreign_key "pdf_document_artifacts", "workspaces"
+  add_foreign_key "pdf_document_edit_layers", "pdf_documents"
+  add_foreign_key "pdf_document_edit_layers", "workspaces"
   add_foreign_key "pdf_document_operations", "pdf_document_versions", column: "base_version_id", on_delete: :nullify
   add_foreign_key "pdf_document_operations", "pdf_documents"
   add_foreign_key "pdf_document_operations", "users"
   add_foreign_key "pdf_document_operations", "workspaces"
+  add_foreign_key "pdf_document_versions", "pdf_document_edit_layers", column: "edit_layer_id"
   add_foreign_key "pdf_document_versions", "pdf_document_versions", column: "parent_version_id", on_delete: :nullify
   add_foreign_key "pdf_document_versions", "pdf_documents"
   add_foreign_key "pdf_document_versions", "users", column: "created_by_id"

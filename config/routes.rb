@@ -200,12 +200,15 @@ Rails.application.routes.draw do
         member do
           get :content
           get :download
+          get :editor_background
+          get :editor_asset
+          get :operations
           post :undo
           post :redo
           post :restore_original
         end
       end
-      resources :pdf_document_operations, controller: "/api/pdf_document_operations", only: [:create, :show]
+      resources :pdf_document_operations, controller: "/api/pdf_document_operations", only: [:index, :create, :show]
 
       get "admin/tables", to: "/api/admin#tables"
       get "admin/meta/:table", to: "/api/admin#meta"
@@ -408,12 +411,15 @@ Rails.application.routes.draw do
       member do
         get :content
         get :download
+        get :editor_background
+        get :editor_asset
+        get :operations
         post :undo
         post :redo
         post :restore_original
       end
     end
-    resources :pdf_document_operations, only: %i[create show]
+    resources :pdf_document_operations, only: %i[index create show]
 
     resources :roles, only: [:index]
 

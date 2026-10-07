@@ -1,21 +1,23 @@
 module PdfDocuments
   class CoordinateMapper
-    def initialize(width:, height:, rotation: 0)
+    def initialize(width:, height:, rotation: 0, left: 0, bottom: 0)
       @width = width.to_f
       @height = height.to_f
       @rotation = rotation.to_i % 360
+      @left, @bottom = left.to_f, bottom.to_f
     end
 
     def point(x, y)
       x = x.to_f
       y = y.to_f
 
-      case @rotation
+      result = case @rotation
       when 90 then [y, x]
       when 180 then [@width - x, y]
       when 270 then [@width - y, @height - x]
       else [x, @height - y]
       end
+      [result[0] + @left, result[1] + @bottom]
     end
 
     def rectangle(x:, y:, width:, height:)
