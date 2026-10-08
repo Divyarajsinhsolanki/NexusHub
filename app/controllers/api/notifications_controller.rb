@@ -19,7 +19,13 @@ class Api::NotificationsController < Api::BaseController
     current_page = requested_page
     total_count = notifications_scope.count
     unread_count = current_user.notifications.visible_in_feed.unread.count
-    notifications = notifications_scope.offset((current_page - 1) * PAGE_SIZE).limit(PAGE_SIZE)
+    cursor_mode = params[:cursor] == 'true' || params[:before_id].present?
+    scope = notifications_scope.reorder(id: :desc)
+    scope = scope.where('notifications.id < ?', params[:before_id].to_i) if params[:before_id].present?
+    scope = scope.offset((current_page - 1) * PAGE_SIZE) unless cursor_mode
+    rows = scope.limit(PAGE_SIZE + 1).to_a
+    has_more = rows.length > PAGE_SIZE
+    notifications = rows.first(PAGE_SIZE)
 
     render json: {
       notifications: notifications.map do |n|
@@ -44,6 +50,8 @@ class Api::NotificationsController < Api::BaseController
       meta: {
         total_pages: total_pages(total_count),
         current_page: current_page,
+        has_more: has_more,
+        next_before_id: has_more ? notifications.last.id : nil,
         unread_count: unread_count
       }
     }
@@ -52,12 +60,13 @@ class Api::NotificationsController < Api::BaseController
   def mark_read
     notification = current_user.notifications.visible_in_feed.find(params[:id])
     notification.mark_as_read!
-    render json: { success: true }
+    render json: { success: true, unread_count: current_user.notifications.visible_in_feed.unread.count }
   end
 
   def mark_all_read
     current_user.notifications.visible_in_feed.unread.update_all(read_at: Time.current)
-    render json: { success: true }
+    Chat::Broadcaster.broadcast_notifications_read(current_user)
+    render json: { success: true, unread_count: current_user.notifications.visible_in_feed.unread.count }
   end
 
   private

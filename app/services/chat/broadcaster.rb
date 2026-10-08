@@ -124,6 +124,13 @@ module Chat
         broadcast(conversation_stream(workspace_id, conversation_id), payload)
       end
 
+      def broadcast_notifications_read(user, notification_id: nil, notification_ids: nil, read_at: Time.current)
+        broadcast(user_stream(user.workspace_id, user.id), {
+          type: 'notifications_read', notification_id: notification_id, notification_ids: notification_ids, read_at: read_at.iso8601,
+          unread_count: user.notifications.visible_in_feed.unread.count
+        })
+      end
+
       def broadcast_message_read(workspace_id, conversation_id, user_id)
         payload = {
           type: "message_read",

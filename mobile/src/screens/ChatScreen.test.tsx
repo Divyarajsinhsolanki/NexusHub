@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { expect, jest, test } from '@jest/globals';
 
 import ChatRoute from '../../app/(tabs)/inbox/chat/[id]';
@@ -7,6 +7,7 @@ import { endpoints } from '../api/endpoints';
 import { mobileQueryKeys } from '../cache/mobileCache';
 
 const mockPerform = jest.fn();
+let mockChatEvent: (event: any) => void;
 jest.mock('@sentry/react-native', () => ({ captureException: jest.fn(), addBreadcrumb: jest.fn(), captureMessage: jest.fn() }));
 jest.mock('expo-router', () => ({
   useLocalSearchParams: () => ({ id: '7' }),
@@ -19,7 +20,7 @@ jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 jest.mock('../auth/AuthProvider', () => ({ useAuth: () => ({ user: { id: 5, full_name: 'Mobile user' } }) }));
-jest.mock('../realtime/useChatRealtime', () => ({ useChatRealtime: () => 'connected' }));
+jest.mock('../realtime/useChatRealtime', () => ({ useChatRealtime: (_id: number, callback: (event: any) => void) => { mockChatEvent = callback; return 'connected'; } }));
 jest.mock('../realtime/RealtimeProvider', () => ({ useRealtimeActions: () => ({ perform: mockPerform }) }));
 jest.mock('../api/endpoints', () => ({ endpoints: { createMessage: jest.fn(), updateConversationReceipt: jest.fn(async () => undefined) } }));
 jest.mock('expo-crypto', () => ({ randomUUID: () => 'stable-client-draft' }));
@@ -60,5 +61,78 @@ test('long press can select a reply and preserve its target when sending', async
   await fireEvent.press(screen.getByRole('button', { name: 'Send message' }));
   await waitFor(() => expect(endpoints.createMessage).toHaveBeenCalledTimes(1));
   expect(jest.mocked(endpoints.createMessage).mock.calls[0][1].get('message[reply_to_id]')).toBe('10');
+  await screen.unmount(); client.clear();
+});
+
+test('typing refreshes across a long burst and combines group participants', async () => {
+  jest.clearAllMocks();
+  const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, gcTime: Infinity, retry: false } } });
+  client.setQueryData(mobileQueryKeys.conversation(7), { id: 7, title: 'Typing group', conversation_type: 'group', participants: [] });
+  client.setQueryData(mobileQueryKeys.messages(7), { pageParams: [undefined], pages: [{ data: [] }] });
+  const screen = await render(<QueryClientProvider client={client}><ChatRoute /></QueryClientProvider>);
+  const now = jest.spyOn(Date, 'now');
+  now.mockReturnValue(10000);
+  await fireEvent.changeText(screen.getByPlaceholderText('Message'), 'Hi');
+  now.mockReturnValue(11200);
+  await fireEvent.changeText(screen.getByPlaceholderText('Message'), 'Hi team');
+  expect(mockPerform.mock.calls.filter(([, action, payload]: any[]) => action === 'typing' && payload.is_typing)).toHaveLength(2);
+  await act(() => {
+    mockChatEvent({ type: 'typing_indicator', conversation_id: 7, user_id: 2, user_name: 'Anita', is_typing: true });
+    mockChatEvent({ type: 'typing_indicator', conversation_id: 7, user_id: 3, user_name: 'Sam', is_typing: true });
+  });
+  expect(screen.getByText('Several people are typing…')).toBeTruthy();
+  await act(() => mockChatEvent({ type: 'typing_indicator', conversation_id: 7, user_id: 3, is_typing: false }));
+  expect(screen.getByText('Anita is typing…')).toBeTruthy();
+  await fireEvent.changeText(screen.getByPlaceholderText('Message'), '');
+  expect(mockPerform).toHaveBeenLastCalledWith({ channel: 'ChatChannel', conversation_id: 7 }, 'typing', { conversation_id: 7, is_typing: false });
+  now.mockRestore();
+  await screen.unmount(); client.clear();
+});
+
+test('opens at unread messages without marking the latest read until jumping down', async () => {
+  jest.clearAllMocks();
+  const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, gcTime: Infinity, retry: false }, mutations: { gcTime: Infinity } } });
+  client.setQueryData(mobileQueryKeys.conversation(7), { id: 7, title: 'Unread thread', unread_count: 1, first_unread_message_id: 12, participants: [{ id: 5, name: 'Mobile user', last_read_message_id: 10 }] });
+  client.setQueryData(mobileQueryKeys.messages(7), { pageParams: [undefined], pages: [{ data: [{ id: 10, body: 'Read message', user_id: 2, created_at: '2026-10-06T00:00:00Z' }, { id: 12, body: 'Unread message', user_id: 2, created_at: '2026-10-06T00:01:00Z' }] }] });
+  const screen = await render(<QueryClientProvider client={client}><ChatRoute /></QueryClientProvider>);
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Jump to new messages' })).toBeTruthy());
+  expect(jest.mocked(endpoints.updateConversationReceipt).mock.calls.some(call => call[1] === 12 && call[2] === 'read')).toBe(false);
+  await fireEvent.press(screen.getByRole('button', { name: 'Jump to new messages' }));
+  await waitFor(() => expect(endpoints.updateConversationReceipt).toHaveBeenCalledWith(7, 12, 'read'));
+  await screen.unmount(); client.clear();
+});
+
+test('offers all web reactions and sends an added emoji', async () => {
+  jest.clearAllMocks();
+  const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, gcTime: Infinity, retry: false }, mutations: { gcTime: Infinity } } });
+  client.setQueryData(mobileQueryKeys.conversation(7), { id: 7, title: 'Reactions', participants: [] });
+  client.setQueryData(mobileQueryKeys.messages(7), { pageParams: [undefined], pages: [{ data: [{ id: 10, body: 'React here', user_id: 2, user_name: 'Teammate', created_at: '2026-10-06T00:00:00Z' }] }] });
+  Object.assign(endpoints, { reactToMessage: jest.fn(async () => ({ reactions: { '🚀': 1 } })) });
+  const screen = await render(<QueryClientProvider client={client}><ChatRoute /></QueryClientProvider>);
+  await fireEvent(screen.getByText(/React here/), 'longPress');
+  expect(screen.getAllByRole('button', { name: /^React / })).toHaveLength(25);
+  await fireEvent.press(screen.getByRole('button', { name: 'React 🚀' }));
+  await waitFor(() => expect(endpoints.reactToMessage).toHaveBeenCalledWith(7, 10, '🚀'));
+  await screen.unmount();
+  client.clear();
+});
+test('inserts workspace mention and task suggestions without losing composer text', async () => {
+  jest.clearAllMocks();
+  Object.assign(endpoints, {
+    users: jest.fn(async () => ({ data: [{ id: 2, name: 'Sam', email: 'sam@example.test' }], meta: {} })),
+    tasks: jest.fn(async () => ({ data: [{ id: 7, task_id: 'AC-7', title: 'Fix calendar', project_id: 4 }], meta: {} })),
+  });
+  const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, gcTime: Infinity, retry: false }, mutations: { gcTime: Infinity } } });
+  client.setQueryData(mobileQueryKeys.conversation(7), { id: 7, title: 'Mentions', participants: [] });
+  client.setQueryData(mobileQueryKeys.messages(7), { pageParams: [undefined], pages: [{ data: [] }] });
+  const screen = await render(<QueryClientProvider client={client}><ChatRoute /></QueryClientProvider>);
+  const input = screen.getByPlaceholderText('Message');
+  await fireEvent.changeText(input, 'Hello @sa');
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Insert @sam' })).toBeTruthy());
+  await fireEvent.press(screen.getByRole('button', { name: 'Insert @sam' }));
+  expect(input.props.value).toBe('Hello @sam ');
+  await fireEvent.changeText(input, 'Hello @sam check #AC');
+  await fireEvent.press(screen.getByRole('button', { name: 'Insert #AC-7' }));
+  expect(input.props.value).toBe('Hello @sam check #AC-7 ');
   await screen.unmount(); client.clear();
 });

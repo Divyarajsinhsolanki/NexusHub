@@ -65,7 +65,8 @@ const CATEGORIES = {
 const SECTIONS = [
   { id: "environments", label: "Environments", icon: FiGlobe },
   { id: "credentials", label: "Credentials", icon: FiKey },
-  { id: "commands", label: "Commands", icon: FiTerminal },
+  { id: "commands", label: "Commands & Tokens", icon: FiTerminal },
+  { id: "infrastructure", label: "Servers & Databases", icon: FiServer },
   { id: "media", label: "Media", icon: FiImage },
   { id: "info", label: "Project Info", icon: FiInfo },
   { id: "updates", label: "Updates", icon: FiRefreshCw },
@@ -587,8 +588,9 @@ const ProjectVault = ({ projectId }) => {
 
   const getCategoryForSection = (section) => {
     switch (section) {
-      case "credentials": return ["Credential", "Token", "Server", "Database"];
-      case "commands": return ["Command"];
+      case "credentials": return ["Credential"];
+      case "commands": return ["Command", "Token"];
+      case "infrastructure": return ["Server", "Database"];
       case "info": return ["Note", "Info"];
       case "updates": return ["Update"];
       case "media": return ["Media"];
@@ -596,19 +598,19 @@ const ProjectVault = ({ projectId }) => {
     }
   };
 
-  // Fixed filter logic for credentials
+  // Each section shows only its own categories.
   const filteredItems = vaultItems.filter(item => {
     const matchesSearch = item.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.content?.toLowerCase().includes(searchQuery.toLowerCase());
     const sectionCategories = getCategoryForSection(activeSection);
     const matchesSection = sectionCategories.includes(item.category);
 
-    // Fix: Only apply environment filter in credentials section
+    // Credential environment selection does not filter other sections.
     if (activeSection !== "credentials") {
       return matchesSearch && matchesSection;
     }
 
-    // Fix: When selectedEnvFilter is empty, show ALL items (not filter by environment)
+    // An empty environment selection includes global and environment credentials.
     if (!selectedEnvFilter) {
       return matchesSearch && matchesSection;
     }
@@ -708,6 +710,7 @@ const ProjectVault = ({ projectId }) => {
     switch (activeSection) {
       case "credentials": return "Credential";
       case "commands": return "Command";
+      case "infrastructure": return "Server";
       case "info": return "Note";
       case "updates": return "Update";
       case "media": return "Media";
@@ -762,7 +765,7 @@ const ProjectVault = ({ projectId }) => {
                 <button
                   key={section.id}
                   onClick={() => setActiveSection(section.id)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${isActive
+                  className={`flex shrink-0 items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${isActive
                     ? "bg-indigo-100 text-indigo-700"
                     : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                     }`}

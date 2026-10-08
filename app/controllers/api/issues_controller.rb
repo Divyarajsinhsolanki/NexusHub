@@ -92,6 +92,7 @@ class Api::IssuesController < Api::BaseController
 
   def authorize_project!
     @project = Project.accessible_to(current_user).find(@project_id)
+    @project.authorize_edit!(current_user) unless action_name == "index"
   end
 
   def set_issue

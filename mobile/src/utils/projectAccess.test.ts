@@ -8,3 +8,7 @@ test('project shortcuts require membership and exclude removed users', () => {
   expect(canOpenProject({ ...project, users: [{ id: 42, status: 'removed' }] }, { id: 42 })).toBe(false);
   expect(canOpenProject(undefined, { id: 42 })).toBe(false);
 });
+
+test.each(['invited', 'requested', 'removed'])('excludes %s project memberships', (status) => {
+  expect(canOpenProject({ ...project, users: [{ id: 42, status }] }, { id: 42 })).toBe(false);
+});

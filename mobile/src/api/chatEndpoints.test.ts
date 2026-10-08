@@ -15,3 +15,11 @@ test('unwraps deletion envelopes and supports legacy unwrapped responses', async
   expect(await endpoints.deleteMessage(7, 9)).toEqual(message);
   expect(await endpoints.deleteMessage(7, 9)).toEqual(message);
 });
+test('sends the selected mute duration and uses DELETE to unmute', async () => {
+  jest.mocked(api.patch).mockResolvedValue({ data: { id: 7, muted: true } });
+  jest.mocked(api.delete).mockResolvedValue({ data: { id: 7, muted: false } });
+  await endpoints.setConversationMuted(7, true, '8h');
+  expect(api.patch).toHaveBeenCalledWith('/conversations/7/mute', { duration: '8h' });
+  await endpoints.setConversationMuted(7, false);
+  expect(api.delete).toHaveBeenCalledWith('/conversations/7/mute');
+});

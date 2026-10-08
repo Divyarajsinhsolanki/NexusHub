@@ -1,12 +1,12 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { apiErrorMessage } from '@/src/api/client';
-import { endpoints } from '@/src/api/endpoints';
-import type { TaskStatus, WorkLog, WorkLogInput } from '@/src/api/types';
+import { api, apiErrorMessage } from '@/src/api/client';
+import { endpoints, unwrapData } from '@/src/api/endpoints';
+import type { Task, TaskStatus, WorkLog, WorkLogInput } from '@/src/api/types';
 import { PageHeader } from '@/src/components/PageHeader';
 import { Screen } from '@/src/components/Screen';
 import { SegmentedControl } from '@/src/components/SegmentedControl';
@@ -25,6 +25,7 @@ type TaskFilter = 'all' | TaskStatus;
 export default function WorkScreen() {
   const theme = useAppTheme();
   const router = useRouter();
+  const { taskId } = useLocalSearchParams<{ taskId?: string }>();
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const writable = !user?.demo_account;
@@ -48,7 +49,12 @@ export default function WorkScreen() {
     enabled: mode === 'logs',
   });
   const options = useQuery({ queryKey: ['work-options'], queryFn: endpoints.workOptions, enabled: editing !== undefined });
-  const taskData = useMemo(() => tasks.data?.pages.flatMap((page) => page.data) || [], [tasks.data]);
+  const selectedTask = useQuery({ queryKey: ['linked-task', taskId], queryFn: async () => unwrapData<Task>((await api.get(`/tasks/${Number(taskId)}`)).data), enabled: Number.isSafeInteger(Number(taskId)) && Number(taskId) > 0 });
+  useEffect(() => { if (taskId) { setMode('tasks'); setTaskFilter('all'); setSearch(''); } }, [taskId]);
+  const taskData = useMemo(() => {
+    const rows = tasks.data?.pages.flatMap((page) => page.data) || [];
+    return selectedTask.data ? [selectedTask.data, ...rows.filter(task => task.id !== selectedTask.data!.id)] : rows;
+  }, [tasks.data, selectedTask.data]);
   const logData = useMemo(() => workLogs.data?.pages.flatMap((page) => page.data) || [], [workLogs.data]);
   const filteredTasks = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -111,6 +117,7 @@ export default function WorkScreen() {
         <View style={[styles.search, { backgroundColor: theme.surface, borderColor: theme.border }]}><Search color={theme.textMuted} size={18} /><TextInput accessibilityLabel={`Search ${mode}`} onChangeText={setSearch} placeholder={mode === 'tasks' ? 'Search tasks or IDs' : 'Search work logs'} placeholderTextColor={theme.textMuted} style={[styles.searchInput, { color: theme.text }]} value={search} /></View>
         {mode === 'tasks' ? <View accessibilityRole="tablist" style={styles.filters}>{(['all', 'todo', 'inprogress', 'completed'] as TaskFilter[]).map((filter) => <Pressable accessibilityRole="tab" accessibilityState={{ selected: taskFilter === filter }} key={filter} onPress={() => setTaskFilter(filter)} style={[styles.filter, { backgroundColor: taskFilter === filter ? theme.primarySoft : theme.surface, borderColor: taskFilter === filter ? theme.primary : theme.border }]}><Text style={{ color: taskFilter === filter ? theme.primary : theme.textMuted, fontSize: 11, fontWeight: '800' }}>{filter === 'inprogress' ? 'In progress' : filter[0].toUpperCase() + filter.slice(1)}</Text></Pressable>)}</View> : null}
       </View>
+      {selectedTask.isError ? <ErrorState message={apiErrorMessage(selectedTask.error)} onRetry={() => selectedTask.refetch()} /> : null}
       {activeQuery.isLoading ? <LoadingState /> : null}
       {activeQuery.isError ? <ErrorState message={apiErrorMessage(activeQuery.error)} onRetry={() => activeQuery.refetch()} /> : null}
       {mode === 'tasks' && !tasks.isLoading ? (

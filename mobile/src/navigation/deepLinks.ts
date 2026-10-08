@@ -7,6 +7,11 @@ export function normalizeMobileDeepLink(deepLink: unknown) {
   const path = extractPath(trimmed);
   if (!path || !path.startsWith('/')) return null;
 
+  if (/^\/projects\/\d+\/dashboard(?:\?|$)/.test(path)) {
+    const destination = new URL(path, 'https://nexushub.local');
+    if (destination.searchParams.get('tab') === 'environments') return `${destination.pathname.replace(/\/dashboard$/, '')}/environments`;
+  }
+
   if (path === '/notifications') return '/inbox/notifications';
   if (path === '/chat') return '/inbox';
   if (path.startsWith('/chat/')) return path;

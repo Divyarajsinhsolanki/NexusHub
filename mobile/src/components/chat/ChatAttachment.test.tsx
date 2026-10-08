@@ -9,6 +9,7 @@ jest.mock('../../api/client', () => ({ absoluteAssetUrl: (path: string) => `http
 
 test('images open a full-screen viewer and close again', async () => {
   const screen = await render(<ChatAttachment file={{ filename: 'photo.jpg', url: '/photo.jpg' }} mine={false} />);
+  expect(screen.queryByText('photo.jpg')).toBeNull();
   await fireEvent.press(screen.getByLabelText('View photo.jpg'));
   expect(screen.getByLabelText('Full image photo.jpg')).toBeTruthy();
   await fireEvent.press(screen.getByLabelText('Close image'));
@@ -19,6 +20,7 @@ test('images open a full-screen viewer and close again', async () => {
 test('videos mount the inline player only after tapping play', async () => {
   const screen = await render(<ChatAttachment file={{ filename: 'clip.mp4', url: '/clip.mp4' }} mine />);
   expect(screen.queryByLabelText('Chat video player')).toBeNull();
+  expect(screen.queryByText('clip.mp4')).toBeNull();
   await fireEvent.press(screen.getByLabelText('Play clip.mp4'));
   expect(screen.getByLabelText('Chat video player')).toBeTruthy();
   await screen.unmount();

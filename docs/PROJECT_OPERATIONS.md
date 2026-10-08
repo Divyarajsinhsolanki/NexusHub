@@ -89,7 +89,7 @@ credentials are not automatically copied or migrated.
 
 Reminder recipients are the owner plus selected active project members. Both
 in-app notifications and email respect the existing calendar-reminder
-preference. Operations reminders do not additionally generate mobile push.
+preference. Operations reminders also generate mobile push, subject to the reminders category, quiet hours, and device notification permissions.
 
 - Licence defaults: 30, 7, and 1 day before expiry at 09:00 in the licence timezone.
   Licences remain valid through their expiry date.

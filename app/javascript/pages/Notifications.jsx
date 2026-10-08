@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { mergeNotifications, NotificationReadState } from '../utils/notificationState';
+import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -22,6 +23,8 @@ import {
   markNotificationRead,
 } from "../components/api";
 import Avatar from "../components/ui/Avatar";
+import { subscribeToUserChat } from "../lib/chatCable";
+import { notificationPath, notificationReadMatches } from "../lib/browserNotifications";
 
 const ACTION_META = {
   commented: {
@@ -118,6 +121,13 @@ const ACTION_OPTIONS = [
   { value: "calendar_reminder", label: "Reminders" },
 ];
 
+const ACTION_GROUPS = {
+  assigned: ['assigned', 'project_assigned', 'task_assigned', 'issue_assigned', 'team_member_added'],
+  commented: ['commented', 'post_commented'], update: ['update', 'task_updated', 'issue_updated'],
+  chat_ping: ['chat_ping', 'chat_mention'], reacted: ['reacted', 'message_reacted'],
+  calendar_reminder: ['calendar_reminder', 'operations_reminder'],
+};
+
 const getActionMeta = (action) => ACTION_META[action] || ACTION_META.default;
 
 const getGroupLabel = (value) => {
@@ -157,44 +167,94 @@ const Notifications = () => {
   const [query, setQuery] = useState("");
   const [loadError, setLoadError] = useState(null);
 
-  useEffect(() => {
-    loadNotifications();
+  const [nextCursor, setNextCursor] = useState(null);
+  const cursorRef = useRef(null);
+  const readState = useRef(new NotificationReadState());
+  const liveRevision = useRef(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const requestVersion = useRef(0);
+  const seenNotifications = useRef(new Set());
+
+  const loadNotifications = useCallback(async (page = 1) => {
+    const version = ++requestVersion.current;
+    const revision = liveRevision.current;
+    if (page === 1) setLoading(true); else setLoadingMore(true);
+    setLoadError(null);
+    try {
+      const response = await fetchNotifications({ page, cursor: true, ...(page > 1 && cursorRef.current ? { before_id: cursorRef.current } : {}), status: statusFilter, action_type: actionFilter === 'all' ? undefined : actionFilter });
+      if (version !== requestVersion.current) return;
+      const incoming = readState.current.apply(response.data.notifications || []);
+      incoming.forEach((notice) => seenNotifications.current.add(notice.id));
+      setNotifications(previous => mergeNotifications(previous, incoming).filter(notice => statusFilter !== 'unread' || !notice.read_at));
+      const cursor = response.data.meta?.next_before_id;
+      cursorRef.current = cursor ?? null;
+      setNextCursor(cursor ?? null);
+      setCurrentPage(page);
+      setTotalPages(cursor !== undefined ? (cursor ? page + 1 : page) : response.data.meta?.total_pages || 1);
+      if (revision === liveRevision.current) setUnreadCount(response.data.meta?.unread_count || 0);
+      else {
+        const countRevision = liveRevision.current;
+        const fresh = await fetchNotifications({ cursor: true, status: statusFilter });
+        if (version === requestVersion.current && countRevision === liveRevision.current) setUnreadCount(fresh.data.meta?.unread_count || 0);
+      }
+    } catch (error) {
+      if (version !== requestVersion.current) return;
+      console.error('Failed to load notifications', error);
+      setLoadError('Unable to load notifications right now. Please refresh and try again.');
+    } finally {
+      if (version === requestVersion.current) { setLoading(false); setLoadingMore(false); }
+    }
   }, [statusFilter, actionFilter]);
 
-  const loadNotifications = async () => {
-    setLoading(true);
-    setLoadError(null);
+  useEffect(() => {
+    setNotifications([]);
+    cursorRef.current = null; setNextCursor(null);
+    seenNotifications.current.clear();
+    setCurrentPage(1);
+    setTotalPages(1);
+    setLoadingMore(false);
+    void loadNotifications();
+    return () => { ++requestVersion.current; };
+  }, [loadNotifications]);
 
-    try {
-      const response = await fetchNotifications({
-        page: 1,
-        status: statusFilter,
-        action_type: actionFilter === "all" ? undefined : actionFilter,
-      });
-
-      setNotifications(response.data.notifications || []);
-      setUnreadCount(response.data.meta?.unread_count || 0);
-    } catch (error) {
-      console.error("Failed to load notifications", error);
-      setLoadError("Unable to load notifications right now. Please refresh and try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    const subscription = subscribeToUserChat((event) => {
+      if (event?.type === 'notifications_read') {
+        liveRevision.current += 1;
+        readState.current.record(event);
+        setUnreadCount(event.unread_count);
+        setNotifications((previous) => previous.map((notice) => notificationReadMatches(event, notice)
+          ? { ...notice, read_at: event.read_at } : notice).filter((notice) => statusFilter !== 'unread' || !notice.read_at));
+        if (statusFilter === 'read') { setNotifications([]); void loadNotifications(); }
+        return;
+      }
+      const notice = event?.type === 'notification_received' ? event.notification : null;
+      if (!notice || seenNotifications.current.has(notice.id)) return;
+      seenNotifications.current.add(notice.id);
+      liveRevision.current += 1;
+      if (seenNotifications.current.size > 2000) seenNotifications.current.delete(seenNotifications.current.values().next().value);
+      if (!notice.read_at) setUnreadCount((count) => count + 1);
+      const statusMatches = statusFilter === 'all' || (statusFilter === 'unread' ? !notice.read_at : Boolean(notice.read_at));
+      const actionMatches = actionFilter === 'all' || (ACTION_GROUPS[actionFilter] || [actionFilter]).includes(notice.action);
+      if (statusMatches && actionMatches) setNotifications((previous) => mergeNotifications(previous, readState.current.apply([notice])));
+    });
+    return () => subscription.unsubscribe();
+  }, [statusFilter, actionFilter, loadNotifications]);
 
   const handleMarkRead = async (id) => {
     try {
-      await markNotificationRead(id);
+      const response = await markNotificationRead(id);
+      liveRevision.current += 1;
+      readState.current.record({ notification_id: id });
       setNotifications((prev) =>
         prev.map((notification) =>
           notification.id === id ? { ...notification, read_at: new Date().toISOString() } : notification
-        )
+        ).filter((notice) => statusFilter !== "unread" || !notice.read_at)
       );
 
-      const justMarkedUnread = notifications.find((notification) => notification.id === id && !notification.read_at);
-      if (justMarkedUnread) {
-        setUnreadCount((prev) => Math.max(0, prev - 1));
-      }
+      if (response?.data?.unread_count != null) setUnreadCount(response.data.unread_count);
     } catch (error) {
       console.error("Failed to mark read", error);
     }
@@ -203,7 +263,9 @@ const Notifications = () => {
   const handleMarkAllRead = async () => {
     try {
       await markAllNotificationsRead();
-      setNotifications((prev) => prev.map((notification) => ({ ...notification, read_at: new Date().toISOString() })));
+      liveRevision.current += 1;
+      readState.current.record({});
+      setNotifications((prev) => statusFilter === "unread" ? [] : prev.map((notification) => ({ ...notification, read_at: new Date().toISOString() })));
       setUnreadCount(0);
     } catch (error) {
       console.error("Failed to mark all read", error);
@@ -394,7 +456,7 @@ const Notifications = () => {
               </div>
             ))}
           </div>
-        ) : loadError ? (
+        ) : loadError && notifications.length === 0 ? (
           <div className="shell-panel shell-panel-strong rounded-[30px] px-6 py-16 text-center">
             <p className="text-lg font-semibold text-rose-600">{loadError}</p>
           </div>
@@ -480,8 +542,8 @@ const Notifications = () => {
                                   <p className={`text-sm leading-6 ${isUnread ? "font-semibold text-slate-950" : "text-slate-600"}`}>
                                     {notification.message}
                                   </p>
-                                  {notification.action === "operations_reminder" && /^\/projects\/\d+\/dashboard\?tab=environments(?:&|$)/.test(notification.deep_link || "") && (
-                                    <Link to={notification.deep_link} onClick={() => isUnread && handleMarkRead(notification.id)} className="mt-2 inline-flex text-sm font-semibold text-sky-700 underline">Open record</Link>
+                                  {notificationPath(notification) && (
+                                    <Link to={notificationPath(notification)} onClick={() => isUnread && handleMarkRead(notification.id)} className="mt-2 inline-flex text-sm font-semibold text-sky-700 underline">Open record</Link>
                                   )}
                                 </div>
 
@@ -516,6 +578,8 @@ const Notifications = () => {
             })}
           </div>
         )}
+        {loadError && notifications.length > 0 && <p role="alert" className="text-center text-sm text-rose-600">{loadError}</p>}
+        {!loading && (nextCursor || currentPage < totalPages) && <div className="flex justify-center"><button type="button" disabled={loadingMore} onClick={() => loadNotifications(currentPage + 1)} className="rounded-full border border-shell-border px-5 py-3 text-sm font-semibold disabled:opacity-50">{loadingMore ? 'Loading…' : 'Load older notifications'}</button></div>}
       </div>
     </div>
   );

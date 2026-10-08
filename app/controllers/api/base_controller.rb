@@ -11,6 +11,13 @@ class Api::BaseController < ApplicationController
   # catch-all handler, which re-raises them as 500 responses.
   rescue_from ActiveRecord::RecordNotFound, with: :render_api_not_found
   rescue_from ActionController::ParameterMissing, with: :render_api_invalid_request
+  rescue_from ActionController::BadRequest, Tasks::Access::InvalidAssignment, with: :render_api_invalid_request
+  rescue_from ActiveRecord::StaleObjectError do
+    render json: { error: 'This record changed. Refresh and try again.' }, status: :conflict
+  end
+  rescue_from Project::Forbidden do |error|
+    render json: { error: error.message }, status: :forbidden
+  end
 
   before_action :set_request_context
   before_action :authenticate_user!

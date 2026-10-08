@@ -60,10 +60,8 @@ class Api::ProjectVaultItemsController < Api::BaseController
   end
 
   def authorize_project_member
-    return if @project.users.include?(current_user)
-
-    log_project_event(:warn, 'Project vault authorization failed', payload: { project_id: @project.id })
-    render json: { error: 'Not authorized' }, status: :forbidden
+    Project.accessible_to(current_user).find(@project.id)
+    @project.authorize_edit!(current_user) unless request.get? || request.head?
   end
 
   def vault_item_params

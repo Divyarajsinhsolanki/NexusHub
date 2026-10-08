@@ -45,11 +45,11 @@ class Api::ConversationsController < Api::BaseController
   end
 
   def show
-    render json: serialize_conversation(@conversation, include_messages: true)
+    render json: serialize_conversation(@conversation, include_messages: true, include_unread_anchor: true)
   end
 
   def summary
-    render json: serialize_conversation(@conversation)
+    render json: serialize_conversation(@conversation, include_unread_anchor: true)
   end
 
   def create
@@ -452,7 +452,7 @@ class Api::ConversationsController < Api::BaseController
     nil
   end
 
-  def serialize_conversation(conversation, include_messages: false, unread_count: nil, last_message: nil, last_message_at: nil, last_message_loaded: false, active_call: nil, active_call_loaded: false)
+  def serialize_conversation(conversation, include_unread_anchor: false, include_messages: false, unread_count: nil, last_message: nil, last_message_at: nil, last_message_loaded: false, active_call: nil, active_call_loaded: false)
     membership = conversation.conversation_participants.find { |cp| cp.user_id == current_user.id } || conversation.conversation_participants.find_by(user_id: current_user.id)
     unread_count = conversation.messages.where("messages.id > ?", membership&.last_read_message_id || 0).where.not(user_id: current_user.id).count if unread_count.nil?
     unless active_call_loaded
@@ -461,6 +461,10 @@ class Api::ConversationsController < Api::BaseController
         .where(conversation_id: conversation.id)
         .recent
         .first
+    end
+    first_unread_id = if include_unread_anchor && unread_count.positive?
+      conversation.messages.where("messages.id > ?", membership&.last_read_message_id || 0)
+        .where.not(user_id: current_user.id).order(:id).pick(:id)
     end
     payload = {
       id: conversation.id,
@@ -493,6 +497,7 @@ class Api::ConversationsController < Api::BaseController
         }
       end,
       unread_count: unread_count,
+      first_unread_message_id: first_unread_id,
       last_message_at: last_message_at || conversation.last_message_at || conversation.messages.maximum(:created_at),
       last_message_id: conversation.last_message_id,
       updated_at: conversation.updated_at

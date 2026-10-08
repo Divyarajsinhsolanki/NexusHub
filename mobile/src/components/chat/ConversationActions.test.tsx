@@ -1,0 +1,27 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { Alert } from 'react-native';
+import { expect, jest, test } from '@jest/globals';
+import { ConversationRow } from '../../../app/(tabs)/inbox';
+import { endpoints } from '../../api/endpoints';
+import type { Conversation } from '../../api/types';
+jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
+jest.mock('../../auth/AuthProvider', () => ({ useAuth: () => ({ user: { id: 1 } }) }));
+jest.mock('../../api/endpoints', () => ({ endpoints: { setConversationMuted: jest.fn(async () => undefined), hideConversation: jest.fn(async () => undefined) } }));
+test('long press shows actions before mute durations, and requires delete confirmation', async () => {
+  const client = new QueryClient();
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  const screen = await render(<QueryClientProvider client={client}><ConversationRow conversation={{ id: 7, title: 'Team chat', participants: [], conversation_type: 'group', muted: false } as unknown as Conversation} /></QueryClientProvider>);
+  await fireEvent(screen.getByRole('button', { name: 'Open Team chat' }), 'longPress');
+  const buttons = alert.mock.calls[0][2]!;
+  expect(buttons.map(button => button.text)).toEqual(['Mute', 'Delete chat for me', 'Cancel']);
+  await act(async () => buttons[0].onPress!());
+  await fireEvent.press(screen.getByRole('button', { name: '1 week' }));
+  await waitFor(() => expect(endpoints.setConversationMuted).toHaveBeenCalledWith(7, true, '1w'));
+  await act(async () => buttons[1].onPress!());
+  expect(endpoints.hideConversation).not.toHaveBeenCalled();
+  const confirm = alert.mock.calls[1][2]!;
+  await act(async () => confirm.find(button => button.text === 'Delete')!.onPress!());
+  await waitFor(() => expect(endpoints.hideConversation).toHaveBeenCalledWith(7));
+  await screen.unmount(); client.clear(); alert.mockRestore();
+});

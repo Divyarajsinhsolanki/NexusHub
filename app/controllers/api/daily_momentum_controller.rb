@@ -1,14 +1,14 @@
 class Api::DailyMomentumController < Api::BaseController
-  ACTIVE_STATUSES = %w[todo in_progress doing blocked reviewing qa backlog].freeze
+  ACTIVE_STATUSES = %w[todo inprogress in_progress doing blocked reviewing qa backlog].freeze
   COMPLETED_STATUSES = %w[done completed complete archived cancelled].freeze
 
   def show
     today = Time.zone.today
     yesterday = today - 1.day
 
-    user_tasks = Task
+    user_tasks = Task.visible_to(current_user)
       .where(assigned_to_user: current_user.id)
-      .or(Task.where(created_by: current_user.id))
+      .or(Task.visible_to(current_user).where(created_by: current_user.id))
       .includes(:project, :sprint)
 
     overdue_tasks = user_tasks
@@ -22,10 +22,10 @@ class Api::DailyMomentumController < Api::BaseController
       .where('(start_date IS NULL OR start_date <= ?)', today)
       .where('(end_date IS NULL OR end_date >= ?)', today)
       .where(status: ACTIVE_STATUSES)
-      .order(Arel.sql("CASE WHEN status = 'blocked' THEN 0 WHEN status IN ('in_progress','doing') THEN 1 ELSE 2 END"))
+      .order(Arel.sql("CASE WHEN status = 'blocked' THEN 0 WHEN status IN ('inprogress','in_progress','doing') THEN 1 ELSE 2 END"))
       .limit(6)
 
-    triage_tasks = Task
+    triage_tasks = Task.visible_to(current_user)
       .includes(:project, :sprint)
       .where(created_by: current_user.id)
       .where('assigned_to_user IS NULL OR sprint_id IS NULL')

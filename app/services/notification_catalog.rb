@@ -25,7 +25,7 @@ class NotificationCatalog
   ENDED_CALL_ACTIONS = %w[ended_audio_call ended_video_call].freeze
   CALL_ACTIONS = (MISSED_CALL_ACTIONS + ENDED_CALL_ACTIONS).freeze
   LEGACY_PUSH_ACTIONS = %w[
-    assigned commented update chat_message chat_ping reacted missed_call calendar_reminder
+    assigned commented update chat_message chat_ping reacted missed_call calendar_reminder operations_reminder
     project_assigned task_assigned task_updated post_commented chat_mention message_reacted
     missed_audio_call missed_video_call ended_audio_call ended_video_call
   ].freeze

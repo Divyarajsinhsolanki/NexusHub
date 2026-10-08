@@ -38,8 +38,12 @@ module Chat
       end
 
       if normalized_state == "read"
-        user.notifications.unread.where(notifiable_type: "Message", notifiable_id: conversation.messages.where("id <= ?", membership.last_read_message_id).select(:id))
-          .update_all(read_at: now, updated_at: now)
+        notices = user.notifications.unread.where(notifiable_type: "Message", notifiable_id: conversation.messages.where("id <= ?", membership.last_read_message_id).select(:id))
+        notice_ids = notices.pluck(:id)
+        if notice_ids.any?
+          notices.where(id: notice_ids).update_all(read_at: now, updated_at: now)
+          Chat::Broadcaster.broadcast_notifications_read(user, notification_ids: notice_ids, read_at: now)
+        end
       end
 
       Chat::Broadcaster.broadcast_message_receipt_updated(conversation, membership) if changed

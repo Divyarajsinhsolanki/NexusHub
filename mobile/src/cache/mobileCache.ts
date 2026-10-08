@@ -13,6 +13,7 @@ import type {
   Notification,
   Post,
 } from '../api/types';
+import { mergeNotificationRows } from '../notifications/notificationState';
 import { mergeMessage, patchMessageRows } from '../chat/messageLifecycle';
 import { endpoints } from '../api/endpoints';
 import { normalizeMobileDeepLink } from '../navigation/deepLinks';
@@ -327,7 +328,7 @@ export function prependNotification(
   queryClient.setQueryData<InfiniteData<ApiEnvelope<Notification[]>>>(
     mobileQueryKeys.notifications,
     (previous) => {
-      if (!previous) return previous;
+      if (!previous) return { pages: [{ data: [incoming], meta: { unread_count: incoming.read_at ? 0 : 1 } }], pageParams: [undefined] };
       if (previous.pages.some((page) => page.data.some((notification) => Number(notification.id) === Number(incoming.id)))) {
         return previous;
       }
@@ -339,7 +340,7 @@ export function prependNotification(
             data: [incoming, ...page.data],
             meta: {
               ...page.meta,
-              unread_count: Number(page.meta?.unread_count || 0) + 1,
+              unread_count: Number(page.meta?.unread_count || 0) + (incoming.read_at ? 0 : 1),
             },
           }
           : page
@@ -379,6 +380,53 @@ export function updatePostInFeed(
   });
 }
 
+type ReadEvent = { notification_id?: unknown; notification_ids?: unknown; read_at?: unknown; unread_count?: unknown };
+const notificationReads = new WeakMap<QueryClient, ReadEvent[]>();
+const notificationReadSubscriptions = new WeakSet<QueryClient>();
+export function resetNotificationReadState(queryClient: QueryClient) { notificationReads.delete(queryClient); }
+export function markCachedNotificationsRead(queryClient: QueryClient, event: ReadEvent) {
+  if (!notificationReadSubscriptions.has(queryClient)) {
+    notificationReadSubscriptions.add(queryClient);
+    queryClient.getQueryCache().subscribe(event => {
+      if (event.type === "removed" && event.query.queryKey[0] === mobileQueryKeys.notifications[0]) notificationReads.delete(queryClient);
+    });
+  }
+  const reads = notificationReads.get(queryClient) || [];
+  reads.push(event);
+  notificationReads.set(queryClient, reads);
+  queryClient.setQueryData<InfiniteData<ApiEnvelope<Notification[]>>>(mobileQueryKeys.notifications, previous => previous && ({
+    ...previous, pages: previous.pages.map(page => ({ ...page, data: applyNotificationReads(queryClient, page.data),
+      meta: { ...page.meta, unread_count: Number(event.unread_count ?? page.meta?.unread_count ?? 0) } }))
+  }));
+}
+function applyNotificationReads(queryClient: QueryClient, rows: Notification[]) {
+  return rows.map(notice => {
+    if (notice.read_at) return notice;
+    const event = (notificationReads.get(queryClient) || []).find(read => Array.isArray(read.notification_ids)
+      ? read.notification_ids.some(id => Number(id) === notice.id)
+      : read.notification_id ? Number(read.notification_id) === notice.id
+      : new Date(notice.created_at) <= new Date(String(read.read_at)));
+    return event ? { ...notice, read_at: String(event.read_at || new Date().toISOString()) } : notice;
+  });
+}
+export async function fetchNotificationPage(queryClient: QueryClient, cursor?: number) {
+  const key = mobileQueryKeys.notifications;
+  const previous = queryClient.getQueryData<InfiniteData<ApiEnvelope<Notification[]>>>(key);
+  const before = new Set(previous?.pages.flatMap(page => page.data.map(notice => notice.id)) || []);
+  const readVersion = notificationReads.get(queryClient)?.length || 0;
+  const response = await endpoints.notifications(cursor);
+  const current = queryClient.getQueryData<InfiniteData<ApiEnvelope<Notification[]>>>(key);
+  const currentRows = current?.pages.flatMap(page => page.data) || [];
+  const newRows = cursor ? [] : currentRows.filter(notice => !before.has(notice.id));
+  const matching = currentRows.filter(notice => response.data.some(row => row.id === notice.id));
+  const rows = applyNotificationReads(queryClient, mergeNotificationRows([...newRows, ...matching], response.data));
+  const addedUnread = newRows.filter(notice => !notice.read_at && !response.data.some(row => row.id === notice.id)).length;
+  const lastRead = (notificationReads.get(queryClient) || []).at(-1);
+  return { ...response, data: rows, meta: { ...response.meta,
+    unread_count: (notificationReads.get(queryClient)?.length || 0) !== readVersion && lastRead?.unread_count !== undefined
+      ? Number(lastRead.unread_count) : Number(response.meta?.unread_count || 0) + addedUnread } };
+}
+
 export async function warmMobileCache(queryClient: QueryClient) {
   await Promise.allSettled([
     queryClient.prefetchQuery({ queryKey: mobileQueryKeys.home, queryFn: endpoints.home }),
@@ -392,9 +440,9 @@ export async function warmMobileCache(queryClient: QueryClient) {
     }),
     queryClient.prefetchInfiniteQuery({
       queryKey: mobileQueryKeys.notifications,
-      initialPageParam: 1,
-      queryFn: ({ pageParam }) => endpoints.notifications(Number(pageParam || 1)),
-      getNextPageParam: (page: ApiEnvelope<Notification[]>) => page.meta?.next_page ?? undefined,
+      initialPageParam: undefined as number | undefined,
+      queryFn: ({ pageParam }) => fetchNotificationPage(queryClient, pageParam),
+      getNextPageParam: (page: ApiEnvelope<Notification[]>) => Number(page.meta?.next_before_id) || undefined,
       maxPages: MOBILE_CACHE_PAGE_LIMIT,
     }),
     queryClient.prefetchQuery({ queryKey: mobileQueryKeys.projects, queryFn: endpoints.projects }),

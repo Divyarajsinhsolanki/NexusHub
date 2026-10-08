@@ -455,9 +455,9 @@ export const endpoints = {
   async removeMessageReaction(conversationId: number, messageId: number, emoji: string) {
     await api.delete(`/conversations/${conversationId}/messages/${messageId}/reactions`, { data: { emoji } });
   },
-  async setConversationMuted(id: number, muted: boolean) {
+  async setConversationMuted(id: number, muted: boolean, duration: '1h' | '8h' | '1w' | 'forever' = 'forever') {
     const response = muted
-      ? await api.patch<ApiEnvelope<Conversation>>(`/conversations/${id}/mute`, { duration: 'forever' })
+      ? await api.patch<ApiEnvelope<Conversation>>(`/conversations/${id}/mute`, { duration })
       : await api.delete<ApiEnvelope<Conversation>>(`/conversations/${id}/mute`);
     return unwrapData(response.data);
   },
@@ -515,8 +515,8 @@ export const endpoints = {
     const response = await api.post<ApiEnvelope<PdfDocument>>(`/pdf_documents/${id}/${action}`);
     return unwrapData(response.data);
   },
-  notifications(page = 1) {
-    return api.get<ApiEnvelope<Notification[]>>('/notifications', { params: { page, per_page: 20 } }).then((response) => response.data);
+  notifications(beforeId?: number) {
+    return api.get<ApiEnvelope<Notification[]>>('/notifications', { params: { cursor: true, ...(beforeId ? { before_id: beforeId } : {}), per_page: 20 } }).then((response) => response.data);
   },
   async readNotification(id: number) {
     return update<Notification>(`/notifications/${id}/read`, {});

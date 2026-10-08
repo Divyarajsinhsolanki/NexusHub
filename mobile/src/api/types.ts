@@ -1,4 +1,6 @@
 export type ApiMeta = {
+  next_before_id?: number | null;
+  has_more?: boolean;
   current_page?: number;
   next_page?: number | null;
   total_pages?: number;
@@ -6,7 +8,6 @@ export type ApiMeta = {
   per_page?: number;
   unread_count?: number;
   next_cursor?: string | null;
-  has_more?: boolean;
   [key: string]: unknown;
 };
 
@@ -306,6 +307,7 @@ export type WorkLogInput = {
 };
 
 export type CalendarEvent = EntityRecord & {
+  can_edit?: boolean;
   title: string;
   description?: string | null;
   start_at: string;
@@ -434,6 +436,7 @@ export type Conversation = EntityRecord & {
   muted_until?: string | null;
   muted?: boolean;
   unread_count?: number;
+  first_unread_message_id?: number | null;
   last_message?: Message | string | null;
   last_message_at?: string | null;
   last_message_id?: number | null;

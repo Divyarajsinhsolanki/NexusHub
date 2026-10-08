@@ -25,6 +25,20 @@ class Task < ApplicationRecord
 
   NOTIFIABLE_UPDATE_FIELDS = %w[status priority start_date end_date].freeze
 
+  def self.visible_to(user)
+    return none unless user
+
+    personal = where(type: 'general').where('created_by = :id OR assigned_to_user = :id', id: user.id)
+    project_tasks = where.not(type: 'general').where(project_id: Project.accessible_to(user).select(:id))
+    unassigned = where(project_id: nil).where('created_by = :id OR developer_id = :id OR assigned_to_user = :id', id: user.id)
+    personal.or(project_tasks).or(unassigned)
+  end
+
+  def authorize_edit!(user)
+    self.class.visible_to(user).find(id)
+    project&.authorize_edit!(user) unless type == 'general'
+  end
+
   private
 
   def general?

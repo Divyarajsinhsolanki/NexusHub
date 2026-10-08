@@ -4,7 +4,13 @@ class Api::V1::BaseController < Api::BaseController
   skip_forgery_protection
 
   rescue_from ActiveRecord::RecordNotFound, with: :render_not_found
-  rescue_from ActionController::ParameterMissing, with: :render_invalid_request
+  rescue_from ActionController::ParameterMissing, ActionController::BadRequest, Tasks::Access::InvalidAssignment, with: :render_invalid_request
+  rescue_from Project::Forbidden do |error|
+    render_error(code: 'forbidden', message: error.message, status: :forbidden)
+  end
+  rescue_from ActiveRecord::StaleObjectError do
+    render_error(code: 'stale_record', message: 'This record changed. Refresh and try again.', status: :conflict)
+  end
 
   private
 

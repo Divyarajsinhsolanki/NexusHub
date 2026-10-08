@@ -7,7 +7,7 @@ class SearchAndActivityTest < ActionDispatch::IntegrationTest
     @user = create_user(@workspace, "searcher@example.test")
     foreign_user = create_user(@foreign_workspace, "foreign@example.test")
 
-    @project = Project.create!(workspace: @workspace, name: "Orion Delivery", description: "Visible workspace project")
+    @project = Project.create!(workspace: @workspace, name: "Orion Delivery", description: "Visible workspace project", owner: @user)
     foreign_project = Project.create!(workspace: @foreign_workspace, name: "Orion Foreign", description: "Must stay hidden")
     Task.create!(
       workspace: @workspace,

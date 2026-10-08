@@ -318,8 +318,8 @@ const Vault = () => {
   };
 
   const filteredItems = items.filter(item => {
-    const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.content.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = (item.title || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (item.content || "").toLowerCase().includes(searchQuery.toLowerCase());
     const matchesTab = activeTab === "All" ||
       (activeTab === "Credentials" && item.category === "Credential") ||
       (activeTab === "Code" && ["Command", "Token"].includes(item.category)) ||

@@ -1,11 +1,11 @@
 class Api::V1::ProjectsController < Api::V1::BaseController
   def index
-    projects = Project.includes(:sprints, :tasks, project_users: { user: { profile_picture_attachment: :blob } }).order(:name)
+    projects = Project.accessible_to(current_user).includes(:sprints, :tasks, project_users: { user: { profile_picture_attachment: :blob } }).order(:name)
     render_paginated_data(projects, serializer: method(:serialize_project))
   end
 
   def show
-    project = Project.includes(:sprints, :tasks, project_users: { user: { profile_picture_attachment: :blob } }).find(params[:id])
+    project = Project.accessible_to(current_user).includes(:sprints, :tasks, project_users: { user: { profile_picture_attachment: :blob } }).find(params[:id])
     render_data(serialize_project(project))
   end
 

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const apiMocks = vi.hoisted(() => ({
   sendMessage: vi.fn(),
+  muteConversation: vi.fn(),
   editChatMessage: vi.fn(),
   deleteChatMessage: vi.fn(),
   fetchConversations: vi.fn(),
@@ -65,7 +66,7 @@ vi.mock("../components/api", () => ({
   joinCall: vi.fn(),
   leaveConversation: apiMocks.leaveConversation,
   leaveCall: vi.fn(),
-  muteConversation: vi.fn(),
+  muteConversation: apiMocks.muteConversation,
   removeConversationParticipant: apiMocks.removeConversationParticipant,
   removeMessageReaction: vi.fn(),
   sendMessage: apiMocks.sendMessage,
@@ -497,4 +498,42 @@ describe("conversation drafts", () => {
     confirm.mockRestore();
   });
 
+});
+
+it('refreshes typing during continuous composition and stops on blur', async () => {
+  renderChat();
+  const composer = await screen.findByPlaceholderText('Write a message...');
+  const now = vi.spyOn(Date, 'now');
+  now.mockReturnValue(10000);
+  fireEvent.change(composer, { target: { value: 'Hello' } });
+  now.mockReturnValue(11200);
+  fireEvent.change(composer, { target: { value: 'Hello team' } });
+  expect(cableMocks.sendToConversation.mock.calls.filter(([, action, data]) => action === 'typing' && data.is_typing)).toHaveLength(2);
+  fireEvent.blur(composer);
+  expect(cableMocks.sendToConversation).toHaveBeenLastCalledWith('1', 'typing', { conversation_id: '1', is_typing: false });
+  now.mockRestore();
+});
+
+it('combines multiple typing participants and removes stopped participants', async () => {
+  renderChat();
+  await screen.findByPlaceholderText('Write a message...');
+  act(() => {
+    cableMocks.conversationCallback({ type: 'typing_indicator', conversation_id: 1, user_id: 2, user_name: 'Anita', is_typing: true });
+    cableMocks.conversationCallback({ type: 'typing_indicator', conversation_id: 1, user_id: 3, user_name: 'Sam', is_typing: true });
+  });
+  expect(screen.getAllByText('Several people are typing…').length).toBeGreaterThan(0);
+  act(() => cableMocks.conversationCallback({ type: 'typing_indicator', conversation_id: 1, user_id: 3, is_typing: false }));
+  expect(screen.getAllByText('Anita is typing…').length).toBeGreaterThan(0);
+});
+it('offers one Mute action and shows durations only after selecting it', async () => {
+  window.matchMedia.mockImplementation(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+  apiMocks.muteConversation.mockResolvedValue({ data: { ...conversation, muted: true } });
+  renderChat();
+  const actions = await screen.findByRole('button', { name: 'Conversation actions' });
+  fireEvent.click(actions);
+  expect(screen.queryByRole('button', { name: 'Mute 1 hour' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Mute' }));
+  const dialog = screen.getByRole('dialog', { name: 'Mute notifications for…' });
+  fireEvent.click(within(dialog).getByRole('button', { name: '8 hours' }));
+  await waitFor(() => expect(apiMocks.muteConversation).toHaveBeenCalledWith(conversation.id, '8h'));
 });

@@ -4,7 +4,7 @@ class Api::ProjectUsersController < Api::BaseController
   before_action :authorize_manager!, only: [:leave]
 
   def create
-    project = Project.find(params.dig(:project_user, :project_id))
+    project = Project.accessible_to(current_user).find(params.dig(:project_user, :project_id))
     user = current_user.workspace.users.find(params.dig(:project_user, :user_id))
     project_user = project.project_users.new(project_user_attributes.merge(user: user))
     if project_user.save
@@ -38,8 +38,8 @@ class Api::ProjectUsersController < Api::BaseController
   private
 
   def authorize_member_management!
-    allowed = current_user&.admin? || current_user&.owner? || current_user&.project_manager?
-    head :forbidden unless allowed
+    project = @project_user&.project || Project.accessible_to(current_user).find(params.dig(:project_user, :project_id))
+    project.authorize_management!(current_user)
   end
 
   def authorize_manager!

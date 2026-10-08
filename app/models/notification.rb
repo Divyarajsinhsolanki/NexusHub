@@ -26,8 +26,13 @@ class Notification < ApplicationRecord
 
   after_create_commit :broadcast_to_channel
   after_create_commit :enqueue_mobile_push
+  after_update_commit :broadcast_read_change, if: :saved_change_to_read_at?
 
   private
+
+  def broadcast_read_change
+    Chat::Broadcaster.broadcast_notifications_read(recipient, notification_id: id, read_at: read_at) if feed_visible? && read_at
+  end
 
   def assign_recipient_workspace
     self.workspace ||= recipient&.workspace
@@ -40,8 +45,6 @@ class Notification < ApplicationRecord
   end
 
   def enqueue_mobile_push
-    return if action == 'operations_reminder'
-
     PushNotificationDispatchJob.set(wait: catalog.dispatch_delay).perform_later(id)
   end
 

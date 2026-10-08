@@ -460,7 +460,7 @@ const Calendar = () => {
   const handleDropOnDay = async (targetDay) => {
     if (!draggingEventId) return;
     const event = events.find((item) => item.id === draggingEventId);
-    if (!event) return;
+    if (!event || event.can_edit === false) return;
 
     const oldStart = new Date(event.start_at);
     const oldEnd = new Date(event.end_at);
@@ -642,7 +642,7 @@ const Calendar = () => {
                   return (
                     <article
                       key={event.id}
-                      draggable
+                      draggable={event.can_edit !== false}
                       onDragStart={() => setDraggingEventId(event.id)}
                       onDragEnd={() => setDraggingEventId(null)}
                       className={`calendar-depth-card relative z-10 w-48 shrink-0 rounded-[1.5rem] border border-white/15 bg-gradient-to-br ${meta.gradient} p-4 text-white shadow-2xl transition duration-300 ${lift} ${draggingEventId === event.id ? "calendar-drag-lift" : "hover:-translate-y-4"} ${urgency === "critical" ? "calendar-deadline-pulse" : ""}`}
@@ -810,7 +810,7 @@ const Calendar = () => {
                       return (
                         <article
                           key={event.id}
-                          draggable
+                          draggable={event.can_edit !== false}
                           onClick={() => setSearchParams((current) => {
                             const next = new URLSearchParams(current);
                             next.set("event_id", event.id);
@@ -861,8 +861,8 @@ const Calendar = () => {
                               {event.conflicts_count > 0 ? <p className="text-xs text-amber-600 mt-1">⚠️ {event.conflicts_count} potential overlap(s)</p> : null}
 
                               <div className="mt-3 flex flex-wrap gap-2">
-                                <button type="button" onClick={() => openEdit(event)} className="inline-flex items-center gap-1 rounded border px-2 py-1 text-xs"><FiEdit2 />Edit</button>
-                                <button type="button" onClick={() => removeEvent(event.id)} className="inline-flex items-center gap-1 rounded border border-red-300 text-red-600 px-2 py-1 text-xs"><FiTrash2 />Delete</button>
+                                <button disabled={event.can_edit === false} type="button" onClick={() => openEdit(event)} className="inline-flex items-center gap-1 rounded border px-2 py-1 text-xs"><FiEdit2 />Edit</button>
+                                <button disabled={event.can_edit === false} type="button" onClick={() => removeEvent(event.id)} className="inline-flex items-center gap-1 rounded border border-red-300 text-red-600 px-2 py-1 text-xs"><FiTrash2 />Delete</button>
                                 <button type="button" onClick={() => openGoogle(event.id)} className="inline-flex items-center gap-1 rounded border px-2 py-1 text-xs"><FiExternalLink />Google</button>
                                 {dragDays.some((day) => sameDay(day, event.start_at)) ? <span className="text-xs text-zinc-500 self-center">Drag to reschedule</span> : null}
                               </div>

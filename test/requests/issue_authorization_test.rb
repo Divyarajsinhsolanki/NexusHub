@@ -52,8 +52,7 @@ class IssueAuthorizationTest < ActionDispatch::IntegrationTest
     token, = McpAccessToken.issue!(user: @user, name: "issue-security")
     executor = Mcp::ToolExecutor.new(user: @user, token: token)
     assert_equal 0, executor.call("list_issues", { project_id: @project.id })[:count]
-    detail = executor.call("get_project", { project_id: @project.id })
-    assert_empty detail[:project][:recent_issues]
+    assert_raises(ActiveRecord::RecordNotFound) { executor.call("get_project", { project_id: @project.id }) }
     assert_raises(ActiveRecord::RecordNotFound) do
       executor.call("update_issue", { id: @issue.id, title: "Unauthorized" })
     end

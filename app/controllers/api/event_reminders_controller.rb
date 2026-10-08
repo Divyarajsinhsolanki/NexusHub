@@ -1,6 +1,7 @@
 class Api::EventRemindersController < Api::BaseController
   before_action :set_calendar_event, only: [:create]
   before_action :set_event_reminder, only: [:update, :destroy]
+  before_action :authorize_event_edit!
   before_action :reject_managed_operation
 
   def create
@@ -46,12 +47,12 @@ class Api::EventRemindersController < Api::BaseController
   end
 
   def accessible_events
-    project_ids = current_user.projects.select(:id)
+    CalendarEvent.accessible_to(current_user)
+  end
 
-    CalendarEvent.where(user_id: current_user.id)
-                 .or(CalendarEvent.where(visibility: 'project', project_id: project_ids))
-                 .operations_visible_to(current_user)
-                 .distinct
+  def authorize_event_edit!
+    event = @calendar_event || @event_reminder.calendar_event
+    head :forbidden unless event.editable_by?(current_user)
   end
 
   def event_reminder_params

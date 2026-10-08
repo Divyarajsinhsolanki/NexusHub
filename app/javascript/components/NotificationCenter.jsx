@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, Fragment } from 'react';
+import { mergeNotifications, NotificationReadState } from '../utils/notificationState';
+import React, { useState, useEffect, useRef, useContext, Fragment } from 'react';
 import { Bell, Check, Clock, MessageSquare, Briefcase, FileText } from 'lucide-react';
 import { Popover, Transition } from '@headlessui/react';
 import { fetchNotifications, markNotificationRead, markAllNotificationsRead } from './api';
@@ -7,10 +8,12 @@ import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import Avatar from './ui/Avatar';
-import { browserNotificationPermission, notificationPath, showBrowserNotification } from '../lib/browserNotifications';
+import { AuthContext } from '../context/AuthContext';
+import { browserNotificationPermission, notificationPath, notificationReadMatches, notificationPresentation, showBrowserNotification } from '../lib/browserNotifications';
 
 const NotificationCenter = () => {
   const navigate = useNavigate();
+  const { user } = useContext(AuthContext);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
@@ -18,6 +21,9 @@ const NotificationCenter = () => {
   const [loadError, setLoadError] = useState(null);
   const [permission, setPermission] = useState(browserNotificationPermission);
   const seenNotifications = useRef(new Set());
+  const readState = useRef(new NotificationReadState());
+  const requestVersion = useRef(0);
+  const liveRevision = useRef(0);
 
   const enableBrowserNotifications = async () => {
     try {
@@ -28,17 +34,38 @@ const NotificationCenter = () => {
   };
 
   useEffect(() => {
+    seenNotifications.current.clear();
+    readState.current = new NotificationReadState();
+    setNotifications([]); setUnreadCount(0);
     loadNotifications();
 
     // Replace polling with real-time subscription
     const sub = subscribeToUserChat((payload) => {
+      if (payload?.type === 'notifications_read') {
+        liveRevision.current += 1;
+        readState.current.record(payload);
+        setUnreadCount(payload.unread_count);
+        setNotifications((previous) => previous.map((notice) => notificationReadMatches(payload, notice)
+          ? { ...notice, read_at: payload.read_at } : notice));
+      }
+      if (payload?.type === 'call_ringing') {
+        const call = payload.call_session;
+        if (call?.current_participant?.status === 'ringing' && Number(call.initiator_id) !== Number(user?.id) && notificationPresentation({}).browser) {
+          if (seenNotifications.current.has(`call-${call.id}`)) return;
+          seenNotifications.current.add(`call-${call.id}`);
+          showBrowserNotification({ id: `call-${call.id}`, title: `Incoming ${call.call_type || 'audio'} call`,
+            message: `${call.initiator_name || 'Someone'} is calling`, deep_link: `/chat/${call.conversation_id}` }, navigate);
+        }
+      }
       if (payload?.type === "notification_received") {
         if (!payload.notification || seenNotifications.current.has(payload.notification.id)) return;
         seenNotifications.current.add(payload.notification.id);
         if (seenNotifications.current.size > 500) seenNotifications.current.delete(seenNotifications.current.values().next().value);
-        setNotifications(prev => [payload.notification, ...prev]);
-        setUnreadCount(prev => prev + 1);
-        if (payload.notification?.message) {
+        liveRevision.current += 1;
+        setNotifications(prev => mergeNotifications(prev, readState.current.apply([payload.notification])));
+        if (!payload.notification.read_at) setUnreadCount(prev => prev + 1);
+        const presentation = notificationPresentation(payload.notification);
+        if (presentation.toast && payload.notification?.message) {
           toast(payload.notification.message, {
             id: `notification-${payload.notification.id}`,
             icon: payload.notification.action?.startsWith("chat") || payload.notification.action === "missed_call"
@@ -48,20 +75,27 @@ const NotificationCenter = () => {
         }
 
         // Show browser notification if permitted
-        showBrowserNotification(payload.notification, navigate);
+        if (presentation.browser) showBrowserNotification(payload.notification, navigate);
       }
     });
 
-    return () => sub.unsubscribe();
-  }, []);
+    return () => { requestVersion.current += 1; sub.unsubscribe(); };
+  }, [navigate, user?.id]);
 
   const loadNotifications = async () => {
+    const version = ++requestVersion.current;
+    const revision = liveRevision.current;
     setLoadError(null);
     try {
       const response = await fetchNotifications({ page: 1 });
-      setNotifications(response.data.notifications || []);
-      setUnreadCount(response.data.meta?.unread_count || 0);
+      if (version !== requestVersion.current) return;
+      const incoming = readState.current.apply(response.data.notifications || []);
+      incoming.forEach(notice => seenNotifications.current.add(notice.id));
+      setNotifications(previous => mergeNotifications(previous, incoming));
+      if (revision === liveRevision.current) setUnreadCount(response.data.meta?.unread_count || 0);
+      else void loadNotifications();
     } catch (error) {
+      if (version !== requestVersion.current) return;
       if (error?.response?.status === 401) {
         setNotifications([]);
         setUnreadCount(0);
@@ -76,11 +110,13 @@ const NotificationCenter = () => {
 
   const handleMarkRead = async (id) => {
     try {
-      await markNotificationRead(id);
+      const response = await markNotificationRead(id);
+      liveRevision.current += 1;
+      readState.current.record({ notification_id: id });
       setNotifications(prev =>
         prev.map(n => n.id === id ? { ...n, read_at: new Date().toISOString() } : n)
       );
-      setUnreadCount(prev => Math.max(0, prev - 1));
+      if (response?.data?.unread_count != null) setUnreadCount(response.data.unread_count);
     } catch (error) {
       if (error?.response?.status === 401) return;
       console.error("Failed to mark read", error);
@@ -104,6 +140,8 @@ const NotificationCenter = () => {
     setLoading(true);
     try {
       await markAllNotificationsRead();
+      liveRevision.current += 1;
+      readState.current.record({});
       setNotifications(prev => prev.map(n => ({ ...n, read_at: new Date().toISOString() })));
       setUnreadCount(0);
     } catch (error) {

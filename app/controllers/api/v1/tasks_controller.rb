@@ -1,10 +1,12 @@
 class Api::V1::TasksController < Api::V1::BaseController
+  include TaskProjectAccess
+
   STATUSES = %w[todo inprogress completed].freeze
 
   before_action :set_task, only: [:show, :update]
 
   def index
-    tasks = Task.includes(:assigned_user, :developer)
+    tasks = Task.visible_to(current_user).includes(:assigned_user, :developer)
                 .order(Arel.sql('tasks."order" ASC NULLS LAST'), :id)
     tasks = tasks.where(project_id: params[:project_id]) if params[:project_id].present?
     tasks = tasks.where(sprint_id: params[:sprint_id]) if params[:sprint_id].present?
@@ -31,7 +33,7 @@ class Api::V1::TasksController < Api::V1::BaseController
   end
 
   def update
-    attributes = task_attributes
+    attributes = authorize_task_attributes!(task_attributes, task: @task)
     status = attributes[:status]
     if status.present? && !STATUSES.include?(status)
       return render_error(
@@ -42,7 +44,7 @@ class Api::V1::TasksController < Api::V1::BaseController
     end
 
     @task.updated_by = current_user.id
-    return render_validation_error(@task) unless @task.update(attributes)
+    return render_validation_error(@task) unless Tasks::Updater.call(@task, attributes)
 
     render_data(serialize_task(@task))
   end
@@ -50,7 +52,7 @@ class Api::V1::TasksController < Api::V1::BaseController
   private
 
   def set_task
-    @task = Task.includes(:assigned_user, :developer).find(params[:id])
+    @task = Task.visible_to(current_user).includes(:assigned_user, :developer).find(params[:id])
   end
 
   def assigned_to_current_user(scope)

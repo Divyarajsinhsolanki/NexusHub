@@ -55,9 +55,10 @@ class DemoExpansionSeeder
         task = Task.find_or_create_by!(project: project, task_id: "DEMO-P#{project_index + 1}-S#{index + 1}-T#{task_index + 1}") do |record|
           record.assign_attributes(sprint: sprint, developer: engineer, assigned_user: task_index == 2 ? guest : engineer,
             type: "Code", title: ["Build #{project.name} interface", "Review #{project.name} accessibility", "Document #{project.name} handoff"][task_index],
-            status: %w[completed in_progress todo][task_index], priority: %w[High Medium Low][task_index], estimated_hours: task_index + 2,
+            status: %w[completed inprogress todo][task_index], priority: %w[High Medium Low][task_index], estimated_hours: task_index + 2,
             start_date: sprint.start_date, end_date: sprint.end_date, created_by: engineer.id, updated_by: engineer.id)
         end
+        task.update!(status: "inprogress") if task.status == "in_progress"
         TaskLog.find_or_create_by!(task: task, developer: engineer, type: "Code", log_date: Date.current - task_index) do |record|
           record.assign_attributes(hours_logged: task_index + 1, status: task.status, created_by: engineer.id, updated_by: engineer.id)
         end
@@ -126,12 +127,15 @@ class DemoExpansionSeeder
       log.tags = [tag] unless log.tags.exists?(id: tag.id)
       WorkNote.find_or_create_by!(user: guest, note_date: Date.current - index - 1) { |record| record.content = "Demo review #{index + 1}: capture the next action and one lesson learned." }
       event = CalendarEvent.find_or_initialize_by(user: guest, title: "Demo #{%w[design quality release][index]} review")
-      event.update!(project: projects[index], start_at: (Time.current + index.days).beginning_of_hour + 2.hours,
-        end_at: (Time.current + index.days).beginning_of_hour + 3.hours, visibility: "project", event_type: %w[meeting focus sprint_ceremony][index],
-        status: "scheduled", description: "Synthetic review session; no reminders are scheduled.")
-      Task.find_or_create_by!(assigned_user: guest, type: "general", title: "Demo personal priority #{index + 1}") do |record|
-        record.assign_attributes(status: %w[todo in_progress completed][index], priority: "Medium", start_date: Date.current, end_date: Date.current + 2.days)
+      Current.set(user: projects[index].owner) do
+        event.update!(project: projects[index], start_at: (Time.current + index.days).beginning_of_hour + 2.hours,
+          end_at: (Time.current + index.days).beginning_of_hour + 3.hours, visibility: "project", event_type: %w[meeting focus sprint_ceremony][index],
+          status: "scheduled", description: "Synthetic review session; no reminders are scheduled.")
       end
+      task = Task.find_or_create_by!(assigned_user: guest, type: "general", title: "Demo personal priority #{index + 1}") do |record|
+        record.assign_attributes(status: %w[todo inprogress completed][index], priority: "Medium", start_date: Date.current, end_date: Date.current + 2.days)
+      end
+      task.update!(status: "inprogress") if task.status == "in_progress"
     end
   end
 

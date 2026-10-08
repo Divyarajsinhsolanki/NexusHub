@@ -668,22 +668,7 @@ const ConversationItem = React.memo(({ conversation, currentUserId, isActive, se
               Unmute
             </button>
           ) : (
-            MUTE_OPTIONS.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  setIsMenuOpen(false);
-                  onMute?.(conversation, option.id);
-                }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium hover:bg-slate-50 dark:hover:bg-zinc-800"
-              >
-                <FiBellOff className="h-3.5 w-3.5" />
-                {option.label}
-              </button>
-            ))
+            <button type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); setIsMenuOpen(false); onMute?.(conversation); }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium hover:bg-slate-50 dark:hover:bg-zinc-800"><FiBellOff className="h-3.5 w-3.5" />Mute</button>
           )}
           <button
             type="button"
@@ -749,9 +734,6 @@ const MessageAttachmentCard = ({ attachment, isMe, searchQuery }) => {
             {isImage ? "Image" : "Video"}
             {fileSize && <span>{fileSize}</span>}
           </div>
-          <p className="mt-1 truncate text-xs font-medium">
-            <HighlightText text={attachment.filename} query={searchQuery} />
-          </p>
         </div>
 
         <a
@@ -1093,6 +1075,8 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   const fileInputRef = useRef(null);
   const composerTextareaRef = useRef(null);
   const threadActionsRef = useRef(null);
+  const typingHeartbeatRef = useRef(0);
+  const remoteTypingTimersRef = useRef(new Map());
   const typingTimeoutRef = useRef(null);
   const conversationLoadTokenRef = useRef(0);
   const conversationCacheRef = useRef({});
@@ -1135,6 +1119,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   const [historyAnchor, setHistoryAnchor] = useState(null);
   const [hasUnreadBelow, setHasUnreadBelow] = useState(false);
   const [users, setUsers] = useState([]);
+  const [muteTarget, setMuteTarget] = useState(null);
   const [isUsersLoading, setIsUsersLoading] = useState(false);
   const [tasks, setTasks] = useState([]);
 
@@ -1907,14 +1892,29 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
 
   const announceTyping = useCallback(() => {
     if (!conversationId) return;
-    if (!typingStateRef.current.active || Number(typingStateRef.current.conversationId) !== Number(conversationId)) {
-      if (typingStateRef.current.active) sendTyping(false, typingStateRef.current.conversationId);
+    if (!typingStateRef.current.active || Number(typingStateRef.current.conversationId) !== Number(conversationId) || Date.now() - typingHeartbeatRef.current >= 1000) {
+      if (typingStateRef.current.active && Number(typingStateRef.current.conversationId) !== Number(conversationId)) sendTyping(false, typingStateRef.current.conversationId);
       sendTyping(true, conversationId);
+      typingHeartbeatRef.current = Date.now();
       typingStateRef.current = { active: true, conversationId };
     }
     if (typingTimeoutRef.current) window.clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = window.setTimeout(stopTyping, 1800);
   }, [conversationId, sendTyping, stopTyping]);
+
+  useEffect(() => {
+    setTypingUsers({});
+    const stopOnHidden = () => { if (document.visibilityState !== 'visible') stopTyping(); };
+    window.addEventListener('blur', stopTyping);
+    document.addEventListener('visibilitychange', stopOnHidden);
+    return () => {
+      stopTyping();
+      remoteTypingTimersRef.current.forEach(window.clearTimeout);
+      remoteTypingTimersRef.current.clear();
+      window.removeEventListener('blur', stopTyping);
+      document.removeEventListener('visibilitychange', stopOnHidden);
+    };
+  }, [conversationId, stopTyping]);
 
   const shouldLoadConversationList = embedded || !conversationId || !isMobileLayout;
   useEffect(() => {
@@ -2353,8 +2353,10 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     }
   }, [activeCall]);
 
-  const handleMuteConversation = useCallback(async (conversation, duration = "forever") => {
+  const handleMuteConversation = useCallback(async (conversation, duration) => {
     if (!conversation) return;
+    if (!duration) { setMuteTarget(conversation); return; }
+    setMuteTarget(null);
 
     try {
       const { data } = await muteConversation(conversation.id, duration);
@@ -2668,27 +2670,23 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       if (payload?.type === "typing_indicator" && Number(payload.conversation_id) === Number(conversationId)) {
         if (Number(payload.user_id) === Number(user?.id)) return;
 
+        const existingTimer = remoteTypingTimersRef.current.get(payload.user_id);
+        if (existingTimer) window.clearTimeout(existingTimer);
+        remoteTypingTimersRef.current.delete(payload.user_id);
+        if (payload.is_typing) {
+          remoteTypingTimersRef.current.set(payload.user_id, window.setTimeout(() => {
+            remoteTypingTimersRef.current.delete(payload.user_id);
+            setTypingUsers((current) => {
+              const next = { ...current };
+              delete next[payload.user_id];
+              return next;
+            });
+          }, 3000));
+        }
         setTypingUsers((previous) => {
           const next = { ...previous };
-
-          if (payload.is_typing) {
-            if (next[payload.user_id]?.timeout) clearTimeout(next[payload.user_id].timeout);
-
-            next[payload.user_id] = {
-              name: payload.user_name,
-              timeout: window.setTimeout(() => {
-                setTypingUsers((current) => {
-                  const updated = { ...current };
-                  delete updated[payload.user_id];
-                  return updated;
-                });
-              }, 3000)
-            };
-          } else {
-            if (next[payload.user_id]?.timeout) clearTimeout(next[payload.user_id].timeout);
-            delete next[payload.user_id];
-          }
-
+          if (payload.is_typing) next[payload.user_id] = { name: payload.user_name || 'Someone' };
+          else delete next[payload.user_id];
           return next;
         });
       }
@@ -3331,7 +3329,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   }, [fetchAllData, removeConversationLocally]);
 
   const threadStatusLabel = typingNames.length > 0
-    ? `${typingNames.join(", ")} ${typingNames.length === 1 ? "is" : "are"} typing...`
+    ? typingNames.length === 1 ? `${typingNames[0]} is typing…` : "Several people are typing…"
     : activeConversation?.conversation_type === "group"
       ? `${activeConversation?.participants?.length || 0} members • ${activeConversationOnlineCount} online`
       : activeConversationOtherParticipant ? formatParticipantStatus(activeConversationOtherParticipant, user?.id) : "Private conversation";
@@ -3342,6 +3340,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
 
   return (
     <div data-has-conversation={Boolean(conversationId)} className={`nexus-chat-page flex h-full min-h-0 w-full overflow-hidden ${embedded ? "chat-embedded" : ""}`}>
+      {muteTarget && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setMuteTarget(null)}><section role="dialog" aria-modal="true" aria-labelledby="mute-dialog-title" className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl dark:bg-zinc-900" onClick={event => event.stopPropagation()} onKeyDown={event => { if (event.key === 'Escape') setMuteTarget(null); }}><h2 id="mute-dialog-title" className="mb-3 font-semibold">Mute notifications for…</h2>{MUTE_OPTIONS.map((option, index) => <button autoFocus={index === 0} key={option.id} type="button" className="block w-full rounded-lg px-3 py-3 text-left hover:bg-slate-100 dark:hover:bg-zinc-800" onClick={() => handleMuteConversation(muteTarget, option.id)}>{option.label.replace('Mute ', '')}</button>)}<button type="button" className="mt-2 w-full rounded-lg border px-3 py-2" onClick={() => setMuteTarget(null)}>Cancel</button></section></div>}
       <div className="nexus-chat-surface relative flex min-h-0 h-full w-full overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
         <aside aria-label="Conversations" className={`nexus-chat-sidebar relative z-10 flex min-h-0 w-full shrink-0 flex-col border-r border-slate-200 bg-white dark:border-zinc-800 dark:bg-zinc-950 md:w-[20rem] xl:w-[22rem] ${conversationId ? "hidden md:flex" : "flex"}`}>
           <div className="chat-inbox-header">
@@ -3937,7 +3936,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: "240ms" }} />
                             </div>
                             <span>
-                              {typingNames.join(", ")} {typingNames.length === 1 ? "is" : "are"} typing...
+                              {typingNames.length === 1 ? `${typingNames[0]} is typing…` : "Several people are typing…"}
                             </span>
                           </motion.div>
                         )}
@@ -4045,11 +4044,12 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                         <div className="chat-composer-input">
                             <textarea
                               ref={composerTextareaRef}
+                              onBlur={stopTyping}
                               value={messageBody}
                               onChange={(event) => {
                                 setMessageBody(event.target.value);
                                 syncComposerSelection(event);
-                                announceTyping();
+                                if (event.target.value.trim()) announceTyping(); else stopTyping();
                               }}
                               onKeyDown={(event) => {
                                 if (event.nativeEvent.isComposing || event.keyCode === 229) return;
@@ -4359,18 +4359,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                                   Unmute conversation
                                 </button>
                               ) : (
-                                <div className="grid grid-cols-2 gap-2">
-                                  {MUTE_OPTIONS.map((option) => (
-                                    <button
-                                      key={option.id}
-                                      type="button"
-                                      onClick={() => handleMuteConversation(activeConversation, option.id)}
-                                      className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-200 dark:hover:bg-zinc-800"
-                                    >
-                                      {option.label.replace("Mute ", "")}
-                                    </button>
-                                  ))}
-                                </div>
+                                <button type="button" onClick={() => handleMuteConversation(activeConversation)} className="w-full rounded-2xl border border-slate-200 px-3 py-2 text-xs font-semibold">Mute conversation</button>
                               )}
                             </div>
                           </section>

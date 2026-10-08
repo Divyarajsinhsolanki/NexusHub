@@ -128,9 +128,9 @@ class OperationsIntegrationTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test 'operations reminders use the reminder filter and a direct safe link without mobile push' do
+  test 'operations reminders use the reminder filter and a direct safe link with mobile push' do
     in_workspace do
-      assert_no_enqueued_jobs only: PushNotificationDispatchJob do
+      assert_enqueued_jobs 1, only: PushNotificationDispatchJob do
         Notification.create!(recipient: @user, actor: @user, action: 'operations_reminder', notifiable: @license,
           metadata: { title: @license.name, project_id: @project.id, kind: 'license', path: Operations::Schedules.path_for(@license) })
       end

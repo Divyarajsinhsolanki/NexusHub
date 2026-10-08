@@ -30,6 +30,7 @@ class CalendarEvent < ApplicationRecord
   validates :recurrence_rule, inclusion: { in: RECURRENCE_RULES }, allow_blank: true
   validate :end_after_start
   validate :project_required_for_project_visibility
+  validate :validate_linked_resources
 
   scope :within_range, ->(start_time, end_time) {
     where('start_at < ? AND end_at > ?', end_time, start_time)
@@ -54,12 +55,25 @@ class CalendarEvent < ApplicationRecord
     Operations::Schedules.path_for(operation_source) if managed_operation? && operation_source
   end
 
-  # Existing calendar membership includes inactive users. Managed operational
-  # records retain their stricter project membership policy in every calendar view.
+  # Managed operational records retain their active-membership policy.
   scope :operations_visible_to, ->(user) {
     active_projects = ProjectUser.where(user_id: user&.id, status: 'active').select(:project_id)
     where(operation_source_type: nil).or(where(project_id: active_projects))
   }
+
+  def self.accessible_to(user)
+    return none unless user
+
+    project_ids = Project.accessible_to(user).select(:id)
+    where(user_id: user.id, visibility: 'personal')
+      .or(where(visibility: 'project', project_id: project_ids))
+      .operations_visible_to(user).distinct
+  end
+
+  def editable_by?(actor)
+    return false unless actor && workspace_id == actor.workspace_id
+    project? ? project&.editable_by?(actor) : user_id == actor.id
+  end
 
   def google_event_url
     params = {
@@ -74,6 +88,33 @@ class CalendarEvent < ApplicationRecord
   end
 
   private
+
+  def validate_linked_resources
+    return if managed_operation?
+    actor = Current.user || user
+    return unless actor
+
+    if project_id.present? && !Project.accessible_to(actor).exists?(id: project_id)
+      errors.add(:project, 'is not accessible')
+    end
+    if visibility == 'project' && project && !project.editable_by?(actor)
+      errors.add(:project, 'requires edit access')
+    end
+    { task: task, sprint: sprint }.each do |name, resource|
+      resource_id = public_send("#{name}_id")
+      next if resource_id.blank?
+      if resource.nil?
+        errors.add(name, 'is not accessible')
+        next
+      end
+      errors.add(:task, 'is not accessible') if name == :task && !Task.visible_to(actor).exists?(id: resource.id)
+      if resource.project_id.present?
+        errors.add(name, 'is not accessible') unless Project.accessible_to(actor).exists?(id: resource.project_id)
+        errors.add(name, 'must belong to the selected project') unless project_id == resource.project_id
+      end
+      errors.add(:sprint, 'must match the task sprint') if name == :sprint && task&.sprint_id.present? && task.sprint_id != sprint_id
+    end
+  end
 
   def end_after_start
     return if start_at.blank? || end_at.blank?

@@ -32,7 +32,7 @@ class Api::ActivityController < Api::BaseController
   end
 
   def assigned_tasks
-    Task.where(assigned_to_user: current_user.id)
+    Task.visible_to(current_user).where(assigned_to_user: current_user.id)
   end
 
   def task_items
@@ -75,14 +75,7 @@ class Api::ActivityController < Api::BaseController
   end
 
   def accessible_events
-    project_ids = current_user.projects.select(:id)
-
-    CalendarEvent
-      .where(user_id: current_user.id)
-      .or(CalendarEvent.where(visibility: "project", project_id: project_ids))
-      .operations_visible_to(current_user)
-      .where("end_at >= ?", Time.current.beginning_of_day)
-      .distinct
+    CalendarEvent.accessible_to(current_user).where("end_at >= ?", Time.current.beginning_of_day)
   end
 
   def item(kind, id, title, subtitle, path, occurred_at, extra = {})

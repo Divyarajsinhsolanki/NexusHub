@@ -45,7 +45,9 @@ class Api::TaskLogsController < Api::BaseController
   def destroy_for_sprint
     return render json: { errors: ['sprint_id is required'] }, status: :unprocessable_entity if params[:sprint_id].blank?
 
-    task_logs = TaskLog.joins(:task).where(tasks: { sprint_id: params[:sprint_id] })
+    sprint = Sprint.where(project_id: Project.accessible_to(current_user).select(:id)).find(params[:sprint_id])
+    sprint.project.authorize_edit!(current_user)
+    task_logs = TaskLog.joins(:task).where(tasks: { sprint_id: sprint.id })
     deleted_count = task_logs.count
     task_logs.destroy_all
 
@@ -68,7 +70,7 @@ class Api::TaskLogsController < Api::BaseController
   private
 
   def ordered_task_logs
-    TaskLog
+    TaskLog.where(task_id: Task.visible_to(current_user).select(:id))
       .includes(:task, :developer)
       .left_joins(task: :sprint)
       .order(log_date: :asc)
@@ -89,17 +91,22 @@ class Api::TaskLogsController < Api::BaseController
   end
 
   def set_task_log
-    @task_log = TaskLog.find(params[:id])
+    @task_log = TaskLog.where(task_id: Task.visible_to(current_user).select(:id)).find(params[:id])
+    @task_log.task.authorize_edit!(current_user)
   end
 
   def task_log_params
-    params.require(:task_log).permit(:task_id, :developer_id, :log_date, :type, :hours_logged, :status, :created_by, :updated_by)
+    attributes = params.require(:task_log).permit(:task_id, :developer_id, :log_date, :type, :hours_logged, :status)
+    Task.visible_to(current_user).find(attributes[:task_id]).authorize_edit!(current_user) if attributes[:task_id].present?
+    attributes
   end
 
   def bulk_task_log_params
     Array(params.require(:task_logs)).map do |entry|
       permitted = entry.is_a?(ActionController::Parameters) ? entry : ActionController::Parameters.new(entry)
-      permitted.permit(:task_id, :developer_id, :log_date, :type, :hours_logged, :status, :created_by, :updated_by)
+      attributes = permitted.permit(:task_id, :developer_id, :log_date, :type, :hours_logged, :status)
+      Task.visible_to(current_user).find(attributes[:task_id]).authorize_edit!(current_user)
+      attributes
     end
   end
 

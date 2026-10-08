@@ -9,7 +9,7 @@ import { apiErrorMessage } from '@/src/api/client';
 import { endpoints } from '@/src/api/endpoints';
 import type { Notification } from '@/src/api/types';
 import { useAuth } from '@/src/auth/AuthProvider';
-import { MOBILE_CACHE_PAGE_LIMIT, mobileQueryKeys } from '@/src/cache/mobileCache';
+import { fetchNotificationPage, MOBILE_CACHE_PAGE_LIMIT, mobileQueryKeys } from '@/src/cache/mobileCache';
 import { PageHeader } from '@/src/components/PageHeader';
 import { Screen } from '@/src/components/Screen';
 import { EmptyState, ErrorState, LoadingState } from '@/src/components/StateView';
@@ -25,12 +25,12 @@ export default function NotificationsScreen() {
   const [filter, setFilter] = useState<NotificationFilter>('all');
   const notifications = useInfiniteQuery({
     queryKey: mobileQueryKeys.notifications,
-    initialPageParam: 1,
-    queryFn: ({ pageParam }) => endpoints.notifications(pageParam),
-    getNextPageParam: (page) => page.meta?.next_page ?? undefined,
+    initialPageParam: undefined as number | undefined,
+    queryFn: ({ pageParam }) => fetchNotificationPage(queryClient, pageParam),
+    getNextPageParam: (page) => Number(page.meta?.next_before_id) || undefined,
     maxPages: MOBILE_CACHE_PAGE_LIMIT,
   });
-  const data = useMemo(() => notifications.data?.pages.flatMap((page) => page.data) || [], [notifications.data]);
+  const data = useMemo(() => [...new Map((notifications.data?.pages.flatMap((page) => page.data) || []).map(notice => [notice.id, notice])).values()], [notifications.data]);
   const filtered = useMemo(() => filter === 'all' ? data : data.filter((item) => notificationCategory(item) === filter), [data, filter]);
   const sections = useMemo(() => {
     const today = filtered.filter((item) => isToday(parseISO(item.created_at)));

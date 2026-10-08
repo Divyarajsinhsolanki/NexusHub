@@ -2,7 +2,7 @@
   "expo": {
     "name": "Nexus Hub",
     "slug": "nexushub",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "nexushub",
@@ -22,7 +22,9 @@
       "permissions": [
         "CAMERA",
         "RECORD_AUDIO",
-        "POST_NOTIFICATIONS"
+        "POST_NOTIFICATIONS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION"
       ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -78,7 +80,14 @@
       ],
       "@react-native-community/datetimepicker",
       "@sentry/react-native",
-      "@livekit/react-native-expo-plugin",
+      [
+        "@livekit/react-native-expo-plugin",
+        {
+          "android": {
+            "enableScreenShareService": true
+          }
+        }
+      ],
       "@config-plugins/react-native-webrtc",
       "@config-plugins/react-native-blob-util",
       "@config-plugins/react-native-pdf",

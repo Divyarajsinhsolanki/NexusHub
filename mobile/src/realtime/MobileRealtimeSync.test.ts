@@ -23,6 +23,13 @@ afterEach(() => {
 });
 
 describe('handleMobileRealtimeEvent', () => {
+  test('read notifications on another device refresh notification and home caches', async () => {
+    const client = testQueryClient();
+    const invalidate = jest.spyOn(client, 'invalidateQueries');
+    await handleMobileRealtimeEvent(client, { type: 'notifications_read', unread_count: 0 }, 1);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: mobileQueryKeys.notifications });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: mobileQueryKeys.home });
+  });
   test('profile changes update cached authors and quoted reply names', async () => {
     const client = testQueryClient();
     client.setQueryData(mobileQueryKeys.messages(7), { pageParams: [undefined], pages: [{ data: [{ ...message(20, 'Reply'), user_id: 2, user_name: 'Old name', reply_to: { id: 19, user_id: 2, user_name: 'Old name', body: 'Original' } }] }] });

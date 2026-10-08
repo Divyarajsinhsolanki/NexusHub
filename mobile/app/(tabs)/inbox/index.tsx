@@ -1,3 +1,4 @@
+import { MuteDurationSheet } from '@/src/components/chat/MuteDurationSheet';
 import { PostAttachment } from "@/src/components/PostAttachment";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
@@ -105,7 +106,7 @@ function ConversationList({ conversations, loadingMore, onEndReached }: { conver
   return <FlatList contentContainerStyle={styles.conversationList} data={conversations} keyExtractor={(conversation) => String(conversation.id)} ListFooterComponent={loadingMore ? <LoadingState label="Loading more" /> : null} onEndReached={onEndReached} onEndReachedThreshold={0.4} renderItem={({ item }) => <ConversationRow conversation={item} />} />;
 }
 
-function ConversationRow({ conversation }: { conversation: Conversation }) {
+export function ConversationRow({ conversation }: { conversation: Conversation }) {
   const presenceNow = usePresenceNow();
   const theme = useAppTheme();
   const router = useRouter();
@@ -114,7 +115,21 @@ function ConversationRow({ conversation }: { conversation: Conversation }) {
   const other = participants.find((participant) => participant.id !== user?.id);
   const group = conversation.conversation_type === 'group';
   const online = !group && Boolean(other && isParticipantOnline(other, presenceNow));
-  return <Pressable accessibilityLabel={`Open ${conversationTitle(conversation)}`} accessibilityRole="button" onPress={() => router.push(`/chat/${conversation.id}` as never)} style={({ pressed }) => [styles.conversation, { backgroundColor: pressed ? theme.surfaceMuted : theme.background, borderBottomColor: theme.border }]}><View><Avatar name={conversationTitle(conversation)} size={48} uri={!group ? absoluteAssetUrl(other?.profile_picture) : undefined} /><View style={[styles.presence, { backgroundColor: online ? theme.success : theme.border, borderColor: theme.background }]} /></View><View style={styles.conversationCopy}><View style={styles.conversationTitleRow}><Text numberOfLines={1} style={[styles.name, { color: theme.text }]}>{conversationTitle(conversation)}</Text>{conversation.muted ? <MicOff color={theme.textMuted} size={14} /> : null}</View><Text numberOfLines={1} style={[styles.preview, { color: theme.textMuted }]}>{conversationPreview(conversation)}</Text></View><View style={styles.conversationMeta}>{conversation.active_call ? <PhoneCall color={theme.success} size={17} /> : null}{conversation.unread_count ? <View style={[styles.badge, { backgroundColor: theme.primary }]}><Text style={styles.badgeText}>{conversation.unread_count > 99 ? '99+' : conversation.unread_count}</Text></View> : null}<Text style={[styles.kind, { color: theme.textMuted }]}>{group ? `${participants.length} people` : online ? 'Online' : ''}</Text></View></Pressable>;
+  const queryClient = useQueryClient();
+  const [muteOpen, setMuteOpen] = useState(false);
+  const refresh = () => queryClient.invalidateQueries({ queryKey: mobileQueryKeys.conversations });
+  const actOnConversation = async (action: () => Promise<unknown>) => {
+    try { await action(); await refresh(); } catch (error) { Alert.alert('Unable to update chat', apiErrorMessage(error)); }
+  };
+  const actions = () => {
+    if (user?.demo_account) return;
+    Alert.alert(conversationTitle(conversation), 'Chat actions', [
+      { text: conversation.muted ? 'Unmute' : 'Mute', onPress: () => conversation.muted ? void actOnConversation(() => endpoints.setConversationMuted(conversation.id, false)) : setMuteOpen(true) },
+      { text: 'Delete chat for me', style: 'destructive', onPress: () => Alert.alert('Delete chat for me?', 'This removes it from your inbox. Other members keep their messages.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => void actOnConversation(() => endpoints.hideConversation(conversation.id)) }]) },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+  return <><Pressable onLongPress={actions} accessibilityHint="Long press for chat actions" accessibilityLabel={`Open ${conversationTitle(conversation)}`} accessibilityRole="button" onPress={() => router.push(`/chat/${conversation.id}` as never)} style={({ pressed }) => [styles.conversation, { backgroundColor: pressed ? theme.surfaceMuted : theme.background, borderBottomColor: theme.border }]}><View><Avatar name={conversationTitle(conversation)} size={48} uri={!group ? absoluteAssetUrl(other?.profile_picture) : undefined} /><View style={[styles.presence, { backgroundColor: online ? theme.success : theme.border, borderColor: theme.background }]} /></View><View style={styles.conversationCopy}><View style={styles.conversationTitleRow}><Text numberOfLines={1} style={[styles.name, { color: theme.text }]}>{conversationTitle(conversation)}</Text>{conversation.muted ? <MicOff color={theme.textMuted} size={14} /> : null}</View><Text numberOfLines={1} style={[styles.preview, { color: theme.textMuted }]}>{conversationPreview(conversation)}</Text></View><View style={styles.conversationMeta}>{conversation.active_call ? <PhoneCall color={theme.success} size={17} /> : null}{conversation.unread_count ? <View style={[styles.badge, { backgroundColor: theme.primary }]}><Text style={styles.badgeText}>{conversation.unread_count > 99 ? '99+' : conversation.unread_count}</Text></View> : null}<Text style={[styles.kind, { color: theme.textMuted }]}>{group ? `${participants.length} people` : online ? 'Online' : ''}</Text></View></Pressable><MuteDurationSheet visible={muteOpen} onClose={() => setMuteOpen(false)} onSelect={duration => { setMuteOpen(false); void actOnConversation(() => endpoints.setConversationMuted(conversation.id, true, duration)); }} /></>;
 }
 
 function NewConversationSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {

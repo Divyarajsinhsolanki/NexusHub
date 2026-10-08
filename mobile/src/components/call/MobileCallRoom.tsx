@@ -9,10 +9,10 @@ import {
   VideoTrack,
   type TrackReferenceOrPlaceholder,
 } from '@livekit/react-native';
-import { Camera, CameraOff, Mic, MicOff, PhoneOff, RefreshCw, Share2, ShieldCheck, Users, Volume2, X } from 'lucide-react-native';
+import { Camera, CameraOff, Mic, MicOff, Monitor, MonitorOff, PhoneOff, RefreshCw, Share2, ShieldCheck, Users, Volume2, X } from 'lucide-react-native';
 import { ConnectionState, Track } from 'livekit-client';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, FlatList, Modal, Pressable, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Alert, FlatList, Modal, Platform, Pressable, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { LiveKitCredentials } from '../../api/types';
@@ -83,20 +83,40 @@ function RoomView({ connectionIssue, credentials, onEnd, onLeave }: Omit<Props, 
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const tracks = useTracks([Track.Source.Camera]);
+  const tracks = useTracks([Track.Source.Camera, Track.Source.ScreenShare]);
   const participants = useParticipants();
   const connectionState = useConnectionState();
-  const { localParticipant, isMicrophoneEnabled, isCameraEnabled } = useLocalParticipant();
+  const { localParticipant, isMicrophoneEnabled, isCameraEnabled, isScreenShareEnabled } = useLocalParticipant();
   const call = credentials.call_session;
   const [participantsOpen, setParticipantsOpen] = useState(false);
+  const [screenSharePending, setScreenSharePending] = useState(false);
+  const screenShareInFlight = useRef(false);
+  const screenTracks = tracks.filter(track => track.source === Track.Source.ScreenShare && isTrackReference(track));
+  const cameraTracks = tracks.filter(track => track.source === Track.Source.Camera);
+  const visibleTracks = [...screenTracks, ...cameraTracks];
   const [audioOutput, setAudioOutput] = useState('default');
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
-  const videoColumns = tracks.length > 1 && width >= 520 ? 2 : 1;
+  const videoColumns = !screenTracks.length && cameraTracks.length > 1 && width >= 520 ? 2 : 1;
   const activeNames = useMemo(() => call.participants.filter((participant) => participant.status === 'joined').map((participant) => participant.name), [call.participants]);
 
   const share = useCallback(async () => {
     await Share.share({ message: `Join my Nexus Hub call: ${call.share_url}`, url: call.share_url, title: 'Join call' });
   }, [call.share_url]);
+
+  const toggleScreenShare = useCallback(async () => {
+    if (screenShareInFlight.current) return;
+    screenShareInFlight.current = true;
+    setScreenSharePending(true);
+    try {
+      await localParticipant.setScreenShareEnabled(!isScreenShareEnabled);
+    } catch (error) {
+      captureCallError(error, 'connect', { call_id: call.id, screen_share: true });
+      Alert.alert('Screen sharing unavailable', 'Screen sharing was cancelled or could not start. Try again and allow screen capture when prompted.');
+    } finally {
+      screenShareInFlight.current = false;
+      setScreenSharePending(false);
+    }
+  }, [call.id, isScreenShareEnabled, localParticipant]);
 
   const end = useCallback(() => Alert.alert('End for everyone?', 'This meeting link will stop working for every participant.', [
     { text: 'Cancel', style: 'cancel' },
@@ -144,12 +164,14 @@ function RoomView({ connectionIssue, credentials, onEnd, onLeave }: Omit<Props, 
       {connectionIssue || connectionState === ConnectionState.Reconnecting ? <View accessibilityRole="alert" style={styles.reconnecting}><RefreshCw color="#fde68a" size={15} /><Text style={styles.reconnectingText}>{connectionIssue || 'Reconnecting media…'}</Text></View> : null}
 
       <View style={styles.stage}>
-        {call.call_type === 'video' && tracks.some(isTrackReference)
-          ? <FlatList contentContainerStyle={styles.videoList} data={tracks} key={videoColumns} keyExtractor={(item, index) => `${item.participant.identity}-${index}`} numColumns={videoColumns} removeClippedSubviews renderItem={({ item }: { item: TrackReferenceOrPlaceholder }) => isTrackReference(item) ? <View style={styles.videoTile}><VideoTrack objectFit="cover" style={styles.video} trackRef={item} /><Text numberOfLines={1} style={styles.tileName}>{item.participant.name || item.participant.identity}</Text></View> : <View style={styles.videoTile} />} />
+        {(call.call_type === 'video' || screenTracks.length > 0) && visibleTracks.some(isTrackReference)
+          ? <FlatList contentContainerStyle={styles.videoList} data={visibleTracks} key={videoColumns} keyExtractor={(item, index) => `${item.participant.identity}-${item.source}-${index}`} numColumns={videoColumns} removeClippedSubviews renderItem={({ item }: { item: TrackReferenceOrPlaceholder }) => isTrackReference(item) ? <View style={styles.videoTile}><VideoTrack objectFit={item.source === Track.Source.ScreenShare ? "contain" : "cover"} style={styles.video} trackRef={item} /><Text numberOfLines={1} style={styles.tileName}>{item.participant.name || item.participant.identity}{item.source === Track.Source.ScreenShare ? ' · Screen' : ''}</Text></View> : <View style={styles.videoTile} />} />
           : <View style={styles.audioState}><View style={styles.audioAvatars}>{participants.map((participant) => { const name = participant.name || participant.identity || 'Participant'; return <View key={participant.identity} style={styles.audioPerson}><View style={[styles.audioAvatar, { backgroundColor: theme.primary }]}><Text style={styles.audioInitials}>{initials(name)}</Text></View><Text numberOfLines={1} style={styles.audioPersonName}>{name}{participant.isLocal ? ' (You)' : ''}</Text></View>; })}</View><Text style={styles.audioTitle}>Voice call in progress</Text><Text style={styles.audioSubtitle}>{activeNames.length ? activeNames.join(', ') : 'Waiting for others to join'}</Text></View>}
       </View>
 
+      {isScreenShareEnabled ? <View accessibilityRole="alert" style={styles.secureRow}><Monitor color="#86efac" size={16} /><Text style={styles.secureText}>Your screen is being shared</Text></View> : null}
       <View style={styles.controls}>
+        {Platform.OS !== 'ios' ? <Control disabled={screenSharePending || connectionState !== ConnectionState.Connected} label={isScreenShareEnabled ? 'Stop sharing' : 'Share screen'} onPress={toggleScreenShare}>{isScreenShareEnabled ? <MonitorOff color="#ffffff" size={22} /> : <Monitor color="#ffffff" size={22} />}</Control> : null}
         <Control label={isMicrophoneEnabled ? 'Mute' : 'Unmute'} onPress={() => localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled)}>{isMicrophoneEnabled ? <Mic color="#ffffff" size={22} /> : <MicOff color="#ffffff" size={22} />}</Control>
         {call.call_type === 'video' ? <Control label={isCameraEnabled ? 'Camera off' : 'Camera on'} onPress={() => localParticipant.setCameraEnabled(!isCameraEnabled)}>{isCameraEnabled ? <Camera color="#ffffff" size={22} /> : <CameraOff color="#ffffff" size={22} />}</Control> : null}
         {call.call_type === 'video' && isCameraEnabled ? <Control label="Flip camera" onPress={switchCamera}><RefreshCw color="#ffffff" size={22} /></Control> : null}
@@ -177,12 +199,12 @@ const CallDuration = memo(function CallDuration({ createdAt, startedAt }: { crea
   return <Text style={styles.callStatus}>{duration}</Text>;
 });
 
-const Control = memo(function Control({ label, onPress, danger, children }: { label: string; onPress: () => void | Promise<unknown>; danger?: boolean; children: React.ReactNode }) {
+const Control = memo(function Control({ label, onPress, danger, disabled, children }: { label: string; onPress: () => void | Promise<unknown>; danger?: boolean; disabled?: boolean; children: React.ReactNode }) {
   const press = () => { void Promise.resolve().then(onPress).catch((error) => {
     captureCallError(error, 'connect', { media_control: true });
     Alert.alert('Unable to change call setting', 'Check media permissions and try again.');
   }); };
-  return <View style={styles.controlWrap}><Pressable accessibilityLabel={label} accessibilityRole="button" onPress={press} style={[styles.control, { backgroundColor: danger ? '#dc2626' : '#343942' }]}>{children}</Pressable><Text numberOfLines={1} style={styles.controlLabel}>{label}</Text></View>;
+  return <View style={styles.controlWrap}><Pressable accessibilityLabel={label} accessibilityRole="button" disabled={disabled} onPress={press} style={[styles.control, { opacity: disabled ? 0.45 : 1 }, { backgroundColor: danger ? '#dc2626' : '#343942' }]}>{children}</Pressable><Text numberOfLines={1} style={styles.controlLabel}>{label}</Text></View>;
 });
 
 function connectionLabel(state: ConnectionState) {

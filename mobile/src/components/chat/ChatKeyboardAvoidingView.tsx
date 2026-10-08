@@ -5,6 +5,6 @@ export function ChatKeyboardAvoidingView(props: ComponentProps<typeof KeyboardAv
   const container = useRef<View>(null);
   const [offset, setOffset] = useState(0);
   return <View ref={container} style={{ flex: 1 }} onLayout={() => container.current?.measureInWindow((_x, y) => setOffset(y))}>
-    <KeyboardAvoidingView {...props} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={offset} />
+    <KeyboardAvoidingView {...props} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={offset} />
   </View>;
 }

@@ -2,6 +2,14 @@ require "test_helper"
 require "ostruct"
 
 class NotificationCatalogTest < ActiveSupport::TestCase
+  test "operations reminders support mobile delivery" do
+    catalog = NotificationCatalog.new(OpenStruct.new(id: 9, action: 'operations_reminder', notifiable_type: 'ProjectLicense',
+      notifiable_id: 12, metadata: { kind: 'license', title: 'Expiry', path: '/projects/7/dashboard?tab=environments' }))
+    assert_equal 'reminders', catalog.category
+    assert_equal 'nexus_reminders_v1', catalog.channel_id
+    assert catalog.legacy_push_supported?
+  end
+
   test "maps legacy actions to canonical events" do
     assert_equal "task_assigned", NotificationCatalog.canonical_event_type("assigned", "Task")
     assert_equal "project_assigned", NotificationCatalog.canonical_event_type("assigned", "ProjectUser")

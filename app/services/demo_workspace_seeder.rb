@@ -54,8 +54,8 @@ class DemoWorkspaceSeeder
 
     task_specs = [
       ["NX-101", "Build workspace dashboard", "completed", 1, 8],
-      ["NX-102", "Add guided demo tour", "in_progress", 2, 6],
-      ["NX-103", "Harden tenant authorization", "in_progress", 3, 10],
+      ["NX-102", "Add guided demo tour", "inprogress", 2, 6],
+      ["NX-103", "Harden tenant authorization", "inprogress", 3, 10],
       ["NX-104", "Polish mobile navigation", "todo", 4, 5],
       ["NX-105", "Verify PDF export workflow", "todo", 5, 4]
     ]
@@ -124,16 +124,18 @@ class DemoWorkspaceSeeder
     Message.find_or_create_by!(conversation: conversation, user: qa_user, body: "All records here are synthetic and safe to explore.")
 
     event = CalendarEvent.find_or_initialize_by(user: guest, title: "Nexus Hub guided tour")
-    event.update!(
-      project: project,
-      description: "Explore the flagship project in about five minutes.",
-      start_at: Time.zone.now.beginning_of_hour + 1.day,
-      end_at: Time.zone.now.beginning_of_hour + 1.day + 45.minutes,
-      event_type: "meeting",
-      visibility: "project",
-      status: "scheduled",
-      recurrence_rule: "none"
-    )
+    Current.set(user: project.owner) do
+      event.update!(
+        project: project,
+        description: "Explore the flagship project in about five minutes.",
+        start_at: Time.zone.now.beginning_of_hour + 1.day,
+        end_at: Time.zone.now.beginning_of_hour + 1.day + 45.minutes,
+        event_type: "meeting",
+        visibility: "project",
+        status: "scheduled",
+        recurrence_rule: "none"
+      )
+    end
 
     category = WorkCategory.find_or_create_by!(name: "Engineering") { |record| record.color = "blue" }
     priority = WorkPriority.find_or_create_by!(name: "High") { |record| record.color = "red" }

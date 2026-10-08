@@ -2,6 +2,7 @@ class Api::CalendarEventsController < Api::BaseController
   require 'cgi'
 
   before_action :set_calendar_event, only: [:update, :destroy, :reschedule, :google_link]
+  before_action :authorize_event_edit!, only: [:update, :destroy, :reschedule]
   before_action :reject_managed_operation, only: [:update, :destroy, :reschedule]
 
   def index
@@ -97,8 +98,8 @@ class Api::CalendarEventsController < Api::BaseController
 
     return render json: { errors: ['No events found in ICS payload'] }, status: :unprocessable_entity if parsed_events.empty?
 
-    created = parsed_events.map do |attrs|
-      current_user.calendar_events.create!(attrs)
+    created = CalendarEvent.transaction do
+      parsed_events.map { |attrs| current_user.calendar_events.create!(attrs) }
     end
 
     render json: { imported_count: created.count, events: created.map { |event| event_payload(event) } }, status: :created
@@ -123,12 +124,11 @@ class Api::CalendarEventsController < Api::BaseController
   end
 
   def scoped_events
-    project_ids = current_user.projects.select(:id)
+    CalendarEvent.accessible_to(current_user)
+  end
 
-    CalendarEvent.where(user_id: current_user.id)
-                 .or(CalendarEvent.where(visibility: 'project', project_id: project_ids))
-                 .operations_visible_to(current_user)
-                 .distinct
+  def authorize_event_edit!
+    head :forbidden unless @calendar_event.editable_by?(current_user)
   end
 
   def calendar_event_params
@@ -231,6 +231,7 @@ class Api::CalendarEventsController < Api::BaseController
 
   def event_payload(event)
     event.as_api_json.merge(
+      can_edit: !event.managed_operation? && event.editable_by?(current_user),
       conflicts_count: conflict_messages(event).size,
       google_event_url: event.google_event_url
     )

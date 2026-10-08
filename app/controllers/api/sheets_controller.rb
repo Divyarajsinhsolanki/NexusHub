@@ -3,7 +3,8 @@ class Api::SheetsController < Api::BaseController
 
   def show
     sheet_name = params[:sheet] || 'X2'
-    project = Project.find(params[:project_id]) if params[:project_id].present?
+    project = Project.accessible_to(current_user).find(params[:project_id]) if params[:project_id].present?
+    raise Project::Forbidden, 'Project access is required.' unless project || current_user.owner? || current_user.admin?
     log_sheet_event(
       :info,
       'Sheet data fetch started',
@@ -17,6 +18,8 @@ class Api::SheetsController < Api::BaseController
       payload: { project_id: project&.id, sheet_name: sheet_name, spreadsheet_id: project&.sheet_id, row_count: rows.size }
     )
     render json: { rows: rows }
+  rescue ActiveRecord::RecordNotFound, Project::Forbidden
+    raise
   rescue StandardError => e
     log_sheet_event(
       :error,

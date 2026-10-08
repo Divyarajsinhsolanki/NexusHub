@@ -21,7 +21,7 @@ class Api::SearchController < Api::BaseController
   private
 
   def search_projects(pattern)
-    Project.where("name ILIKE ? OR description ILIKE ?", pattern, pattern)
+    Project.accessible_to(current_user).where("name ILIKE ? OR description ILIKE ?", pattern, pattern)
       .order(updated_at: :desc)
       .limit(MAX_PER_TYPE)
       .map do |project|
@@ -30,7 +30,7 @@ class Api::SearchController < Api::BaseController
   end
 
   def search_tasks(pattern)
-    Task.where("title ILIKE ? OR task_id ILIKE ? OR description ILIKE ?", pattern, pattern, pattern)
+    Task.visible_to(current_user).where("title ILIKE ? OR task_id ILIKE ? OR description ILIKE ?", pattern, pattern, pattern)
       .where(
         "type != :general OR created_by = :user_id OR assigned_to_user = :user_id",
         general: "general",

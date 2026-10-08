@@ -4,6 +4,7 @@ import { normalizeMobileDeepLink } from './deepLinks';
 
 describe('normalizeMobileDeepLink', () => {
   test('maps notification and web chat paths to native mobile routes', () => {
+    expect(normalizeMobileDeepLink('/projects/3/dashboard?tab=environments&operation=license&record=7')).toBe('/projects/3/environments');
     expect(normalizeMobileDeepLink('/notifications')).toBe('/inbox/notifications');
     expect(normalizeMobileDeepLink('/chat/42')).toBe('/chat/42');
     expect(normalizeMobileDeepLink('/posts/9')).toBe('/inbox/post/9');

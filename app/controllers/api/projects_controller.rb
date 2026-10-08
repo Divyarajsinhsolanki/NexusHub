@@ -7,7 +7,7 @@ class Api::ProjectsController < Api::BaseController
   around_action :log_project_dashboard_exceptions
 
   def index
-    projects = Project.includes(project_users: PROJECT_USER_INCLUDES).order(:name)
+    projects = Project.accessible_to(current_user).includes(project_users: PROJECT_USER_INCLUDES).order(:name)
     render_paginated_collection(projects, serializer: method(:serialize_project))
   end
 
@@ -30,7 +30,8 @@ class Api::ProjectsController < Api::BaseController
   private
 
   def set_project
-    @project = Project.find(params[:id])
+    @project = Project.accessible_to(current_user).find(params[:id])
+    @project.authorize_management!(current_user)
   end
 
   def project_params
@@ -108,7 +109,8 @@ class Api::ProjectsController < Api::BaseController
   end
 
   def authorize_manager!
-    allowed = current_user&.owner? || current_user&.project_manager?
+    return if @project&.manageable_by?(current_user)
+    allowed = current_user&.owner? || current_user&.admin? || current_user&.project_manager?
     return if allowed
 
     log_project_event(:warn, 'Project management authorization failed')

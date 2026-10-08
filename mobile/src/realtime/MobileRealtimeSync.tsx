@@ -13,6 +13,8 @@ import {
   applyConversationReceipt,
   mobileQueryKeys,
   prependNotification,
+  markCachedNotificationsRead,
+  resetNotificationReadState,
   removeConversationFromCache,
   refreshCachesForDeepLink,
   updateCachedMessage,
@@ -32,6 +34,7 @@ export function MobileRealtimeSync() {
 function RealtimeSubscription() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  useEffect(() => () => resetNotificationReadState(queryClient), [queryClient, user?.id]);
   const onEvent = useCallback((event: ChatEvent) => {
     void handleMobileRealtimeEvent(queryClient, event, user?.id).catch((error) => Sentry.captureException(error, { tags: { surface: 'mobile_realtime_sync' } }));
   }, [queryClient, user?.id]);
@@ -94,6 +97,15 @@ export async function handleMobileRealtimeEvent(queryClient: QueryClient, event:
     return;
   }
   const conversationId = numericId(event.conversation_id) || (isRecord(event.call_session) ? numericId(event.call_session.conversation_id) : undefined);
+
+  if (event.type === 'notifications_read') {
+    markCachedNotificationsRead(queryClient, event);
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: mobileQueryKeys.notifications }),
+      queryClient.invalidateQueries({ queryKey: mobileQueryKeys.home }),
+    ]);
+    return;
+  }
 
   if (event.type === 'notification_received') {
     const notification = normalizeRealtimeNotification(event.notification);

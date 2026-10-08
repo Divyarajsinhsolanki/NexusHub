@@ -98,6 +98,8 @@ module Mcp
       else
         raise ToolError, "Unknown tool: #{name}"
       end
+    rescue Project::Forbidden, Tasks::Access::InvalidAssignment => error
+      raise ToolError, error.message
     end
 
     private
@@ -112,11 +114,11 @@ module Mcp
         workspace: workspace_payload,
         counts: {
           users: user.workspace.users.count,
-          projects: Project.count,
-          running_projects: Project.where(status: "running").count,
-          sprints: Sprint.count,
-          tasks: Task.count,
-          open_tasks: Task.where.not(status: Serializer.completed_statuses).count,
+          projects: Project.accessible_to(user).count,
+          running_projects: Project.accessible_to(user).current_running.count,
+          sprints: Sprint.where(project_id: Project.accessible_to(user).select(:id)).count,
+          tasks: Task.visible_to(user).count,
+          open_tasks: Task.visible_to(user).where.not(status: Serializer.completed_statuses).count,
           issues: Issue.visible_to(user).count,
           open_issues: Issue.visible_to(user).where.not(status: Serializer.closed_issue_statuses).count,
           teams: Team.count,
@@ -125,8 +127,8 @@ module Mcp
           pdf_documents: user.pdf_documents.count
         },
         my_work: {
-          assigned_open_tasks: Task.where(assigned_to_user: user.id).where.not(status: Serializer.completed_statuses).count,
-          overdue_tasks: Task.where(assigned_to_user: user.id)
+          assigned_open_tasks: Task.visible_to(user).where(assigned_to_user: user.id).where.not(status: Serializer.completed_statuses).count,
+          overdue_tasks: Task.visible_to(user).where(assigned_to_user: user.id)
             .where.not(status: Serializer.completed_statuses)
             .where("end_date < ?", today)
             .count,
@@ -146,9 +148,9 @@ module Mcp
       days_ahead = bounded_limit(args[:days_ahead], default: 7, max: 30)
       today = Time.zone.today
       future = days_ahead.days.from_now
-      my_tasks = Task.includes(:project, :sprint)
+      my_tasks = Task.visible_to(user).includes(:project, :sprint)
         .where(assigned_to_user: user.id)
-        .or(Task.where(created_by: user.id))
+        .or(Task.visible_to(user).where(created_by: user.id))
 
       overdue_tasks = my_tasks.where.not(status: Serializer.completed_statuses)
         .where("end_date < ?", today)
@@ -365,7 +367,7 @@ module Mcp
     end
 
     def list_projects(args)
-      scope = Project.includes(:owner, :project_users, :tasks, :issues).order(:name)
+      scope = Project.accessible_to(user).includes(:owner, :project_users, :tasks, :issues).order(:name)
       scope = scope.where(status: args[:status]) if args[:status].present?
       records = scope.limit(bounded_limit(args[:limit], default: 50, max: 100))
 
@@ -373,7 +375,7 @@ module Mcp
     end
 
     def list_project_members(args)
-      scope = ProjectUser.includes(:project, user: [:department, :roles]).order(updated_at: :desc)
+      scope = ProjectUser.where(project_id: Project.accessible_to(user).select(:id)).includes(:project, user: [:department, :roles]).order(updated_at: :desc)
       scope = scope.where(project_id: args[:project_id]) if args[:project_id].present?
       records = scope.limit(bounded_limit(args[:limit], default: 80, max: 150))
 
@@ -382,7 +384,8 @@ module Mcp
 
     def add_project_member(args)
       ensure_project_write_allowed!
-      project = Project.find(required_id(args, :project_id))
+      project = Project.accessible_to(user).find(required_id(args, :project_id))
+      project.authorize_management!(user)
       member = assert_workspace_user!(required_id(args, :user_id))
       project_user = project.project_users.find_or_initialize_by(user: member)
       project_user.assign_attributes(project_member_attrs(args))
@@ -395,7 +398,8 @@ module Mcp
 
     def update_project_member(args)
       ensure_project_write_allowed!
-      project_user = ProjectUser.find(required_id(args, :id))
+      project_user = ProjectUser.where(project_id: Project.accessible_to(user).select(:id)).find(required_id(args, :id))
+      project_user.project.authorize_management!(user)
       assert_workspace_user!(args[:user_id]) if args[:user_id].present?
       project_user.update!(project_member_attrs(args))
 
@@ -415,7 +419,7 @@ module Mcp
 
     def create_project_environment(args)
       ensure_project_write_allowed!
-      project = Project.find(required_id(args, :project_id))
+      project = Project.accessible_to(user).find(required_id(args, :project_id))
       result = Operations::Environments.call(project: project, actor: user, action: 'create', attributes: project_environment_attrs(args).symbolize_keys)
       environment = project.project_environments.find(result[:environment]['id'])
 
@@ -427,7 +431,7 @@ module Mcp
     end
 
     def list_project_vault_items(args)
-      scope = ProjectVaultItem.includes(:project, :project_environment).order(updated_at: :desc)
+      scope = ProjectVaultItem.where(project_id: Project.accessible_to(user).select(:id)).includes(:project, :project_environment).order(updated_at: :desc)
       scope = scope.where(project_id: args[:project_id]) if args[:project_id].present?
       scope = scope.where(category: args[:category]) if args[:category].present?
       records = scope.limit(bounded_limit(args[:limit], default: 80, max: 150))
@@ -440,7 +444,7 @@ module Mcp
     end
 
     def get_project(args)
-      project = Project.includes(
+      project = Project.accessible_to(user).includes(
         :owner,
         :project_environments,
         :project_vault_items,
@@ -476,7 +480,8 @@ module Mcp
 
     def update_project(args)
       ensure_project_write_allowed!
-      project = Project.find(required_id(args, :project_id))
+      project = Project.accessible_to(user).find(required_id(args, :project_id))
+      project.authorize_management!(user)
       project.update!(project_attrs(args))
       { project: Serializer.project_detail(project.reload) }
     rescue ActiveRecord::RecordInvalid => e
@@ -486,7 +491,7 @@ module Mcp
     def list_task_logs(args)
       start_date = parse_date(args[:start_date], default: 30.days.ago.to_date)
       end_date = parse_date(args[:end_date], default: Time.zone.today)
-      scope = TaskLog.includes(:task, developer: [:department, :roles])
+      scope = TaskLog.where(task_id: Task.visible_to(user).select(:id)).includes(:task, developer: [:department, :roles])
         .where(log_date: start_date..end_date)
         .order(log_date: :desc, updated_at: :desc)
       scope = scope.where(task_id: args[:task_id]) if args[:task_id].present?
@@ -499,7 +504,8 @@ module Mcp
 
     def create_task_log(args)
       ensure_write_allowed!
-      task = Task.find(required_id(args, :task_id))
+      task = Task.visible_to(user).find(required_id(args, :task_id))
+      task.authorize_edit!(user)
       developer = assert_workspace_user!(required_id(args, :developer_id))
       log = TaskLog.create!(
         task: task,
@@ -516,7 +522,7 @@ module Mcp
     end
 
     def list_sprints(args)
-      scope = Sprint.includes(:project, :tasks).order(start_date: :desc)
+      scope = Sprint.where(project_id: Project.accessible_to(user).select(:id)).includes(:project, :tasks).order(start_date: :desc)
       scope = scope.where(project_id: args[:project_id]) if args[:project_id].present?
       scope = scope.where(status: args[:status]) if args[:status].present?
       records = scope.limit(bounded_limit(args[:limit], default: 50, max: 100))
@@ -526,7 +532,8 @@ module Mcp
 
     def create_sprint(args)
       ensure_write_allowed!
-      project = Project.find(required_id(args, :project_id))
+      project = Project.accessible_to(user).find(required_id(args, :project_id))
+      project.authorize_edit!(user)
       sprint = project.sprints.create!(record_attrs(args, sprint_keys))
       { sprint: Serializer.sprint(sprint.reload) }
     rescue ActiveRecord::RecordInvalid => e
@@ -535,7 +542,8 @@ module Mcp
 
     def update_sprint(args)
       ensure_write_allowed!
-      sprint = Sprint.find(required_id(args, :sprint_id))
+      sprint = Sprint.where(project_id: Project.accessible_to(user).select(:id)).find(required_id(args, :sprint_id))
+      sprint.project.authorize_edit!(user)
       sprint.update!(record_attrs(args, sprint_keys))
       { sprint: Serializer.sprint(sprint.reload) }
     rescue ActiveRecord::RecordInvalid => e
@@ -544,7 +552,8 @@ module Mcp
 
     def export_sprint_tasks(args)
       ensure_write_allowed!
-      sprint = Sprint.includes(:project).find(required_id(args, :sprint_id))
+      sprint = Sprint.where(project_id: Project.accessible_to(user).select(:id)).includes(:project).find(required_id(args, :sprint_id))
+      sprint.project.authorize_edit!(user)
       tasks = Task.where(sprint_id: sprint.id).order(:developer_id, :start_date)
 
       service = TaskSheetService.new(sprint.name, sprint.project.sheet_id)
@@ -575,7 +584,7 @@ module Mcp
     end
 
     def list_tasks(args)
-      scope = Task.includes(:project, :sprint, :developer, :assigned_user)
+      scope = Task.visible_to(user).includes(:project, :sprint, :developer, :assigned_user)
         .where("type != :general OR created_by = :user_id OR assigned_to_user = :user_id", general: "general", user_id: user.id)
         .order(updated_at: :desc)
       scope = scope.where(project_id: args[:project_id]) if args[:project_id].present?
@@ -600,6 +609,7 @@ module Mcp
       assert_workspace_user!(attrs[:developer_id]) if attrs[:developer_id].present?
       assert_workspace_user!(attrs[:assigned_to_user]) if attrs[:assigned_to_user].present?
 
+      Tasks::Access.authorize_attributes!(user, attrs)
       task = Task.create!(attrs)
       { task: Serializer.task(task.reload) }
     rescue ActiveRecord::RecordInvalid => e
@@ -608,14 +618,16 @@ module Mcp
 
     def update_task(args)
       ensure_write_allowed!
-      task = Task.find(required_id(args, :id))
+      task = Task.visible_to(user).find(required_id(args, :id))
+      task.authorize_edit!(user)
       attrs = task_attrs(args)
       assert_workspace_record!(Project, attrs[:project_id]) if attrs[:project_id].present?
       assert_workspace_record!(Sprint, attrs[:sprint_id]) if attrs[:sprint_id].present?
       assert_workspace_user!(attrs[:developer_id]) if attrs[:developer_id].present?
       assert_workspace_user!(attrs[:assigned_to_user]) if attrs[:assigned_to_user].present?
       attrs[:updated_by] = user.id
-      task.update!(attrs)
+      Tasks::Access.authorize_attributes!(user, attrs, task: task)
+      raise ActiveRecord::RecordInvalid, task unless Tasks::Updater.call(task, attrs)
       { task: Serializer.task(task.reload) }
     rescue ActiveRecord::RecordInvalid => e
       raise ToolError, validation_message(e.record)
@@ -635,7 +647,7 @@ module Mcp
     def create_issue(args)
       ensure_write_allowed!
       attrs = issue_attrs(args)
-      Project.accessible_to(user).find(attrs[:project_id])
+      Project.accessible_to(user).find(attrs[:project_id]).authorize_edit!(user)
       attrs[:reporter_id] ||= user.id
       assert_workspace_user!(attrs[:reporter_id]) if attrs[:reporter_id].present?
       assert_workspace_user!(attrs[:assignee_user_id]) if attrs[:assignee_user_id].present?
@@ -648,8 +660,9 @@ module Mcp
     def update_issue(args)
       ensure_write_allowed!
       issue = Issue.visible_to(user).find(required_id(args, :id))
+      issue.project.authorize_edit!(user)
       attrs = issue_attrs(args)
-      Project.accessible_to(user).find(attrs[:project_id]) if attrs[:project_id].present?
+      Project.accessible_to(user).find(attrs[:project_id]).authorize_edit!(user) if attrs[:project_id].present?
       assert_workspace_user!(attrs[:reporter_id]) if attrs[:reporter_id].present?
       assert_workspace_user!(attrs[:assignee_user_id]) if attrs[:assignee_user_id].present?
       issue.update!(attrs)
@@ -689,6 +702,7 @@ module Mcp
       ensure_write_allowed!
       event = accessible_events(Time.zone.at(0), 50.years.from_now).find(required_id(args, :id))
       raise ToolError, 'Manage this deadline in Project Environments.' if event.managed_operation?
+      raise ToolError, 'You cannot edit this calendar event.' unless event.editable_by?(user)
       attrs = calendar_event_attrs(args)
       assert_workspace_record!(Project, attrs[:project_id]) if attrs[:project_id].present?
       assert_workspace_record!(Task, attrs[:task_id]) if attrs[:task_id].present?
@@ -702,7 +716,7 @@ module Mcp
     def daily_momentum
       today = Time.zone.today
       yesterday = today - 1.day
-      user_tasks = Task.where(assigned_to_user: user.id).or(Task.where(created_by: user.id)).includes(:project, :sprint)
+      user_tasks = Task.visible_to(user).where(assigned_to_user: user.id).or(Task.visible_to(user).where(created_by: user.id)).includes(:project, :sprint)
       recent_logs = WorkLog.includes(:category, :priority, :tags).where(user: user, log_date: (today - 30.days)..today)
       yesterday_logs = WorkLog.includes(:category).where(user: user, log_date: yesterday)
 
@@ -711,8 +725,8 @@ module Mcp
         date: today,
         morning_briefing: {
           overdue_tasks: user_tasks.where.not(end_date: nil).where("end_date < ?", today).where.not(status: Serializer.completed_statuses).order(:end_date).limit(6).map { |task| Serializer.task(task) },
-          focus_tasks: user_tasks.where("(start_date IS NULL OR start_date <= ?)", today).where("(end_date IS NULL OR end_date >= ?)", today).where(status: %w[todo in_progress doing blocked reviewing qa backlog]).limit(6).map { |task| Serializer.task(task) },
-          needs_triage: Task.where(created_by: user.id).where("assigned_to_user IS NULL OR sprint_id IS NULL").order(updated_at: :desc).limit(6).map { |task| Serializer.task(task) },
+          focus_tasks: user_tasks.where("(start_date IS NULL OR start_date <= ?)", today).where("(end_date IS NULL OR end_date >= ?)", today).where(status: %w[todo inprogress in_progress doing blocked reviewing qa backlog]).limit(6).map { |task| Serializer.task(task) },
+          needs_triage: Task.visible_to(user).where(created_by: user.id).where("assigned_to_user IS NULL OR sprint_id IS NULL").order(updated_at: :desc).limit(6).map { |task| Serializer.task(task) },
           meetings: recent_logs.where(log_date: today).select { |log| log.category&.name.to_s.downcase.include?("meeting") }.map { |log| Serializer.work_log(log) }
         },
         rapid_logging: {
@@ -1125,14 +1139,14 @@ module Mcp
     end
 
     def search_projects(pattern)
-      Project.where("name ILIKE ? OR description ILIKE ?", pattern, pattern)
+      Project.accessible_to(user).where("name ILIKE ? OR description ILIKE ?", pattern, pattern)
         .order(updated_at: :desc)
         .limit(8)
         .map { |project| search_result("project", project.id, project.name, project.description, "/projects/#{project.id}/dashboard", project.updated_at) }
     end
 
     def search_tasks(pattern)
-      Task.where("title ILIKE ? OR task_id ILIKE ? OR description ILIKE ?", pattern, pattern, pattern)
+      Task.visible_to(user).where("title ILIKE ? OR task_id ILIKE ? OR description ILIKE ?", pattern, pattern, pattern)
         .where("type != :general OR created_by = :user_id OR assigned_to_user = :user_id", general: "general", user_id: user.id)
         .includes(:project)
         .order(updated_at: :desc)
@@ -1196,13 +1210,7 @@ module Mcp
     end
 
     def accessible_events(start_time, end_time)
-      project_ids = user.projects.select(:id)
-      CalendarEvent
-        .where(user_id: user.id)
-        .or(CalendarEvent.where(visibility: "project", project_id: project_ids))
-        .operations_visible_to(user)
-        .within_range(start_time, end_time)
-        .distinct
+      CalendarEvent.accessible_to(user).within_range(start_time, end_time)
     end
 
     def workspace_payload
@@ -1288,9 +1296,9 @@ module Mcp
     def build_workspace_autopilot_plan(days_ahead)
       today = Time.zone.today
       future = days_ahead.days.from_now
-      my_tasks = Task.includes(:project, :sprint)
+      my_tasks = Task.visible_to(user).includes(:project, :sprint)
         .where(assigned_to_user: user.id)
-        .or(Task.where(created_by: user.id))
+        .or(Task.visible_to(user).where(created_by: user.id))
 
       overdue_tasks = my_tasks.where.not(status: Serializer.completed_statuses)
         .where.not(end_date: nil)
@@ -1369,7 +1377,7 @@ module Mcp
           id: "triage_task_#{task.id}",
           type: "move_task_to_in_progress",
           title: "Move blocked task into active triage",
-          description: "Sets the task status to in_progress and assigns it to you if unassigned.",
+          description: "Sets the task status to inprogress and assigns it to you if unassigned.",
           task: Serializer.task(task),
           requires_approval: true
         }
@@ -1403,7 +1411,8 @@ module Mcp
     end
 
     def apply_focus_block_action(action)
-      task = Task.find(action.dig(:task, :id))
+      task = Task.visible_to(user).find(action.dig(:task, :id))
+      task.authorize_edit!(user)
       start_at = next_focus_start
       event = CalendarEvent.find_or_create_by!(
         user: user,
@@ -1430,10 +1439,12 @@ module Mcp
     end
 
     def apply_task_triage_action(action)
-      task = Task.find(action.dig(:task, :id))
-      attrs = { status: "in_progress", updated_by: user.id }
+      task = Task.visible_to(user).find(action.dig(:task, :id))
+      task.authorize_edit!(user)
+      attrs = { status: "inprogress", updated_by: user.id }
       attrs[:assigned_to_user] = user.id if task.assigned_to_user.blank?
-      task.update!(attrs)
+      Tasks::Access.authorize_attributes!(user, attrs, task: task)
+      raise ActiveRecord::RecordInvalid, task unless Tasks::Updater.call(task, attrs)
 
       audit = audit_mcp_action!("workspace_autopilot_apply", "move_task_to_in_progress", action_id: action[:id], task_id: task.id)
       {
