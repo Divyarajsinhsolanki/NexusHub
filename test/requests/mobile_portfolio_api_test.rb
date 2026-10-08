@@ -37,7 +37,7 @@ class MobilePortfolioApiTest < ActionDispatch::IntegrationTest
 
     get "/api/v1/demo/manifest", headers: bearer_headers(payload.fetch("access_token"))
     assert_response :success
-    assert_equal 6, response.parsed_body.dig("data", "groups").length
+    assert_equal 7, response.parsed_body.dig("data", "groups").length
 
     post "/api/v1/posts",
       params: { post: { message: "Must remain read only" } },
