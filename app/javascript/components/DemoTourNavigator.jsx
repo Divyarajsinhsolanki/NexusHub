@@ -3,10 +3,14 @@ import { Link, useLocation } from "react-router-dom";
 import { FiArrowLeft, FiArrowRight, FiMap } from "react-icons/fi";
 import { fetchDemoManifest } from "./api";
 
-const routeMatches = (pathname, route) => {
+const routeMatches = (location, route) => {
+  const { pathname, search } = location;
   const routePath = route?.split(/[?#]/)[0];
   if (!routePath || routePath === "/demo") return pathname === "/demo";
-  return pathname === routePath || pathname.startsWith(`${routePath}/`);
+  const expectedSearch = new URLSearchParams(route?.split("?")[1]?.split("#")[0]);
+  const currentSearch = new URLSearchParams(search);
+  return (pathname === routePath || pathname.startsWith(`${routePath}/`)) &&
+    [...expectedSearch].every(([key, value]) => currentSearch.get(key) === value);
 };
 
 const DemoTourNavigator = () => {
@@ -18,8 +22,9 @@ const DemoTourNavigator = () => {
   }, []);
 
   const activeStep = useMemo(
-    () => manifest?.groups?.find((group) => routeMatches(location.pathname, group.route)),
-    [location.pathname, manifest]
+    () => manifest?.groups?.filter((group) => routeMatches(location, group.route))
+      .sort((a, b) => b.route.length - a.route.length)[0],
+    [location.pathname, location.search, manifest]
   );
 
   if (!manifest || location.pathname === "/demo") return null;

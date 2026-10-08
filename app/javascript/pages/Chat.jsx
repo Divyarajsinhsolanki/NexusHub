@@ -60,6 +60,8 @@ import {
   removeConversationParticipant,
   removeMessageReaction,
   sendMessage,
+  editChatMessage,
+  deleteChatMessage,
   startDirectConversation,
   unmuteConversation,
   updateConversation,
@@ -81,6 +83,8 @@ import {
 import { isLiveCall, mergeCallIntoConversationGroups } from "../utils/chatCalls";
 import { getOutgoingReceiptStatus } from "../utils/chatReceipts";
 import "./Chat.css";
+import VirtualMessages from "../components/chat/VirtualMessages";
+import { getDraftGeneration, canChangeMessage, chatDraftKey, readChatDraft, writeChatDraft, mergeMessage, patchMessageRows } from "../utils/chatState";
 
 const DEFAULT_REACTION_EMOJIS = ["👍", "❤️", "😂", "🎉", "🙌"];
 const EXTRA_REACTION_EMOJIS = ["🔥", "👏", "🙏", "😊", "😍", "😮", "😢", "😡", "✅", "💯", "🚀", "👀", "🤔", "😎", "🥳", "💪", "✨", "😅", "🤝", "🏆"];
@@ -791,8 +795,9 @@ const MessageAttachmentCard = ({ attachment, isMe, searchQuery }) => {
   );
 };
 
-const MessageBubble = React.memo(({ message, isMe, showAvatar, onToggleReaction, onReply, participants, conversationType, searchQuery, mentionLookups }) => {
+const MessageBubble = React.memo(({ message, isMe, showAvatar, onToggleReaction, onReply, onEdit, onDelete, onContext, participants, conversationType, searchQuery, mentionLookups }) => {
   const [isReactionPickerOpen, setIsReactionPickerOpen] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
   const [isReactionPickerExpanded, setIsReactionPickerExpanded] = useState(false);
   const [customReactionEmoji, setCustomReactionEmoji] = useState("");
   const reactionPickerRef = useRef(null);
@@ -847,7 +852,7 @@ const MessageBubble = React.memo(({ message, isMe, showAvatar, onToggleReaction,
   };
 
   if (message.message_type === "system") return <div className="py-2 text-center text-xs text-slate-500" role="note">{message.body} · {timeString}</div>;
-  const metadata = <span className="nx-chat-inline-meta"><time dateTime={message.created_at}>{timeString}</time>{isMe && <span title={receiptTitle} aria-label={receiptTitle} className={`inline-flex ${allRead ? "text-indigo-600" : "text-slate-400"}`}><FiCheck className="h-3 w-3" />{allDelivered && <FiCheck className="-ml-1 h-3 w-3" />}</span>}</span>;
+  const metadata = <span className="nx-chat-inline-meta">{message.edited_at && <span>Edited · </span>}<time dateTime={message.created_at}>{timeString}</time>{isMe && <span title={receiptTitle} aria-label={receiptTitle} className={`inline-flex ${allRead ? "text-indigo-600" : "text-slate-400"}`}><FiCheck className="h-3 w-3" />{allDelivered && <FiCheck className="-ml-1 h-3 w-3" />}</span>}</span>;
 
   return (
     <div data-outgoing={isMe} data-group-start={showAvatar} className={`nx-chat-message group/bubble flex w-full ${showAvatar ? "pt-3" : "pt-0.5"} ${isMe ? "justify-end" : "justify-start"}`}>
@@ -891,7 +896,14 @@ const MessageBubble = React.memo(({ message, isMe, showAvatar, onToggleReaction,
             {(!message.body || message.attachments?.length > 0) && <div className="text-right">{metadata}</div>}
           </div>
 
-          <div className="nx-chat-message-tools">
+          {!message.deleted_at && <button type="button" className="chat-mobile-message-menu" aria-label="Message actions" aria-expanded={toolsOpen} onClick={() => setToolsOpen((open) => !open)}><FiMoreVertical /></button>}
+          <div className="nx-chat-message-tools" data-open={toolsOpen} onKeyDown={(event) => { if (event.key === "Escape") setToolsOpen(false); }}>
+            {onContext && <button type="button" onClick={() => onContext(message.id)} className="chat-icon-button" aria-label="Open message in conversation"><FiSearch /></button>}
+            {canChangeMessage(message, isMe ? message.user_id : null) && <>
+              <button type="button" onClick={() => onEdit(message)} aria-label="Edit message" className="chat-icon-button"><FiEdit /></button>
+              <button type="button" onClick={() => onDelete(message)} aria-label="Delete message" className="chat-icon-button"><FiTrash2 /></button>
+            </>}
+            {!message.deleted_at && <>
             <button type="button" onClick={() => onReply(message)} aria-label={`Reply to ${message.user_name}`} title="Reply" className="chat-icon-button"><FiCornerUpLeft /></button>
             <button
               ref={reactionTriggerRef}
@@ -904,6 +916,7 @@ const MessageBubble = React.memo(({ message, isMe, showAvatar, onToggleReaction,
             >
               <FiSmile className="h-3.5 w-3.5" />
             </button>
+            </>}
           </div>
 
           {reactionEntries.length > 0 && (
@@ -1099,12 +1112,16 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   const newChatDialogRef = useRef(null);
   const addMembersPreviousFocusRef = useRef(null);
   const typingStateRef = useRef({ active: false, conversationId: null });
+  const syncWatermarksRef = useRef({});
+  const summaryRequestsRef = useRef(new Map());
+  const summaryVersionsRef = useRef(new Map());
   const reconciliationTimerRef = useRef(null);
   const reconciliationInFlightRef = useRef(false);
   const conversationDetailInFlightRef = useRef(null);
   const lastConversationDetailLoadedRef = useRef({ id: null, at: 0 });
   const lastCableStatusRef = useRef(null);
   const summarizedMessageIdsRef = useRef(new Set());
+  const changedMessageVersionsRef = useRef(new Map());
 
   const [conversations, setConversations] = useState({ direct: [], group: [] });
   const [conversationListMeta, setConversationListMeta] = useState(null);
@@ -1115,6 +1132,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   const [messagePageMeta, setMessagePageMeta] = useState(null);
   const [isLoadingOlderMessages, setIsLoadingOlderMessages] = useState(false);
   const [olderMessagesError, setOlderMessagesError] = useState("");
+  const [historyAnchor, setHistoryAnchor] = useState(null);
   const [hasUnreadBelow, setHasUnreadBelow] = useState(false);
   const [users, setUsers] = useState([]);
   const [isUsersLoading, setIsUsersLoading] = useState(false);
@@ -1127,9 +1145,22 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState("");
+  const [failedSends, setFailedSends] = useState([]);
   const sendInFlightRef = useRef(false);
   const draftCacheRef = useRef({});
-  const draftConversationIdRef = useRef(conversationId);
+  const draftConversationIdRef = useRef(null);
+  const draftStorageRef = useRef({ key: null, generation: getDraftGeneration(), owner: null });
+  const pendingSendRef = useRef(null);
+  const composerSnapshotRef = useRef(null);
+  composerSnapshotRef.current = { body: messageBody, attachments, replyTo, conversationId };
+  const [editingMessage, setEditingMessage] = useState(null);
+  const [editBody, setEditBody] = useState("");
+  const [messageActionError, setMessageActionError] = useState("");
+  const [messageActionPending, setMessageActionPending] = useState(false);
+  const [searchResults, setSearchResults] = useState({ data: [], meta: null, loading: false, error: "" });
+  const searchTokenRef = useRef(0);
+  const [contextMessages, setContextMessages] = useState(null);
+  const [contextTarget, setContextTarget] = useState(null);
   const currentConversationIdRef = useRef(conversationId);
   currentConversationIdRef.current = conversationId;
   const [typingUsers, setTypingUsers] = useState({});
@@ -1197,17 +1228,52 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     setEmojiPickerOpen(false);
   }, [conversationId]);
 
+  const saveCurrentDraft = useCallback(() => {
+    const snapshot = composerSnapshotRef.current;
+    const pending = pendingSendRef.current;
+    const storage = draftStorageRef.current;
+    writeChatDraft(storage.key, { ...snapshot,
+      clientId: pending?.body === snapshot.body && pending?.attachments === snapshot.attachments && pending?.replyTo?.id === snapshot.replyTo?.id ? pending.clientId : undefined
+    }, storage.generation);
+  }, []);
+
   useEffect(() => {
     const previousId = draftConversationIdRef.current;
-    if (String(previousId) === String(conversationId)) return;
-    if (previousId) draftCacheRef.current[String(previousId)] = { body: messageBody, attachments };
-    const nextDraft = draftCacheRef.current[String(conversationId)] || { body: "", attachments: [] };
-    setMessageBody(nextDraft.body);
-    setAttachments(nextDraft.attachments);
+    const owner = `${user?.id}:${user?.workspace?.id || user?.workspace_id || "default"}`;
+    if (previousId) {
+      const pending = pendingSendRef.current;
+      const previous = { body: messageBody, attachments, replyTo,
+        clientId: pending?.body === messageBody && pending?.attachments === attachments && pending?.replyTo?.id === replyTo?.id ? pending.clientId : undefined };
+      draftCacheRef.current[String(previousId)] = previous;
+      writeChatDraft(draftStorageRef.current.key, previous, draftStorageRef.current.generation);
+    }
+    if (draftStorageRef.current.owner !== owner) draftCacheRef.current = {};
+    const key = chatDraftKey(user, conversationId);
+    draftStorageRef.current = { key, generation: getDraftGeneration(), owner };
+    const nextDraft = draftCacheRef.current[String(conversationId)] || readChatDraft(key) || {};
+    const nextAttachments = nextDraft.attachments || [];
+    pendingSendRef.current = nextDraft.clientId ? { ...nextDraft, attachments: nextAttachments, conversationId } : null;
+    setMessageBody(nextDraft.body || "");
+    setAttachments(nextAttachments);
+    setReplyTo(nextDraft.replyTo || null);
     setComposerSelection({ start: 0, end: 0 });
     setActiveMentionIndex(0);
+    setEditingMessage(null);
+    setContextMessages(null);
+    setContextTarget(null);
+    setHistoryAnchor(null);
     draftConversationIdRef.current = conversationId;
-  }, [conversationId]);
+  }, [conversationId, user?.id, user?.workspace?.id, user?.workspace_id]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(saveCurrentDraft, 250);
+    return () => window.clearTimeout(timer);
+  }, [messageBody, replyTo, attachments, conversationId, saveCurrentDraft]);
+
+  useEffect(() => {
+    window.addEventListener("pagehide", saveCurrentDraft);
+    return () => { window.removeEventListener("pagehide", saveCurrentDraft); saveCurrentDraft(); };
+  }, [saveCurrentDraft]);
 
   useEffect(() => {
     if ((!showInfo && !isThreadActionsOpen) || isAddMembersOpen || isNewChatModalOpen) return undefined;
@@ -1494,13 +1560,18 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       if (!previous || Number(previous.id) !== Number(targetConversationId)) return previous;
 
       const existingMessages = previous.messages || [];
+      const incomingById = new Map(nextIncomingMessages.map((message) => [Number(message.id), message]));
       const existingIds = new Set(existingMessages.map((message) => Number(message.id)));
       const missingMessages = nextIncomingMessages.filter((message) => !existingIds.has(Number(message.id)));
-      if (missingMessages.length === 0) return previous;
+
 
       const nextConversation = {
         ...previous,
-        messages: [...existingMessages, ...missingMessages].sort((left, right) => (
+        messages: [...existingMessages.map((message) => {
+          const merged = mergeMessage(message, incomingById.get(Number(message.id)) || message);
+          const target = incomingById.get(Number(message.reply_to?.id));
+          return target ? patchMessageRows([merged], target)[0] : merged;
+        }), ...missingMessages].sort((left, right) => (
           new Date(left.created_at) - new Date(right.created_at)
         ))
       };
@@ -1517,10 +1588,17 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     if (!targetConversationId || Number(activeConversationRef.current?.id) !== Number(targetConversationId)) return;
 
     try {
-      const { data } = await fetchConversationMessages(targetConversationId, { limit: 50 });
-      const messages = Array.isArray(data?.data) ? data.data : [];
-      mergeMessagesIntoActiveConversation(targetConversationId, messages);
-      setMessagePageMeta((previous) => data?.meta || previous);
+      const since = syncWatermarksRef.current[targetConversationId];
+      let afterId;
+      let watermark;
+      do {
+        const { data } = await fetchConversationMessages(targetConversationId, since ? { updated_since: since, after_id: afterId, limit: 100 } : { limit: 50 });
+        if (Number(activeConversationRef.current?.id) !== Number(targetConversationId)) return;
+        watermark ||= data.meta?.server_time;
+        mergeMessagesIntoActiveConversation(targetConversationId, data.data || []);
+        afterId = data.meta?.next_after_id;
+      } while (afterId);
+      if (watermark) syncWatermarksRef.current[targetConversationId] = watermark;
       if (isAtLatestMessagesRef.current) scrollMessagesToBottom(40);
     } catch (error) {
       console.error("Failed to sync active conversation messages", error);
@@ -1530,8 +1608,14 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   const refreshConversationSummary = useCallback(async (targetConversationId) => {
     if (!targetConversationId) return;
 
+    const key = String(targetConversationId);
+    const previousRequest = summaryRequestsRef.current.get(key);
+    if (previousRequest) { previousRequest.dirty = true; return; }
+    const request = { dirty: false, version: summaryVersionsRef.current.get(key) || 0 };
+    summaryRequestsRef.current.set(key, request);
     try {
       const { data } = await fetchConversationSummary(targetConversationId);
+      if (request.version !== (summaryVersionsRef.current.get(key) || 0)) { request.dirty = true; return; }
 
       setConversations((previous) => mergeConversationGroups(previous, [data], false));
       setActiveConversation((previous) => {
@@ -1559,14 +1643,19 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       }
 
       console.error("Failed to refresh conversation summary", error);
+    } finally {
+      summaryRequestsRef.current.delete(key);
+      if (request.dirty) void refreshConversationSummary(targetConversationId);
     }
   }, [removeConversationLocally]);
 
   const applyRealtimeMessageSummary = useCallback((targetConversationId, message) => {
     if (!targetConversationId || !message) return;
     const messageKey = `${targetConversationId}:${message.id}`;
+    message = mergeMessage(changedMessageVersionsRef.current.get(messageKey), message);
     if (summarizedMessageIdsRef.current.has(messageKey)) return;
     summarizedMessageIdsRef.current.add(messageKey);
+    summaryVersionsRef.current.set(String(targetConversationId), (summaryVersionsRef.current.get(String(targetConversationId)) || 0) + 1);
     if (summarizedMessageIdsRef.current.size > 500) {
       summarizedMessageIdsRef.current.delete(summarizedMessageIdsRef.current.values().next().value);
     }
@@ -1628,6 +1717,8 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   const loadConversation = useCallback(async (id) => {
     if (!id) return;
 
+    const cacheKeys = Object.keys(conversationCacheRef.current).filter((key) => key !== String(id));
+    cacheKeys.slice(0, Math.max(0, cacheKeys.length - 9)).forEach((key) => delete conversationCacheRef.current[key]);
     const cachedConversation = conversationCacheRef.current[String(id)];
     if (cachedConversation) {
       setActiveConversation(cachedConversation);
@@ -1644,7 +1735,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       setActiveConversation((previous) => {
         if (Number(previous?.id) !== Number(id)) return data;
         const messages = new Map((data.messages || []).map((message) => [Number(message.id), message]));
-        (previous.messages || []).forEach((message) => messages.set(Number(message.id), message));
+        (previous.messages || []).forEach((message) => messages.set(Number(message.id), mergeMessage(message, messages.get(Number(message.id)) || message)));
         return { ...data, messages: [...messages.values()].sort((left, right) => Number(left.id) - Number(right.id)) };
       });
       setMessagePageMeta(data.messages_meta || null);
@@ -1659,6 +1750,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
         ...conversationCacheRef.current,
         [String(id)]: data
       };
+      if (!syncWatermarksRef.current[id] && data.messages_meta?.server_time) syncWatermarksRef.current[id] = data.messages_meta.server_time;
       lastConversationDetailLoadedRef.current = { id, at: Date.now() };
       setConversations((previous) => mergeConversationGroups(previous, [data], false));
     } catch (error) {
@@ -1681,7 +1773,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     if (!conversationId || !messagePageMeta?.has_more || olderMessagesRequestRef.current) return;
 
     const container = messageListRef.current;
-    const previousScrollHeight = container?.scrollHeight || 0;
+
 
     try {
       olderMessagesRequestRef.current = true;
@@ -1693,6 +1785,10 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       });
       const olderMessages = Array.isArray(data?.data) ? data.data : [];
       if (Number(activeConversationRef.current?.id) !== Number(conversationId)) return;
+      const containerTop = container?.getBoundingClientRect().top || 0;
+      const anchorRow = Array.from(container?.querySelectorAll("[data-message-id]") || [])
+        .find((row) => row.getBoundingClientRect().top >= containerTop);
+      if (anchorRow) setHistoryAnchor({ id: Number(anchorRow.dataset.messageId), offset: anchorRow.getBoundingClientRect().top - containerTop });
       skipNextMessageAutoScrollRef.current = true;
 
       setActiveConversation((previous) => {
@@ -1712,12 +1808,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       });
       setMessagePageMeta(data?.meta || null);
 
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(() => {
-          if (!container) return;
-          container.scrollTop = container.scrollHeight - previousScrollHeight + container.scrollTop;
-        });
-      });
+
     } catch (error) {
       console.error("Failed to load older messages", error);
       setOlderMessagesError("Could not load older messages.");
@@ -1731,18 +1822,19 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     const container = messageListRef.current;
     if (!container) return;
 
+    if (threadSearchQuery.trim() || contextMessages) return;
     const atLatest = isMessageListNearBottom(container);
     isAtLatestMessagesRef.current = atLatest;
     if (atLatest) {
       setHasUnreadBelow(false);
       const latestMessage = activeConversationRef.current?.messages?.at?.(-1) || activeConversationRef.current?.messages?.slice(-1)[0];
-      if (latestMessage) acknowledgeReceipt(conversationId, latestMessage.id, "read");
+      if (latestMessage && document.visibilityState === "visible" && document.hasFocus()) acknowledgeReceipt(conversationId, latestMessage.id, "read");
     }
 
     if (container.scrollTop <= MESSAGE_TOP_LOAD_THRESHOLD && messagePageMeta?.has_more && !isLoadingOlderMessages) {
       loadOlderMessages();
     }
-  }, [acknowledgeReceipt, conversationId, isLoadingOlderMessages, loadOlderMessages, messagePageMeta?.has_more]);
+  }, [acknowledgeReceipt, conversationId, isLoadingOlderMessages, loadOlderMessages, messagePageMeta?.has_more, threadSearchQuery, contextMessages]);
 
   const resetNewChatModal = useCallback((mode = "direct") => {
     setNewChatError("");
@@ -2060,7 +2152,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       const nextConversation = {
         ...previous,
         messages: (previous.messages || []).map((message) => {
-          if (Number(message.id) !== Number(messageId)) return message;
+          if (Number(message.id) !== Number(messageId) || message.deleted_at) return message;
 
           const nextReactedEmojis = Array.isArray(updates.reacted_emojis)
             ? updates.reacted_emojis
@@ -2399,8 +2491,89 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     }
   }, [activeConversation, groupActionPending, removeConversationLocally, user?.id]);
 
+  const applyMessageChange = useCallback((targetConversationId, incoming) => {
+    const versionKey = `${targetConversationId}:${incoming.id}`;
+    const previousVersion = changedMessageVersionsRef.current.get(versionKey);
+    const newest = mergeMessage(previousVersion, incoming);
+    if (newest === previousVersion) return;
+    incoming = newest;
+    summaryVersionsRef.current.set(String(targetConversationId), (summaryVersionsRef.current.get(String(targetConversationId)) || 0) + 1);
+    changedMessageVersionsRef.current.set(versionKey, incoming);
+    if (changedMessageVersionsRef.current.size > 500) changedMessageVersionsRef.current.delete(changedMessageVersionsRef.current.keys().next().value);
+    const update = (conversation) => {
+      if (!conversation || Number(conversation.id) !== Number(targetConversationId)) return conversation;
+      return { ...conversation, messages: patchMessageRows(conversation.messages, incoming) };
+    };
+    const key = String(targetConversationId);
+    const draft = draftCacheRef.current[key];
+    if (Number(draft?.replyTo?.id) === Number(incoming.id)) {
+      draftCacheRef.current[key] = { ...draft, replyTo: incoming.deleted_at ? null : mergeMessage(draft.replyTo, incoming) };
+    }
+    if (conversationCacheRef.current[key]) conversationCacheRef.current[key] = update(conversationCacheRef.current[key]);
+    setActiveConversation(update);
+    if (Number(currentConversationIdRef.current) === Number(targetConversationId)) {
+      setContextMessages((rows) => rows && patchMessageRows(rows, incoming));
+      setSearchResults((previous) => ({ ...previous, data: patchMessageRows(previous.data, incoming).filter((message) => !message.deleted_at) }));
+      setReplyTo((previous) => Number(previous?.id) === Number(incoming.id) ? incoming.deleted_at ? null : mergeMessage(previous, incoming) : previous);
+    }
+    setConversations((previous) => ({
+      direct: previous.direct.map((conversation) => Number(conversation.id) === Number(targetConversationId) && Number(conversation.last_message_id) === Number(incoming.id) ? { ...conversation, last_message: incoming.body } : conversation),
+      group: previous.group.map((conversation) => Number(conversation.id) === Number(targetConversationId) && Number(conversation.last_message_id) === Number(incoming.id) ? { ...conversation, last_message: incoming.body } : conversation)
+    }));
+  }, []);
+
+  const changeMessage = async (message, deleting = false) => {
+    if (messageActionPending) return;
+    if (deleting && !window.confirm("Delete this message for everyone?")) return;
+    setMessageActionPending(true);
+    setMessageActionError("");
+    try {
+      const { data } = deleting ? await deleteChatMessage(conversationId, message.id) : await editChatMessage(conversationId, message.id, editBody);
+      applyMessageChange(conversationId, data);
+      if (String(currentConversationIdRef.current) === String(conversationId)) setEditingMessage(null);
+    } catch (error) {
+      setMessageActionError(error.response?.data?.errors?.join(", ") || "Message could not be changed. Please try again.");
+    } finally { setMessageActionPending(false); }
+  };
+
+  const searchHistory = useCallback(async (query, beforeId, token) => {
+    setSearchResults((previous) => ({ ...previous, loading: true, error: "" }));
+    try {
+      const { data } = await fetchConversationMessages(conversationId, { q: query, before_id: beforeId, limit: 50 });
+      if (searchTokenRef.current !== token) return;
+      setSearchResults((previous) => ({ data: beforeId ? [...data.data, ...previous.data] : data.data, meta: data.meta, loading: false, error: "" }));
+    } catch {
+      if (searchTokenRef.current === token) setSearchResults((previous) => ({ ...previous, loading: false, error: "Search failed. Try again." }));
+    }
+  }, [conversationId]);
+
+  useEffect(() => {
+    const token = ++searchTokenRef.current;
+    setSearchResults({ data: [], meta: null, loading: Boolean(threadSearchQuery.trim()), error: "" });
+    if (!threadSearchQuery.trim()) return;
+    isAtLatestMessagesRef.current = false;
+    const timer = window.setTimeout(() => searchHistory(threadSearchQuery.trim(), null, token), 300);
+    return () => { window.clearTimeout(timer); ++searchTokenRef.current; };
+  }, [conversationId, threadSearchQuery, searchHistory]);
+
+  const openMessageContext = async (messageId) => {
+    const targetConversation = conversationId;
+    try {
+      const { data } = await fetchConversationMessages(conversationId, { around_id: messageId, limit: 50 });
+      if (String(currentConversationIdRef.current) !== String(targetConversation)) return;
+      isAtLatestMessagesRef.current = false;
+      setContextMessages(data.data);
+      setContextTarget(messageId);
+      setThreadSearchQuery("");
+    } catch { setMessageActionError("Could not load message context. Please try again."); }
+  };
+
   useEffect(() => {
     const userSub = subscribeToUserChat((payload) => {
+      if (["message_updated", "message_deleted"].includes(payload?.type) && payload.message) {
+        applyMessageChange(payload.conversation_id, payload.message);
+        return;
+      }
       if (payload?.type === "user_profile_updated") {
         const updateMessage = (message) => ({ ...message,
           ...(Number(message.user_id) === Number(payload.user_id) ? { user_name: payload.user_name, user_profile_picture: payload.user_profile_picture } : {}),
@@ -2459,12 +2632,16 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     });
 
     return () => userSub.unsubscribe();
-  }, [acknowledgeReceipt, applyCallSessionUpdate, applyReactionUpdate, applyReceiptUpdate, applyRealtimeMessageSummary, conversationId, handleIncomingCall, mergeMessagesIntoActiveConversation, refreshConversationSummary, removeConversationLocally, scrollMessagesToBottom, user?.id]);
+  }, [applyMessageChange, acknowledgeReceipt, applyCallSessionUpdate, applyReactionUpdate, applyReceiptUpdate, applyRealtimeMessageSummary, conversationId, handleIncomingCall, mergeMessagesIntoActiveConversation, refreshConversationSummary, removeConversationLocally, scrollMessagesToBottom, user?.id]);
 
   useEffect(() => {
     if (!conversationId) return undefined;
 
     const convSub = subscribeToConversationChat(conversationId, (payload) => {
+      if (["message_updated", "message_deleted"].includes(payload?.type) && payload.message) {
+        applyMessageChange(payload.conversation_id, payload.message);
+        return;
+      }
       if (payload?.type === "message_created" && Number(payload.conversation_id) === Number(conversationId)) {
         const shouldFollowMessage = isAtLatestMessagesRef.current;
         applyRealtimeMessageSummary(conversationId, payload.message);
@@ -2550,7 +2727,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     });
 
     return () => convSub.unsubscribe();
-  }, [acknowledgeReceipt, applyCallSessionUpdate, applyReactionUpdate, applyReceiptUpdate, applyRealtimeMessageSummary, conversationId, handleIncomingCall, mergeMessagesIntoActiveConversation, removeConversationLocally, scrollMessagesToBottom, user?.id]);
+  }, [applyMessageChange, acknowledgeReceipt, applyCallSessionUpdate, applyReactionUpdate, applyReceiptUpdate, applyRealtimeMessageSummary, conversationId, handleIncomingCall, mergeMessagesIntoActiveConversation, removeConversationLocally, scrollMessagesToBottom, user?.id]);
 
   useEffect(() => () => {
     stopTyping();
@@ -2563,6 +2740,24 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     const messages = activeConversation?.messages || [];
     return [...messages].sort((left, right) => new Date(left.created_at) - new Date(right.created_at));
   }, [activeConversation?.messages]);
+
+  useEffect(() => {
+    if (!replyTo?.id || !conversationId || !activeConversation || Number(activeConversation.id) !== Number(conversationId) || isConversationLoading) return;
+    const targetId = replyTo.id;
+    const loaded = activeConversationMessages.find((message) => Number(message.id) === Number(targetId));
+    if (loaded) {
+      setReplyTo((previous) => Number(previous?.id) === Number(targetId) ? loaded.deleted_at ? null : mergeMessage(previous, loaded) : previous);
+      return;
+    }
+    let cancelled = false;
+    fetchConversationMessages(conversationId, { around_id: targetId, limit: 1 }).then(({ data }) => {
+      if (cancelled) return;
+      const target = data.data?.find((message) => Number(message.id) === Number(targetId));
+      setReplyTo((previous) => Number(previous?.id) === Number(targetId) ? target && !target.deleted_at ? mergeMessage(previous, target) : null : previous);
+    }).catch(() => { /* Preserve drafts on connection failures; sending revalidates the target. */ });
+    return () => { cancelled = true; };
+  }, [conversationId, replyTo?.id, activeConversationMessages, activeConversation?.id, isConversationLoading]);
+
 
   const attachmentPreviewUrls = useMemo(
     () => attachments.map((file) => (file.type.startsWith("image/") || file.type.startsWith("video/")) ? URL.createObjectURL(file) : null),
@@ -2803,9 +2998,9 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   }, [conversationFilter, conversations, deferredSideSearchQuery, mentionLookups, user?.id]);
 
   const filteredMessages = useMemo(() => {
-    if (!deferredThreadSearchQuery.trim()) return activeConversationMessages;
-    return activeConversationMessages.filter((message) => messageMatchesQuery(message, deferredThreadSearchQuery, mentionLookups));
-  }, [activeConversationMessages, deferredThreadSearchQuery, mentionLookups]);
+    if (threadSearchQuery.trim()) return searchResults.data;
+    return contextMessages || activeConversationMessages;
+  }, [activeConversationMessages, threadSearchQuery, searchResults.data, contextMessages]);
 
   const groupedMessages = useMemo(
     () => groupMessagesByDay(filteredMessages),
@@ -2960,7 +3155,6 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   };
 
   const insertComposerText = (text) => {
-    if (sendInFlightRef.current) return;
     const textarea = composerTextareaRef.current;
     const start = textarea?.selectionStart ?? messageBody.length;
     const end = textarea?.selectionEnd ?? start;
@@ -2975,67 +3169,66 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     });
   };
 
-  const handleSendMessage = async (event) => {
+  const handleSendMessage = async (event, retryDraft = null) => {
     event.preventDefault();
-    if (sendInFlightRef.current || (!messageBody.trim() && attachments.length === 0) || !conversationId) return;
+    const draft = retryDraft || { body: messageBody, attachments, replyTo, conversationId };
+    const targetId = draft.conversationId;
+    if (sendInFlightRef.current || (!draft.body.trim() && !draft.attachments.length) || !targetId) return;
     sendInFlightRef.current = true;
     setSendError("");
-
+    const previousSend = pendingSendRef.current;
+    const sameDraft = previousSend && previousSend.body === draft.body && previousSend.attachments === draft.attachments &&
+      previousSend.replyTo?.id === draft.replyTo?.id && previousSend.conversationId === targetId;
+    const clientId = draft.clientId || (sameDraft ? previousSend.clientId : crypto.randomUUID());
+    const sentDraft = { ...draft, clientId };
+    if (!retryDraft) {
+      pendingSendRef.current = sentDraft;
+      writeChatDraft(chatDraftKey(user, targetId), sentDraft, draftStorageRef.current.generation);
+    }
     const shouldFollowMessage = isAtLatestMessagesRef.current;
     setIsSending(true);
-
     try {
       const formData = new FormData();
-      formData.append("message[body]", messageBody);
-      if (replyTo) formData.append("message[reply_to_id]", replyTo.id);
-      attachments.forEach((file) => formData.append("message[attachments][]", file));
-
-      const { data: newMessage } = await sendMessage(conversationId, formData);
-
-      setActiveConversation((previous) => {
-        if (!previous || Number(previous.id) !== Number(conversationId)) return previous;
-        if (previous.messages?.some((message) => Number(message.id) === Number(newMessage.id))) return previous;
-
-        const nextConversation = {
-          ...previous,
-          messages: [...(previous.messages || []), newMessage]
-        };
-
-        conversationCacheRef.current = {
-          ...conversationCacheRef.current,
-          [String(conversationId)]: nextConversation
-        };
-        return nextConversation;
-      });
-
-      const cachedConversation = conversationCacheRef.current[String(conversationId)];
-      if (cachedConversation && !cachedConversation.messages?.some((message) => Number(message.id) === Number(newMessage.id))) {
-        conversationCacheRef.current[String(conversationId)] = {
-          ...cachedConversation,
-          messages: [...(cachedConversation.messages || []), newMessage]
-        };
+      formData.append("message[body]", draft.body);
+      formData.append("message[client_id]", clientId);
+      if (draft.replyTo) formData.append("message[reply_to_id]", draft.replyTo.id);
+      draft.attachments.forEach((file) => formData.append("message[attachments][]", file));
+      const { data: newMessage } = await sendMessage(targetId, formData);
+      mergeMessagesIntoActiveConversation(targetId, [newMessage]);
+      const cached = conversationCacheRef.current[String(targetId)];
+      if (cached && !cached.messages?.some((message) => Number(message.id) === Number(newMessage.id))) {
+        conversationCacheRef.current[String(targetId)] = { ...cached, messages: [...(cached.messages || []), newMessage] };
       }
-      delete draftCacheRef.current[String(conversationId)];
-      if (String(currentConversationIdRef.current) === String(conversationId)) {
+      setFailedSends((previous) => previous.filter((failed) => failed.clientId !== clientId));
+      const unchanged = (current) => current?.body === draft.body && current?.attachments === draft.attachments && current?.replyTo?.id === draft.replyTo?.id;
+      const cachedDraft = draftCacheRef.current[String(targetId)];
+      if (unchanged(cachedDraft)) {
+        delete draftCacheRef.current[String(targetId)];
+        writeChatDraft(chatDraftKey(user, targetId), { body: "" }, draftStorageRef.current.generation);
+      }
+      if (pendingSendRef.current?.clientId === clientId) pendingSendRef.current = null;
+      if (String(currentConversationIdRef.current) === String(targetId) && unchanged(composerSnapshotRef.current)) {
+        writeChatDraft(chatDraftKey(user, targetId), { body: "" }, draftStorageRef.current.generation);
         setMessageBody("");
         setReplyTo(null);
         setAttachments([]);
         setComposerSelection({ start: 0, end: 0 });
         setActiveMentionIndex(0);
       }
-      applyRealtimeMessageSummary(conversationId, newMessage);
-      if (String(currentConversationIdRef.current) === String(conversationId)) {
+      applyRealtimeMessageSummary(targetId, newMessage);
+      if (String(currentConversationIdRef.current) === String(targetId)) {
         if (shouldFollowMessage) scrollMessagesToBottom(40);
         else setHasUnreadBelow(true);
       }
     } catch (error) {
-      console.error("Failed to send message", error);
-      if (String(currentConversationIdRef.current) === String(conversationId)) {
+      setFailedSends((previous) => [...previous.filter((failed) => failed.clientId !== clientId), sentDraft]);
+      if (String(currentConversationIdRef.current) === String(targetId)) {
         setSendError("Your message couldn’t be sent. Please try again. Your draft is still here.");
       }
     } finally {
       sendInFlightRef.current = false;
-      stopTyping();
+      // Do not stop typing in a different thread after an old request completes.
+      if (String(currentConversationIdRef.current) === String(targetId)) stopTyping();
       setIsSending(false);
     }
   };
@@ -3545,7 +3738,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                         <input
                           value={threadSearchQuery}
                           onChange={(event) => setThreadSearchQuery(event.target.value)}
-                          placeholder="Search messages, people, or attachments in this thread"
+                          placeholder="Search all messages and filenames"
                           aria-label="Search messages in this conversation"
                           className="w-full rounded-2xl border border-white/70 bg-white/82 py-3 pl-11 pr-11 text-sm text-slate-700 outline-none transition focus:border-sky-300 focus:ring-4 focus:ring-sky-100 dark:border-zinc-700 dark:bg-zinc-900/95 dark:text-slate-100 dark:focus:border-sky-700 dark:focus:ring-sky-950/50"
                           autoFocus
@@ -3635,6 +3828,14 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                     </div>
                   )}
 
+                  {messageActionError && <div role="alert" className="chat-action-error">{messageActionError}</div>}
+                  {editingMessage && <form className="chat-edit-message" onSubmit={(event) => { event.preventDefault(); changeMessage(editingMessage); }}>
+                    <label htmlFor="chat-edit-body">Edit message · available for 15 minutes</label>
+                    <textarea id="chat-edit-body" autoFocus value={editBody} onChange={(event) => setEditBody(event.target.value)} />
+                    <div><button type="submit" disabled={messageActionPending || (!editBody.trim() && !editingMessage.attachments?.length)}>Save</button>
+                    <button type="button" onClick={() => setEditingMessage(null)}>Cancel</button></div>
+                  </form>}
+                  {contextMessages && <button className="chat-context-return" onClick={() => { setContextMessages(null); setContextTarget(null); isAtLatestMessagesRef.current = true; scrollMessagesToBottom(80); }}>Viewing message context · Back to latest</button>}
                   <div
                     ref={messageListRef}
                     onScroll={handleMessageListScroll}
@@ -3645,12 +3846,13 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                     <div className="mx-auto flex max-w-4xl flex-col gap-4">
                       {deferredThreadSearchQuery.trim() && (
                         <p role="status" className="chat-thread-search-results">
-                          {filteredMessages.length} match{filteredMessages.length === 1 ? "" : "es"} for “{deferredThreadSearchQuery}”
+                          {searchResults.loading ? "Searching… " : ""}{filteredMessages.length} match{filteredMessages.length === 1 ? "" : "es"} for “{deferredThreadSearchQuery}”
                         </p>
                       )}
 
+                      {threadSearchQuery.trim() && (searchResults.meta?.has_more || searchResults.error) && <button type="button" disabled={searchResults.loading} onClick={() => searchHistory(threadSearchQuery.trim(), searchResults.error ? null : searchResults.meta?.next_before_id, searchTokenRef.current)} className="chat-context-return">{searchResults.error || "Load more matches"}</button>}
                       {(isLoadingOlderMessages || olderMessagesError) && !deferredThreadSearchQuery.trim() && (
-                        <div className="flex justify-center">
+                        <div className="absolute left-0 right-0 top-2 z-10 flex justify-center">
                           <button
                             type="button"
                             onClick={loadOlderMessages}
@@ -3700,33 +3902,25 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                           </p>
                         </div>
                       ) : (
-                        groupedMessages.map((group) => (
-                          <div key={group.dateKey} className="space-y-2">
-                            <div className="chat-day-divider"><span>{group.label}</span></div>
+                        <VirtualMessages key={conversationId + (contextMessages ? ":context" : threadSearchQuery ? ":search" : ":history")}
+                          messages={filteredMessages} scrollRef={messageListRef} anchor={historyAnchor} onAnchorRestored={() => setHistoryAnchor(null)} targetId={contextMessages ? contextTarget : null}
+                          renderMessage={(message, index) => {
+                            const previous = filteredMessages[index - 1];
+                            const dayStart = !previous || !isSameDay(new Date(previous.created_at), new Date(message.created_at));
+                            return <>
+                              {dayStart && <div className="chat-day-divider"><span>{formatDayLabel(message.created_at)}</span></div>}
+                              <MessageBubble message={message} isMe={Number(message.user_id) === Number(user?.id)}
+                                showAvatar={dayStart || Number(previous?.user_id) !== Number(message.user_id)}
+                                onToggleReaction={handleToggleReaction}
+                                onReply={(message) => { setReplyTo(message); composerTextareaRef.current?.focus(); }}
+                                onEdit={(message) => { setEditingMessage(message); setEditBody(message.body || ""); setMessageActionError(""); }}
+                                onDelete={(message) => changeMessage(message, true)}
+                                onContext={threadSearchQuery.trim() ? openMessageContext : null}
+                                participants={conversationParticipants} conversationType={activeConversation.conversation_type}
+                                searchQuery={deferredThreadSearchQuery} mentionLookups={mentionLookups} />
+                            </>;
+                          }} />
 
-                            <div className="chat-message-stack">
-                              {group.messages.map((message, index) => {
-                                const previousMessage = group.messages[index - 1];
-                                const showAvatar = !previousMessage || !isSameDay(new Date(previousMessage.created_at), new Date(message.created_at)) || Number(previousMessage.user_id) !== Number(message.user_id);
-
-                                return (
-                                  <MessageBubble
-                                    key={message.id}
-                                    message={message}
-                                    isMe={Number(message.user_id) === Number(user?.id)}
-                                    showAvatar={showAvatar}
-                                    onToggleReaction={handleToggleReaction}
-                                    onReply={(message) => { setReplyTo(message); composerTextareaRef.current?.focus(); }}
-                                    participants={conversationParticipants}
-                                    conversationType={activeConversation.conversation_type}
-                                    searchQuery={deferredThreadSearchQuery}
-                                    mentionLookups={mentionLookups}
-                                  />
-                                );
-                              })}
-                            </div>
-                          </div>
-                        ))
                       )}
 
                       <AnimatePresence>
@@ -3818,6 +4012,10 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                       )}
 
                       {sendError && <p role="alert" className="chat-compose-error">{sendError}</p>}
+                      {failedSends.filter((draft) => String(draft.conversationId) === String(conversationId)).map((draft) => <div key={draft.clientId} className="chat-failed-send">
+                        <span className="truncate">{draft.body || "Attachment"} · Not sent</span>
+                        <button type="button" disabled={isSending} onClick={(event) => handleSendMessage(event, draft)}>Retry message</button>
+                      </div>)}
                       {replyTo && <div className="flex items-center gap-2 border-l-2 border-sky-500 px-3 py-2 text-sm"><div className="min-w-0 flex-1"><strong>{replyTo.user_name}</strong><p className="truncate">{replyTo.body || "Attachment"}</p></div><button type="button" aria-label="Cancel reply" title="Cancel reply" onClick={() => setReplyTo(null)}><FiX /></button></div>}
                       <form
                         onSubmit={handleSendMessage}
@@ -3888,7 +4086,6 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                               rows={1}
                               placeholder="Write a message..."
                               aria-label="Message"
-                              readOnly={isSending}
                               className="max-h-12 min-h-[24px] w-full resize-none border-0 bg-transparent p-0 text-sm leading-5 text-slate-800 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
                             />
 

@@ -19,6 +19,18 @@ module Chat
         broadcast_conversation_refresh(message.conversation)
       end
 
+      def broadcast_message_changed(message)
+        serialized = serialize_message(message)
+        serialized.delete(:reacted_emojis) # This is viewer-specific; retain each client's selection.
+        payload = { type: message.deleted_at? ? "message_deleted" : "message_updated",
+                    conversation_id: message.conversation_id, message: serialized }
+        broadcast(conversation_stream(message.workspace_id, message.conversation_id), payload)
+        message.conversation.participant_ids.each do |id|
+          broadcast(user_stream(message.workspace_id, id), payload)
+        end
+        broadcast_conversation_refresh(message.conversation)
+      end
+
       def broadcast_message_receipt_updated(conversation, membership)
         payload = {
           type: "message_receipt_updated",

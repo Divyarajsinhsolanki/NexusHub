@@ -42,8 +42,8 @@ const RECAPTCHA_SITE_KEY = RECAPTCHA_ENABLED
       import.meta.env.VITE_RECAPTCHA_SITE_KEY,
     )
   : undefined;
-const NEXUS_PRODUCT_LOOP_WEBM = "/media/nexus/nexus-product-loop.webm";
-const NEXUS_PRODUCT_LOOP_MP4 = "/media/nexus/nexus-product-loop.mp4";
+const NEXUS_PRODUCT_LOOP_WEBM = "/media/nexus/nexus-product-loop.webm?v=f2269eeb50f4c27f";
+const NEXUS_PRODUCT_LOOP_MP4 = "/media/nexus/nexus-product-loop.mp4?v=9d1758a657649ce4";
 
 const fallbackProfile = {
   full_name: "Divyarajsinh Solanki",
@@ -81,6 +81,7 @@ const fallbackProfile = {
   engineering_highlights: [
     "Workspace authorization",
     "Project delivery workflows",
+    "Encrypted environment inventory and release verification",
     "Realtime chat",
     "AWS deployment",
     "CI/CD",
@@ -98,8 +99,8 @@ const fallbackProject = {
   stack: [
     "Ruby 3.3",
     "Rails 8.0",
-    "React 18",
-    "Vite 6",
+    "React 19",
+    "Vite 8",
     "PostgreSQL",
     "Redis",
     "AWS EB/EC2",
@@ -145,6 +146,7 @@ const fallbackProject = {
     ["Collaboration", "Teams, Posts, and Real-time Chat", "/posts"],
     ["Knowledge", "Knowledge and Learning Grid", "/knowledge"],
     ["Documents", "PDF Master Workflows", "/pdf-master"],
+    ["Operations", "Project Environments & Operations", "/demo?section=operations"],
     [
       "Platform",
       "Cloud Deployment and Product Operations",
@@ -540,6 +542,14 @@ const PublicPortfolio = () => {
           ))}
         </nav>
         <div className="pf-header-actions">
+          <button
+            type="button"
+            className="pf-demo-link"
+            onClick={() => openDemo()}
+            disabled={!!demoLoading}
+          >
+            {demoLoading ? "Opening demo…" : "Live demo"} <FiArrowUpRight />
+          </button>
           <PortfolioSocialButtons links={socialLinks} className="pf-header-social" />
           <button
             className="pf-workspace-link"
@@ -756,12 +766,12 @@ const PublicPortfolio = () => {
                   srcWebm={NEXUS_PRODUCT_LOOP_WEBM}
                   srcMp4={NEXUS_PRODUCT_LOOP_MP4}
                   poster={nexusProductPoster}
-                  ariaLabel="Animated Nexus Hub workspace product overview"
+                  ariaLabel="Current Nexus Hub application screens"
                   className="pf-product-video"
                 />
               </div>
               <span className="pf-floating-tag pf-floating-tag-one">
-                <FiLayers /> Six connected product areas
+                <FiLayers /> Seven connected product areas
               </span>
               <span className="pf-floating-tag pf-floating-tag-two">
                 <span className="pf-status-dot" /> Designed. Built. Deployed.
@@ -1035,7 +1045,6 @@ const PublicPortfolio = () => {
               <span>A conversation starts here.</span>
             </div>
             <ContactForm />
-            <PortfolioSocialButtons links={socialLinks} className="pf-form-social" />
           </div>
         </section>
       </main>

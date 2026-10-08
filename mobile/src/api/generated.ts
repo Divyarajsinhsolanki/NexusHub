@@ -1121,6 +1121,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/conversations/{id}/messages/{message_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                message_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** @description Author-only deletion strictly before 15 minutes; retains a placeholder and removes content and attachment associations. */
+        delete: operations["deleteConversationMessage"];
+        options?: never;
+        head?: never;
+        /** @description Author-only text edit strictly before 15 minutes after creation; system and deleted messages cannot be changed. */
+        patch: operations["editConversationMessage"];
+        trace?: never;
+    };
     "/conversations/{id}/receipt": {
         parameters: {
             query?: never;
@@ -1729,6 +1750,50 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        ChatMessage: {
+            id: number;
+            client_id?: string | null;
+            body: string;
+            user_id?: number;
+            user_name?: string;
+            user_profile_picture?: string | null;
+            /** @enum {string} */
+            message_type?: "message" | "system";
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at?: string;
+            /** Format: date-time */
+            edited_at?: string | null;
+            /** Format: date-time */
+            deleted_at?: string | null;
+            /** Format: date-time */
+            editable_until?: string | null;
+            reply_to_id?: number | null;
+            reply_to?: {
+                id?: number;
+                body?: string;
+                user_id?: number;
+                user_name?: string;
+                /** Format: date-time */
+                deleted_at?: string | null;
+                /** Format: date-time */
+                updated_at?: string;
+                attachment_count?: number;
+            } | null;
+            attachments?: {
+                id?: number;
+                filename?: string;
+                url?: string;
+                download_url?: string;
+                content_type?: string;
+                byte_size?: number;
+            }[];
+            reactions?: {
+                [key: string]: number;
+            };
+            reacted_emojis?: string[];
+        };
         GenericEnvelope: {
             data: unknown;
             meta?: components["schemas"]["PaginationMeta"];
@@ -3349,6 +3414,15 @@ export interface operations {
         parameters: {
             query?: {
                 before_id?: number;
+                /** @description Literal case-insensitive text or attachment filename search; excludes deleted messages. */
+                q?: string;
+                /** @description Return messages surrounding this message in the current conversation. */
+                around_id?: number;
+                limit?: number;
+                /** @description Inclusive server timestamp for paginated reconnect recovery, including edits and deletions. */
+                updated_since?: string;
+                /** @description Cursor for updated_since recovery. */
+                after_id?: number;
             };
             header?: never;
             path: {
@@ -3358,7 +3432,27 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            200: components["responses"]["GenericSuccess"];
+            /** @description Message history or matching messages with pagination metadata. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["ChatMessage"][];
+                        meta: {
+                            has_more?: boolean;
+                            next_before_id?: number | null;
+                            next_after_id?: number | null;
+                            /** Format: date-time */
+                            server_time?: string;
+                            target_id?: number;
+                            context?: boolean;
+                            per_page?: number;
+                        };
+                    };
+                };
+            };
         };
     };
     createConversationMessage: {
@@ -3384,6 +3478,65 @@ export interface operations {
         };
         responses: {
             201: components["responses"]["GenericSuccess"];
+        };
+    };
+    deleteConversationMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                message_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted message placeholder */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatMessage"];
+                };
+            };
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+        };
+    };
+    editConversationMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                message_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    message: {
+                        body: string;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description Updated message */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatMessage"];
+                };
+            };
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
         };
     };
     updateConversationReceipt: {

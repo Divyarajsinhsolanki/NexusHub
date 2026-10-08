@@ -10,6 +10,7 @@ import Sheet from './Sheet';
 import ProjectStatistics from './ProjectStatistics';
 import IssueTracker from './IssueTracker';
 import ProjectVault from './ProjectVault';
+import ProjectOperations from './ProjectOperations';
 import PageLoader from '../components/ui/PageLoader';
 import { ProjectRouteContext } from '../components/ProjectMemberRoute';
 
@@ -349,7 +350,7 @@ export default function SprintDashboard() {
   const hiddenWorkloadCount = Math.max(workloadRows.length - visibleWorkloadRows.length, 0);
   const totalWorkloadHours = workloadRows.reduce((sum, row) => sum + row.hours, 0);
 
-  if (isLoadingDashboard) {
+  if (!isProjectLoaded || (activeTab !== 'environments' && isLoadingDashboard)) {
     return <PageLoader title="Project dashboard" message="Loading sprint board, tasks, and project data…" />;
   }
 
@@ -419,6 +420,7 @@ export default function SprintDashboard() {
     { key: 'issues', label: 'Issue Tracker' },
     sheetEnabled ? { key: 'sheet', label: 'Sheet' } : null,
     { key: 'vault', label: 'Vault' },
+    { key: 'environments', label: 'Environments' },
     { key: 'settings', label: 'Settings' },
   ].filter(Boolean);
   const emptyState = (
@@ -463,7 +465,7 @@ export default function SprintDashboard() {
             </div>
           </div>
 
-          <div className="grid gap-2.5 xl:grid-cols-[minmax(0,1.25fr)_minmax(300px,0.88fr)]">
+          {activeTab !== 'environments' && <div className="grid gap-2.5 xl:grid-cols-[minmax(0,1.25fr)_minmax(300px,0.88fr)]">
             <div className="grid gap-2.5">
               <div className="grid gap-2 sm:grid-cols-3">
                 <div className="shell-kpi-card shell-kpi-card-compact">
@@ -528,7 +530,7 @@ export default function SprintDashboard() {
                 </div>
               </div>
             </div>
-          </div>
+          </div>}
 
           <div className="grid gap-2.5 xl:grid-cols-[minmax(0,1fr)_auto]">
             <div className="shell-segmented scrollbar-hide overflow-x-auto">
@@ -537,7 +539,7 @@ export default function SprintDashboard() {
                   key={tab.key}
                   type="button"
                   onClick={() => setActiveTab(tab.key)}
-                  className={`shell-segmented-button whitespace-nowrap ${activeTab === tab.key ? 'shell-segmented-button-active' : ''}`}
+                  className={`shell-segmented-button shrink-0 whitespace-nowrap ${activeTab === tab.key ? 'shell-segmented-button-active' : ''}`}
                 >
                   {tab.label}
                 </button>
@@ -545,7 +547,7 @@ export default function SprintDashboard() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2.5 xl:justify-end">
-              {project?.qa_mode_enabled ? (
+              {activeTab !== 'environments' && project?.qa_mode_enabled ? (
                 <div className="shell-segmented">
                   {VIEW_MODES.map((mode) => {
                     const active = viewMode === mode;
@@ -575,7 +577,7 @@ export default function SprintDashboard() {
                 3D Mode
               </Link>
 
-              <button
+              {activeTab !== 'environments' && <button
                 type="button"
                 aria-expanded={isHeaderExpanded}
                 aria-controls="project-sprint-manager"
@@ -584,11 +586,11 @@ export default function SprintDashboard() {
               >
                 <CalendarDaysIcon className="h-5 w-5" />
                 {isHeaderExpanded ? 'Hide Sprint Manager' : 'Open Sprint Manager'}
-              </button>
+              </button>}
             </div>
           </div>
 
-          {isHeaderExpanded ? (
+          {activeTab !== 'environments' && isHeaderExpanded ? (
             <div id="project-sprint-manager" className="shell-panel shell-panel-strong rounded-lg px-4 py-4">
               <SprintManager
                 onSprintChange={handleSprintChange}
@@ -643,6 +645,7 @@ export default function SprintDashboard() {
       {activeTab === 'vault' && (
         <ProjectVault projectId={projectId} />
       )}
+      {activeTab === 'environments' && <ProjectOperations projectId={projectId} />}
       {activeTab === 'settings' && (
         <div className="shell-panel shell-panel-strong mx-auto mt-2 w-full max-w-5xl rounded-[32px] p-6 shadow-[0_24px_54px_rgb(15_23_42_/_0.08)] sm:p-7">
           <h2 className="text-2xl font-bold text-slate-900">Project Settings</h2>

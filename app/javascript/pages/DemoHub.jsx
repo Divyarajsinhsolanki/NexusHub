@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { FiArrowUpRight, FiClock, FiDatabase, FiLayers, FiShield, FiZap } from "react-icons/fi";
 import { fetchDemoManifest } from "../components/api";
 
 const iconMap = [FiLayers, FiClock, FiZap, FiDatabase, FiShield, FiArrowUpRight];
 
 const DemoHub = () => {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [manifest, setManifest] = useState(null);
   const [error, setError] = useState("");
 
@@ -14,6 +16,12 @@ const DemoHub = () => {
       .then(({ data }) => setManifest(data))
       .catch(() => setError("The guided tour could not be loaded."));
   }, []);
+
+  useEffect(() => {
+    const section = searchParams.get("section");
+    const group = manifest?.groups?.find((item) => item.key === section);
+    if (group) navigate(group.route, { replace: true });
+  }, [manifest, navigate, searchParams]);
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -25,7 +33,7 @@ const DemoHub = () => {
               Understand Nexus Hub in about five minutes.
             </h1>
             <p className="mt-5 max-w-3xl text-base leading-7 text-slate-600">
-              Follow the six product areas below. Each card opens a real application screen backed by synthetic,
+              Follow the seven product areas below. Each card opens a real application screen backed by synthetic,
               read-only data.
             </p>
           </div>
@@ -55,7 +63,7 @@ const DemoHub = () => {
                   <Icon className="h-5 w-5" />
                 </span>
                 <span className="text-sm font-semibold text-slate-400">
-                  0{group.step || index + 1} / 0{manifest?.total_steps || 6}
+                  0{group.step || index + 1} / 0{manifest?.total_steps || 7}
                 </span>
               </div>
               <h2 className="mt-8 text-xl font-semibold tracking-[-0.03em] text-slate-950">{group.title}</h2>

@@ -690,8 +690,47 @@ paths:
         - name: before_id
           in: query
           schema: { type: integer }
+        - name: q
+          in: query
+          description: Literal case-insensitive text or attachment filename search; excludes deleted messages.
+          schema: { type: string, maxLength: 200 }
+        - name: around_id
+          in: query
+          description: Return messages surrounding this message in the current conversation.
+          schema: { type: integer }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - name: updated_since
+          in: query
+          description: Inclusive server timestamp for paginated reconnect recovery, including edits and deletions.
+          schema: { type: string, format: date-time }
+        - name: after_id
+          in: query
+          description: Cursor for updated_since recovery.
+          schema: { type: integer }
       responses:
-        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "200":
+          description: Message history or matching messages with pagination metadata.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/ChatMessage" }
+                  meta:
+                    type: object
+                    properties:
+                      has_more: { type: boolean }
+                      next_before_id: { type: [integer, 'null'] }
+                      next_after_id: { type: [integer, 'null'] }
+                      server_time: { type: string, format: date-time }
+                      target_id: { type: integer }
+                      context: { type: boolean }
+                      per_page: { type: integer }
     post:
       operationId: createConversationMessage
       requestBody:
@@ -711,6 +750,49 @@ paths:
                     reply_to_id: { type: [integer, 'null'], description: A regular message in the same conversation. }
       responses:
         "201": { $ref: "#/components/responses/GenericSuccess" }
+  /conversations/{id}/messages/{message_id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+      - name: message_id
+        in: path
+        required: true
+        schema: { type: integer }
+    patch:
+      operationId: editConversationMessage
+      description: Author-only text edit strictly before 15 minutes after creation; system and deleted messages cannot be changed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message:
+                  type: object
+                  required: [body]
+                  properties:
+                    body: { type: string }
+      responses:
+        "200":
+          description: Updated message
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ChatMessage" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: deleteConversationMessage
+      description: Author-only deletion strictly before 15 minutes; retains a placeholder and removes content and attachment associations.
+      responses:
+        "200":
+          description: Deleted message placeholder
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ChatMessage" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
   /conversations/{id}/receipt:
     parameters:
       - $ref: "#/components/parameters/Id"
@@ -1122,6 +1204,51 @@ components:
           schema:
             $ref: "#/components/schemas/ErrorEnvelope"
   schemas:
+    ChatMessage:
+      type: object
+      required: [id, body, created_at]
+      properties:
+        id: { type: integer }
+        client_id: { type: [string, 'null'] }
+        body: { type: string }
+        user_id: { type: integer }
+        user_name: { type: string }
+        user_profile_picture: { type: [string, 'null'] }
+        message_type: { type: string, enum: [message, system] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        edited_at: { type: [string, 'null'], format: date-time }
+        deleted_at: { type: [string, 'null'], format: date-time }
+        editable_until: { type: [string, 'null'], format: date-time }
+        reply_to_id: { type: [integer, 'null'] }
+        reply_to:
+          type: [object, 'null']
+          properties:
+            id: { type: integer }
+            body: { type: string }
+            user_id: { type: integer }
+            user_name: { type: string }
+            deleted_at: { type: [string, 'null'], format: date-time }
+            updated_at: { type: string, format: date-time }
+            attachment_count: { type: integer }
+        attachments:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              filename: { type: string }
+              url: { type: string }
+              download_url: { type: string }
+              content_type: { type: string }
+              byte_size: { type: integer }
+        reactions:
+          type: object
+          additionalProperties: { type: integer }
+        reacted_emojis:
+          type: array
+          items: { type: string }
+
     GenericEnvelope:
       type: object
       required: [data]

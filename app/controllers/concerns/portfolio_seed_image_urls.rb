@@ -21,6 +21,6 @@ module PortfolioSeedImageUrls
   end
 
   def portfolio_seed_image_path(filename)
-    "/portfolio-seed-images/#{File.basename(filename, ".webp")}"
+    ShowcaseMedia.url(filename)
   end
 end

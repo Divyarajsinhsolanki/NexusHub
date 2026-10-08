@@ -2,6 +2,7 @@ class Api::CalendarEventsController < Api::BaseController
   require 'cgi'
 
   before_action :set_calendar_event, only: [:update, :destroy, :reschedule, :google_link]
+  before_action :reject_managed_operation, only: [:update, :destroy, :reschedule]
 
   def index
     events = scoped_events.includes(:event_reminders).order(:start_at)
@@ -111,6 +112,12 @@ class Api::CalendarEventsController < Api::BaseController
 
   private
 
+  def reject_managed_operation
+    return unless @calendar_event.managed_operation?
+
+    render json: { error: 'Manage this deadline in Project Environments.', operation_path: @calendar_event.operation_path }, status: :unprocessable_entity
+  end
+
   def set_calendar_event
     @calendar_event = scoped_events.find(params[:id])
   end
@@ -120,6 +127,7 @@ class Api::CalendarEventsController < Api::BaseController
 
     CalendarEvent.where(user_id: current_user.id)
                  .or(CalendarEvent.where(visibility: 'project', project_id: project_ids))
+                 .operations_visible_to(current_user)
                  .distinct
   end
 

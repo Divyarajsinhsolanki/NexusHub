@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useCallback, useContext, useMemo, useRef } from "react";
 import { Link } from "react-router-dom";
-import { fetchPostFeed, SchedulerAPI, fetchProjects, getUsers } from "../components/api";
+import { fetchPostFeed, fetchCalendarEvents, SchedulerAPI, fetchProjects, getUsers } from "../components/api";
 import { AuthContext } from "../context/AuthContext";
-import Avatar from "../components/ui/Avatar";
 import PostForm from "../components/PostForm";
 import PostList from "../components/PostList";
+import { HOME_CARDS, HOME_SHORTCUTS, normalizeHomePreferences } from "../utils/homeShortcuts";
 import { filterAndSortPosts } from './postFeedUtils';
 import { motion, AnimatePresence } from "framer-motion";
 import { Helmet } from "react-helmet-async";
@@ -16,8 +16,6 @@ import {
   FiCheckSquare,
   FiClock,
   FiMessageSquare,
-  FiPlus,
-  FiRefreshCw,
   FiSearch,
   FiUsers,
   FiAlertTriangle,
@@ -91,16 +89,19 @@ const ProjectItem = ({ project }) => (
 
 const PostPage = () => {
   const { user } = useContext(AuthContext);
-  const userName = [user?.first_name, user?.last_name].filter(Boolean).join(" ") || user?.name || user?.email || "Your profile";
-  const roleName = user?.roles?.map(role => role.name).filter(Boolean).join(", ");
+  const homePreferences = normalizeHomePreferences(user?.home_preferences);
+  const shortcuts = homePreferences.shortcut_ids.map(id => HOME_SHORTCUTS.find(link => link.id === id));
   const [posts, setPosts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [nextPage, setNextPage] = useState(null);
   const [feedError, setFeedError] = useState('');
   const [stats, setStats] = useState({ totalPosts: 0, activeUsers: 0, recentActivity: '--' });
   const [tasks, setTasks] = useState([]);
+  const [pendingTaskCount, setPendingTaskCount] = useState(null);
+  const [overviewTasksLoading, setOverviewTasksLoading] = useState(true);
+  const [meetings, setMeetings] = useState(null);
+  const [meetingsLoading, setMeetingsLoading] = useState(true);
   const [projects, setProjects] = useState([]);
   const [birthdays, setBirthdays] = useState([]);
   const [generalTasks, setGeneralTasks] = useState([]);
@@ -139,7 +140,6 @@ const PostPage = () => {
 
   const refreshPosts = useCallback(async ({ initial = false } = {}) => {
     if (initial) setIsLoading(true);
-    else setIsRefreshing(true);
     setFeedError('');
     try {
       const { data, meta } = await fetchPostFeed({ page: 1, per_page: 20 });
@@ -155,7 +155,6 @@ const PostPage = () => {
       if (initial) setPosts([]);
     } finally {
       setIsLoading(false);
-      setIsRefreshing(false);
     }
   }, [applyPostStats]);
 
@@ -217,6 +216,9 @@ const PostPage = () => {
     const localDate = new Date();
     const today = `${localDate.getFullYear()}-${String(localDate.getMonth() + 1).padStart(2, "0")}-${String(localDate.getDate()).padStart(2, "0")}`;
 
+    setOverviewTasksLoading(true);
+    setPendingTaskCount(null);
+
     // Run the main data fetches in parallel for performance
     Promise.all([
       fetchProjects(),
@@ -233,6 +235,8 @@ const PostPage = () => {
           Array.isArray(p.users) && p.users.some((u) => String(u.id) === String(user.id))
         );
         setProjects(userProjects);
+
+        setPendingTaskCount(new Set(tasksData.filter(task => !['completed', 'done', 'cancelled', 'archived'].includes(task.status)).map(task => task.id)).size);
 
         // Filter tasks due today
         const due = tasksData
@@ -265,7 +269,7 @@ const PostPage = () => {
         setProjects([]);
         setTasks([]);
         setBirthdays([]);
-      });
+      }).finally(() => setOverviewTasksLoading(false));
 
     // Fetch general tasks separately (different filter)
     SchedulerAPI.getTasks({ type: 'general', assigned_to_user: user.id })
@@ -278,6 +282,103 @@ const PostPage = () => {
       })
       .catch(() => setGeneralTasks([]));
   }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    setMeetingsLoading(true);
+    setMeetings(null);
+    fetchCalendarEvents({ start: start.toISOString(), end: end.toISOString() })
+      .then(({ data }) => {
+        if (!active) return;
+        setMeetings((Array.isArray(data) ? data : []).filter(event =>
+          ['meeting', 'sprint_ceremony'].includes(event.event_type) &&
+          event.status === 'scheduled' && new Date(event.start_at) >= new Date()
+        ).sort((a, b) => new Date(a.start_at) - new Date(b.start_at)));
+      })
+      .catch(() => { if (active) setMeetings(null); })
+      .finally(() => { if (active) setMeetingsLoading(false); });
+    return () => { active = false; };
+  }, [user]);
+
+  const sidebarCards = {
+    show_overview: (
+<section className="nexus-updates-rail-card nexus-today-overview" aria-label="Today's overview">
+              <header><span><FiClock /> Today’s overview</span><time>{new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</time></header>
+              <div className="nexus-today-metrics">
+                <Link to="/planning"><FiAlertTriangle /><strong>{overviewTasksLoading ? '…' : pendingTaskCount === null ? '—' : tasks.length}</strong><span>Due today</span></Link>
+                <Link to="/calendar"><FiUsers /><strong>{meetingsLoading ? '…' : meetings === null ? '—' : meetings.length}</strong><span>Meetings left</span></Link>
+                <Link to="/planning"><FiCheckSquare /><strong>{overviewTasksLoading ? '…' : pendingTaskCount ?? '—'}</strong><span>Pending tasks</span></Link>
+              </div>
+              {!meetingsLoading && meetings?.length > 0 && (
+                <Link to={`/planning?date=${new Date().toLocaleDateString('en-CA')}`} className="nexus-today-next">
+                  <span>Next meeting · {new Date(meetings[0].start_at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' })} IST</span>
+                  <strong>{meetings[0].title}</strong>
+                </Link>
+              )}
+              {(!overviewTasksLoading && pendingTaskCount === null || !meetingsLoading && meetings === null) && <p className="nexus-updates-rail-empty" role="status">Some overview data couldn’t load.</p>}
+              <Link to="/planning" className="nexus-home-card-link">Open my planning <span aria-hidden="true">→</span></Link>
+            </section>
+    ),
+    show_shortcuts: (
+<section className="nexus-updates-rail-card">
+                <header><span><FiBriefcase /> Quick access</span><Link to="/settings?tab=home" className="nexus-shortcut-customize" aria-label="Customize home shortcuts">Customize</Link></header>
+                {shortcuts.length === 0 && <p className="nexus-updates-rail-empty">No shortcuts selected. Choose links in Customize.</p>}
+                {shortcuts.map(link => <Link key={link.id} to={link.path} className="nexus-home-card-link"><span>{link.label}</span><span aria-hidden="true">→</span></Link>)}
+              </section>
+    ),
+    show_due_tasks: (
+<section className="nexus-updates-rail-card">
+              <header><span><FiAlertTriangle /> Today</span><strong>{tasks.length}</strong></header>
+              {tasks.length > 0 ? (
+                <div className="nexus-updates-rail-list">
+                  {tasks.slice(0, 4).map((task) => <DueTaskItem key={task.id} task={task} />)}
+                </div>
+              ) : (
+                <div className="nexus-updates-caught-up"><FiCheckCircle /><span><strong>All caught up</strong><small>No tasks due today.</small></span></div>
+              )}
+            </section>
+    ),
+    show_tasks: (
+<section className="nexus-updates-rail-card">
+              <header><span><FiCheckSquare /> My tasks</span><strong>{generalTasks.length}</strong></header>
+              {generalTasks.length > 0 ? (
+                <ul className="nexus-updates-task-list">
+                  {generalTasks.slice(0, 5).map((task) => <GeneralTaskItem key={task.id} task={task} />)}
+                </ul>
+              ) : <p className="nexus-updates-rail-empty">No general tasks assigned.</p>}
+            </section>
+    ),
+    show_projects: (
+<section className="nexus-updates-rail-card">
+              <header><span><FiBriefcase /> Projects</span><strong>{projects.length}</strong></header>
+              {projects.length > 0 ? (
+                <div className="nexus-updates-project-list">
+                  {projects.slice(0, 5).map((project) => <ProjectItem key={project.id} project={project} />)}
+                  {projects.length > 5 && <Link to="/projects" className="nexus-updates-see-all">View all projects</Link>}
+                </div>
+              ) : <p className="nexus-updates-rail-empty">No projects assigned.</p>}
+            </section>
+    ),
+    show_birthdays: (
+<section className="nexus-updates-rail-card">
+                <header><span>Upcoming birthdays</span></header>
+                {birthdays.length === 0 && <p className="nexus-updates-rail-empty">No upcoming birthdays in the next 30 days.</p>}
+                <ul className="nexus-updates-birthdays">
+                  {birthdays.map((birthday) => (
+                    <li key={birthday.id}>
+                      <span>{[birthday.first_name, birthday.last_name].filter(Boolean).join(' ')}</span>
+                      <time>{birthday.nextBirthday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</time>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+    ),
+  };
 
   return (
     <>
@@ -292,27 +393,24 @@ const PostPage = () => {
         <header className="nexus-updates-header">
           <div className="nexus-updates-title">
             <h1>Home</h1>
-            <p>Posts and updates from your workspace.</p>
+            <p>Stay connected with your team and keep your day on track.</p>
           </div>
           <div className="nexus-updates-actions">
-            <button type="button" onClick={() => refreshPosts()} disabled={isRefreshing} className="nexus-secondary-action">
-              <FiRefreshCw className={isRefreshing ? 'animate-spin' : ''} />
-              Refresh
-            </button>
+            <Link to="/settings?tab=home" className="nexus-secondary-action">Customize Home</Link>
             <Link to="/notifications" className="nexus-secondary-action"><FiBell /> Notifications</Link>
-            <button type="button" onClick={handleQuickPost} className="app-primary-button"><FiPlus /> Write update</button>
           </div>
         </header>
 
         <div className="nexus-updates-layout">
           <main className="nexus-updates-feed">
-            <div ref={postFormRef}>
+            <section ref={postFormRef} className="nexus-home-composer" aria-label="Share with your team">
+              <div className="nexus-home-composer-heading"><strong>Share with your team</strong><span>Progress, ideas, or a question</span></div>
               <PostForm
                 user={user}
                 refreshPosts={refreshPosts}
                 onPostCreated={handlePostCreated}
               />
-            </div>
+            </section>
 
             <section className="nexus-updates-toolbar" aria-label="Filter updates">
               <label className="nexus-updates-search">
@@ -396,57 +494,10 @@ const PostPage = () => {
             )}
           </main>
 
-          <aside className="nexus-updates-rail" aria-label="Your profile and workspace">
-            <section className="nexus-updates-rail-card nexus-home-profile" aria-label="Your profile">
-              <Link to="/profile" className="nexus-home-profile-main">
-                <Avatar name={userName} src={user?.profile_picture} color={user?.avatar_color} className="h-10 w-10 shrink-0 text-sm" />
-                <span><strong>{userName}</strong>{roleName && <small>{roleName}</small>}</span>
-              </Link>
-              {user?.email && <p className="nexus-home-profile-email">{user.email}</p>}
-              <div className="nexus-home-profile-links"><Link to="/profile">View profile</Link><Link to="/planning">My planning</Link></div>
-            </section>
-            <section className="nexus-updates-rail-card">
-              <header><span><FiAlertTriangle /> Today</span><strong>{tasks.length}</strong></header>
-              {tasks.length > 0 ? (
-                <div className="nexus-updates-rail-list">
-                  {tasks.slice(0, 4).map((task) => <DueTaskItem key={task.id} task={task} />)}
-                </div>
-              ) : (
-                <div className="nexus-updates-caught-up"><FiCheckCircle /><span><strong>All caught up</strong><small>No tasks due today.</small></span></div>
-              )}
-            </section>
-
-            <section className="nexus-updates-rail-card">
-              <header><span><FiCheckSquare /> My tasks</span><strong>{generalTasks.length}</strong></header>
-              {generalTasks.length > 0 ? (
-                <ul className="nexus-updates-task-list">
-                  {generalTasks.slice(0, 5).map((task) => <GeneralTaskItem key={task.id} task={task} />)}
-                </ul>
-              ) : <p className="nexus-updates-rail-empty">No general tasks assigned.</p>}
-            </section>
-
-            <section className="nexus-updates-rail-card">
-              <header><span><FiBriefcase /> Projects</span><strong>{projects.length}</strong></header>
-              {projects.length > 0 ? (
-                <div className="nexus-updates-project-list">
-                  {projects.slice(0, 5).map((project) => <ProjectItem key={project.id} project={project} />)}
-                  {projects.length > 5 && <Link to="/projects" className="nexus-updates-see-all">View all projects</Link>}
-                </div>
-              ) : <p className="nexus-updates-rail-empty">No projects assigned.</p>}
-            </section>
-
-            {birthdays.length > 0 && (
-              <section className="nexus-updates-rail-card">
-                <header><span>Upcoming birthdays</span></header>
-                <ul className="nexus-updates-birthdays">
-                  {birthdays.map((birthday) => (
-                    <li key={birthday.id}>
-                      <span>{[birthday.first_name, birthday.last_name].filter(Boolean).join(' ')}</span>
-                      <time>{birthday.nextBirthday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</time>
-                    </li>
-                  ))}
-                </ul>
-              </section>
+          <aside className="nexus-updates-rail" aria-label="Your workspace">
+            {!HOME_CARDS.some(card => homePreferences[card.key]) && <p className="nexus-updates-rail-empty">Sidebar cards are hidden. <Link to="/settings?tab=home">Customize Home</Link> to show them.</p>}
+            {homePreferences.card_order.filter(key => homePreferences[key]).map(key =>
+              <React.Fragment key={key}>{sidebarCards[key]}</React.Fragment>
             )}
           </aside>
         </div>

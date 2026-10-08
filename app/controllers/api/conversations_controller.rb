@@ -509,6 +509,7 @@ class Api::ConversationsController < Api::BaseController
       message_page = message_page.first(Api::MessagesController::DEFAULT_PAGE_SIZE)
       payload[:messages] = message_page.reverse.map { |message| serialize_message(message) }
       payload[:messages_meta] = {
+        server_time: Time.current.iso8601(6),
         has_more: has_more_messages,
         next_before_id: has_more_messages ? message_page.last&.id : nil,
         per_page: Api::MessagesController::DEFAULT_PAGE_SIZE
@@ -524,6 +525,7 @@ class Api::ConversationsController < Api::BaseController
   def serialize_message(message)
     message.chat_context.merge({
       id: message.id,
+      client_id: message.client_id,
       body: message.body,
       user_id: message.user_id,
       user_name: message.user.full_name,

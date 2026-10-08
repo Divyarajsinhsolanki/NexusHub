@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Bell,
@@ -82,6 +83,7 @@ const ACTION_META = {
 };
 
 Object.assign(ACTION_META, {
+  operations_reminder: ACTION_META.calendar_reminder,
   post_commented: ACTION_META.commented,
   post_liked: { ...ACTION_META.reacted, label: "Like" },
   skill_endorsed: { ...ACTION_META.reacted, label: "Endorsement" },
@@ -478,6 +480,9 @@ const Notifications = () => {
                                   <p className={`text-sm leading-6 ${isUnread ? "font-semibold text-slate-950" : "text-slate-600"}`}>
                                     {notification.message}
                                   </p>
+                                  {notification.action === "operations_reminder" && /^\/projects\/\d+\/dashboard\?tab=environments(?:&|$)/.test(notification.deep_link || "") && (
+                                    <Link to={notification.deep_link} onClick={() => isUnread && handleMarkRead(notification.id)} className="mt-2 inline-flex text-sm font-semibold text-sky-700 underline">Open record</Link>
+                                  )}
                                 </div>
 
                                 <div className="flex shrink-0 items-center gap-3">

@@ -12,6 +12,7 @@ import {
   mobileQueryKeys,
   shouldPersistMobileQuery,
   trimInfinitePages,
+  trimMessagePages,
   replaceCachedMessage,
   updatePostInFeed,
   updateConversationPreview,
@@ -95,6 +96,17 @@ describe('mobile cache data helpers', () => {
     const inactive = trimInfinitePages(active, MOBILE_CACHE_PAGE_LIMIT);
     expect(inactive?.pages).toHaveLength(3);
     expect(inactive?.pages[0].data.map((item) => item.id)).toEqual([1, 6]);
+  });
+
+  test('bounds a realtime-expanded inactive page and preserves a usable history cursor', () => {
+    const history: InfiniteData<CollectionResult<Message>> = {
+      pageParams: [undefined],
+      pages: [{ data: Array.from({ length: 1000 }, (_, index) => message(index + 1, 'History')), meta: { has_more: false } }],
+    };
+    const compacted = trimMessagePages(history);
+    expect(compacted?.pages[0].data).toHaveLength(150);
+    expect(compacted?.pages[0].data[0].id).toBe(851);
+    expect(compacted?.pages[0].meta).toMatchObject({ has_more: true, next_before_id: 851 });
   });
 
   test('does not move a cached participant receipt backward when events arrive out of order', () => {

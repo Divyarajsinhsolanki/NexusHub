@@ -222,11 +222,11 @@ describe("PublicPortfolio", () => {
   });
 });
 
-it("shows saved GitHub and LinkedIn URLs in the header and beside the contact form", async () => {
+it("shows saved GitHub and LinkedIn URLs once in the header and once in the contact section", async () => {
   fetchPortfolio.mockResolvedValueOnce({ data: { profile: { social_links: { github: "https://github.com/example", linkedin: "https://www.linkedin.com/in/example/" } } } });
   render(portfolio());
-  await waitFor(() => expect(screen.getAllByRole("link", { name: "LinkedIn" })).toHaveLength(3));
-  expect(screen.getAllByRole("link", { name: "GitHub" })).toHaveLength(3);
+  await waitFor(() => expect(screen.getAllByRole("link", { name: "LinkedIn" })).toHaveLength(2));
+  expect(screen.getAllByRole("link", { name: "GitHub" })).toHaveLength(2);
   for (const link of screen.getAllByRole("link", { name: "LinkedIn" })) expect(link.getAttribute("href")).toBe("https://www.linkedin.com/in/example/");
   expect(document.querySelector('script[data-portfolio-recaptcha="true"]')).toBeNull();
 });

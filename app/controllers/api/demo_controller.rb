@@ -35,6 +35,12 @@ class Api::DemoController < Api::BaseController
       route: "/pdf-master"
     },
     {
+      key: "operations",
+      title: "Project Environments & Operations",
+      summary: "Configuration comparison, encrypted secrets, software observations, services, licences, release schedules, and verification.",
+      route: "/projects"
+    },
+    {
       key: "platform",
       title: "Platform Engineering",
       summary: "Rails APIs, React UI, authorization, jobs, integrations, performance, and deployment.",
@@ -57,6 +63,7 @@ class Api::DemoController < Api::BaseController
       route = group[:route]
       route = feature.demo_path if feature&.demo_path.present?
       route = "/projects/#{project.id}/dashboard" if group[:key] == "delivery" && project
+      route = "/projects/#{project.id}/dashboard?tab=environments" if group[:key] == "operations" && project
       group.merge(
         route: route,
         step: index + 1,

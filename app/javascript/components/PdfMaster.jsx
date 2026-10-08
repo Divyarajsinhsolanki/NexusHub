@@ -429,7 +429,7 @@ export default function PdfMaster() {
     [selectedPages, setSelectedPages] = useState(new Set()),
     [rangeInput, setRangeInput] = useState("");
   const [zoom, setZoom] = useState(1),
-    [zoomMode, setZoomMode] = useState("fit-width"),
+    [zoomMode, setZoomMode] = useState("fit-page"),
     [pageSize, setPageSize] = useState({ width: 612, height: 792 });
   const [interacting, setInteracting] = useState(false);
   const [busy, setBusy] = useState(false),
@@ -443,7 +443,10 @@ export default function PdfMaster() {
     [splitSize, setSplitSize] = useState(10),
     [splitRows, setSplitRows] = useState(["1", "2"]);
   const [password, setPassword] = useState(""),
-    [title, setTitle] = useState(""),
+    [renameOpen, setRenameOpen] = useState(false),
+    [renameDraft, setRenameDraft] = useState(""),
+    [renaming, setRenaming] = useState(false),
+    [renameError, setRenameError] = useState(""),
     [signatureOpen, setSignatureOpen] = useState(false),
     [confirmation, setConfirmation] = useState(null);
   const [findOpen, setFindOpen] = useState(false),
@@ -604,7 +607,7 @@ export default function PdfMaster() {
     setInteracting(false);
     documentRef.current = doc;
     setSelectedDocument(doc);
-    setTitle(doc?.title || "");
+    setRenameOpen(false);
     const next = doc?.editor_state?.objects || [];
     objectsRef.current = next;
     setObjects(next);
@@ -647,7 +650,7 @@ export default function PdfMaster() {
         request = ++editorRequest.current;
         const id = typeof docOrId === "object" ? docOrId.id : docOrId;
         setEditorLoading(true);
-        const [detail, activity] = demo
+        const [detail, activity] = demo && String(id) === String(SAMPLE.id)
           ? [{ data: SAMPLE }, { data: { operations: [] } }]
           : await Promise.all([
               fetchPdfDocument(id),
@@ -680,11 +683,14 @@ export default function PdfMaster() {
   );
   const loadLibrary = useCallback(
     async (query = "") => {
-      if (demo) return [SAMPLE];
       const request = ++libraryRequest.current;
       const { data } = await fetchPdfDocuments(
         query.trim() ? { q: query.trim() } : {},
-      );
+      ).catch((error) => {
+        if (demo) return { data: { documents: [SAMPLE] } };
+        throw error;
+      });
+      if (demo && !data.documents?.length && !query.trim()) data.documents = [SAMPLE];
       if (mounted.current && request === libraryRequest.current) {
         setDocuments(data.documents || []);
         setUsage(data.usage || {});
@@ -696,8 +702,7 @@ export default function PdfMaster() {
   );
   useEffect(() => {
     mounted.current = true;
-    if (!demo) {
-      loadLibrary()
+    loadLibrary()
         .then(async (rows) => {
           const preferred = new URLSearchParams(window.location.search).get(
             "document_id",
@@ -709,7 +714,6 @@ export default function PdfMaster() {
         .finally(() => {
           if (mounted.current) setLoading(false);
         });
-    }
     return () => {
       mounted.current = false;
       libraryRequest.current++;
@@ -718,7 +722,7 @@ export default function PdfMaster() {
     };
   }, [demo, loadLibrary, openDocument]);
   useEffect(() => {
-    if (demo || loading || search === lastSearch.current) return;
+    if (loading || search === lastSearch.current) return;
     const timer = window.setTimeout(() => {
       lastSearch.current = search;
       setSearching(true);
@@ -1377,11 +1381,24 @@ export default function PdfMaster() {
     splitError = e.message;
   }
 
-  const rename = async () => {
-    if (!selectedDocument || title === selectedDocument.title) return;
-    const documentId = selectedDocument.id;
+  const rename = async (event) => {
+    event.preventDefault();
+    const doc = documentRef.current;
+    if (!doc || demo || renaming) return;
+    const nextTitle = renameDraft.trim();
+    if (!nextTitle) {
+      setRenameError("Enter a document name.");
+      return;
+    }
+    if (nextTitle === doc.title) {
+      setRenameOpen(false);
+      return;
+    }
+    const documentId = doc.id;
+    setRenaming(true);
+    setRenameError("");
     try {
-      const { data } = await renamePdfDocument(documentId, title.trim());
+      const { data } = await renamePdfDocument(documentId, nextTitle);
       if (!mounted.current) return;
       setDocuments((rows) =>
         rows.map((row) =>
@@ -1392,17 +1409,97 @@ export default function PdfMaster() {
       );
       if (String(documentRef.current?.id) === String(documentId)) {
         updateDocument({ ...documentRef.current, title: data.title });
-        setTitle(data.title);
+        setRenameOpen(false);
       }
     } catch (e) {
-      toast.error(message(e));
       if (
         mounted.current &&
         String(documentRef.current?.id) === String(documentId)
       )
-        setTitle(documentRef.current.title);
+        setRenameError(message(e));
+    } finally {
+      if (mounted.current) setRenaming(false);
     }
   };
+  const viewControls = () => (
+    <section className="pdf-view-controls" aria-label="Page and zoom controls">
+      <h2>Page &amp; zoom</h2>
+      <div>
+        <Button
+          icon={ChevronLeft}
+          aria-label="Previous page"
+          disabled={
+            editorLoading || selectedDocument?.encrypted || currentPage <= 1
+          }
+          onClick={() => setCurrentPage((page) => page - 1)}
+        />
+        <label className="pdf-page-jump">
+          Page
+          <input
+            type="number"
+            aria-label="Current page"
+            min="1"
+            max={count || 1}
+            value={currentPage}
+            disabled={editorLoading || selectedDocument?.encrypted}
+            onChange={(event) =>
+              setCurrentPage(
+                Math.max(
+                  1,
+                  Math.min(
+                    count || 1,
+                    Math.trunc(Number(event.target.value)) || 1,
+                  ),
+                ),
+              )
+            }
+          />
+          <span>of {count}</span>
+        </label>
+        <Button
+          icon={ChevronRight}
+          aria-label="Next page"
+          disabled={
+            editorLoading || selectedDocument?.encrypted || currentPage >= count
+          }
+          onClick={() => setCurrentPage((page) => page + 1)}
+        />
+      </div>
+      <div>
+        <Button
+          icon={ZoomOut}
+          aria-label="Zoom out"
+          disabled={selectedDocument?.encrypted}
+          onClick={() => {
+            setZoomMode("custom");
+            setZoom((value) => Math.max(0.25, value - 0.1));
+          }}
+        />
+        <select
+          aria-label="PDF zoom"
+          value={zoomMode === "custom" ? "custom" : zoomMode}
+          disabled={selectedDocument?.encrypted}
+          onChange={(event) => {
+            setZoomMode(event.target.value);
+            if (event.target.value === "custom") setZoom(1);
+          }}
+        >
+          <option value="fit-width">Fit width</option>
+          <option value="fit-page">Fit page</option>
+          <option value="custom">{Math.round(zoom * 100)}%</option>
+        </select>
+        <Button
+          icon={ZoomIn}
+          aria-label="Zoom in"
+          disabled={selectedDocument?.encrypted}
+          onClick={() => {
+            setZoomMode("custom");
+            setZoom((value) => Math.min(4, value + 0.1));
+          }}
+        />
+      </div>
+    </section>
+  );
   const pagesPanel = () =>
     !selectedDocument ? (
       <p className="pdf-muted">Choose a document first.</p>
@@ -2396,14 +2493,6 @@ export default function PdfMaster() {
                 </Button>
               </Section>
               <Disclosure title="Document settings">
-                <Field label="Document title">
-                  <input
-                    value={title}
-                    maxLength={160}
-                    onChange={(e) => setTitle(e.target.value)}
-                    onBlur={rename}
-                  />
-                </Field>
                 <Button
                   icon={RotateCcw}
                   disabled={!editable}
@@ -2573,9 +2662,86 @@ export default function PdfMaster() {
           </span>
           <div>
             <span className="pdf-eyebrow">PDF MASTER</span>
-            <h1>{selectedDocument?.title || "Your document library"}</h1>
+            <div className="pdf-title-row">
+              <h1 title={selectedDocument?.title}>
+                {selectedDocument?.title || "Your document library"}
+              </h1>
+              {selectedDocument && !demo && (
+                <Button
+                  className="pdf-rename-button"
+                  icon={PenLine}
+                  aria-label="Rename PDF"
+                  disabled={
+                    busy || preparing || editorLoading || interacting || renaming
+                  }
+                  onClick={() => {
+                    setRenameDraft(selectedDocument.title);
+                    setRenameError("");
+                    setRenameOpen(true);
+                  }}
+                >
+                  Rename
+                </Button>
+              )}
+            </div>
           </div>
         </div>
+        {selectedDocument && (
+          <div className="pdf-header-toolbar">
+            <nav className="pdf-group-tabs" aria-label="PDF tool groups">
+              {GROUPS.map(([id, label, Icon]) => (
+                <button
+                  type="button"
+                  key={id}
+                  aria-pressed={group === id}
+                  className={group === id ? "is-active" : ""}
+                  onClick={() => {
+                    setGroup(id);
+                    if (!regions.length) setActiveTool("select");
+                    if (id === "pages") setLeftTab("pages");
+                  }}
+                >
+                  <Icon size={15} />
+                  {label}
+                </button>
+              ))}
+            </nav>
+            <div className="pdf-tool-strip">
+              <div>
+                <Button
+                  icon={MousePointer2}
+                  className={activeTool === "select" ? "is-active" : ""}
+                  aria-label="Select tool"
+                  aria-pressed={activeTool === "select"}
+                  onClick={() => setActiveTool("select")}
+                  disabled={!editable}
+                >
+                  Select
+                </Button>
+                {TOOLS[group].map(([tool, label, Icon]) => (
+                  <Button
+                    key={tool}
+                    icon={Icon}
+                    aria-label={`${label} tool`}
+                    aria-pressed={activeTool === tool}
+                    className={activeTool === tool ? "is-active" : ""}
+                    disabled={!editable}
+                    onClick={() => chooseTool(tool)}
+                  >
+                    {label}
+                  </Button>
+                ))}
+              </div>
+              <Button
+                className="xl:hidden"
+                icon={ChevronDown}
+                onClick={() => setPanel("tools")}
+              >
+                Options
+              </Button>
+            </div>
+          </div>
+        )}
         <div className="pdf-header-actions">
           {selectedDocument && (
             <>
@@ -2718,62 +2884,11 @@ export default function PdfMaster() {
               <div className="pdf-panel-scroll">
                 {leftTab === "library" ? libraryPanel() : pagesPanel()}
               </div>
+              {selectedDocument && viewControls()}
             </aside>
             <main className="pdf-editor-main">
               {selectedDocument ? (
                 <>
-                  <nav className="pdf-group-tabs" aria-label="PDF tool groups">
-                    {GROUPS.map(([id, label, Icon]) => (
-                      <button
-                        type="button"
-                        key={id}
-                        aria-pressed={group === id}
-                        className={group === id ? "is-active" : ""}
-                        onClick={() => {
-                          setGroup(id);
-                          if (!regions.length) setActiveTool("select");
-                          if (id === "pages") setLeftTab("pages");
-                        }}
-                      >
-                        <Icon size={15} />
-                        {label}
-                      </button>
-                    ))}
-                  </nav>
-                  <div className="pdf-tool-strip">
-                    <div>
-                      <Button
-                        icon={MousePointer2}
-                        className={activeTool === "select" ? "is-active" : ""}
-                        aria-label="Select tool"
-                        aria-pressed={activeTool === "select"}
-                        onClick={() => setActiveTool("select")}
-                        disabled={!editable}
-                      >
-                        Select
-                      </Button>
-                      {TOOLS[group].map(([tool, label, Icon]) => (
-                        <Button
-                          key={tool}
-                          icon={Icon}
-                          aria-label={`${label} tool`}
-                          aria-pressed={activeTool === tool}
-                          className={activeTool === tool ? "is-active" : ""}
-                          disabled={!editable}
-                          onClick={() => chooseTool(tool)}
-                        >
-                          {label}
-                        </Button>
-                      ))}
-                    </div>
-                    <Button
-                      className="xl:hidden"
-                      icon={ChevronDown}
-                      onClick={() => setPanel("tools")}
-                    >
-                      Options
-                    </Button>
-                  </div>
                   {findOpen && (
                     <PdfFindBar
                       query={findQuery}
@@ -2853,76 +2968,6 @@ export default function PdfMaster() {
                       findMatch={findMatches[findIndex]}
                     />
                   )}
-                  <footer className="pdf-view-controls">
-                    <div>
-                      <Button
-                        icon={ChevronLeft}
-                        aria-label="Previous page"
-                        disabled={currentPage <= 1}
-                        onClick={() => setCurrentPage((p) => p - 1)}
-                      />
-                      <label className="pdf-page-jump">
-                        Page
-                        <input
-                          type="number"
-                          aria-label="Current page"
-                          min="1"
-                          max={count || 1}
-                          value={currentPage}
-                          onChange={(e) =>
-                            setCurrentPage(
-                              Math.max(
-                                1,
-                                Math.min(
-                                  count || 1,
-                                  Math.trunc(Number(e.target.value)) || 1,
-                                ),
-                              ),
-                            )
-                          }
-                        />
-                        <span>of {count}</span>
-                      </label>
-                      <Button
-                        icon={ChevronRight}
-                        aria-label="Next page"
-                        disabled={currentPage >= count}
-                        onClick={() => setCurrentPage((p) => p + 1)}
-                      />
-                    </div>
-                    <div>
-                      <Button
-                        icon={ZoomOut}
-                        aria-label="Zoom out"
-                        onClick={() => {
-                          setZoomMode("custom");
-                          setZoom((z) => Math.max(0.25, z - 0.1));
-                        }}
-                      />
-                      <select
-                        aria-label="PDF zoom"
-                        value={zoomMode === "custom" ? "custom" : zoomMode}
-                        onChange={(e) => {
-                          setZoomMode(e.target.value);
-                          if (e.target.value === "custom") setZoom(1);
-                        }}
-                      >
-                        <option value="fit-width">Fit width</option>
-                        <option value="fit-page">Fit page</option>
-                        <option value="custom">
-                          {Math.round(zoom * 100)}%
-                        </option>
-                      </select>
-                      <Button
-                        icon={ZoomIn}
-                        aria-label="Zoom in"
-                        onClick={() => {
-                          setZoomMode("custom");
-                          setZoom((z) => Math.min(4, z + 0.1));
-                        }}
-                      />
-                    </div>
-                  </footer>
                 </>
               ) : (
                 <div className="pdf-empty">
@@ -2955,7 +3000,7 @@ export default function PdfMaster() {
             </aside>
           </div>
           <nav
-            className="pdf-mobile-nav xl:hidden"
+            className="pdf-mobile-nav lg:hidden"
             aria-label="Document panels"
           >
             <Button icon={Library} onClick={() => setPanel("library")}>
@@ -2967,19 +3012,77 @@ export default function PdfMaster() {
             <Button icon={ChevronDown} onClick={() => setPanel("tools")}>
               Tools
             </Button>
+            <Button
+              icon={ZoomIn}
+              aria-label="View settings"
+              disabled={!selectedDocument || selectedDocument.encrypted}
+              onClick={() => setPanel("view")}
+            >
+              View
+            </Button>
           </nav>
         </>
       )}
       <Modal
         open={Boolean(panel)}
-        title={panel ? panel[0].toUpperCase() + panel.slice(1) : "Tools"}
+        title={
+          panel === "view"
+            ? "Page & zoom"
+            : panel
+              ? panel[0].toUpperCase() + panel.slice(1)
+              : "Tools"
+        }
         onClose={() => setPanel(null)}
       >
         {panel === "library"
           ? libraryPanel()
           : panel === "pages"
             ? pagesPanel()
-            : toolsPanel()}
+            : panel === "view"
+              ? viewControls()
+              : toolsPanel()}
+      </Modal>
+      <Modal
+        open={renameOpen}
+        title="Rename PDF"
+        onClose={() => {
+          if (!renaming) setRenameOpen(false);
+        }}
+      >
+        <form className="pdf-rename-form" onSubmit={rename}>
+          <Field label="Document title">
+            <input
+              autoFocus
+              value={renameDraft}
+              maxLength={160}
+              disabled={renaming}
+              aria-invalid={Boolean(renameError)}
+              aria-describedby={renameError ? "pdf-rename-error" : undefined}
+              onFocus={(event) => event.target.select()}
+              onChange={(event) => {
+                setRenameDraft(event.target.value);
+                setRenameError("");
+              }}
+            />
+          </Field>
+          {renameError && (
+            <p id="pdf-rename-error" className="pdf-field-error" role="alert">
+              {renameError}
+            </p>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button disabled={renaming} onClick={() => setRenameOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              primary
+              disabled={renaming || !renameDraft.trim()}
+            >
+              {renaming ? "Renaming…" : "Save name"}
+            </Button>
+          </div>
+        </form>
       </Modal>
       <SignatureDialog
         open={signatureOpen}

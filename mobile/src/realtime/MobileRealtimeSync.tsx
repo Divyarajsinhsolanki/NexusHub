@@ -1,3 +1,4 @@
+import { applyMessageChange } from '../cache/mobileCache';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import * as Sentry from '@sentry/react-native';
 import { useCallback, useEffect } from 'react';
@@ -101,6 +102,15 @@ export async function handleMobileRealtimeEvent(queryClient: QueryClient, event:
     return;
   }
 
+  if (event.type === 'message_updated' || event.type === 'message_deleted') {
+    const message = normalizeRealtimeMessage(event.message);
+    if (conversationId && message) {
+      applyMessageChange(queryClient, conversationId, message);
+      await queryClient.invalidateQueries({ queryKey: mobileQueryKeys.notifications });
+    }
+    return;
+  }
+
   if (event.type === 'message_created') {
     const message = normalizeRealtimeMessage(event.message);
     if (conversationId && message) {
@@ -117,6 +127,7 @@ export async function handleMobileRealtimeEvent(queryClient: QueryClient, event:
     const messageId = numericId(event.message_id);
     if (conversationId && messageId && isRecord(event.reactions)) {
       updateCachedMessage(queryClient, conversationId, messageId, (message) => {
+        if (message.deleted_at) return message;
         const reacted = new Set(message.reacted_emojis || []);
         if (Number(event.last_actor_id) === userId && typeof event.last_actor_emoji === 'string') {
           if (event.last_actor_action === 'removed') reacted.delete(event.last_actor_emoji);

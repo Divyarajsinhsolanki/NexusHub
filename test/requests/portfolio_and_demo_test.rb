@@ -15,6 +15,17 @@ class PortfolioAndDemoTest < ActionDispatch::IntegrationTest
     ENV["PORTFOLIO_ENABLED"] = @previous_portfolio_mode
   end
 
+  test "bundled image URLs are versioned and unversioned requests revalidate" do
+    url = ShowcaseMedia.url("01-project-delivery.webp")
+    assert_match(/\?v=[a-f0-9]{16}\z/, url)
+    get url
+    assert_response :success
+    assert_includes response.headers["Cache-Control"], "immutable"
+    get "/portfolio-seed-images/01-project-delivery"
+    assert_response :success
+    assert_includes response.headers["Cache-Control"], "must-revalidate"
+  end
+
   test "published portfolio is public" do
     get "/api/portfolio"
 
@@ -51,7 +62,7 @@ class PortfolioAndDemoTest < ActionDispatch::IntegrationTest
 
     get "/api/demo/manifest"
     assert_response :success
-    assert_equal 6, JSON.parse(response.body).fetch("groups").length
+    assert_equal 7, JSON.parse(response.body).fetch("groups").length
 
     post "/api/posts", params: { post: { message: "Should not persist" } }
     assert_response :forbidden

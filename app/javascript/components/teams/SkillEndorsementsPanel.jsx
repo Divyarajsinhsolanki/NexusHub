@@ -1,3 +1,4 @@
+import Avatar from "../ui/Avatar";
 import React, { useMemo, useState } from "react";
 
 const PROFICIENCY_OPTIONS = [
@@ -142,9 +143,7 @@ const SkillEndorsementsPanel = ({
               {teamExperts.map((expert) => (
                 <div key={`${expert.user_id}-${expert.skill_name}`} className="border border-gray-200 rounded-lg p-4">
                   <div className="flex items-center mb-3">
-                    <div className="bg-indigo-100 rounded-full p-2 mr-3">
-                      <div className="bg-gray-200 border-2 border-dashed rounded-xl w-10 h-10" />
-                    </div>
+                    <Avatar name={expert.name} src={expert.profile_picture} color={expert.avatar_color} className="mr-3 h-10 w-10 shrink-0" />
                     <div>
                       <h3 className="font-semibold">{expert.name}</h3>
                       <p className="text-gray-600 text-sm">{expert.job_title}</p>
@@ -176,7 +175,10 @@ const SkillEndorsementsPanel = ({
               {recentEndorsements.map((endorsement) => (
                 <div key={endorsement.id} className="border border-gray-200 rounded-lg p-4">
                   <div className="flex items-center mb-3">
-                    <div className="bg-gray-200 border-2 border-dashed rounded-xl w-10 h-10 mr-3" />
+                    <div className="mr-3 flex shrink-0 -space-x-2">
+                      <Avatar name={endorsement.endorser.name} src={endorsement.endorser.profile_picture} color={endorsement.endorser.avatar_color} className="h-10 w-10 ring-2 ring-white" />
+                      <Avatar name={endorsement.endorsee.name} src={endorsement.endorsee.profile_picture} color={endorsement.endorsee.avatar_color} className="h-10 w-10 ring-2 ring-white" />
+                    </div>
                     <div>
                       <p className="font-medium">{endorsement.endorser.name}</p>
                       <p className="text-gray-500 text-sm">Endorsed {endorsement.endorsee.name}</p>

@@ -406,6 +406,7 @@ module Mcp
 
     def list_project_environments(args)
       scope = ProjectEnvironment.includes(:project, :project_vault_items).order(:name)
+      scope = scope.where(project_id: ProjectUser.where(user_id: user.id, status: 'active').select(:project_id))
       scope = scope.where(project_id: args[:project_id]) if args[:project_id].present?
       records = scope.limit(bounded_limit(args[:limit], default: 80, max: 150))
 
@@ -415,9 +416,12 @@ module Mcp
     def create_project_environment(args)
       ensure_project_write_allowed!
       project = Project.find(required_id(args, :project_id))
-      environment = project.project_environments.create!(project_environment_attrs(args))
+      result = Operations::Environments.call(project: project, actor: user, action: 'create', attributes: project_environment_attrs(args).symbolize_keys)
+      environment = project.project_environments.find(result[:environment]['id'])
 
       { project_environment: Serializer.project_environment(environment.reload) }
+    rescue Operations::Error => e
+      raise ToolError, e.message
     rescue ActiveRecord::RecordInvalid => e
       raise ToolError, validation_message(e.record)
     end
@@ -684,6 +688,7 @@ module Mcp
     def update_calendar_event(args)
       ensure_write_allowed!
       event = accessible_events(Time.zone.at(0), 50.years.from_now).find(required_id(args, :id))
+      raise ToolError, 'Manage this deadline in Project Environments.' if event.managed_operation?
       attrs = calendar_event_attrs(args)
       assert_workspace_record!(Project, attrs[:project_id]) if attrs[:project_id].present?
       assert_workspace_record!(Task, attrs[:task_id]) if attrs[:task_id].present?
@@ -1195,6 +1200,7 @@ module Mcp
       CalendarEvent
         .where(user_id: user.id)
         .or(CalendarEvent.where(visibility: "project", project_id: project_ids))
+        .operations_visible_to(user)
         .within_range(start_time, end_time)
         .distinct
     end

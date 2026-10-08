@@ -20,7 +20,7 @@ class NotificationCatalog
   CHAT_ACTIONS = %w[chat_message chat_mention message_reacted].freeze
   WORK_ACTIONS = %w[project_assigned task_assigned task_updated issue_assigned issue_updated team_member_added].freeze
   SOCIAL_ACTIONS = %w[post_liked post_commented skill_endorsed].freeze
-  REMINDER_ACTIONS = %w[calendar_reminder].freeze
+  REMINDER_ACTIONS = %w[calendar_reminder operations_reminder].freeze
   MISSED_CALL_ACTIONS = %w[missed_audio_call missed_video_call].freeze
   ENDED_CALL_ACTIONS = %w[ended_audio_call ended_video_call].freeze
   CALL_ACTIONS = (MISSED_CALL_ACTIONS + ENDED_CALL_ACTIONS).freeze
@@ -99,6 +99,7 @@ class NotificationCatalog
     when "post_commented" then "New post comment"
     when "skill_endorsed" then "Skill endorsed"
     when "calendar_reminder" then "Upcoming event"
+    when "operations_reminder" then metadata[:kind] == "license" ? "Licence expiry reminder" : "Deployment reminder"
     else "Nexus Hub"
     end
     sanitized_preview(value).truncate(80)
@@ -145,6 +146,8 @@ class NotificationCatalog
       "#{actor} endorsed you for #{metadata[:skill_name].presence || 'a skill'}"
     when "calendar_reminder"
       "#{metadata[:event_title].presence || 'An event'} is coming up"
+    when "operations_reminder"
+      "#{sanitized_preview(metadata[:title]).presence || 'A project deadline'} is coming up"
     else
       "You have a new notification"
     end
@@ -165,6 +168,13 @@ class NotificationCatalog
   end
 
   def deep_link
+    if event_type == 'operations_reminder'
+      path = metadata[:path].to_s
+      return path if path.match?(%r{\A/projects/\d+/dashboard\?tab=environments(?:&|\z)})
+
+      return '/projects'
+    end
+
     case event_type
     when *CHAT_ACTIONS
       conversation_id = metadata[:conversation_id]
@@ -228,6 +238,8 @@ class NotificationCatalog
   end
 
   def feed_preference_key
+    return 'calendar_reminder' if event_type == 'operations_reminder'
+
     case event_type
     when "post_commented" then "commented"
     when "post_liked", "skill_endorsed" then event_type

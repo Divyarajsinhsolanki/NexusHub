@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2027_08_19_000000) do
+ActiveRecord::Schema[8.1].define(version: 2027_08_22_000000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -51,6 +51,8 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_19_000000) do
     t.string "external_id"
     t.string "external_source"
     t.string "location_or_meet_link"
+    t.bigint "operation_source_id"
+    t.string "operation_source_type"
     t.bigint "project_id"
     t.bigint "recurrence_parent_id"
     t.string "recurrence_rule", default: "none", null: false
@@ -66,6 +68,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_19_000000) do
     t.bigint "workspace_id", null: false
     t.index ["event_type"], name: "index_calendar_events_on_event_type"
     t.index ["external_source", "external_id"], name: "index_calendar_events_on_external_source_and_external_id"
+    t.index ["operation_source_type", "operation_source_id"], name: "idx_calendar_operation_source", unique: true
     t.index ["project_id"], name: "index_calendar_events_on_project_id"
     t.index ["recurrence_parent_id"], name: "index_calendar_events_on_recurrence_parent_id"
     t.index ["sprint_id"], name: "index_calendar_events_on_sprint_id"
@@ -107,7 +110,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_19_000000) do
     t.string "status", default: "ringing", null: false
     t.datetime "updated_at", null: false
     t.bigint "workspace_id", null: false
-    t.index ["conversation_id"], name: "idx_one_live_call_per_conversation", unique: true, where: "((status)::text = ANY ((ARRAY['ringing'::character varying, 'active'::character varying])::text[]))"
+    t.index ["conversation_id"], name: "idx_one_live_call_per_conversation", unique: true, where: "((status)::text = ANY (ARRAY[('ringing'::character varying)::text, ('active'::character varying)::text]))"
     t.index ["conversation_id"], name: "index_call_sessions_on_conversation_id"
     t.index ["initiator_id"], name: "index_call_sessions_on_initiator_id"
     t.index ["livekit_room_name"], name: "index_call_sessions_on_livekit_room_name", unique: true
@@ -434,6 +437,8 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_19_000000) do
     t.string "client_id"
     t.bigint "conversation_id", null: false
     t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.datetime "edited_at"
     t.string "message_type", default: "message", null: false
     t.bigint "reply_to_id"
     t.datetime "updated_at", null: false
@@ -510,6 +515,32 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_19_000000) do
     t.index ["recipient_id", "read_at"], name: "index_notifications_on_recipient_id_and_read_at"
     t.index ["recipient_id"], name: "index_notifications_on_recipient_id"
     t.index ["workspace_id"], name: "index_notifications_on_workspace_id"
+  end
+
+  create_table "operation_reminder_deliveries", force: :cascade do |t|
+    t.integer "attempts", default: 0, null: false
+    t.string "channel", null: false
+    t.datetime "claimed_at"
+    t.datetime "created_at", null: false
+    t.string "failure_class"
+    t.bigint "notification_id"
+    t.bigint "project_id", null: false
+    t.bigint "recipient_id", null: false
+    t.string "schedule_revision", null: false
+    t.datetime "send_at", null: false
+    t.datetime "sent_at"
+    t.bigint "source_id", null: false
+    t.string "source_type", null: false
+    t.string "state", default: "pending", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "workspace_id", null: false
+    t.index ["notification_id"], name: "index_operation_reminder_deliveries_on_notification_id"
+    t.index ["project_id"], name: "index_operation_reminder_deliveries_on_project_id"
+    t.index ["recipient_id"], name: "index_operation_reminder_deliveries_on_recipient_id"
+    t.index ["source_type", "source_id", "schedule_revision", "recipient_id", "channel", "send_at"], name: "idx_unique_operation_reminder", unique: true
+    t.index ["source_type", "source_id"], name: "index_operation_reminder_deliveries_on_source"
+    t.index ["state", "send_at"], name: "idx_due_operation_reminders"
+    t.index ["workspace_id"], name: "index_operation_reminder_deliveries_on_workspace_id"
   end
 
   create_table "pdf_document_artifacts", force: :cascade do |t|
@@ -683,6 +714,65 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_19_000000) do
     t.index ["workspace_id"], name: "index_posts_on_workspace_id"
   end
 
+  create_table "project_deployment_series", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.integer "day_of_month"
+    t.date "ends_on"
+    t.string "frequency", null: false
+    t.string "local_time", null: false
+    t.string "name", null: false
+    t.text "notes"
+    t.bigint "owner_id", null: false
+    t.bigint "project_environment_id", null: false
+    t.bigint "project_id", null: false
+    t.jsonb "recipient_ids", default: [], null: false
+    t.jsonb "reminder_minutes", default: [1440, 60], null: false
+    t.date "starts_on", null: false
+    t.jsonb "targets", default: [], null: false
+    t.string "time_zone", null: false
+    t.datetime "updated_at", null: false
+    t.jsonb "weekdays", default: [], null: false
+    t.bigint "workspace_id", null: false
+    t.index ["owner_id"], name: "index_project_deployment_series_on_owner_id"
+    t.index ["project_environment_id"], name: "index_project_deployment_series_on_project_environment_id"
+    t.index ["project_id"], name: "index_project_deployment_series_on_project_id"
+    t.index ["workspace_id"], name: "index_project_deployment_series_on_workspace_id"
+  end
+
+  create_table "project_deployments", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "deployed_at"
+    t.string "name", null: false
+    t.text "notes"
+    t.jsonb "observations", default: [], null: false
+    t.string "occurrence_key"
+    t.bigint "owner_id", null: false
+    t.bigint "project_deployment_series_id"
+    t.bigint "project_environment_id", null: false
+    t.bigint "project_id", null: false
+    t.jsonb "recipient_ids", default: [], null: false
+    t.jsonb "reminder_minutes", default: [1440, 60], null: false
+    t.integer "schedule_revision", default: 0, null: false
+    t.datetime "scheduled_at", null: false
+    t.datetime "started_at"
+    t.string "status", default: "planned", null: false
+    t.jsonb "targets", default: [], null: false
+    t.string "time_zone", null: false
+    t.datetime "updated_at", null: false
+    t.datetime "verified_at"
+    t.bigint "verified_by_id"
+    t.bigint "workspace_id", null: false
+    t.index ["owner_id"], name: "index_project_deployments_on_owner_id"
+    t.index ["project_deployment_series_id", "occurrence_key"], name: "idx_unique_deployment_occurrence", unique: true
+    t.index ["project_deployment_series_id"], name: "idx_deployments_series"
+    t.index ["project_environment_id"], name: "index_project_deployments_on_project_environment_id"
+    t.index ["project_id", "scheduled_at"], name: "index_project_deployments_on_project_id_and_scheduled_at"
+    t.index ["project_id"], name: "index_project_deployments_on_project_id"
+    t.index ["verified_by_id"], name: "index_project_deployments_on_verified_by_id"
+    t.index ["workspace_id"], name: "index_project_deployments_on_workspace_id"
+  end
+
   create_table "project_environments", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.text "description"
@@ -694,6 +784,70 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_19_000000) do
     t.index ["project_id", "name"], name: "index_project_environments_on_project_id_and_name", unique: true
     t.index ["project_id"], name: "index_project_environments_on_project_id"
     t.index ["workspace_id"], name: "index_project_environments_on_workspace_id"
+  end
+
+  create_table "project_operation_changes", force: :cascade do |t|
+    t.string "action", null: false
+    t.bigint "actor_id"
+    t.datetime "created_at", null: false
+    t.string "environment_name"
+    t.string "item_kind"
+    t.string "item_name"
+    t.jsonb "metadata", default: {}, null: false
+    t.bigint "project_id", null: false
+    t.text "reason"
+    t.datetime "updated_at", null: false
+    t.bigint "workspace_id", null: false
+    t.index ["actor_id"], name: "index_project_operation_changes_on_actor_id"
+    t.index ["project_id", "created_at"], name: "idx_operation_change_history"
+    t.index ["project_id"], name: "index_project_operation_changes_on_project_id"
+    t.index ["workspace_id"], name: "index_project_operation_changes_on_workspace_id"
+  end
+
+  create_table "project_operation_entries", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.jsonb "details", default: {}, null: false
+    t.text "encrypted_value"
+    t.string "encrypted_value_iv"
+    t.string "expected_version"
+    t.datetime "observed_at"
+    t.string "observed_version"
+    t.bigint "project_environment_id", null: false
+    t.bigint "project_id", null: false
+    t.bigint "project_operation_item_id", null: false
+    t.boolean "required", default: false, null: false
+    t.string "source", default: "manual", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "updated_by_id"
+    t.datetime "verified_at"
+    t.bigint "verified_by_id"
+    t.bigint "workspace_id", null: false
+    t.index ["project_environment_id"], name: "idx_operation_entry_environment"
+    t.index ["project_id"], name: "index_project_operation_entries_on_project_id"
+    t.index ["project_operation_item_id", "project_environment_id"], name: "idx_operation_entry_identity", unique: true
+    t.index ["project_operation_item_id"], name: "idx_operation_entry_item"
+    t.index ["updated_by_id"], name: "index_project_operation_entries_on_updated_by_id"
+    t.index ["verified_by_id"], name: "index_project_operation_entries_on_verified_by_id"
+    t.index ["workspace_id"], name: "index_project_operation_entries_on_workspace_id"
+  end
+
+  create_table "project_operation_items", force: :cascade do |t|
+    t.string "category"
+    t.string "comparison", default: "environment_specific", null: false
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.jsonb "details", default: {}, null: false
+    t.text "encrypted_license_key"
+    t.string "encrypted_license_key_iv"
+    t.string "kind", null: false
+    t.string "name", null: false
+    t.bigint "project_id", null: false
+    t.boolean "secret", default: true, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "workspace_id", null: false
+    t.index ["project_id", "kind", "name"], name: "idx_operation_item_identity", unique: true
+    t.index ["project_id"], name: "index_project_operation_items_on_project_id"
+    t.index ["workspace_id"], name: "index_project_operation_items_on_workspace_id"
   end
 
   create_table "project_users", force: :cascade do |t|
@@ -736,6 +890,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_19_000000) do
     t.string "issue_sheet_id"
     t.string "issue_sheet_name", default: "Issue Tracker", null: false
     t.string "name", null: false
+    t.bigint "operations_revision", default: 0, null: false
     t.bigint "owner_id"
     t.boolean "qa_mode_enabled", default: false, null: false
     t.string "sheet_id"
@@ -986,6 +1141,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_19_000000) do
     t.string "encrypted_keka_api_key_iv"
     t.string "encrypted_password", default: "", null: false
     t.string "first_name"
+    t.jsonb "home_preferences", default: {}, null: false
     t.string "job_title", default: "Team Member", null: false
     t.string "jti"
     t.string "keka_base_url"
@@ -1198,6 +1354,10 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_19_000000) do
   add_foreign_key "notifications", "users", column: "actor_id"
   add_foreign_key "notifications", "users", column: "recipient_id"
   add_foreign_key "notifications", "workspaces"
+  add_foreign_key "operation_reminder_deliveries", "notifications", on_delete: :nullify
+  add_foreign_key "operation_reminder_deliveries", "projects"
+  add_foreign_key "operation_reminder_deliveries", "users", column: "recipient_id", on_delete: :cascade
+  add_foreign_key "operation_reminder_deliveries", "workspaces"
   add_foreign_key "pdf_document_artifacts", "pdf_document_operations"
   add_foreign_key "pdf_document_artifacts", "pdf_documents"
   add_foreign_key "pdf_document_artifacts", "users"
@@ -1222,8 +1382,29 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_19_000000) do
   add_foreign_key "post_likes", "workspaces"
   add_foreign_key "posts", "users"
   add_foreign_key "posts", "workspaces"
+  add_foreign_key "project_deployment_series", "project_environments"
+  add_foreign_key "project_deployment_series", "projects"
+  add_foreign_key "project_deployment_series", "users", column: "owner_id"
+  add_foreign_key "project_deployment_series", "workspaces"
+  add_foreign_key "project_deployments", "project_deployment_series"
+  add_foreign_key "project_deployments", "project_environments"
+  add_foreign_key "project_deployments", "projects"
+  add_foreign_key "project_deployments", "users", column: "owner_id"
+  add_foreign_key "project_deployments", "users", column: "verified_by_id", on_delete: :nullify
+  add_foreign_key "project_deployments", "workspaces"
   add_foreign_key "project_environments", "projects"
   add_foreign_key "project_environments", "workspaces"
+  add_foreign_key "project_operation_changes", "projects"
+  add_foreign_key "project_operation_changes", "users", column: "actor_id", on_delete: :nullify
+  add_foreign_key "project_operation_changes", "workspaces"
+  add_foreign_key "project_operation_entries", "project_environments"
+  add_foreign_key "project_operation_entries", "project_operation_items"
+  add_foreign_key "project_operation_entries", "projects"
+  add_foreign_key "project_operation_entries", "users", column: "updated_by_id", on_delete: :nullify
+  add_foreign_key "project_operation_entries", "users", column: "verified_by_id", on_delete: :nullify
+  add_foreign_key "project_operation_entries", "workspaces"
+  add_foreign_key "project_operation_items", "projects"
+  add_foreign_key "project_operation_items", "workspaces"
   add_foreign_key "project_users", "projects"
   add_foreign_key "project_users", "users"
   add_foreign_key "project_users", "workspaces"

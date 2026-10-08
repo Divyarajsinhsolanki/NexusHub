@@ -1,6 +1,7 @@
 class Api::EventRemindersController < Api::BaseController
   before_action :set_calendar_event, only: [:create]
   before_action :set_event_reminder, only: [:update, :destroy]
+  before_action :reject_managed_operation
 
   def create
     reminder = @calendar_event.event_reminders.new(event_reminder_params)
@@ -27,6 +28,13 @@ class Api::EventRemindersController < Api::BaseController
 
   private
 
+  def reject_managed_operation
+    event = @calendar_event || @event_reminder&.calendar_event
+    return unless event&.managed_operation?
+
+    render json: { error: 'Manage these reminders in Project Environments.' }, status: :unprocessable_entity
+  end
+
   def set_calendar_event
     @calendar_event = accessible_events.find(params[:calendar_event_id])
   end
@@ -42,6 +50,7 @@ class Api::EventRemindersController < Api::BaseController
 
     CalendarEvent.where(user_id: current_user.id)
                  .or(CalendarEvent.where(visibility: 'project', project_id: project_ids))
+                 .operations_visible_to(current_user)
                  .distinct
   end
 

@@ -2,6 +2,8 @@
 
 `/pdf-master` keeps the PDF central and organizes controls into five groups. Desktop sidebars and mobile dialogs share the same controls.
 
+Rename a PDF with **Rename** beside its title, then choose **Save name**. The compact desktop header contains the tool groups and active tools. Page navigation, page jump, and zoom controls sit below the left sidebar; on phones and tablets without a sidebar, open **View** in the bottom navigation. The central area stays available for the PDF and Find results.
+
 | Group | Tools |
 | --- | --- |
 | Edit | Text, images, drawn or uploaded visual signatures, image stamps |
@@ -41,3 +43,5 @@ Backend tests inspect actual PDF text, page structure, images, encryption, redac
 For browser acceptance, use disposable test accounts and check desktop, tablet, and phone in both themes. Exercise insertion and reopening, signature Clear/undo/upload, proportional resize, Find navigation, history, page operations, page-number scopes, custom/size splits, ordered merge, redaction confirmation, protection/unlock, compression, and generated-file downloads. Compare downloaded PDFs with the preview and check the browser console and page overflow.
 
 Verified on October 7, 2026: 244 frontend tests across 47 files (`npm test -- --maxWorkers=2`), 238 Rails tests with 1,359 assertions, and the production Vite build passed. Chrome acceptance covered all three viewport sizes in both themes, including touch panning, signature transparency, failure/retry, navigation flushing, and visual comparisons with real PDF exports. Disposable browser-test records and servers were cleaned up.
+
+The compact header, sidebar view controls, mobile View dialog, and visible Rename action were additionally verified with 66 focused frontend tests, a production build, and Chrome checks on desktop, tablet, and phone in both themes. Rename persistence, failed rename retry, page navigation, zoom, and tool-group access passed; the desktop page gained 72 pixels of width and started 102 pixels higher in the 1440-pixel acceptance viewport.

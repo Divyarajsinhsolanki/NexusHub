@@ -1,10 +1,11 @@
 class PortfolioSeeder
   FEATURES = [
     ["Project Delivery", "Projects, Sprints, and Quality", "Plan delivery with project membership, sprint scheduling, Kanban tasks, statistics, issue tracking, Sheet imports, and protected vault data.", "/projects", "Notice how project membership, sprint planning, QA issues, and delivery metrics share one workspace-scoped data model."],
-    ["Planning and Focus", "Calendar and Daily Momentum", "Connect deadlines, recurring events, reminders, daily priorities, work logs, notes, weekly reviews, and focused Pomodoro sessions.", "/momentum", "Review how assignments, meetings, work logs, and learning reminders are combined into a daily operating view."],
-    ["Collaboration", "Teams, Posts, and Real-time Chat", "Coordinate departments, skills, learning goals, social updates, direct and group conversations, mentions, reactions, and notifications.", "/posts", "Look for reusable identity, role, notification, and realtime conversation patterns across the collaboration surfaces."],
+    ["Planning and Focus", "Calendar and Daily Momentum", "Connect deadlines, recurring events, reminders, daily priorities, work logs, notes, weekly reviews, and focused Pomodoro sessions, managed operations deadlines, and personalized home shortcuts.", "/momentum", "Review how assignments, meetings, work logs, and learning reminders are combined into a daily operating view."],
+    ["Collaboration", "Teams, Posts, and Real-time Chat", "Coordinate departments, skills, learning goals, social updates, direct and group conversations, mentions, reactions, message editing and deletion, and notifications.", "/posts", "Look for reusable identity, role, notification, and realtime conversation patterns across the collaboration surfaces."],
     ["Knowledge", "Knowledge and Learning Grid", "Collect coding guidance, language practice, external signals, bookmarks, reminders, learning checkpoints, and immersive 3D views.", "/knowledge", "The knowledge area demonstrates lazy-loaded integrations, bookmarking, reminders, and optional immersive rendering."],
     ["Documents", "PDF Master Workflows", "Upload, annotate, sign, watermark, stamp, merge, split, compress, protect, export, undo, and redo PDF documents.", "/pdf-master", "The demo uses a bundled sample document and keeps uploads and modifications disabled for guest sessions."],
+    ["Operations", "Project Environments & Operations", "Compare configuration across environments, protect write-only secrets, track software drift, link service endpoints, manage licence expiry, and plan releases with recorded observations and verification.", "/demo?section=operations", "Inspect synthetic environment comparisons, reviewed imports, audit history, licence calendars, recurring release schedules, and version verification. Observations are recorded by members; deployments do not execute infrastructure changes."],
     ["Platform", "Cloud Deployment and Product Operations", "A Rails API and React application deployed on AWS Elastic Beanstalk with EC2, PostgreSQL, Redis, S3 assets, Route 53 DNS, HTTPS automation, SES email, and GitHub CI/CD.", "/demo#architecture", "Review the tenancy boundary, read-only demo guard, job context, storage, realtime streams, AWS deployment topology, and automated release workflow."]
   ].freeze
   SCREENSHOT_FILENAMES = %w[
@@ -13,6 +14,7 @@ class PortfolioSeeder
     03-collaboration.webp
     04-knowledge-learning.webp
     05-pdf-workflows.webp
+    07-project-operations.webp
     06-platform-engineering.webp
   ].freeze
 
@@ -31,7 +33,7 @@ class PortfolioSeeder
         "website" => profile.social_links&.dig("website") || ""
       ),
       architecture: ["React and Vite client", "Rails JSON API", "PostgreSQL data model", "AWS Elastic Beanstalk on EC2", "Route 53 DNS and HTTPS", "S3 assets and SES email", "GitHub Actions deployments", "AI-assisted delivery workflow"],
-      engineering_highlights: ["Workspace-aware authorization", "Project and sprint planning", "Realtime chat and notifications", "PDF processing workflows", "AWS deployment and DNS setup", "CI/CD and production troubleshooting"],
+      engineering_highlights: ["Workspace-aware authorization", "Project and sprint planning", "Environment comparison and encrypted operations inventory", "Deployment observations and verification", "Realtime chat and notifications", "PDF processing workflows", "AWS deployment and DNS setup", "CI/CD and production troubleshooting"],
       published: true
     )
 
@@ -41,9 +43,9 @@ class PortfolioSeeder
       tagline: "A connected workspace for planning, delivery, collaboration, knowledge, and document workflows.",
       summary: "Nexus Hub is a full-stack Rails and React product that brings project operations, personal productivity, team communication, learning tools, PDF workflows, and production-ready cloud deployment into one application.",
       description: "The project grew from a focused Rails application into a broad product platform and a real AWS deployment. The main engineering challenge is keeping many workflows coherent while preserving secure access, responsive performance, reliable releases, DNS/SSL correctness, and understandable navigation.",
-      stack: ["Ruby 3.3", "Rails 8.0", "React 18", "Vite 6", "PostgreSQL", "Redis", "AWS EB/EC2", "S3", "Route 53", "SES", "GitHub Actions"],
+      stack: ["Ruby 3.3", "Rails 8.0", "React 19", "Vite 8", "PostgreSQL", "Redis", "AWS EB/EC2", "S3", "Route 53", "SES", "GitHub Actions"],
       metrics: ["AWS Elastic Beanstalk production environment", "GitHub Actions deployment pipeline", "S3-backed asset strategy", "Realtime and background-job workflows"],
-      engineering_highlights: ["Role and workspace authorization", "Complex project and task data flows", "Realtime collaboration", "AWS EB/EC2 deployment", "Route 53, HTTPS, SES, and S3 setup", "AI-assisted debugging and release workflow"],
+      engineering_highlights: ["Role and workspace authorization", "Complex project and task data flows", "Environment inventories, licence calendars, and recurring releases", "Realtime collaboration", "AWS EB/EC2 deployment", "Route 53, HTTPS, SES, and S3 setup", "AI-assisted debugging and release workflow"],
       case_study: {
         problem: "Product and engineering work was spread across disconnected project, communication, learning, calendar, and document tools.",
         role: "Designed and implemented the Rails domain model, JSON APIs, React product surfaces, authorization, realtime features, integrations, testing, AWS deployment workflow, DNS/SSL setup, CI/CD pipeline, and production troubleshooting process.",
@@ -73,6 +75,7 @@ class PortfolioSeeder
           "Workspace-aware Rails APIs, jobs, and Action Cable streams",
           "A public engineering case study that links directly into working product screens",
           "A production AWS setup covering EB, EC2, Route 53, HTTPS, S3, SES, environment variables, and CI/CD",
+          "Project operations with encrypted configuration, audit history, licence expiry and verified release targets",
           "A repeatable local-to-production database restore workflow for launch data"
         ]
       },
@@ -89,10 +92,12 @@ class PortfolioSeeder
     )
     attach_seed_image(project.cover_image, SCREENSHOT_FILENAMES.first)
 
+    project.portfolio_features.where(title: "Full-stack Product Engineering").update_all(published: false)
+
     FEATURES.each_with_index do |(category, title, summary, demo_path, review_notes), index|
-      feature = project.portfolio_features.find_by(position: index + 1) ||
-        project.portfolio_features.find_or_initialize_by(title: title)
+      feature = project.portfolio_features.find_or_initialize_by(title: title)
       feature.update!(
+        title: title,
         category: category,
         summary: summary,
         demo_path: demo_path,
@@ -102,7 +107,7 @@ class PortfolioSeeder
         review_notes: review_notes,
         published: true
       )
-      attach_seed_image(feature.screenshot, SCREENSHOT_FILENAMES.fetch(index))
+      attach_seed_image(feature.screenshot, SCREENSHOT_FILENAMES.fetch(index).presence)
     end
 
     profile
@@ -111,15 +116,6 @@ class PortfolioSeeder
   private
 
   def attach_seed_image(attachment, filename)
-    return if attachment.attached?
-
-    path = Rails.root.join("app/assets/images/portfolio", filename)
-    return unless path.exist?
-
-    attachment.attach(
-      io: path.open("rb"),
-      filename: filename,
-      content_type: "image/webp"
-    )
+    ShowcaseMedia.attach!(attachment, filename) if filename.present?
   end
 end

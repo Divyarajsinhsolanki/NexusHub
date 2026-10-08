@@ -13,6 +13,7 @@ import type {
   Notification,
   Post,
 } from '../api/types';
+import { mergeMessage, patchMessageRows } from '../chat/messageLifecycle';
 import { endpoints } from '../api/endpoints';
 import { normalizeMobileDeepLink } from '../navigation/deepLinks';
 
@@ -162,6 +163,23 @@ export function trimInfinitePages<T>(
   };
 }
 
+// A long-lived first page can accumulate realtime messages indefinitely.
+// Compact inactive threads to a bounded window with a valid history cursor.
+export function trimMessagePages(data: InfiniteData<CollectionResult<Message>> | undefined) {
+  if (!data?.pages.length) return data;
+  const rows = new Map<number, Message>();
+  data.pages.forEach((page) => safeMessageData(page.data).forEach((message) => {
+    if (message.id > 0) rows.set(message.id, message);
+  }));
+  const ordered = [...rows.values()].sort((left, right) => left.id - right.id);
+  const keep = ordered.slice(-MOBILE_CACHE_PAGE_LIMIT * 50);
+  const hasMore = ordered.length > keep.length || Boolean(data.pages.at(-1)?.meta?.has_more);
+  return { ...data, pageParams: [undefined], pages: [{
+    ...data.pages[0], data: keep,
+    meta: { ...data.pages[0].meta, has_more: hasMore, next_before_id: hasMore ? keep[0]?.id : undefined },
+  }] };
+}
+
 export function appendIncomingMessage(
   queryClient: QueryClient,
   conversationId: number,
@@ -171,15 +189,27 @@ export function appendIncomingMessage(
     mobileQueryKeys.messages(conversationId),
     (previous) => {
       if (!previous) return previous;
-      if (hasMessage(previous, incoming.id)) return previous;
+      if (hasMessage(previous, incoming.id)) return { ...previous, pages: previous.pages.map((page) => ({
+        ...page, data: safeMessageData(page.data).map((message) => Number(message.id) === Number(incoming.id) ? mergeMessage(message, incoming) : message)
+      })) };
 
       const pages = previous.pages.map((page, index) => (
         index === 0 ? { ...page, data: [...safeMessageData(page.data).filter((message) => !matchesPendingMessage(message, incoming)), incoming] } : { ...page, data: safeMessageData(page.data).filter((message) => !matchesPendingMessage(message, incoming)) }
       ));
 
-      return { ...previous, pages };
+      const next = { ...previous, pages };
+      const observed = queryClient.getQueryCache().find({ queryKey: mobileQueryKeys.messages(conversationId) })?.getObserversCount();
+      return observed || pages.reduce((count, page) => count + page.data.length, 0) <= MOBILE_CACHE_PAGE_LIMIT * 50 ? next : trimMessagePages(next);
     },
   );
+}
+
+export function applyMessageChange(queryClient: QueryClient, conversationId: number, incoming: Message) {
+  queryClient.setQueryData<InfiniteData<CollectionResult<Message>>>(mobileQueryKeys.messages(conversationId), (previous) => previous ? {
+    ...previous, pages: previous.pages.map((page) => ({ ...page, data: patchMessageRows(safeMessageData(page.data), incoming) }))
+  } : previous);
+  updateConversationCaches(queryClient, conversationId, (conversation) => Number(conversation.last_message_id) === Number(incoming.id)
+    ? { ...conversation, last_message: typeof conversation.last_message === "object" && conversation.last_message ? mergeMessage(conversation.last_message, incoming) : incoming } : conversation);
 }
 
 export function updateCachedMessage(
@@ -206,11 +236,13 @@ export function updateCachedMessage(
 export function replaceCachedMessage(queryClient: QueryClient, conversationId: number, temporaryId: number, message: Message) {
   queryClient.setQueryData<InfiniteData<CollectionResult<Message>>>(mobileQueryKeys.messages(conversationId), (previous) => {
     if (!previous?.pages.length) return previous;
+    const existing = previous.pages.flatMap((page) => safeMessageData(page.data)).find((cached) => Number(cached.id) === Number(message.id));
+    const merged = existing ? mergeMessage(existing, message) : message;
     const pages = previous.pages.map((page) => ({
       ...page,
       data: safeMessageData(page.data).filter((cached) => Number(cached.id) !== Number(temporaryId) && Number(cached.id) !== Number(message.id)),
     }));
-    pages[0] = { ...pages[0], data: [...pages[0].data, { ...message, send_state: 'sent' }] };
+    pages[0] = { ...pages[0], data: [...pages[0].data, { ...merged, send_state: 'sent' }] };
     return { ...previous, pages };
   });
 }
@@ -235,7 +267,9 @@ export function updateConversationPreview(
     if (incoming.id > 0 && previousId > incoming.id) return rows;
     const readId = Number((Array.isArray(existing.participants) ? existing.participants : []).find((participant) => Number(participant.id) === Number(currentUserId))?.last_read_message_id || 0);
     const unread = currentUserId !== undefined && Number(incoming.user_id) !== Number(currentUserId) && incoming.id > previousId && incoming.id > readId;
-    return [{ ...existing, last_message: incoming, last_message_id: incoming.id, last_message_at: incoming.created_at, unread_count: (existing.unread_count || 0) + (unread ? 1 : 0) }, ...rows.filter((item) => Number(item.id) !== Number(conversationId))];
+    const preview = previousId === incoming.id && typeof existing.last_message === 'object' && existing.last_message
+      ? mergeMessage(existing.last_message, incoming) : incoming;
+    return [{ ...existing, last_message: preview, last_message_id: incoming.id, last_message_at: incoming.created_at, unread_count: (existing.unread_count || 0) + (unread ? 1 : 0) }, ...rows.filter((item) => Number(item.id) !== Number(conversationId))];
   }, true));
 }
 

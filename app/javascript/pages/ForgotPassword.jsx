@@ -5,7 +5,8 @@ import { requestPasswordReset } from "../components/api";
 import AuthLayout from "../components/ui/AuthLayout";
 import { FiArrowLeft, FiMail } from "react-icons/fi";
 
-const ForgotPassword = () => {
+const ForgotPassword = ({ switchToLogin, embedded = false }) => {
+  const Layout = embedded ? React.Fragment : AuthLayout;
   const [email, setEmail] = useState("");
   const submitting = useRef(false);
   const [error, setError] = useState(null);
@@ -32,7 +33,7 @@ const ForgotPassword = () => {
   };
 
   return (
-    <AuthLayout>
+    <Layout>
               <h2 className="mb-2 text-3xl font-bold text-shell-text-strong">Forgot password?</h2>
               <p className="mb-7 text-sm text-shell-muted">
                 Enter the email you use to sign in. We will send a secure link to reset your password.
@@ -77,13 +78,13 @@ const ForgotPassword = () => {
                 Remembered it?{" "}
                 <button
                   type="button"
-                  onClick={() => navigate("/login")}
+                  onClick={switchToLogin || (() => navigate("/login"))}
                   className="inline-flex items-center gap-1 font-semibold text-theme transition hover:text-theme/80"
                 >
                   <FiArrowLeft aria-hidden="true" /> Back to sign in
                 </button>
               </p>
-    </AuthLayout>
+    </Layout>
   );
 };
 

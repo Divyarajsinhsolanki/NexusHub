@@ -1,0 +1,37 @@
+// @vitest-environment jsdom
+import React from 'react';
+import { afterEach, expect, it, vi } from 'vitest';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import { AuthContext } from '../context/AuthContext';
+import Teams from './Teams';
+import { fetchTeams, fetchTeamInsights } from '../components/api';
+vi.mock('../context/AuthContext', () => ({ AuthContext: React.createContext({}) }));
+vi.mock('../components/UserMultiSelect', () => ({ default: () => <input aria-label="Search users" /> }));
+vi.mock('../components/ui/MemberProfileCard', () => ({ default: () => null }));
+vi.mock('../components/teams/TeamSkillMatrix', () => ({ default: () => null }));
+vi.mock('../components/teams/SkillDirectory', () => ({ default: () => null }));
+vi.mock('../components/teams/LearningGoalsPanel', () => ({ default: () => null }));
+vi.mock('../components/teams/SkillEndorsementsPanel', () => ({ default: ({ teamExperts }) => <p>{teamExperts[0]?.name}</p> }));
+vi.mock('../components/api', () => Object.fromEntries(['fetchTeams', 'createTeam', 'updateTeam', 'deleteTeam', 'addTeamUser', 'updateTeamUser', 'deleteTeamUser', 'leaveTeam', 'fetchTeamInsights', 'createUserSkill', 'updateUserSkill', 'deleteUserSkill', 'endorseSkill', 'revokeSkillEndorsement', 'createLearningGoal', 'deleteLearningGoal', 'createLearningCheckpoint', 'updateLearningCheckpoint'].map(name => [name, vi.fn()])));
+afterEach(() => { cleanup(); vi.clearAllMocks(); });
+it('ignores late insights from an earlier selection and shows supported membership roles', async () => {
+  fetchTeams.mockResolvedValue({ data: [{ id: 1, name: 'Alpha', users: [] }, { id: 2, name: 'Beta', users: [{ id: 9, name: 'Member', role: 'admin', status: 'accepted' }] }] });
+  let resolveAlpha; let resolveBeta;
+  fetchTeamInsights.mockImplementation(id => new Promise(resolve => { if (id === 1) resolveAlpha = resolve; else resolveBeta = resolve; }));
+  render(<MemoryRouter><AuthContext.Provider value={{ user: { id: 9, roles: [{ name: 'owner' }] } }}><Teams /></AuthContext.Provider></MemoryRouter>);
+  fireEvent.click(await screen.findByRole('button', { name: 'Alpha' }));
+  await waitFor(() => expect(resolveAlpha).toBeTruthy());
+  fireEvent.click(screen.getByRole('button', { name: 'Beta' }));
+  await waitFor(() => expect(resolveBeta).toBeTruthy());
+  const insights = name => ({ data: { members: [], skills: [], roles: [], team_experts: [{ name }], current_user_skills: [], current_user_learning_goals: [], recent_endorsements: [], available_skills: [], availability_options: [] } });
+  await act(async () => resolveBeta(insights('Beta expert')));
+  expect(await screen.findByText('Beta expert')).toBeTruthy();
+  await act(async () => resolveAlpha(insights('Alpha expert')));
+  expect(screen.queryByText('Alpha expert')).toBeNull();
+  expect(screen.getByText('Beta expert')).toBeTruthy();
+  expect(screen.getByText('Team Admins').parentElement.querySelector('h3').textContent).toBe('1');
+  expect(screen.getByText('Active Members').parentElement.querySelector('h3').textContent).toBe('1');
+  expect(screen.queryByRole('option', { name: 'Team Leader' })).toBeNull();
+  expect(screen.getByRole('textbox', { name: 'Search users' })).toBeTruthy();
+});

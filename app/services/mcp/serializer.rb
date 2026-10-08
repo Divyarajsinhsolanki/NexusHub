@@ -48,9 +48,9 @@ module Mcp
           sprints: project.sprints.order(start_date: :desc).limit(30).map { |sprint| self.sprint(sprint) },
           recent_tasks: project.tasks.includes(:assigned_user, :developer, :sprint).order(updated_at: :desc).limit(30).map { |task| self.task(task) },
           recent_issues: project.issues.visible_to(Current.user).includes(:assignee_user, :reporter).order(updated_at: :desc).limit(30).map { |issue| self.issue(issue) },
-          environments: project.project_environments.order(:name).map { |environment| project_environment(environment) },
+          environments: Operations::Policy.new(project, Current.user).read? ? project.project_environments.order(:name).map { |environment| project_environment(environment) } : [],
           vault_items: project.project_vault_items.order(updated_at: :desc).limit(20).map { |item| project_vault_item(item) },
-          upcoming_events_count: project.calendar_events.where("start_at >= ?", Time.current).count
+          upcoming_events_count: project.calendar_events.operations_visible_to(Current.user).where("start_at >= ?", Time.current).count
         )
       end
 
@@ -200,6 +200,8 @@ module Mcp
       def calendar_event(event)
         {
           id: event.id,
+          managed_operation: event.managed_operation?,
+          operation_path: event.operation_path,
           title: event.title,
           description: event.description,
           start_at: event.start_at,

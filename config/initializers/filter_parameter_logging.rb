@@ -22,5 +22,9 @@ Rails.application.config.filter_parameters += [
   :firebase,
   :smtp_password,
   :postmark,
-  :mailer_sender
+  :mailer_sender,
+  :value,
+  :content,
+  :license_key,
+  :dotenv_content
 ]

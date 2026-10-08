@@ -29,7 +29,6 @@ const Meeting = lazy(() => import("../pages/Meeting"));
 const Contact = lazy(() => import("../pages/Contact"));
 const DepartmentDetails = lazy(() => import("../pages/DepartmentDetails"));
 const Departments = lazy(() => import("../pages/Departments"));
-const ForgotPassword = lazy(() => import("../pages/ForgotPassword"));
 const IssueTracker = lazy(() => import("../pages/IssueTracker"));
 const KnowledgeDashboard = lazy(() => import("../pages/KnowledgeDashboard"));
 const Legal = lazy(() => import("../pages/Legal"));
@@ -78,7 +77,7 @@ const AppRoutes = () => {
             <Route path="/metaverse-landing" element={portfolioEnabled ? <MetaverseLanding /> : <Navigate to="/login" replace />} />
             <Route path="/login" element={<AuthPage mode="login" />} />
             <Route path="/signup" element={<AuthPage mode="signup" />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/forgot-password" element={<AuthPage mode="forgot-password" />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route
               path="/projects/:projectId/issues"

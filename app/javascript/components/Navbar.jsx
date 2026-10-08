@@ -8,7 +8,6 @@ import {
   FiBook,
   FiCalendar,
   FiCheckCircle,
-  FiChevronLeft,
   FiChevronRight,
   FiClock,
   FiFileText,
@@ -164,7 +163,7 @@ const RailLink = ({ item, collapsed, onNavigate }) => {
   );
 };
 
-const GlobalRail = ({ collapsed, onToggle, onExpand, onCollapse, onOpenMobile, mobileOpen }) => (
+const GlobalRail = ({ collapsed, onExpand, onCollapse, onOpenMobile, mobileOpen }) => (
   <aside className={`nexus-global-rail ${collapsed ? "nexus-global-rail-collapsed" : "nexus-global-rail-expanded"}`} aria-label="Primary navigation"
     onMouseEnter={onExpand} onMouseLeave={onCollapse}
     onFocus={(event) => { if (event.target.matches(":focus-visible")) onExpand(); }}
@@ -176,9 +175,6 @@ const GlobalRail = ({ collapsed, onToggle, onExpand, onCollapse, onOpenMobile, m
         <img src={logo} alt="" />
         <span>NexusHub</span>
       </Link>
-      <button type="button" onClick={onToggle} className="nexus-icon-button nexus-desktop-only" aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}>
-        {collapsed ? <FiChevronRight /> : <FiChevronLeft />}
-      </button>
       <button type="button" onClick={onOpenMobile} className="nexus-icon-button nexus-mobile-only" aria-label="Open navigation menu" aria-expanded={mobileOpen} aria-controls="mobile-navigation">
         <FiMenu />
       </button>
@@ -272,6 +268,7 @@ const ProjectContext = ({ projects, activeProjectId, onNavigate }) => {
     ["statistics", "Statistics", FiActivity],
     ["issues", "Issue Tracker", FiLayers],
     ["vault", "Vault", FiArchive],
+    ["environments", "Environments", FiLayers],
     ["settings", "Settings", FiSettings],
   ] : [];
 
@@ -660,7 +657,6 @@ const Navbar = () => {
     <>
       <GlobalRail
         collapsed={collapsed}
-        onToggle={() => setCollapsed((value) => !value)}
         onExpand={() => setCollapsed(false)}
         onCollapse={() => setCollapsed(true)}
         onOpenMobile={openMobile}

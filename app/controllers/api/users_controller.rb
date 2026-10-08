@@ -63,8 +63,10 @@ class Api::UsersController < Api::BaseController
 
   # DELETE /api/users/:id.json
   def destroy
-    @user.destroy
+    @user.destroy!
     head :no_content
+  rescue ActiveRecord::RecordNotDestroyed => error
+    render json: { errors: error.record.errors.full_messages.presence || ['User could not be deleted'] }, status: :unprocessable_entity
   end
 
   # POST /api/users/presence
@@ -133,6 +135,7 @@ class Api::UsersController < Api::BaseController
       :phone_number,
       :bio,
       social_links: {},
+      home_preferences: [:show_shortcuts, :show_overview, :show_due_tasks, :show_tasks, :show_projects, :show_birthdays, { shortcut_ids: [], card_order: [] }],
       notification_preferences: {},
       push_notification_settings: [
         :enabled,
@@ -217,6 +220,7 @@ class Api::UsersController < Api::BaseController
       avatar_color: user.avatar_color,
       roles: user.role_names.sort,
       landing_page: user.landing_page,
+      home_preferences: user.home_preferences,
       phone_number: user.phone_number,
       bio: user.bio,
       social_links: user.social_links || {},

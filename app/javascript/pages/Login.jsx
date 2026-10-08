@@ -7,7 +7,8 @@ import { FiArrowRight, FiEye, FiEyeOff, FiLock } from "react-icons/fi";
 import AuthLayout from "../components/ui/AuthLayout";
 import { safeReturnPath } from "../utils/safeReturnPath";
 
-const Login = ({ switchToSignup }) => {
+const Login = ({ switchToSignup, switchToForgotPassword, embedded = false }) => {
+  const Layout = embedded ? React.Fragment : AuthLayout;
   const { handleLogin, handleGoogleLogin } = useContext(AuthContext);
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
@@ -50,7 +51,7 @@ const Login = ({ switchToSignup }) => {
   }, [searchParams]);
 
   return (
-    <AuthLayout>
+    <Layout>
             <h2 className="mb-1 text-3xl font-bold text-shell-text-strong">Welcome back</h2>
             <p className="mb-7 text-sm text-shell-muted">Sign in to continue where you left off.</p>
 
@@ -85,7 +86,7 @@ const Login = ({ switchToSignup }) => {
                     <button
                       type="button"
                       disabled={loading}
-                      onClick={() => navigate("/forgot-password")}
+                      onClick={switchToForgotPassword || (() => navigate("/forgot-password"))}
                       className="font-semibold text-theme transition hover:text-theme/80"
                     >
                       Forgot password?
@@ -179,7 +180,7 @@ const Login = ({ switchToSignup }) => {
                 Sign Up
               </button>
             </p>
-    </AuthLayout>
+    </Layout>
   );
   
 };

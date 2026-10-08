@@ -5,6 +5,7 @@ import { setSessionExpiredHandler, storeSession } from '../api/client';
 import type { User } from '../api/types';
 import { clearOfflineData } from '../storage/database';
 import { queryPersister } from '../storage/queryPersister';
+import { clearChatDrafts } from '../chat/drafts';
 import { tokenStore } from './tokenStore';
 
 type SignupInput = {
@@ -37,6 +38,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [isLoading, setIsLoading] = useState(true);
 
   const expireSession = useCallback(async () => {
+    await clearChatDrafts();
     await tokenStore.clear();
     await queryPersister.removeClient();
     await clearOfflineData();

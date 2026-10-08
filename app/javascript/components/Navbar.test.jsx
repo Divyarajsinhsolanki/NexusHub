@@ -89,7 +89,7 @@ describe("Navbar responsive behavior", () => {
     expect(screen.getByRole("button", { name: /open account menu/i }).getAttribute("aria-haspopup")).toBe("menu");
     expect(screen.getAllByRole("link", { name: /^home$/i }).length).toBeGreaterThan(0);
 
-    expect(screen.getByRole("button", { name: /expand navigation/i })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /expand navigation/i })).toBeNull();
     const primaryNavigation = screen.getByRole("complementary", { name: /primary navigation/i });
     expect(primaryNavigation.classList.contains("nexus-global-rail-collapsed")).toBe(true);
     expect(screen.getByRole("link", { name: /nexushub home/i }).querySelector("img")).toBeTruthy();

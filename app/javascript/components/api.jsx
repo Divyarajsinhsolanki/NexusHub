@@ -361,6 +361,10 @@ export const fetchConversationMessages = (conversationId, params = {}) =>
   api.get(`/conversations/${conversationId}/messages`, { params });
 export const updateConversationReceipt = (conversationId, messageId, state) =>
   api.patch(`/conversations/${conversationId}/receipt`, { receipt: { message_id: messageId, state } });
+export const editChatMessage = (conversationId, messageId, body) =>
+  api.patch(`/conversations/${conversationId}/messages/${messageId}`, { message: { body } });
+export const deleteChatMessage = (conversationId, messageId) =>
+  api.delete(`/conversations/${conversationId}/messages/${messageId}`);
 export const sendMessage = (conversationId, formData) =>
   api.post(`/conversations/${conversationId}/messages`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
 export const addMessageReaction = (conversationId, messageId, emoji) =>

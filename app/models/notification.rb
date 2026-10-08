@@ -40,6 +40,8 @@ class Notification < ApplicationRecord
   end
 
   def enqueue_mobile_push
+    return if action == 'operations_reminder'
+
     PushNotificationDispatchJob.set(wait: catalog.dispatch_delay).perform_later(id)
   end
 

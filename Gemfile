@@ -32,6 +32,7 @@ gem "kaminari"
 gem "ruby-openai", "~> 8.3"
 gem "redis", ">= 4", "< 6"
 gem "sidekiq"
+gem "sidekiq-cron", "~> 2.3"
 
 # Storage, observability, and external services
 gem "aws-sdk-s3", require: false

@@ -158,6 +158,14 @@ beforeEach(() => {
   api.fetchPdfDocument.mockImplementation(async (id) => ({
     data: fixture.documents.find((doc) => String(doc.id) === String(id)),
   }));
+  api.renamePdfDocument.mockImplementation(async (id, title) => {
+    const doc = fixture.documents.find((item) => String(item.id) === String(id));
+    const updated = { ...doc, title };
+    fixture.documents = fixture.documents.map((item) =>
+      item.id === updated.id ? updated : item,
+    );
+    return { data: updated };
+  });
   api.createPdfDocumentOperation.mockImplementation(async (payload) => {
     if (fixture.failSave && payload.kind === "save_objects")
       throw new Error("Network unavailable");
@@ -261,6 +269,72 @@ describe("PDF Master workspace", () => {
       ),
     );
   });
+  it("renames from the document header with explicit save and cancel", async () => {
+    await open();
+    const trigger = screen.getByRole("button", { name: "Rename PDF" });
+    await userEvent.click(trigger);
+    let dialog = screen.getByRole("dialog", { name: "Rename PDF" });
+    fireEvent.change(within(dialog).getByLabelText("Document title"), {
+      target: { value: "Canceled title" },
+    });
+    await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(api.renamePdfDocument).not.toHaveBeenCalled();
+    await userEvent.click(trigger);
+    dialog = screen.getByRole("dialog", { name: "Rename PDF" });
+    const input = within(dialog).getByLabelText("Document title");
+    expect(input.value).toBe("Product brief");
+    await waitFor(() => expect(document.activeElement).toBe(input));
+    fireEvent.change(input, { target: { value: "  Renamed brief  " } });
+    await userEvent.keyboard("{Enter}");
+    await screen.findByRole("heading", { name: "Renamed brief" });
+    expect(api.renamePdfDocument).toHaveBeenCalledWith(42, "Renamed brief");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(api.createPdfDocumentOperation).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", { name: /Renamed brief.*pages/ }),
+    ).toBeTruthy();
+  });
+  it("keeps a failed rename draft for retry and rejects blank names", async () => {
+    await open();
+    api.renamePdfDocument.mockRejectedValueOnce(new Error("Network unavailable"));
+    await userEvent.click(screen.getByRole("button", { name: "Rename PDF" }));
+    const dialog = screen.getByRole("dialog", { name: "Rename PDF" });
+    const input = within(dialog).getByLabelText("Document title");
+    fireEvent.change(input, { target: { value: "   " } });
+    expect(within(dialog).getByRole("button", { name: "Save name" }).disabled).toBe(true);
+    fireEvent.change(input, { target: { value: "Keep this name" } });
+    await userEvent.click(within(dialog).getByRole("button", { name: "Save name" }));
+    expect((await within(dialog).findByRole("alert")).textContent).toBe("Network unavailable");
+    expect(input.value).toBe("Keep this name");
+    expect(screen.getByRole("heading", { name: "Product brief", hidden: true })).toBeTruthy();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Save name" }));
+    await screen.findByRole("heading", { name: "Keep this name" });
+    expect(api.renamePdfDocument).toHaveBeenCalledTimes(2);
+  });
+  it("shares working page and zoom controls between the sidebar and mobile View dialog", async () => {
+    await open();
+    const sidebar = document.querySelector(".pdf-left-panel");
+    const editor = document.querySelector(".pdf-editor-main");
+    expect(editor.querySelector(".pdf-view-controls")).toBeNull();
+    expect(editor.querySelector(".pdf-group-tabs")).toBeNull();
+    expect(document.querySelector(".pdf-workspace-header .pdf-group-tabs")).toBeTruthy();
+    await userEvent.click(within(sidebar).getByRole("button", { name: "Next page" }));
+    expect(within(sidebar).getByLabelText("Current page").value).toBe("2");
+    await userEvent.selectOptions(within(sidebar).getByLabelText("PDF zoom"), "fit-page");
+    await userEvent.click(within(sidebar).getByRole("button", { name: "Zoom in" }));
+    expect(within(sidebar).getByLabelText("PDF zoom").value).toBe("custom");
+    expect(within(sidebar).getByRole("option", { name: "110%" })).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "View settings" }));
+    const dialog = screen.getByRole("dialog", { name: "Page & zoom" });
+    expect(within(dialog).getByLabelText("Current page").value).toBe("2");
+    fireEvent.change(within(dialog).getByLabelText("Current page"), { target: { value: "99" } });
+    expect(within(dialog).getByLabelText("Current page").value).toBe("4");
+    expect(within(dialog).getByRole("button", { name: "Next page" }).disabled).toBe(true);
+    await userEvent.selectOptions(within(dialog).getByLabelText("PDF zoom"), "fit-width");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Close Page & zoom" }));
+    expect(within(sidebar).getByLabelText("Current page").value).toBe("4");
+    expect(within(sidebar).getByLabelText("PDF zoom").value).toBe("fit-width");
+  });
   it("does not roll back autosave acknowledgements when a rename finishes later", async () => {
     const doc = record({
       editor_state: {
@@ -282,8 +356,7 @@ describe("PDF Master workspace", () => {
       },
     });
     await open(doc);
-    await group("Export");
-    await userEvent.click(screen.getByText("Document settings"));
+    await userEvent.click(screen.getByRole("button", { name: "Rename PDF" }));
     let finishRename;
     api.renamePdfDocument.mockImplementationOnce(
       () =>
@@ -294,7 +367,7 @@ describe("PDF Master workspace", () => {
     fireEvent.change(screen.getByLabelText("Document title"), {
       target: { value: "Renamed brief" },
     });
-    fireEvent.blur(screen.getByLabelText("Document title"));
+    await userEvent.click(screen.getByRole("button", { name: "Save name" }));
     fireEvent.change(screen.getByLabelText(/text content/i), {
       target: { value: "First edit" },
     });
@@ -946,13 +1019,23 @@ describe("PDF Master workspace", () => {
     expect(await screen.findByText("1 of 4")).toBeTruthy();
   });
 
+  it("shows seeded demo documents while keeping editing disabled", async () => {
+    fixture.documents = [1, 2, 3].map((id) => record({ id, title: `Demo document ${id}` }));
+    setup(true);
+    await waitFor(() => expect(api.fetchPdfDocument).toHaveBeenCalledWith(1));
+    expect(screen.getByRole("button", { name: "Text tool" }).disabled).toBe(true);
+    expect(api.createPdfDocumentOperation).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Rename PDF" })).toBeNull();
+  });
+
   it("keeps the demo read-only", async () => {
     setup(true);
     expect(await screen.findByText(/Read-only sample/)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Text tool" }).disabled).toBe(
       true,
     );
-    expect(api.fetchPdfDocuments).not.toHaveBeenCalled();
+    expect(api.fetchPdfDocuments).toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Rename PDF" })).toBeNull();
   });
 });
 

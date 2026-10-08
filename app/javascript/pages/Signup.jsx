@@ -8,7 +8,8 @@ import AuthLayout from "../components/ui/AuthLayout";
 import { firebaseEnabled } from "../firebaseFlags";
 import { safeReturnPath } from "../utils/safeReturnPath";
 
-const Signup = ({ switchToLogin }) => {
+const Signup = ({ switchToLogin, embedded = false }) => {
+  const Layout = embedded ? React.Fragment : AuthLayout;
   const { handleGoogleLogin } = useContext(AuthContext);
   const [formData, setFormData] = useState({
     first_name: "",
@@ -63,7 +64,7 @@ const Signup = ({ switchToLogin }) => {
   };
 
   return (
-    <AuthLayout>
+    <Layout>
       {loading && <SpinnerOverlay />}
             <h2 className="mb-2 font-bold">Create your account</h2>
             <p className="mb-6 text-sm text-shell-muted">A fresh start for you and your team.</p>
@@ -209,7 +210,7 @@ const Signup = ({ switchToLogin }) => {
                 Log in
               </button>
             </p>
-    </AuthLayout>
+    </Layout>
   );
 };
 

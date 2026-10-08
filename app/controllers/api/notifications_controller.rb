@@ -6,6 +6,7 @@ class Api::NotificationsController < Api::BaseController
     "update" => %w[update task_updated issue_updated],
     "chat_ping" => %w[chat_ping chat_mention],
     "reacted" => %w[reacted message_reacted],
+    "calendar_reminder" => %w[calendar_reminder operations_reminder],
     "missed_call" => %w[missed_call missed_audio_call missed_video_call]
   }.freeze
 

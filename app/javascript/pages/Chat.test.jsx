@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const apiMocks = vi.hoisted(() => ({
   sendMessage: vi.fn(),
+  editChatMessage: vi.fn(),
+  deleteChatMessage: vi.fn(),
   fetchConversations: vi.fn(),
   fetchConversation: vi.fn(),
   fetchConversationMessages: vi.fn(),
@@ -43,6 +45,8 @@ vi.mock("framer-motion", async () => {
 });
 
 vi.mock("../components/api", () => ({
+  editChatMessage: apiMocks.editChatMessage,
+  deleteChatMessage: apiMocks.deleteChatMessage,
   SchedulerAPI: { getTasks: apiMocks.getTasks },
   addConversationParticipants: apiMocks.addConversationParticipants,
   addMessageReaction: vi.fn(),
@@ -140,6 +144,7 @@ const renderChat = () => render(
 
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.clear();
   apiMocks.sendMessage.mockReset();
   cableMocks.conversationCallback = null;
   cableMocks.statusCallback = null;
@@ -413,4 +418,83 @@ describe("conversation drafts", () => {
     expect(await within(screen.getByRole("main")).findByText("For Anita only")).toBeTruthy();
     expect(screen.getByRole("textbox", { name: "Message" }).value).toBe("");
   });
+  it("retains newer composer input when an earlier send completes", async () => {
+    let complete;
+    apiMocks.sendMessage.mockImplementation(() => new Promise((resolve) => { complete = resolve; }));
+    renderChat();
+    const composer = await screen.findByRole("textbox", { name: "Message" });
+    fireEvent.change(composer, { target: { value: "First message" } });
+    fireEvent.submit(composer.closest("form"));
+    await waitFor(() => expect(apiMocks.sendMessage).toHaveBeenCalledTimes(1));
+    const form = apiMocks.sendMessage.mock.calls[0][1];
+    expect(form.get("message[client_id]")).toBeTruthy();
+    fireEvent.change(composer, { target: { value: "Next draft" } });
+    await act(async () => complete({ data: { ...conversation.messages[0], id: 456, user_id: user.id, body: "First message" } }));
+    expect(composer.value).toBe("Next draft");
+  });
+
+  it("reuses the same client id after an ambiguous send failure", async () => {
+    apiMocks.sendMessage.mockRejectedValueOnce(new Error("Network interrupted")).mockResolvedValueOnce({ data: { ...conversation.messages[0], id: 457, user_id: user.id, body: "Retry safely" } });
+    renderChat();
+    const composer = await screen.findByRole("textbox", { name: "Message" });
+    fireEvent.change(composer, { target: { value: "Retry safely" } });
+    fireEvent.submit(composer.closest("form"));
+    await screen.findByText(/Your message couldn’t be sent/);
+    fireEvent.submit(composer.closest("form"));
+    await waitFor(() => expect(apiMocks.sendMessage).toHaveBeenCalledTimes(2));
+    expect(apiMocks.sendMessage.mock.calls[0][1].get("message[client_id]")).toBe(apiMocks.sendMessage.mock.calls[1][1].get("message[client_id]"));
+  });
+
+  it("restores a persisted draft and reply after remount", async () => {
+    const first = renderChat();
+    const composer = await screen.findByRole("textbox", { name: "Message" });
+    fireEvent.change(composer, { target: { value: "Remember this" } });
+    fireEvent.click(await screen.findByRole("button", { name: "Reply to Anita Rao" }));
+    await waitFor(() => expect(Object.values(localStorage).some((value) => value.includes("Remember this"))).toBe(true));
+    first.unmount();
+    renderChat();
+    expect((await screen.findByRole("textbox", { name: "Message" })).value).toBe("Remember this");
+    expect(await screen.findByRole("button", { name: "Cancel reply" })).toBeTruthy();
+  });
+
+  it("searches unloaded history and opens surrounding context without marking it read", async () => {
+    apiMocks.fetchConversationMessages.mockResolvedValue({ data: { data: [{ ...conversation.messages[0], id: 9, body: "Older budget" }], meta: { has_more: false } } });
+    renderChat();
+    fireEvent.click(await screen.findByRole("button", { name: "Search in conversation" }));
+    const search = screen.getByRole("textbox", { name: "Search messages in this conversation" });
+    fireEvent.change(search, { target: { value: "budget" } });
+    await screen.findByText("budget", { exact: false });
+    await waitFor(() => expect(apiMocks.fetchConversationMessages).toHaveBeenCalledWith("1", expect.objectContaining({ q: "budget" })));
+    fireEvent.click(await screen.findByRole("button", { name: "Open message in conversation" }));
+    await screen.findByText(/Viewing message context/);
+    expect(apiMocks.fetchConversationMessages).toHaveBeenCalledWith("1", expect.objectContaining({ around_id: 9 }));
+  });
+
+  it("applies deletion to cached messages and quoted replies", async () => {
+    renderChat();
+    await screen.findByText("Initial message");
+    await act(async () => cableMocks.userCallback({ type: "message_deleted", conversation_id: 1, message: { ...conversation.messages[0], body: "Message deleted", deleted_at: new Date().toISOString(), updated_at: new Date().toISOString(), attachments: [], reactions: {} } }));
+    expect(await screen.findByText("Message deleted")).toBeTruthy();
+    expect(screen.queryByText("Initial message")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reply to Anita Rao" })).toBeNull();
+  });
+
+  it("edits and deletes an owned message through the new actions", async () => {
+    const owned = { ...conversation.messages[0], id: 700, user_id: user.id, body: "Original owned message", created_at: new Date().toISOString() };
+    apiMocks.fetchConversation.mockResolvedValue({ data: { ...conversation, messages: [owned] } });
+    apiMocks.editChatMessage.mockResolvedValue({ data: { ...owned, body: "Corrected message", edited_at: new Date().toISOString(), updated_at: new Date().toISOString() } });
+    apiMocks.deleteChatMessage.mockResolvedValue({ data: { ...owned, body: "Message deleted", deleted_at: new Date().toISOString(), updated_at: new Date().toISOString(), attachments: [] } });
+    renderChat();
+    fireEvent.click(await screen.findByRole("button", { name: "Edit message", exact: true }));
+    fireEvent.change(screen.getByLabelText("Edit message · available for 15 minutes"), { target: { value: "Corrected message" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save", exact: true }));
+    expect(await screen.findByText("Corrected message")).toBeTruthy();
+    expect(apiMocks.editChatMessage).toHaveBeenCalledWith("1", 700, "Corrected message");
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    fireEvent.click(screen.getByRole("button", { name: "Delete message", exact: true }));
+    expect(await screen.findByText("Message deleted")).toBeTruthy();
+    expect(apiMocks.deleteChatMessage).toHaveBeenCalledWith("1", 700);
+    confirm.mockRestore();
+  });
+
 });

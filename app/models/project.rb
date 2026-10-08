@@ -9,6 +9,12 @@ class Project < ApplicationRecord
   has_many :tasks, dependent: :nullify, inverse_of: :project
   has_many :issues, dependent: :destroy, inverse_of: :project
   has_many :developers, -> { distinct }, through: :tasks, source: :developer
+  has_many :project_deployments, dependent: :destroy
+  has_many :project_deployment_series, dependent: :destroy
+  has_many :project_operation_items, dependent: :destroy
+  has_many :project_operation_entries, dependent: :destroy
+  has_many :project_operation_changes, dependent: :delete_all
+  has_many :operation_reminder_deliveries, dependent: :destroy
   has_many :project_environments, dependent: :destroy, inverse_of: :project
   has_many :project_vault_items, dependent: :destroy, inverse_of: :project
   has_many :calendar_events, dependent: :nullify

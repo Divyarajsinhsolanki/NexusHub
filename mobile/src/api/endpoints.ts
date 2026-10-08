@@ -428,6 +428,19 @@ export const endpoints = {
   messages(conversationId: number, before?: number) {
     return collection<Message>(`/conversations/${conversationId}/messages`, { limit: 50, ...(before ? { before_id: before } : {}) });
   },
+  searchMessages(conversationId: number, query: string, before?: number) {
+    return collection<Message>(`/conversations/${conversationId}/messages`, { q: query, limit: 50, ...(before ? { before_id: before } : {}) });
+  },
+  messageContext(conversationId: number, messageId: number) {
+    return collection<Message>(`/conversations/${conversationId}/messages`, { around_id: messageId, limit: 50 });
+  },
+  async editMessage(conversationId: number, messageId: number, body: string) {
+    return update<Message>(`/conversations/${conversationId}/messages/${messageId}`, { message: { body } });
+  },
+  async deleteMessage(conversationId: number, messageId: number) {
+    const { data } = await api.delete<ApiEnvelope<Message> | Message>(`/conversations/${conversationId}/messages/${messageId}`);
+    return unwrapData(data);
+  },
   createMessage(conversationId: number, form: FormData) {
     return create<Message>(`/conversations/${conversationId}/messages`, form);
   },

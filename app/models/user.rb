@@ -117,10 +117,12 @@ class User < ApplicationRecord
   validates :demo_account, uniqueness: { scope: :workspace_id }, if: :demo_account?
   validate :department_belongs_to_workspace
 
+  before_validation :normalize_home_preferences
   before_validation :normalize_avatar_color
   before_validation :ensure_avatar_color
   before_validation :assign_site_admin_from_environment
   after_create :assign_default_role
+  before_destroy :prevent_operations_owner_deletion, prepend: true
 
   def self.generate_avatar_color(seed)
     digest = Digest::SHA256.hexdigest(seed.to_s)
@@ -234,6 +236,20 @@ class User < ApplicationRecord
     payload
   end
 
+  HOME_SHORTCUT_IDS = %w[chat knowledge pdf-master planning calendar projects vault worklog teams notifications].freeze
+
+  HOME_CARD_KEYS = %w[show_overview show_shortcuts show_due_tasks show_tasks show_projects show_birthdays].freeze
+
+  def normalize_home_preferences
+    value = home_preferences.is_a?(Hash) ? home_preferences.stringify_keys : {}
+    self.home_preferences = HOME_CARD_KEYS.index_with { |key|
+      ActiveModel::Type::Boolean.new.cast(value.fetch(key, true)) != false
+    }.merge(
+      "card_order" => ((Array(value["card_order"]).map(&:to_s) & HOME_CARD_KEYS) + HOME_CARD_KEYS).uniq,
+      "shortcut_ids" => value["shortcut_ids"].is_a?(Array) ? value["shortcut_ids"].map(&:to_s).uniq & HOME_SHORTCUT_IDS : %w[chat knowledge pdf-master]
+    )
+  end
+
   def notification_preferences_with_defaults
     NOTIFICATION_PREFERENCES_DEFAULTS.merge((notification_preferences || {}).stringify_keys)
   end
@@ -264,6 +280,16 @@ class User < ApplicationRecord
   end
 
   private
+
+  def prevent_operations_owner_deletion
+    owns_operations = ProjectDeployment.unscoped.where(owner_id: id).exists? ||
+      ProjectDeploymentSeries.unscoped.where(owner_id: id).exists? ||
+      ProjectOperationItem.unscoped.where(kind: 'license').where("details ->> 'owner_id' = ?", id.to_s).exists?
+    return unless owns_operations
+
+    errors.add(:base, 'Reassign operational ownership before deleting this user. Deactivate users who own historical deployments to preserve their records.')
+    throw :abort
+  end
 
   def self.hsl_to_hex(hue, saturation, lightness)
     red, green, blue = hsl_to_rgb(hue, saturation, lightness)

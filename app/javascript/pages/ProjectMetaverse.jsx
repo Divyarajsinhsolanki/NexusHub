@@ -12,6 +12,7 @@ import Sheet from "./Sheet";
 import ProjectStatistics from "./ProjectStatistics";
 import IssueTracker from "./IssueTracker";
 import ProjectVault from "./ProjectVault";
+import ProjectOperations from "./ProjectOperations";
 import Chat from "./Chat";
 import styles from "./ProjectMetaverse.module.css";
 
@@ -28,6 +29,7 @@ const PROJECT_SECTIONS = [
   { key: "issues", label: "Issue Tracker", subtitle: "Defects, blockers, and imports", color: "#f43f5e" },
   { key: "sheet", label: "Sheet", subtitle: "Connected Google Sheet view", color: "#14b8a6", requiresSheet: true },
   { key: "vault", label: "Vault", subtitle: "Project assets and credentials", color: "#8b5cf6" },
+  { key: "environments", label: "Environments", subtitle: "Configuration, versions, services, and releases", color: "#4f46e5" },
   { key: "settings", label: "Settings", subtitle: "Project configuration", color: "#64748b" },
 ];
 
@@ -942,6 +944,8 @@ export default function ProjectMetaverse() {
         return sheetEnabled ? <Sheet sheetName={sprint?.name} projectId={projectId} sheetId={project?.sheet_id} /> : emptyState;
       case "vault":
         return <ProjectVault projectId={projectId} />;
+      case "environments":
+        return activeSection === "environments" ? <ProjectOperations projectId={projectId} /> : null;
       case "settings":
         return <ProjectSettingsWall project={project} setProject={setProject} />;
       default:

@@ -32,6 +32,23 @@ describe('handleMobileRealtimeEvent', () => {
     expect(row.user_profile_picture).toBe('/new.png');
     expect(row.reply_to?.user_name).toBe('New name');
   });
+  test('edits and deletions update quotes without changing unread counts or resurrecting content', async () => {
+    const client = testQueryClient();
+    const original = { ...message(20, 'Original'), updated_at: '2026-10-07T10:00:00Z' };
+    client.setQueryData(mobileQueryKeys.messages(7), { pageParams: [undefined], pages: [{ data: [original,
+      { ...message(21, 'Reply'), reply_to: { id: 20, body: 'Original', user_id: 2, user_name: 'Sam' } }] }] });
+    client.setQueryData(mobileQueryKeys.conversations, { data: [{ id: 7, last_message_id: 20, last_message: original, unread_count: 4 }] });
+    const changed = { ...original, body: 'Edited', edited_at: '2026-10-07T10:01:00Z', updated_at: '2026-10-07T10:01:00Z' };
+    await handleMobileRealtimeEvent(client, { type: 'message_updated', conversation_id: 7, message: changed }, 1);
+    const deleted = { ...changed, body: 'Message deleted', deleted_at: '2026-10-07T10:02:00Z', updated_at: '2026-10-07T10:02:00Z' };
+    await handleMobileRealtimeEvent(client, { type: 'message_deleted', conversation_id: 7, message: deleted }, 1);
+    await handleMobileRealtimeEvent(client, { type: 'message_updated', conversation_id: 7, message: changed }, 1);
+    const rows = client.getQueryData<InfiniteData<CollectionResult<Message>>>(mobileQueryKeys.messages(7))!.pages[0].data;
+    expect(rows[0].body).toBe('Message deleted');
+    expect(rows[1].reply_to?.body).toBe('Message deleted');
+    expect(client.getQueryData<CollectionResult<Conversation>>(mobileQueryKeys.conversations)?.data[0].unread_count).toBe(4);
+    expect(client.getQueryData<CollectionResult<Conversation>>(mobileQueryKeys.conversations)?.data[0].last_message).toMatchObject({ body: 'Message deleted' });
+  });
   test('counts incoming messages once and preserves a newer preview', async () => {
     const client = testQueryClient();
     client.setQueryData(mobileQueryKeys.conversations, { data: [{ id: 7, unread_count: 0, participants: [] }] });

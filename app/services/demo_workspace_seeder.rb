@@ -18,6 +18,9 @@ class DemoWorkspaceSeeder
     engineer = upsert_user(workspace, email: "alex@nexushub.demo", first_name: "Demo", last_name: "Engineer", job_title: "Full-stack Engineer")
     qa_user = upsert_user(workspace, email: "maya@nexushub.demo", first_name: "Demo", last_name: "QA", job_title: "QA Engineer")
 
+    designer = upsert_user(workspace, email: "sam@nexushub.demo", first_name: "Demo", last_name: "Designer", job_title: "Product Designer")
+    operator = upsert_user(workspace, email: "robin@nexushub.demo", first_name: "Demo", last_name: "Operator", job_title: "Platform Engineer")
+
     department = Department.find_or_initialize_by(name: "Product Engineering")
     department.update!(manager: engineer, description: "Synthetic team data for the public portfolio demo.")
     [guest, engineer, qa_user].each { |user| user.update!(department: department) }
@@ -107,6 +110,8 @@ class DemoWorkspaceSeeder
       content: "Verify navigation, demo data, accessibility, and read-only protection."
     )
 
+    DemoOperationsSeeder.new.call(project: project, owner: engineer, reviewer: qa_user)
+
     post = Post.find_or_initialize_by(user: engineer, message: "The guided portfolio demo is ready for review.")
     post.save!
     Comment.find_or_create_by!(post: post, user: qa_user, body: "QA pass is in progress using synthetic data.")
@@ -173,6 +178,8 @@ class DemoWorkspaceSeeder
     Notification.find_or_create_by!(recipient: guest, actor: engineer, action: "update", notifiable: project) do |notification|
       notification.metadata = { message: "The guided demo workspace is ready." }
     end
+
+    DemoContentSeeder.new.call(project: project, guest: guest, engineer: engineer, reviewer: qa_user, designer: designer, operator: operator)
 
     workspace
   ensure

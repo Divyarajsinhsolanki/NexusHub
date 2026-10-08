@@ -3,7 +3,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import * as DocumentPicker from 'expo-document-picker';
 import { randomUUID } from 'expo-crypto';
 import { Redirect, useFocusEffect, useLocalSearchParams, usePathname, useRouter, type ErrorBoundaryProps } from 'expo-router';
-import { ArrowLeft, CornerUpLeft, FilePlus2, MoreHorizontal, Phone, Send, UsersRound, Video, X } from 'lucide-react-native';
+import { ArrowLeft, Search, CornerUpLeft, FilePlus2, MoreHorizontal, Phone, Send, UsersRound, Video, X } from 'lucide-react-native';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, AppState, FlatList, Keyboard, Linking, Modal, NativeScrollEvent, NativeSyntheticEvent, Platform, Pressable, StyleSheet, Text, TextInput, View, type ListRenderItemInfo } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,7 +12,7 @@ import { absoluteAssetUrl, apiErrorMessage } from '@/src/api/client';
 import { endpoints } from '@/src/api/endpoints';
 import type { CallSession, Message } from '@/src/api/types';
 import { useAuth } from '@/src/auth/AuthProvider';
-import { MOBILE_CACHE_PAGE_LIMIT, appendIncomingMessage, mobileQueryKeys, removeCachedMessage, replaceCachedMessage, trimInfinitePages, updateCachedMessage, updateConversationCaches, updateConversationPreview } from '@/src/cache/mobileCache';
+import { applyMessageChange, appendIncomingMessage, mobileQueryKeys, removeCachedMessage, replaceCachedMessage, trimMessagePages, updateCachedMessage, updateConversationCaches, updateConversationPreview } from '@/src/cache/mobileCache';
 import { requestCallMediaPermissions } from '@/src/calls/mediaPermissions';
 import { recentChatPhases, recordChatPhase } from '@/src/chat/chatDiagnostics';
 import { normalizedMessageRows, normalizedParticipants } from '@/src/chat/messageRows';
@@ -31,6 +31,9 @@ import { useRealtimeActions } from '@/src/realtime/RealtimeProvider';
 import { useChatRealtime, type ChatEvent } from '@/src/realtime/useChatRealtime';
 import { useAppTheme } from '@/src/theme';
 
+import { useChatDraft } from '@/src/chat/drafts';
+import { canChangeMessage, mergeMessage, patchMessageRows } from '@/src/chat/messageLifecycle';
+
 type MessageDraft = { body: string; attachment: DocumentPicker.DocumentPickerAsset | null; clientId: string; replyTo?: Message | null };
 
 export default function ChatRoute() {
@@ -47,7 +50,7 @@ export default function ChatRoute() {
     return <Redirect href={`/chat/${conversationId}` as never} />;
   }
 
-  return <ChatScreen conversationId={conversationId} />;
+  return <ChatScreen key={conversationId} conversationId={conversationId} />;
 }
 
 function ChatScreen({ conversationId }: { conversationId: number }) {
@@ -59,10 +62,31 @@ function ChatScreen({ conversationId }: { conversationId: number }) {
   const { perform } = useRealtimeActions();
   const { user } = useAuth();
   const writable = !user?.demo_account;
-  const [body, setBody] = useState('');
-  const [replyTo, setReplyTo] = useState<Message | null>(null);
-  useEffect(() => { setReplyTo(null); }, [conversationId]);
+  const { body, setBody, replyTo, setReplyTo, clientId, setClientId } = useChatDraft(user?.id, user?.workspace?.id, conversationId);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchText, setSearchText] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [contextRows, setContextRows] = useState<Message[] | null>(null);
+  const contextRequestRef = useRef(0);
+  const [contextId, setContextId] = useState<number | null>(null);
+  const [editMessage, setEditMessage] = useState<Message | null>(null);
+  const [editBody, setEditBody] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => setSearchQuery(searchText.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [searchText]);
+  const historySearch = useInfiniteQuery({
+    queryKey: ['chat-search', conversationId, searchQuery],
+    initialPageParam: undefined as number | undefined,
+    queryFn: ({ pageParam }) => endpoints.searchMessages(conversationId, searchQuery, pageParam),
+    getNextPageParam: (page) => Number(page.meta?.next_before_id) || undefined,
+    enabled: Boolean(searchQuery),
+    gcTime: 60_000,
+  });
   const [attachment, setAttachment] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
+  const composerRef = useRef({ body, attachment, replyTo });
+  composerRef.current = { body, attachment, replyTo };
+  const sendingDraftRef = useRef<MessageDraft | null>(null);
   const [hasUnreadBelow, setHasUnreadBelow] = useState(false);
   const [reactionMessage, setReactionMessage] = useState<Message | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -71,7 +95,7 @@ function ChatScreen({ conversationId }: { conversationId: number }) {
   const listRef = useRef<FlatList<Message>>(null);
   useEffect(() => {
     const subscription = Keyboard.addListener('keyboardDidShow', () => {
-      if (focusedRef.current) {
+      if (focusedRef.current && atLatestRef.current && !viewingHistoryRef.current) {
         atLatestRef.current = true;
         setHasUnreadBelow(false);
         shouldScrollToLatestRef.current = true;
@@ -100,6 +124,49 @@ function ChatScreen({ conversationId }: { conversationId: number }) {
     enabled: Number.isFinite(conversationId),
   });
   const rows = useMemo(() => normalizedMessageRows(messages.data?.pages), [messages.data?.pages]);
+  const replyRef = useRef(replyTo);
+  replyRef.current = replyTo;
+  useEffect(() => {
+    const targetId = replyRef.current?.id;
+    if (!targetId) return;
+    const loaded = rows.find((message) => message.id === targetId);
+    if (loaded) {
+      setReplyTo(loaded.deleted_at ? null : mergeMessage(replyRef.current!, loaded));
+      return;
+    }
+    let cancelled = false;
+    endpoints.messageContext(conversationId, targetId).then((result) => {
+      if (cancelled || replyRef.current?.id !== targetId) return;
+      const target = result.data.find((message) => message.id === targetId);
+      setReplyTo(target && !target.deleted_at ? mergeMessage(replyRef.current, target) : null);
+    }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [conversationId, replyTo?.id, rows]);
+  const searchMode = Boolean(searchText.trim());
+  const viewingHistory = searchMode || Boolean(contextRows);
+  const viewingHistoryRef = useRef(viewingHistory);
+  viewingHistoryRef.current = viewingHistory;
+  const displayRows = searchMode ? (searchText.trim() === searchQuery ? normalizedMessageRows(historySearch.data?.pages) : []) : contextRows || rows;
+  const openContext = async (messageId: number) => {
+    const request = ++contextRequestRef.current;
+    try {
+      const result = await endpoints.messageContext(conversationId, messageId);
+      if (contextRequestRef.current !== request) return;
+      setContextRows(result.data);
+      setContextId(messageId);
+      setSearchText('');
+      atLatestRef.current = false;
+      shouldScrollToLatestRef.current = false;
+    } catch (error) { Alert.alert('Unable to open message', apiErrorMessage(error)); }
+  };
+  useEffect(() => () => { ++contextRequestRef.current; }, []);
+  useEffect(() => {
+    if (!contextId || !contextRows) return;
+    const index = contextRows.findIndex((message) => message.id === contextId);
+    if (index < 0) return;
+    const timer = setTimeout(() => listRef.current?.scrollToIndex({ index, viewPosition: 0.5, animated: false }), 100);
+    return () => clearTimeout(timer);
+  }, [contextId, contextRows]);
   const latestMessage = rows.length ? rows[rows.length - 1] : undefined;
   const participants = useMemo(() => normalizedParticipants(conversation.data?.participants), [conversation.data?.participants]);
 
@@ -127,7 +194,7 @@ function ChatScreen({ conversationId }: { conversationId: number }) {
   }, [performTyping, stopTyping]);
 
   const acknowledge = useCallback(async (messageId: number, state: 'delivered' | 'read') => {
-    if (!writable) return;
+    if (!writable || viewingHistoryRef.current) return;
     try {
       const sent = await sendConversationReceiptOnce(user?.id, conversationId, messageId, state);
       if (sent && state === 'read') {
@@ -167,11 +234,19 @@ function ChatScreen({ conversationId }: { conversationId: number }) {
       updateConversationCaches(queryClient, conversationId, (current) => ({ ...current, active_call: call && ['active', 'ringing'].includes(call.status) ? call : null }));
       return;
     }
+    if ((event.type === 'message_updated' || event.type === 'message_deleted') && event.message) {
+      const incoming = event.message as Message;
+      applyMessageChange(queryClient, conversationId, incoming);
+      if (replyRef.current?.id === incoming.id) setReplyTo(incoming.deleted_at ? null : mergeMessage(replyRef.current, incoming));
+      setContextRows((previous) => previous && patchMessageRows(previous, incoming));
+      void queryClient.invalidateQueries({ queryKey: ['chat-search', conversationId] });
+      return;
+    }
     if (event.type !== 'message_created') return;
     const incoming = event.message as Message | undefined;
     if (incoming?.id) appendIncomingMessage(queryClient, conversationId, incoming);
-    if (!incoming?.id || incoming.user_id === user?.id) return;
-    if (focusedRef.current && appActiveRef.current && atLatestRef.current) {
+    if (!incoming?.id || Number(incoming.user_id) === Number(user?.id)) return;
+    if (focusedRef.current && appActiveRef.current && atLatestRef.current && !viewingHistoryRef.current) {
       shouldScrollToLatestRef.current = true;
       void acknowledge(incoming.id, 'read');
     }
@@ -199,7 +274,7 @@ function ChatScreen({ conversationId }: { conversationId: number }) {
   useEffect(() => {
     const latestId = Number(latestMessage?.id);
     if (!latestId) return;
-    if (focusedRef.current && appActiveRef.current && atLatestRef.current) {
+    if (focusedRef.current && appActiveRef.current && atLatestRef.current && !viewingHistoryRef.current) {
       shouldScrollToLatestRef.current = true;
       requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: false }));
       void acknowledge(latestId, 'read');
@@ -219,7 +294,7 @@ function ChatScreen({ conversationId }: { conversationId: number }) {
       remoteTypingTimers.current.forEach(clearTimeout);
       remoteTypingTimers.current.clear();
       olderPageGateRef.current.reset();
-      queryClient.setQueryData(mobileQueryKeys.messages(conversationId), (previous) => trimInfinitePages(previous as never, MOBILE_CACHE_PAGE_LIMIT));
+      queryClient.setQueryData(mobileQueryKeys.messages(conversationId), (previous) => trimMessagePages(previous as never));
     };
   }, [conversationId, queryClient, stopTyping]);
 
@@ -264,7 +339,11 @@ function ChatScreen({ conversationId }: { conversationId: number }) {
       requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
       return { temporaryId };
     },
-    onSuccess: (created, _draft, context) => {
+    onSuccess: (created, draft, context) => {
+      if (composerRef.current.body === draft.body && composerRef.current.attachment === draft.attachment && composerRef.current.replyTo?.id === draft.replyTo?.id) {
+        setBody(''); setReplyTo(null); setAttachment(null); setClientId(undefined);
+      }
+      sendingDraftRef.current = null;
       if (context) {
         replaceCachedMessage(queryClient, conversationId, context.temporaryId, created);
         failedDrafts.current.delete(context.temporaryId);
@@ -272,26 +351,36 @@ function ChatScreen({ conversationId }: { conversationId: number }) {
       updateConversationPreview(queryClient, conversationId, created);
     },
     onError: (error, _draft, context) => {
+      sendingDraftRef.current = null;
       if (context) updateCachedMessage(queryClient, conversationId, context.temporaryId, (message) => ({ ...message, send_state: 'failed' }));
       Alert.alert('Message not sent', apiErrorMessage(error));
     },
   });
   const sendCurrent = () => {
-    if (!body.trim() && !attachment) return;
-    const draft = { body, attachment, clientId: randomUUID(), replyTo };
-    setBody('');
-    setAttachment(null);
-    setReplyTo(null);
+    if ((!body.trim() && !attachment) || send.isPending || sendingDraftRef.current) return;
+    const draft = { body, attachment, clientId: clientId || randomUUID(), replyTo };
+    failedDrafts.current.forEach((failed, temporaryId) => {
+      if (failed.clientId === draft.clientId) {
+        removeCachedMessage(queryClient, conversationId, temporaryId);
+        failedDrafts.current.delete(temporaryId);
+      }
+    });
+    setClientId(draft.clientId);
+    sendingDraftRef.current = draft;
     stopTyping();
     send.mutate(draft);
   };
+  const sendRef = useRef(send);
+  sendRef.current = send;
   const retryMessage = useCallback((messageId: number) => {
+    if (sendRef.current.isPending || sendingDraftRef.current) return;
     const draft = failedDrafts.current.get(messageId);
     if (!draft) return;
     removeCachedMessage(queryClient, conversationId, messageId);
     failedDrafts.current.delete(messageId);
-    send.mutate(draft);
-  }, [conversationId, queryClient, send]);
+    sendingDraftRef.current = draft;
+    sendRef.current.mutate(draft);
+  }, [conversationId, queryClient]);
 
   const startCall = async (callType: 'audio' | 'video') => {
     setMenuOpen(false);
@@ -329,7 +418,7 @@ function ChatScreen({ conversationId }: { conversationId: number }) {
   const pickAttachment = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true, multiple: false });
-      if (!result.canceled) setAttachment(result.assets[0] || null);
+      if (!result.canceled) { setAttachment(result.assets[0] || null); setClientId(undefined); }
     } catch (error) { Alert.alert('Unable to attach file', apiErrorMessage(error)); }
   };
   const react = useMutation({
@@ -354,6 +443,26 @@ function ChatScreen({ conversationId }: { conversationId: number }) {
     onError: (error) => Alert.alert('Reaction not updated', apiErrorMessage(error)),
   });
 
+  const changeMessage = useMutation({
+    mutationFn: ({ message, deleting }: { message: Message; deleting: boolean }) =>
+      deleting ? endpoints.deleteMessage(conversationId, message.id) : endpoints.editMessage(conversationId, message.id, editBody),
+    onSuccess: (message) => {
+      applyMessageChange(queryClient, conversationId, message);
+      setContextRows((previous) => previous && patchMessageRows(previous, message));
+      void queryClient.invalidateQueries({ queryKey: ['chat-search', conversationId] });
+      setEditMessage(null);
+      setReactionMessage(null);
+    },
+    onError: (error) => Alert.alert('Message not changed', apiErrorMessage(error)),
+  });
+  const deleteSelected = () => {
+    if (!reactionMessage) return;
+    Alert.alert('Delete message?', 'This deletes the message for everyone.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () => changeMessage.mutate({ message: reactionMessage, deleting: true }) },
+    ]);
+  };
+
   const nextOlderCursor = Number(messages.data?.pages[messages.data.pages.length - 1]?.meta?.next_before_id) || undefined;
   const fetchNextPage = messages.fetchNextPage;
   const loadOlder = useCallback(async () => {
@@ -369,6 +478,7 @@ function ChatScreen({ conversationId }: { conversationId: number }) {
     }
   }, [conversationId, fetchNextPage, messages.hasNextPage, nextOlderCursor]);
   const onScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (viewingHistoryRef.current) return;
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
     const atLatest = contentOffset.y + layoutMeasurement.height >= contentSize.height - 72;
     atLatestRef.current = atLatest;
@@ -380,38 +490,46 @@ function ChatScreen({ conversationId }: { conversationId: number }) {
     if (contentOffset.y <= 120 && messages.hasNextPage && !messages.isFetchNextPageError) void loadOlder();
   }, [acknowledge, latestMessage?.id, loadOlder, messages.hasNextPage, messages.isFetchNextPageError]);
   const onContentSizeChange = useCallback(() => {
-    if (positionedRef.current && !shouldScrollToLatestRef.current) return;
+    if (viewingHistoryRef.current || (positionedRef.current && !shouldScrollToLatestRef.current)) return;
     positionedRef.current = true;
     shouldScrollToLatestRef.current = false;
     requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: false }));
   }, []);
   const jumpToLatest = useCallback(() => {
-    listRef.current?.scrollToEnd({ animated: true });
+    ++contextRequestRef.current;
+    setContextRows(null); setContextId(null); setSearchText('');
+    requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
     atLatestRef.current = true;
     setHasUnreadBelow(false);
     const latestId = Number(latestMessage?.id);
     if (latestId) void acknowledge(latestId, 'read');
   }, [acknowledge, latestMessage?.id]);
   const selectReaction = useCallback((message: Message) => {
-    if (message.id > 0) setReactionMessage(message);
-  }, []);
+    if (message.id > 0 && !message.deleted_at && writable) setReactionMessage(message);
+  }, [writable]);
   const renderMessage = useCallback(({ item }: ListRenderItemInfo<Message>) => {
-    const mine = item.user_id === user?.id;
+    const mine = Number(item.user_id) === Number(user?.id);
     const receipt = mine && item.id > 0
       ? outgoingReceiptStateForParticipants(participants, item, user?.id)
       : null;
-    return <MessageBubble message={item} mine={mine} onLongPress={selectReaction} onRetry={retryMessage} receiptLabel={receipt?.label} receiptRead={receipt?.read} receiptSymbol={receipt?.symbol} />;
-  }, [participants, retryMessage, selectReaction, user?.id]);
+    return <View>{searchMode ? <Pressable accessibilityRole="button" onPress={() => openContext(item.id)}><Text style={{ color: theme.primary, padding: 8 }}>Open in conversation</Text></Pressable> : null}<MessageBubble message={item} mine={mine} onLongPress={selectReaction} onRetry={retryMessage} receiptLabel={receipt?.label} receiptRead={receipt?.read} receiptSymbol={receipt?.symbol} /></View>;
+  }, [participants, retryMessage, selectReaction, user?.id, searchMode, theme.primary]);
   const typingNames = Object.values(typingUsers);
   const subtitle = typingNames.length ? `${typingNames.join(', ')} ${typingNames.length === 1 ? 'is' : 'are'} typing…` : connection === 'connected' ? conversation.data?.conversation_type === 'group' ? `${participants.length} members` : participants.some((participant) => participant.id !== user?.id && isParticipantOnline(participant, presenceNow)) ? 'Online' : 'Live conversation' : 'Reconnecting…';
   const back = () => router.canGoBack() ? router.back() : router.replace('/inbox' as never);
 
-  return <Screen header={<PageHeader leading={<IconButton label="Back" onPress={back}><ArrowLeft color={theme.text} size={22} /></IconButton>} title={conversation.data?.title || 'Conversation'} subtitle={subtitle} action={writable ? <View style={styles.headerActions}><IconButton label={conversation.data?.active_call ? 'Join active call' : 'Start video call'} onPress={() => startCall('video')}><Video color={conversation.data?.active_call ? theme.success : theme.text} size={20} /></IconButton><IconButton label="More conversation actions" onPress={() => setMenuOpen(true)}><MoreHorizontal color={theme.text} size={22} /></IconButton></View> : <IconButton label="Conversation details" onPress={() => setDetailsOpen(true)}><UsersRound color={theme.text} size={20} /></IconButton>} />}>
+  return <Screen header={<PageHeader leading={<IconButton label="Back" onPress={back}><ArrowLeft color={theme.text} size={22} /></IconButton>} title={conversation.data?.title || 'Conversation'} subtitle={subtitle} action={writable ? <View style={styles.headerActions}><IconButton label="Search conversation" onPress={() => setSearchOpen((open) => !open)}><Search color={theme.text} size={20} /></IconButton><IconButton label={conversation.data?.active_call ? 'Join active call' : 'Start video call'} onPress={() => startCall('video')}><Video color={conversation.data?.active_call ? theme.success : theme.text} size={20} /></IconButton><IconButton label="More conversation actions" onPress={() => setMenuOpen(true)}><MoreHorizontal color={theme.text} size={22} /></IconButton></View> : <IconButton label="Conversation details" onPress={() => setDetailsOpen(true)}><UsersRound color={theme.text} size={20} /></IconButton>} />}>
+    {searchOpen ? <View style={{ padding: 10, gap: 8 }}><TextInput accessibilityLabel="Search conversation" placeholder="Search all messages and filenames" placeholderTextColor={theme.textMuted} value={searchText} onChangeText={setSearchText} style={[styles.input, { flex: undefined, color: theme.text, backgroundColor: theme.surfaceMuted }]} /><Pressable accessibilityRole="button" onPress={() => { setSearchText(''); setSearchOpen(false); }}><Text style={{ color: theme.primary }}>Close search</Text></Pressable></View> : null}
+    {searchMode && historySearch.isFetching ? <Text style={{ color: theme.textMuted }}>Searching…</Text> : null}
+    {searchMode && historySearch.isError ? <ErrorState message="Search failed" onRetry={() => historySearch.refetch()} /> : null}
+    {searchMode && historySearch.hasNextPage ? <Pressable accessibilityRole="button" disabled={historySearch.isFetching} onPress={() => historySearch.fetchNextPage()}><Text style={{ color: theme.primary, padding: 10 }}>Load more matches</Text></Pressable> : null}
+    {contextRows ? <Pressable accessibilityRole="button" onPress={jumpToLatest}><Text style={{ color: theme.primary, padding: 10 }}>Viewing message context · Back to latest</Text></Pressable> : null}
+    {editMessage ? <View style={{ padding: 12, gap: 8 }}><Text style={{ color: theme.text }}>Edit message · available for 15 minutes</Text><TextInput accessibilityLabel="Edit message text" autoFocus multiline value={editBody} onChangeText={setEditBody} style={[styles.input, { flex: undefined, color: theme.text }]} /><Pressable accessibilityRole="button" disabled={changeMessage.isPending || (!editBody.trim() && !editMessage.attachments?.length)} onPress={() => changeMessage.mutate({ message: editMessage, deleting: false })}><Text style={{ color: theme.primary }}>Save changes</Text></Pressable><Pressable accessibilityRole="button" onPress={() => setEditMessage(null)}><Text style={{ color: theme.textMuted }}>Cancel edit</Text></Pressable></View> : null}
     {messages.isPending && !messages.data ? <LoadingState label="Loading conversation" /> : null}
     {replyTo ? <View style={{ flexDirection: 'row', alignItems: 'center', padding: 10, backgroundColor: theme.surfaceMuted }}><View style={{ flex: 1 }}><Text style={{ color: theme.primary, fontWeight: '600' }}>Reply to {replyTo.user_name}</Text><Text numberOfLines={2} style={{ color: theme.text }}>{replyTo.body || 'Attachment'}</Text></View><IconButton label="Cancel reply" onPress={() => setReplyTo(null)}><X color={theme.text} size={20} /></IconButton></View> : null}
     {messages.isError && !messages.data ? <ErrorState message={apiErrorMessage(messages.error)} onRetry={() => messages.refetch()} /> : null}
-    {messages.data ? <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0} style={styles.flex}><FlatList contentContainerStyle={styles.messageList} data={rows} initialNumToRender={20} keyExtractor={messageKey} ListEmptyComponent={<EmptyState title="Start the conversation" message="Messages and attachments are delivered in real time." />} ListHeaderComponent={<HistoryState hasMessages={rows.length > 0} hasNextPage={Boolean(messages.hasNextPage)} isError={messages.isFetchNextPageError} isLoading={messages.isFetchingNextPage} onRetry={() => { olderPageGateRef.current.markUserGesture(); void loadOlder(); }} />} maintainVisibleContentPosition={{ minIndexForVisible: 0 }} maxToRenderPerBatch={12} onContentSizeChange={onContentSizeChange} onScroll={onScroll} onScrollBeginDrag={() => olderPageGateRef.current.markUserGesture()} ref={listRef} removeClippedSubviews={false} renderItem={renderMessage} scrollEventThrottle={80} updateCellsBatchingPeriod={40} windowSize={7} />{hasUnreadBelow ? <Pressable accessibilityLabel="Jump to new messages" accessibilityRole="button" onPress={jumpToLatest} style={[styles.newMessages, { backgroundColor: theme.primary }]}><Text style={styles.newMessagesText}>New messages</Text></Pressable> : null}{writable && attachment ? <View style={[styles.attachment, { backgroundColor: theme.surfaceMuted }]}><Text numberOfLines={1} style={[styles.attachmentName, { color: theme.text }]}>{attachment.name}</Text><Pressable accessibilityLabel="Remove attachment" onPress={() => setAttachment(null)}><Text style={{ color: theme.danger, fontWeight: '700' }}>Remove</Text></Pressable></View> : null}{writable ? <View style={[styles.composer, { backgroundColor: theme.surface, borderTopColor: theme.border, paddingBottom: Math.max(10, insets.bottom) }]}><IconButton label="Attach file" onPress={pickAttachment}><FilePlus2 color={theme.textMuted} size={21} /></IconButton><TextInput accessibilityLabel="Message" multiline onChangeText={changeBody} placeholder="Message" placeholderTextColor={theme.textMuted} style={[styles.input, { backgroundColor: theme.surfaceMuted, color: theme.text }]} value={body} /><Pressable accessibilityLabel="Send message" accessibilityRole="button" disabled={!body.trim() && !attachment} onPress={sendCurrent} style={[styles.send, { backgroundColor: theme.primary, opacity: (!body.trim() && !attachment) ? 0.45 : 1 }]}><Send color="#ffffff" size={19} /></Pressable></View> : null}</KeyboardAvoidingView> : null}
-    <ReactionPicker message={reactionMessage} onClose={() => setReactionMessage(null)} onReply={() => { setReplyTo(reactionMessage); setReactionMessage(null); }} onSelect={(emoji) => reactionMessage && react.mutate({ message: reactionMessage, emoji })} pending={react.isPending} />
+    {messages.data ? <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0} style={styles.flex}><FlatList contentContainerStyle={styles.messageList} data={displayRows} initialNumToRender={20} keyExtractor={messageKey} ListEmptyComponent={<EmptyState title={searchMode ? "No messages found" : "Start the conversation"} message={searchMode ? "Try another keyword." : "Messages and attachments are delivered in real time."} />} ListHeaderComponent={viewingHistory ? null : <HistoryState hasMessages={rows.length > 0} hasNextPage={Boolean(messages.hasNextPage)} isError={messages.isFetchNextPageError} isLoading={messages.isFetchingNextPage} onRetry={() => { olderPageGateRef.current.markUserGesture(); void loadOlder(); }} />} maintainVisibleContentPosition={{ minIndexForVisible: 0 }} maxToRenderPerBatch={12} onContentSizeChange={onContentSizeChange} onScroll={onScroll} onScrollBeginDrag={() => olderPageGateRef.current.markUserGesture()} onLayout={() => { if (contextId && contextRows) { const index = contextRows.findIndex((message) => message.id === contextId); if (index >= 0) requestAnimationFrame(() => listRef.current?.scrollToIndex({ index, viewPosition: 0.5, animated: false })); } }} onScrollToIndexFailed={({ averageItemLength, index }) => listRef.current?.scrollToOffset({ offset: averageItemLength * index, animated: false })} ref={listRef} removeClippedSubviews={false} renderItem={renderMessage} scrollEventThrottle={80} updateCellsBatchingPeriod={40} windowSize={7} />{hasUnreadBelow ? <Pressable accessibilityLabel="Jump to new messages" accessibilityRole="button" onPress={jumpToLatest} style={[styles.newMessages, { backgroundColor: theme.primary }]}><Text style={styles.newMessagesText}>New messages</Text></Pressable> : null}{writable && attachment ? <View style={[styles.attachment, { backgroundColor: theme.surfaceMuted }]}><Text numberOfLines={1} style={[styles.attachmentName, { color: theme.text }]}>{attachment.name}</Text><Pressable accessibilityLabel="Remove attachment" onPress={() => { setAttachment(null); setClientId(undefined); }}><Text style={{ color: theme.danger, fontWeight: '700' }}>Remove</Text></Pressable></View> : null}{writable ? <View style={[styles.composer, { backgroundColor: theme.surface, borderTopColor: theme.border, paddingBottom: Math.max(10, insets.bottom) }]}><IconButton label="Attach file" onPress={pickAttachment}><FilePlus2 color={theme.textMuted} size={21} /></IconButton><TextInput accessibilityLabel="Message" multiline onChangeText={changeBody} placeholder="Message" placeholderTextColor={theme.textMuted} style={[styles.input, { backgroundColor: theme.surfaceMuted, color: theme.text }]} value={body} /><Pressable accessibilityLabel={send.isPending ? "Sending message" : "Send message"} accessibilityRole="button" disabled={send.isPending || (!body.trim() && !attachment)} onPress={sendCurrent} style={[styles.send, { backgroundColor: theme.primary, opacity: (!body.trim() && !attachment) ? 0.45 : 1 }]}><Send color="#ffffff" size={19} /></Pressable></View> : null}</KeyboardAvoidingView> : null}
+    <ReactionPicker canEdit={Boolean(reactionMessage && canChangeMessage(reactionMessage, user?.id))} onEdit={() => { setEditMessage(reactionMessage); setEditBody(reactionMessage?.body || ''); setReactionMessage(null); }} onDelete={deleteSelected} message={reactionMessage} onClose={() => setReactionMessage(null)} onReply={() => { setReplyTo(reactionMessage); setReactionMessage(null); }} onSelect={(emoji) => reactionMessage && react.mutate({ message: reactionMessage, emoji })} pending={react.isPending} />
     <HeaderMenu activeCall={conversation.data?.active_call?.id} onAudio={() => startCall('audio')} onClose={() => setMenuOpen(false)} onDetails={() => { setMenuOpen(false); setDetailsOpen(true); }} onJoin={(callId) => { setMenuOpen(false); router.push(`/call/${callId}?type=${conversation.data?.active_call?.call_type || 'audio'}` as never); }} onVideo={() => startCall('video')} visible={menuOpen} />
     <ConversationDetailsSheet conversationId={conversationId} onClose={() => setDetailsOpen(false)} onConversationRemoved={() => { setDetailsOpen(false); router.replace('/inbox' as never); }} readOnly={!writable} visible={detailsOpen} />
   </Screen>;
@@ -421,14 +539,14 @@ const MessageBubble = memo(function MessageBubble({ message, mine, onLongPress, 
   const theme = useAppTheme();
   const reactions = reactionEntries(message.reactions);
   const react = () => onLongPress(message);
-  if (message.message_type === 'system') return <Text accessibilityRole="text" style={{ color: theme.textMuted, fontSize: 12, paddingVertical: 8, textAlign: 'center' }}>{message.body} · {formatTime(message.created_at)}</Text>;
+  if (message.message_type === 'system') return <Text accessibilityRole="text" style={{ color: theme.textMuted, fontSize: 12, paddingVertical: 8, textAlign: 'center' }}>{message.body} · {message.edited_at ? 'Edited · ' : ''}{formatTime(message.created_at)}</Text>;
   return <View style={[styles.bubbleRow, mine && styles.mineRow]}>
     <Pressable accessibilityHint={message.id > 0 ? 'Long press for message actions' : undefined} accessibilityLabel={message.send_state === 'failed' ? 'Message failed to send' : receiptLabel ? `Message. ${receiptLabel}` : 'Message'} delayLongPress={350} onLongPress={react} style={[styles.bubble, { backgroundColor: mine ? theme.primary : theme.surface, borderColor: message.send_state === 'failed' ? theme.danger : mine ? theme.primary : theme.border }]}>
       {!mine ? <Text style={[styles.sender, { color: theme.primary }]}>{message.user_name || 'Teammate'}</Text> : null}
       {message.reply_to ? <View style={{ borderLeftWidth: 2, borderLeftColor: mine ? '#ffffff' : theme.primary, paddingLeft: 8, marginBottom: 6 }}><Text style={{ color: mine ? '#ffffff' : theme.primary, fontSize: 12, fontWeight: '600' }}>{message.reply_to.user_name}</Text><Text numberOfLines={2} style={{ color: mine ? '#ffffff' : theme.textMuted, fontSize: 12 }}>{message.reply_to.body || 'Attachment'}</Text></View> : null}
-      {message.body ? <Text style={[styles.body, { color: mine ? '#ffffff' : theme.text }]}>{message.body}{'  '}{!message.attachments?.length ? <Text style={[styles.inlineMeta, { color: mine ? '#dbeafe' : theme.textMuted }]}>{formatTime(message.created_at)}{message.send_state === 'sending' ? ' …' : receiptSymbol ? <Text style={{ color: receiptRead ? '#86efac' : '#dbeafe' }}> {receiptSymbol}</Text> : null}</Text> : null}</Text> : null}
+      {message.body ? <Text style={[styles.body, { color: mine ? '#ffffff' : theme.text }]}>{message.body}{'  '}{!message.attachments?.length ? <Text style={[styles.inlineMeta, { color: mine ? '#dbeafe' : theme.textMuted }]}>{message.edited_at ? 'Edited · ' : ''}{formatTime(message.created_at)}{message.send_state === 'sending' ? ' …' : receiptSymbol ? <Text style={{ color: receiptRead ? '#86efac' : '#dbeafe' }}> {receiptSymbol}</Text> : null}</Text> : null}</Text> : null}
       {message.attachments?.map((file, index) => <Attachment key={`${message.id}:${String(file.id || file.url || index)}`} file={file} mine={mine} />)}
-      {!message.body || message.attachments?.length ? <Text style={[styles.inlineMeta, { color: mine ? '#dbeafe' : theme.textMuted, textAlign: 'right' }]}>{formatTime(message.created_at)}{receiptSymbol ? ` ${receiptSymbol}` : ''}</Text> : null}
+      {!message.body || message.attachments?.length ? <Text style={[styles.inlineMeta, { color: mine ? '#dbeafe' : theme.textMuted, textAlign: 'right' }]}>{message.edited_at ? 'Edited · ' : ''}{formatTime(message.created_at)}{receiptSymbol ? ` ${receiptSymbol}` : ''}</Text> : null}
       {message.send_state === 'failed' ? <Pressable accessibilityRole="button" onPress={() => onRetry(message.id)} style={styles.retryMessage}><Text style={styles.retryMessageText}>Not sent · Tap to retry</Text></Pressable> : null}
     </Pressable>
     {reactions.length ? <View style={[styles.reactionChips, mine && styles.mineReactionChips]}>{reactions.map(([emoji, count]) => <Pressable key={emoji} accessibilityLabel={`${emoji}, ${count} reactions`} onPress={react} style={[styles.reactionChip, { backgroundColor: theme.surface, borderColor: theme.border }]}><Text>{emoji} {count}</Text></Pressable>)}</View> : null}
@@ -447,7 +565,7 @@ function MenuAction({ icon: Icon, label, onPress }: { icon: typeof Phone; label:
 function HistoryState({ hasMessages, hasNextPage, isError, isLoading, onRetry }: { hasMessages: boolean; hasNextPage: boolean; isError: boolean; isLoading: boolean; onRetry: () => void }) { const theme = useAppTheme(); if (!hasMessages) return null; if (isError) return <Pressable accessibilityRole="button" onPress={onRetry} style={styles.loadOlder}><Text style={{ color: theme.danger, fontWeight: '700' }}>Could not load earlier messages · Retry</Text></Pressable>; if (isLoading) return <View style={styles.loadOlder}><Text style={{ color: theme.textMuted }}>Loading earlier messages…</Text></View>; if (!hasNextPage) return <View style={styles.loadOlder}><Text style={{ color: theme.textMuted }}>Beginning of conversation</Text></View>; return <View style={styles.loadOlder}><Text style={{ color: theme.textMuted }}>Scroll up for earlier messages</Text></View>; }
 
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '🎉', '😮'];
-function ReactionPicker({ message, onClose, onSelect, onReply, pending }: { message: Message | null; onClose: () => void; onReply: () => void; onSelect: (emoji: string) => void; pending: boolean }) { const theme = useAppTheme(); return <Modal animationType="fade" onRequestClose={onClose} transparent visible={Boolean(message)}><Pressable accessibilityLabel="Close reaction picker" onPress={onClose} style={styles.modalBackdrop}><View style={[styles.reactionPicker, { backgroundColor: theme.surface }]}><Pressable accessibilityLabel="Reply to message" accessibilityRole="button" onPress={onReply} style={{ flexDirection: 'row', gap: 8, paddingVertical: 12 }}><CornerUpLeft color={theme.primary} size={20} /><Text style={{ color: theme.text }}>Reply</Text></Pressable><Text style={[styles.reactionTitle, { color: theme.text }]}>React to message</Text><View style={styles.reactionOptions}>{REACTION_EMOJIS.map((emoji) => <Pressable accessibilityLabel={`React ${emoji}`} accessibilityRole="button" disabled={pending} key={emoji} onPress={() => onSelect(emoji)} style={[styles.reactionOption, message?.reacted_emojis?.includes(emoji) && { backgroundColor: theme.surfaceMuted }]}><Text style={styles.reactionEmoji}>{emoji}</Text></Pressable>)}</View></View></Pressable></Modal>; }
+function ReactionPicker({ message, canEdit, onEdit, onDelete, onClose, onSelect, onReply, pending }: { canEdit: boolean; onEdit: () => void; onDelete: () => void; message: Message | null; onClose: () => void; onReply: () => void; onSelect: (emoji: string) => void; pending: boolean }) { const theme = useAppTheme(); return <Modal animationType="fade" onRequestClose={onClose} transparent visible={Boolean(message)}><Pressable accessibilityLabel="Close reaction picker" onPress={onClose} style={styles.modalBackdrop}><View style={[styles.reactionPicker, { backgroundColor: theme.surface }]}><Pressable accessibilityLabel="Reply to message" accessibilityRole="button" onPress={onReply} style={{ flexDirection: 'row', gap: 8, paddingVertical: 12 }}><CornerUpLeft color={theme.primary} size={20} /><Text style={{ color: theme.text }}>Reply</Text></Pressable>{canEdit ? <View style={{ flexDirection: 'row', gap: 24, paddingVertical: 12 }}><Pressable accessibilityRole="button" accessibilityLabel="Edit message" onPress={onEdit}><Text style={{ color: theme.primary }}>Edit</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Delete message" onPress={onDelete}><Text style={{ color: theme.danger }}>Delete</Text></Pressable></View> : null}<Text style={[styles.reactionTitle, { color: theme.text }]}>React to message</Text><View style={styles.reactionOptions}>{REACTION_EMOJIS.map((emoji) => <Pressable accessibilityLabel={`React ${emoji}`} accessibilityRole="button" disabled={pending} key={emoji} onPress={() => onSelect(emoji)} style={[styles.reactionOption, message?.reacted_emojis?.includes(emoji) && { backgroundColor: theme.surfaceMuted }]}><Text style={styles.reactionEmoji}>{emoji}</Text></Pressable>)}</View></View></Pressable></Modal>; }
 function reactionEntries(reactions: Message['reactions']): Array<[string, number]> { if (!reactions || Array.isArray(reactions)) return []; return Object.entries(reactions).filter((entry): entry is [string, number] => typeof entry[1] === 'number' && entry[1] > 0); }
 function formatTime(value: string) { const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
 function IconButton({ label, onPress, children }: { label: string; onPress: () => void; children: React.ReactNode }) { return <Pressable accessibilityLabel={label} accessibilityRole="button" hitSlop={8} onPress={onPress} style={styles.iconButton}>{children}</Pressable>; }

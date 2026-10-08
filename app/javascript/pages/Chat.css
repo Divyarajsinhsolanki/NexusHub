@@ -251,3 +251,31 @@
 .nexus-chat-page .nx-chat-message:hover .nx-chat-message-tools,
 .nexus-chat-page .nx-chat-message:focus-within .nx-chat-message-tools { opacity: 1; pointer-events: auto; }
 @media (hover: none), (max-width: 767px) { .nexus-chat-page .nx-chat-message-tools { position: static; opacity: 1; pointer-events: auto; align-self: flex-end; } }
+
+.chat-edit-message { padding: 12px 16px; border-bottom: 1px solid var(--chat-border, #cbd5e1); display: grid; gap: 8px; }
+.chat-edit-message label { font-size: 12px; font-weight: 600; }
+.chat-edit-message textarea { width: 100%; min-height: 70px; max-height: 180px; resize: vertical; border: 1px solid #94a3b8; border-radius: 10px; padding: 10px; background: transparent; }
+.chat-edit-message button, .chat-context-return { padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; }
+.chat-edit-message button:focus-visible, .chat-context-return:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
+.chat-edit-message button:disabled { opacity: .5; }
+.chat-context-return { color: #2563eb; background: #eff6ff; }
+.dark .chat-context-return { color: #bae6fd; background: #172554; }
+.chat-action-error { padding: 10px 16px; color: #dc2626; font-size: 13px; }
+.nx-chat-message-tools { min-height: 28px; }
+@media (prefers-reduced-motion: reduce) {
+  .nexus-chat-message-list *, .chat-edit-message * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+
+.nexus-chat-page .nx-chat-message-tools { width: max-content; max-width: 180px; flex-wrap: wrap; }
+.nexus-chat-page .nx-chat-message-tools .chat-icon-button { width: 28px; height: 28px; }
+.chat-failed-send { display: flex; align-items: center; gap: 12px; padding: 8px 12px; font-size: 12px; color: #b91c1c; }
+.chat-failed-send span { flex: 1; min-width: 0; }
+.chat-failed-send button { flex-shrink: 0; font-weight: 600; text-decoration: underline; }
+.dark .chat-failed-send { color: #fca5a5; }
+.chat-mobile-message-menu { display: none; }
+@media (hover: none), (max-width: 767px) {
+  .chat-mobile-message-menu { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 26px; color: #64748b; border-radius: 8px; }
+  .chat-mobile-message-menu:focus-visible { outline: 2px solid #3b82f6; }
+  .nexus-chat-page .nx-chat-message-tools { display: none; }
+  .nexus-chat-page .nx-chat-message-tools[data-open="true"] { display: flex; }
+}

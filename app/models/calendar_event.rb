@@ -9,6 +9,7 @@ class CalendarEvent < ApplicationRecord
   belongs_to :task, optional: true
   belongs_to :sprint, optional: true
   belongs_to :recurrence_parent, class_name: 'CalendarEvent', optional: true
+  belongs_to :operation_source, polymorphic: true, optional: true
 
   has_many :event_reminders, dependent: :destroy
   has_many :recurrence_instances, class_name: 'CalendarEvent', foreign_key: :recurrence_parent_id, dependent: :nullify
@@ -42,8 +43,23 @@ class CalendarEvent < ApplicationRecord
           only: [:id, :channel, :minutes_before, :send_at, :sent_at, :state]
         }
       }
-    )
+    ).merge("managed_operation" => managed_operation?, "operation_path" => operation_path)
   end
+
+  def managed_operation?
+    operation_source_type.present?
+  end
+
+  def operation_path
+    Operations::Schedules.path_for(operation_source) if managed_operation? && operation_source
+  end
+
+  # Existing calendar membership includes inactive users. Managed operational
+  # records retain their stricter project membership policy in every calendar view.
+  scope :operations_visible_to, ->(user) {
+    active_projects = ProjectUser.where(user_id: user&.id, status: 'active').select(:project_id)
+    where(operation_source_type: nil).or(where(project_id: active_projects))
+  }
 
   def google_event_url
     params = {

@@ -27,7 +27,7 @@ class Message < ApplicationRecord
   end
 
   def body_or_attachment_present
-    return if body.present? || attachments.attached?
+    return if deleted_at.present? || body.present? || attachments.attached?
 
     errors.add(:base, "Message must include text or an attachment")
   end
@@ -64,21 +64,28 @@ class Message < ApplicationRecord
   def chat_context
     {
       message_type: message_type,
+      edited_at: edited_at, deleted_at: deleted_at, updated_at: updated_at,
+      editable_until: created_at && created_at + 15.minutes,
       reply_to_id: reply_to_id,
       reply_to: reply_to && {
-        id: reply_to.id, body: reply_to.body.to_s.truncate(300),
+        id: reply_to.id, body: reply_to.deleted_at? ? "Message deleted" : reply_to.body.to_s.truncate(300),
+        deleted_at: reply_to.deleted_at, updated_at: reply_to.updated_at,
         user_id: reply_to.user_id, user_name: reply_to.user.full_name,
-        attachment_count: reply_to.attachments.size
+        attachment_count: reply_to.deleted_at? ? 0 : reply_to.attachments.size
       }
     }
   end
 
   def reaction_counts
+    return {} if deleted_at?
+    return message_reactions.to_a.group_by(&:emoji).transform_values(&:size) if message_reactions.loaded?
+
     message_reactions.group(:emoji).count
   end
 
   def reacted_emojis_for(user)
-    return [] unless user
+    return [] unless user && !deleted_at?
+    return message_reactions.to_a.select { |reaction| reaction.user_id == user.id }.map(&:emoji).uniq if message_reactions.loaded?
 
     message_reactions.where(user_id: user.id).pluck(:emoji)
   end

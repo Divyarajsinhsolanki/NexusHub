@@ -171,7 +171,7 @@ class Api::AuthController < Api::BaseController
     end
 
     Chat::Broadcaster.broadcast_profile_updated(current_user.reload)
-    render json: { message: "User details updated successfully" }
+    render json: { message: "User details updated successfully", home_preferences: current_user.home_preferences }
   end
 
   private
@@ -198,6 +198,7 @@ class Api::AuthController < Api::BaseController
       :phone_number,
       :bio,
       social_links: {},
+      home_preferences: [:show_shortcuts, :show_overview, :show_due_tasks, :show_tasks, :show_projects, :show_birthdays, { shortcut_ids: [], card_order: [] }],
       notification_preferences: {},
       push_notification_settings: [
         :enabled,

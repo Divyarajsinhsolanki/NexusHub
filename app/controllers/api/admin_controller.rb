@@ -22,7 +22,7 @@ class Api::AdminController < Api::BaseController
     page = params[:page].to_i.positive? ? params[:page].to_i : 1
     per_page = params[:per_page].to_i.positive? ? [params[:per_page].to_i, 100].min : 20
 
-    records = @model.order(id: :desc)
+    records = admin_records.order(id: :desc)
 
     filters = filter_params
     records = records.where(filters) if filters.present?
@@ -67,20 +67,25 @@ class Api::AdminController < Api::BaseController
 
   def create
     record = @model.new(record_params)
+    return reject_managed_record if managed_record?(record)
     record.save!
     render json: serialize_record(record)
   end
   
   def update
-    record = @model.find(params[:id])
-    record.update!(record_params)
+    record = admin_records.find(params[:id])
+    record.assign_attributes(record_params)
+    return reject_managed_record if managed_record?(record)
+    record.save!
     render json: serialize_record(record)
   end
 
   def destroy
-    record = @model.find(params[:id])
+    record = admin_records.find(params[:id])
     record.destroy!
     render json: { success: true }
+  rescue ActiveRecord::RecordNotDestroyed => error
+    render json: { errors: error.record.errors.full_messages.presence || ['Record could not be deleted'] }, status: :unprocessable_entity
   end
 
   def reset_user_password
@@ -109,6 +114,22 @@ class Api::AdminController < Api::BaseController
 
   private
 
+  def admin_records
+    return @model.where(operation_source_type: nil) if @model == CalendarEvent
+    return @model.joins(:calendar_event).where(calendar_events: { operation_source_type: nil }) if @model == EventReminder
+
+    @model.all
+  end
+
+  def managed_record?(record)
+    (record.is_a?(CalendarEvent) && record.managed_operation?) ||
+      (record.is_a?(EventReminder) && record.calendar_event&.managed_operation?)
+  end
+
+  def reject_managed_record
+    render json: { error: 'Manage this record in Project Environments.' }, status: :unprocessable_entity
+  end
+
   def admin_user_scope
     return User.all if current_user.site_admin?
 
@@ -124,7 +145,7 @@ class Api::AdminController < Api::BaseController
   end
 
   def admin_model_names
-    Rails.cache.fetch("api_admin_model_names_v2", expires_in: 12.hours) do
+    Rails.cache.fetch("api_admin_model_names_v3_operations", expires_in: 12.hours) do
       Rails.application.eager_load!
 
       not_needed_tables = %w[
@@ -132,6 +153,13 @@ class Api::AdminController < Api::BaseController
         WebSession
         MobileSession
         McpAccessToken
+        ProjectEnvironment
+        ProjectOperationItem
+        ProjectOperationEntry
+        ProjectOperationChange
+        ProjectDeployment
+        ProjectDeploymentSeries
+        OperationReminderDelivery
         ActiveStorage::Blob
         ActiveStorage::Attachment
         ActiveStorage::VariantRecord
@@ -183,6 +211,8 @@ class Api::AdminController < Api::BaseController
   end
 
   def protected_admin_columns
+    return %i[operations_revision] if @model == Project
+    return %i[operation_source_type operation_source_id] if @model == CalendarEvent
     return [] unless @model == User
 
     %i[

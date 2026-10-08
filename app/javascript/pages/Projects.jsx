@@ -24,6 +24,7 @@ const PROJECT_WORKSPACE_TABS = [
     { key: "issues", label: "Issues", icon: FiAlertTriangle },
     { key: "sheet", label: "Sheet", icon: FiLink, requiresSheet: true },
     { key: "vault", label: "Vault", icon: FiArchive },
+    { key: "environments", label: "Environments", icon: FiGrid },
     { key: "settings", label: "Settings", icon: FiSettings },
 ];
 

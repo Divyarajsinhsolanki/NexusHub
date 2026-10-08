@@ -8,6 +8,7 @@ The Rails app serves both the JSON API and the React entrypoint. Vite handles th
 
 - Authenticated workspace with Devise session cookies, roles, profiles, settings, notifications, and optional Firebase Google sign-in.
 - Project and sprint management with task boards, sprint logs, issue tracking, members, project settings, and project vault items.
+- [Project Environments & Operations](docs/PROJECT_OPERATIONS.md) brings configuration matrices, encrypted credentials, software-version comparisons, service endpoints, licence renewals, and deployment verification/reminders into the project dashboard.
 - Work-log and momentum views for daily planning, priorities, tags, notes, meetings, and progress review.
 - Team features for departments, skills, endorsements, posts, comments, likes, chat, and mentions.
 - Quick meetings from Chat with shareable links: guests sign in and return to the
@@ -286,3 +287,33 @@ commands can be retried safely.
 - Firebase token errors: verify both browser `VITE_FIREBASE_*` values and server-side `FIREBASE_PROJECT_ID`.
 - Local chat call error `Could not connect to the call media server`: run `bin/livekit status`. If it is not reachable, run `bin/livekit start` and confirm `.env` has the matching `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET`. Use `LIVEKIT_URL=ws://localhost:7880` for browser/emulator-only development, or `ws://<computer-LAN-IP>:7880` when a physical phone must connect.
 - Render chat call error: configure a LiveKit Cloud `wss://` project URL and matching API credentials on the Render web service, then redeploy it.
+
+The synthetic demo also seeds Development, Staging, Production, QA, Preview, and Recovery inventories,
+configuration comparisons, a write-only sample credential, software version drift,
+service endpoints, a licence expiry, a planned release, and four weekly staging
+rehearsals. Additional examples cover missing required values, environment-specific
+settings, schema drift, unobserved software, missing service endpoints, expiring/expired
+and perpetual licences, and in-progress/deployed/failed/cancelled releases. Operations calendar projections are included; demo operations reminders
+are disabled so seed data does not send email. Rerunning `bin/rails app:seed`
+preserves existing operations records and updates portfolio content and tour links.
+Configuration values are populated only when `PROJECT_OPERATIONS_ENCRYPTION_KEY`
+is configured; otherwise required entries remain empty. Configure the stable key
+before the first seed to showcase encrypted sample values. No real credentials or
+infrastructure connections are created. See [Project Operations](docs/PROJECT_OPERATIONS.md).
+
+The demo workspace also includes all Vault categories (synthetic credentials/tokens,
+commands, runbooks, server/database inventories, release notes, and media previews),
+five synthetic users, four departments and teams, skill endorsements, and guided
+learning goals. Its feed has eleven posts, six bundled WebP attachments, comments,
+and likes. Media uses repository-owned product previews without external downloads.
+`bin/rails demo:seed` refreshes these examples without duplicating posts or attachments.
+
+Demo expansion adds distinct illustrated profile pictures, Mobile Companion and
+Knowledge Studio projects, three delivery cycles per project, tasks/logs/issues,
+and at least three examples per Project Vault category. Personal Vault is a
+separate collection: the guest gets twelve synthetic items across credentials,
+commands, tokens, and notes. To add the same examples to a specific local account,
+run `USER_ID=<id> bin/rails vault:seed`; existing personal items are preserved.
+The demo also includes personal priorities, daily logs/notes, seven chats, knowledge
+topics/history/archives/review-due bookmarks, and three PDF library records backed
+by the bundled sample document. PDF demo viewing remains read-only.

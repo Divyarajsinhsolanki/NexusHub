@@ -1,5 +1,5 @@
 import MemberProfileCard from "../components/ui/MemberProfileCard";
-import React, { useEffect, useState, useContext, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useContext, useCallback, useMemo, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -242,8 +242,8 @@ const ProfileStyleStatCard = ({ icon: Icon, label, value, detail, tone = "blue" 
 };
 
 const TeamCard = ({ team, isSelected, onClick }) => {
-    const activeMembers = team.users.filter((member) => member.status === "active").length;
-    const leads = team.users.filter((member) => member.role === "team_leader").length;
+    const activeMembers = team.users.filter((member) => member.status === "accepted").length;
+    const leads = team.users.filter((member) => member.role === "admin").length;
 
     return (
         <motion.div
@@ -273,7 +273,7 @@ const TeamCard = ({ team, isSelected, onClick }) => {
             <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
                 <span>{activeMembers} active</span>
                 <span>•</span>
-                <span>{leads} leads</span>
+                <span>{leads} admins</span>
             </div>
         </motion.div>
     );
@@ -311,7 +311,6 @@ const MemberRow = ({ member, canManage, isEditing, onEdit, onSave, onCancel, onR
                         disabled={isSaving}
                     >
                         <option value="admin">Admin</option>
-                        <option value="team_leader">Team Leader</option>
                         <option value="member">Member</option>
                         <option value="viewer">Viewer</option>
                     </select>
@@ -359,7 +358,7 @@ const Teams = () => {
     const { user } = useContext(AuthContext);
     const location = useLocation();
     const canEdit = user?.roles?.some((r) => ["owner", "team_leader"].includes(r.name));
-    const canManageMembers = user?.roles?.some((r) => r.name === "admin");
+    const canManageMembers = user?.roles?.some((r) => ["admin", "owner"].includes(r.name));
 
     // State
     const [teams, setTeams] = useState([]);
@@ -368,6 +367,7 @@ const Teams = () => {
     const [isSaving, setIsSaving] = useState(false);
     const [isInsightsLoading, setIsInsightsLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
+    const insightRequest = useRef(0);
     const [teamInsights, setTeamInsights] = useState(null);
     const [insightsTeamId, setInsightsTeamId] = useState(null);
 
@@ -412,25 +412,28 @@ const Teams = () => {
     }, [selectedTeamId]);
 
     const loadTeamInsights = useCallback(async (teamId) => {
+        const request = ++insightRequest.current;
         if (!teamId) {
             setTeamInsights(null);
             setInsightsTeamId(null);
             return;
         }
-        if (teamId !== insightsTeamId) setTeamInsights(null);
+        setTeamInsights(null);
         setInsightsTeamId(teamId);
         setIsInsightsLoading(true);
         try {
             const { data } = await fetchTeamInsights(teamId);
+            if (request !== insightRequest.current) return;
             setTeamInsights(data);
             setInsightsTeamId(teamId);
         } catch (error) {
+            if (request !== insightRequest.current) return;
             console.error("Failed to fetch team insights:", error);
             setTeamInsights(null);
         } finally {
-            setIsInsightsLoading(false);
+            if (request === insightRequest.current) setIsInsightsLoading(false);
         }
-    }, [insightsTeamId]);
+    }, []);
 
     const refreshInsights = useCallback(async () => {
         if (selectedTeamId) await loadTeamInsights(selectedTeamId);
@@ -440,7 +443,7 @@ const Teams = () => {
 
     useEffect(() => {
         if (selectedTeamId) loadTeamInsights(selectedTeamId);
-        else { setTeamInsights(null); setInsightsTeamId(null); }
+        else { insightRequest.current += 1; setTeamInsights(null); setInsightsTeamId(null); }
     }, [selectedTeamId, loadTeamInsights]);
 
     useEffect(() => {
@@ -708,10 +711,7 @@ const Teams = () => {
     );
 
     const selectedTeam = teams.find((t) => t.id === selectedTeamId);
-    const isTeamLeaderOfSelectedTeam = selectedTeam?.users?.some(
-        (teamUser) => teamUser.id === user?.id && teamUser.role === "team_leader"
-    );
-    const canManageSelectedTeamMembers = canManageMembers || isTeamLeaderOfSelectedTeam;
+    const canManageSelectedTeamMembers = canManageMembers;
     const isFormVisible = isCreatingNewTeam || editingId;
 
     const aggregatedStats = useMemo(() => {
@@ -990,14 +990,14 @@ const Teams = () => {
                                     <ProfileStyleStatCard
                                         icon={FiUsers}
                                         label="Active Members"
-                                        value={selectedTeam.users.filter((member) => member.status === 'active').length}
+                                        value={selectedTeam.users.filter((member) => member.status === 'accepted').length}
                                         detail={`${selectedTeam.users.length} total members`}
                                         tone="blue"
                                     />
                                     <ProfileStyleStatCard
                                         icon={FiAward}
-                                        label="Team Leaders"
-                                        value={selectedTeam.users.filter((member) => member.role === 'team_leader').length}
+                                        label="Team Admins"
+                                        value={selectedTeam.users.filter((member) => member.role === 'admin').length}
                                         detail={`${teamInsights?.team_experts?.length || 0} recognized experts`}
                                         tone="purple"
                                     />
@@ -1077,8 +1077,7 @@ const Teams = () => {
                                                 className="w-full px-4 py-2.5 bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
                                             >
                                                 <option value="admin">Admin</option>
-                                                <option value="team_leader">Team Leader</option>
-                                                <option value="member">Member</option>
+                                                                        <option value="member">Member</option>
                                                 <option value="viewer">Viewer</option>
                                             </select>
                                         </div>

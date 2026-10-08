@@ -9,6 +9,8 @@ import PageLoader from "../components/ui/PageLoader";
 import { logoutDestination } from "../config/features";
 import { safeReturnPath } from "../utils/safeReturnPath";
 
+import { clearChatDrafts } from "../utils/chatState";
+
 export const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
@@ -31,6 +33,34 @@ export function AuthProvider({ children }) {
       document.documentElement.classList.remove('dark');
     }
   }, [user?.color_theme, user?.dark_mode]);
+
+  // Re-read account preferences when returning to the app or another tab saves them.
+  useEffect(() => {
+    if (!user?.id) return;
+    let active = true;
+    let loading = false;
+    const refreshHomePreferences = async () => {
+      if (loading || document.visibilityState === 'hidden') return;
+      loading = true;
+      try {
+        const { data } = await api.get('/session', { skipAuthRetry: true });
+        if (active && data.user?.id === user.id) {
+          setUser(current => current?.id === user.id ? { ...current, home_preferences: data.user.home_preferences } : current);
+        }
+      } catch { /* Keep the last saved settings while offline. */ }
+      finally { loading = false; }
+    };
+    const onStorage = event => { if (event.key === `nexus-home-preferences-updated:${user.id}`) refreshHomePreferences(); };
+    window.addEventListener('focus', refreshHomePreferences);
+    window.addEventListener('storage', onStorage);
+    document.addEventListener('visibilitychange', refreshHomePreferences);
+    return () => {
+      active = false;
+      window.removeEventListener('focus', refreshHomePreferences);
+      window.removeEventListener('storage', onStorage);
+      document.removeEventListener('visibilitychange', refreshHomePreferences);
+    };
+  }, [user?.id]);
 
   // Clear timer on unmount
   useEffect(() => () => clearTimeout(refreshTimer.current), []);
@@ -125,6 +155,7 @@ export function AuthProvider({ children }) {
 
   const handleLogout = async () => {
     await api.delete("/logout");
+    clearChatDrafts();
     setUser(null);
     clearTimeout(refreshTimer.current);
     navigate(logoutDestination(), { replace: true });

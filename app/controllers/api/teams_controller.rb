@@ -226,6 +226,7 @@ class Api::TeamsController < Api::BaseController
         job_title: user_skill.user.job_title,
         skill_name: user_skill.skill.name,
         endorsements_count: user_skill.endorsements_count,
+        avatar_color: user_skill.user.avatar_color,
         profile_picture: profile_picture_url(user_skill.user)
       }
     end
@@ -252,11 +253,15 @@ class Api::TeamsController < Api::BaseController
         created_at_human: time_ago_in_words(endorsement.created_at),
         endorser: {
           id: endorsement.endorser_id,
-          name: endorsement.endorser.full_name.presence || endorsement.endorser.email
+          name: endorsement.endorser.full_name.presence || endorsement.endorser.email,
+          avatar_color: endorsement.endorser.avatar_color,
+          profile_picture: profile_picture_url(endorsement.endorser)
         },
         endorsee: {
           id: endorsement.user_skill.user_id,
-          name: endorsement.user_skill.user.full_name.presence || endorsement.user_skill.user.email
+          name: endorsement.user_skill.user.full_name.presence || endorsement.user_skill.user.email,
+          avatar_color: endorsement.user_skill.user.avatar_color,
+          profile_picture: profile_picture_url(endorsement.user_skill.user)
         }
       }
     end

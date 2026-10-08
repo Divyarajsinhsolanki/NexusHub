@@ -1,5 +1,6 @@
 class Api::MessageReactionsController < Api::BaseController
   before_action :set_message
+  around_action :with_live_message
 
   def create
     reaction = @message.message_reactions.find_or_initialize_by(user: current_user, emoji: reaction_params[:emoji])
@@ -22,7 +23,14 @@ class Api::MessageReactionsController < Api::BaseController
 
   def set_message
     conversation = Conversation.for_user(current_user).find(params[:conversation_id])
-    @message = conversation.messages.find(params[:message_id])
+    @message = conversation.messages.where(deleted_at: nil, message_type: "message").find(params[:message_id])
+  end
+
+  def with_live_message
+    @message.with_lock do
+      raise ActiveRecord::RecordNotFound if @message.deleted_at?
+      yield
+    end
   end
 
   def reaction_params

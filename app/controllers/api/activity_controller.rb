@@ -80,6 +80,7 @@ class Api::ActivityController < Api::BaseController
     CalendarEvent
       .where(user_id: current_user.id)
       .or(CalendarEvent.where(visibility: "project", project_id: project_ids))
+      .operations_visible_to(current_user)
       .where("end_at >= ?", Time.current.beginning_of_day)
       .distinct
   end

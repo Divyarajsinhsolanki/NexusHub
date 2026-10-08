@@ -169,7 +169,7 @@ Rails.application.routes.draw do
         end
         resources :calls, controller: "/api/conversation_calls", only: [:create]
         resource :receipt, controller: "/api/conversation_receipts", only: [:update]
-        resources :messages, controller: "/api/messages", only: [:index, :create] do
+        resources :messages, controller: "/api/messages", only: [:index, :create, :update, :destroy] do
           resources :reactions, controller: "/api/message_reactions", only: [:create]
           delete :reactions, to: "/api/message_reactions#destroy"
         end
@@ -311,6 +311,25 @@ Rails.application.routes.draw do
     resources :learning_checkpoints, only: [:create, :update, :destroy]
 
     resources :projects, only: [:index, :create, :update, :destroy] do
+      get 'operations', to: 'project_operations#index'
+      get 'operations/history', to: 'project_operations#history'
+      post 'operations/items', to: 'project_operations#create'
+      patch 'operations/items/:id', to: 'project_operations#update'
+      delete 'operations/items/:id', to: 'project_operations#destroy'
+      put 'operations/items/:id/entries/:environment_id', to: 'project_operations#update_entry'
+      patch 'operations/items/:id/entries/:environment_id', to: 'project_operations#update_entry'
+      post 'operations/imports/preview', to: 'project_operations#import_preview'
+      post 'operations/imports/commit', to: 'project_operations#import_commit'
+      get 'operations/deployments', to: 'project_deployments#index'
+      post 'operations/deployments', to: 'project_deployments#create'
+      patch 'operations/deployments/:id', to: 'project_deployments#update'
+      delete 'operations/deployments/:id', to: 'project_deployments#destroy'
+      post 'operations/deployments/:id/transition', to: 'project_deployments#transition'
+      post 'operations/deployments/:id/observations', to: 'project_deployments#observations'
+      post 'operations/deployments/:id/verify', to: 'project_deployments#verify'
+      post 'operations/deployment_series', to: 'project_deployments#create_series'
+      patch 'operations/deployment_series/:id', to: 'project_deployments#update_series'
+      delete 'operations/deployment_series/:id', to: 'project_deployments#destroy_series'
       resources :environments, controller: 'project_environments', only: [:index, :create, :update, :destroy]
       resources :vault_items, controller: 'project_vault_items', only: [:index, :create, :update, :destroy]
     end
@@ -377,7 +396,7 @@ Rails.application.routes.draw do
       end
       resources :calls, controller: "conversation_calls", only: [:create]
       resource :receipt, controller: "conversation_receipts", only: [:update]
-      resources :messages, only: [:index, :create] do
+      resources :messages, only: [:index, :create, :update, :destroy] do
         resources :reactions, controller: "message_reactions", only: [:create]
         delete "reactions", to: "message_reactions#destroy"
       end

@@ -28,6 +28,7 @@
     "@livekit/components-react": "^2.9.23",
     "@livekit/components-styles": "^1.2.0",
     "@react-pdf/renderer": "^4.5.1",
+    "@tanstack/react-virtual": "3.14.3",
     "axios": "^1.18.1",
     "date-fns": "^4.4.0",
     "firebase": "^12.15.0",

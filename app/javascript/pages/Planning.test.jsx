@@ -15,6 +15,14 @@ import { createWorkLog, getWorkLogs, fetchCalendarEvents } from "../components/a
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 const mount = () => render(<MemoryRouter initialEntries={["/planning?date=2026-10-07"]}><Planning /></MemoryRouter>);
 describe("Planning", () => {
+  it("opens managed operations records instead of editing their calendar projections", async () => {
+    fetchCalendarEvents.mockResolvedValueOnce({ data: [{ id: 7, title: "Licence renewal", start_at: "2026-10-07T09:00:00", end_at: "2026-10-07T10:00:00", event_type: "deadline", managed_operation: true, operation_path: "/projects/4/dashboard?tab=environments&section=licenses&record=9" }] });
+    mount();
+    const link = await screen.findByRole("link", { name: "Open Licence renewal" });
+    expect(link.getAttribute("href")).toBe("/projects/4/dashboard?tab=environments&section=licenses&record=9");
+    expect(screen.queryByRole("button", { name: "Edit Licence renewal" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Delete Licence renewal" })).toBeNull();
+  });
   it("combines events, work entries, and focus tasks for the selected day", async () => {
     mount();
     await screen.findByText("Team meeting");

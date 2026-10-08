@@ -1,43 +1,32 @@
 class Api::ProjectEnvironmentsController < Api::BaseController
   before_action :set_project
-  before_action :set_environment, only: [:update, :destroy]
-  before_action :authorize_project_member
-  around_action :log_project_dashboard_exceptions
+  before_action :set_environment, only: %i[update destroy]
+
+  rescue_from Operations::Error, ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed do |error|
+    message = error.is_a?(Operations::Error) ? error.message : 'The environment could not be saved. Check its name and references.'
+    render json: { error: message }, status: :unprocessable_entity
+  end
+  rescue_from Operations::Forbidden do
+    render json: { error: 'Not authorized' }, status: :forbidden
+  end
+  rescue_from Operations::StaleRevision do
+    render json: { error: 'This project changed. Refresh before saving.' }, status: :conflict
+  end
 
   def index
-    environments = @project.project_environments.order(:name)
-    render json: environments
+    render json: @project.project_environments.order(:name)
   end
 
   def create
-    environment = @project.project_environments.build(environment_params)
-    if environment.save
-      render json: environment, status: :created
-    else
-      log_project_event(
-        :error,
-        'Project environment creation failed',
-        payload: { project_id: @project.id, name: environment.name, errors: environment.errors.full_messages }
-      )
-      render json: { errors: environment.errors.full_messages }, status: :unprocessable_entity
-    end
+    render json: mutate('create')[:environment], status: :created
   end
 
   def update
-    if @environment.update(environment_params)
-      render json: @environment
-    else
-      log_project_event(
-        :error,
-        'Project environment update failed',
-        payload: { project_id: @project.id, environment_id: @environment.id, name: @environment.name, errors: @environment.errors.full_messages }
-      )
-      render json: { errors: @environment.errors.full_messages }, status: :unprocessable_entity
-    end
+    render json: mutate('update')[:environment]
   end
 
   def destroy
-    @environment.destroy
+    mutate('delete')
     head :no_content
   end
 
@@ -45,20 +34,18 @@ class Api::ProjectEnvironmentsController < Api::BaseController
 
   def set_project
     @project = Project.find(params[:project_id])
+    Operations::Policy.new(@project, current_user).authorize_read!
   end
 
   def set_environment
     @environment = @project.project_environments.find(params[:id])
   end
 
-  def authorize_project_member
-    return if @project.users.include?(current_user)
-
-    log_project_event(:warn, 'Project environment authorization failed', payload: { project_id: @project.id })
-    render json: { error: 'Not authorized' }, status: :forbidden
-  end
-
-  def environment_params
-    params.require(:project_environment).permit(:name, :url, :description)
+  def mutate(action)
+    Operations::Environments.call(
+      project: @project, actor: current_user, action: action,
+      environment: @environment, revision: params[:revision], reason: params[:reason],
+      attributes: action == 'delete' ? {} : params.require(:project_environment).permit(:name, :url, :description).to_h.symbolize_keys
+    )
   end
 end

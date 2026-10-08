@@ -3,8 +3,9 @@ class Workspace < ApplicationRecord
   KINDS = %w[private demo].freeze
   BILLING_STATUSES = %w[trialing active past_due canceled].freeze
 
-  has_many :users, dependent: :destroy
+  # Remove project-owned operations before their owners during workspace removal.
   has_many :projects, dependent: :destroy
+  has_many :users, dependent: :destroy
   has_many :teams, dependent: :destroy
   has_many :knowledge_prompt_runs, dependent: :destroy
   has_many :knowledge_items, dependent: :destroy

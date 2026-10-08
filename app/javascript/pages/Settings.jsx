@@ -1,4 +1,6 @@
 import React, { useContext, useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
+import HomeShortcutSettings from "../components/settings/HomeShortcutSettings";
 import api from "../components/api";
 import { AuthContext } from "../context/AuthContext";
 import { COLOR_MAP, THEME_PRESETS } from "/utils/theme";
@@ -105,6 +107,9 @@ const planPriceLabel = (plan) => {
 };
 
 const Settings = () => {
+  const location = useLocation();
+  const [selectedTab, setSelectedTab] = useState(() => new URLSearchParams(location.search).get("tab") === "home" ? 5 : 0);
+  useEffect(() => { if (new URLSearchParams(location.search).get("tab") === "home") setSelectedTab(5); }, [location.search]);
   const { user, setUser } = useContext(AuthContext);
   const initialColor = COLOR_MAP[user?.color_theme] || user?.color_theme || "#3b82f6";
   const defaultNotificationPrefs = {
@@ -236,6 +241,7 @@ const Settings = () => {
     { name: 'Appearance', icon: Palette },
     { name: 'Notifications', icon: Bell },
     { name: 'Security', icon: Shield },
+    { name: 'Home', icon: Boxes },
   ];
 
   return (
@@ -246,7 +252,7 @@ const Settings = () => {
           <p className="mt-1 text-sm text-muted">Manage your account preferences and application settings.</p>
         </div>
 
-        <Tab.Group as="div" className="lg:grid lg:grid-cols-12 lg:gap-x-8">
+        <Tab.Group selectedIndex={selectedTab} onChange={setSelectedTab} as="div" className="lg:grid lg:grid-cols-12 lg:gap-x-8">
           <aside className="py-6 lg:col-span-3 lg:py-0">
             <Tab.List className="flex flex-col space-y-1">
               {tabs.map((tab) => (
@@ -641,6 +647,7 @@ const Settings = () => {
                   </div>
                 </div>
               </Tab.Panel>
+              <Tab.Panel className="p-6 focus:outline-none"><HomeShortcutSettings /></Tab.Panel>
             </Tab.Panels>
           </main>
         </Tab.Group>

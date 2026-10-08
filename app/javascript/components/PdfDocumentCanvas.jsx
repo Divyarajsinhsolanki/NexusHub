@@ -979,7 +979,7 @@ const PdfDocumentCanvas = ({
   return (
     <div
       ref={containerRef}
-      className="nexus-pdf-canvas h-full min-h-0 w-full overflow-auto bg-slate-100/80 p-2 sm:p-4 md:p-8"
+      className="nexus-pdf-canvas h-full min-h-0 w-full overflow-auto bg-slate-100/80 p-2 sm:p-3"
       aria-label="PDF document viewer"
     >
       {error ? (

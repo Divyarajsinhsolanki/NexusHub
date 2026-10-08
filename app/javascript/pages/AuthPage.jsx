@@ -2,6 +2,8 @@ import React, { useContext, useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import Login from "./Login";
 import Signup from "./Signup";
+import ForgotPassword from "./ForgotPassword";
+import AuthLayout from "../components/ui/AuthLayout";
 import { AuthContext } from "../context/AuthContext";
 import { safeReturnPath } from "../utils/safeReturnPath";
 
@@ -27,13 +29,15 @@ function AuthPage({ mode = "login" }) {
   }
 
   return (
-    <>
+    <AuthLayout>
         {current === "signup" ? (
-          <Signup switchToLogin={() => setCurrent("login")} />
+          <Signup embedded switchToLogin={() => setCurrent("login")} />
+        ) : current === "forgot-password" ? (
+          <ForgotPassword embedded switchToLogin={() => setCurrent("login")} />
         ) : (
-          <Login switchToSignup={() => setCurrent("signup")} />
+          <Login embedded switchToSignup={() => setCurrent("signup")} switchToForgotPassword={() => setCurrent("forgot-password")} />
         )}
-    </>
+    </AuthLayout>
   );
 }
 
