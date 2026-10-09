@@ -154,6 +154,32 @@ class PdfDocumentsTest < ActionDispatch::IntegrationTest
     source&.close!
   end
 
+  test "stale undo redo and original restoration do not replace newer edits" do
+    source = create_test_pdf(pages: 1)
+    Current.user, Current.workspace = @user, @workspace
+    document = PdfDocuments::Manager.create_from_path!(user: @user, path: source.path, filename: "history-conflict.pdf")
+    original = document.current_version_id
+    PdfDocuments::Processor.new(document:, user: @user).edit!(kind: "rotate_pages",
+      parameters: { page_numbers: [1], degrees: 90 }, base_version_id: original)
+    current = document.reload.current_version_id
+    %w[undo redo restore_original].each do |direction|
+      post "/api/pdf_documents/#{document.id}/#{direction}", params: { base_version_id: original }
+      assert_response :conflict, response.body
+      assert_equal current, document.reload.current_version_id
+    end
+    post "/api/pdf_documents/#{document.id}/undo", params: { base_version_id: current }
+    assert_response :success, response.body
+    assert_equal original, document.reload.current_version_id
+    post "/api/pdf_documents/#{document.id}/redo", params: { base_version_id: original }
+    assert_response :success, response.body
+    assert_equal current, document.reload.current_version_id
+    post "/api/pdf_documents/#{document.id}/restore_original", params: { base_version_id: current }
+    assert_response :success, response.body
+    assert_equal original, document.reload.current_version_id
+  ensure
+    source&.close!
+  end
+
   test "runs an annotation operation and flattens shapes into a new version" do
     source = create_test_pdf(pages: 1)
     Current.user = @user

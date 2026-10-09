@@ -1,7 +1,8 @@
-export const PUSH_SCHEMA_VERSION = 2;
+export const PUSH_SCHEMA_VERSION = 3;
 export const BACKGROUND_NOTIFICATION_TASK = 'nexus-background-notification-v2';
 
 export const NOTIFICATION_CHANNELS = {
+  knowledge: 'nexus_knowledge_v1',
   chat: 'nexus_chat_v1',
   audioCall: 'nexus_audio_calls_v1',
   videoCall: 'nexus_video_calls_v1',
@@ -11,6 +12,7 @@ export const NOTIFICATION_CHANNELS = {
 } as const;
 
 export const NOTIFICATION_SOUNDS = {
+  knowledge: 'nexus_knowledge.wav',
   chat: 'nexus_chat.wav',
   audioCall: 'nexus_audio_call.wav',
   videoCall: 'nexus_video_call.wav',

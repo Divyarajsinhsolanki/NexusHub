@@ -511,8 +511,8 @@ export const endpoints = {
     const response = await api.get<ApiEnvelope<PdfOperation>>(`/pdf_document_operations/${id}`);
     return unwrapData(response.data);
   },
-  async pdfHistoryAction(id: number, action: 'undo' | 'redo' | 'restore_original') {
-    const response = await api.post<ApiEnvelope<PdfDocument>>(`/pdf_documents/${id}/${action}`);
+  async pdfHistoryAction(id: number, action: 'undo' | 'redo' | 'restore_original', baseVersionId?: number) {
+    const response = await api.post<ApiEnvelope<PdfDocument>>(`/pdf_documents/${id}/${action}`, baseVersionId == null ? undefined : { base_version_id: baseVersionId });
     return unwrapData(response.data);
   },
   notifications(beforeId?: number) {

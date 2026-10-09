@@ -7,6 +7,8 @@ describe('normalizeMobileDeepLink', () => {
     expect(normalizeMobileDeepLink('/projects/3/dashboard?tab=environments&operation=license&record=7')).toBe('/projects/3/environments');
     expect(normalizeMobileDeepLink('/notifications')).toBe('/inbox/notifications');
     expect(normalizeMobileDeepLink('/chat/42')).toBe('/chat/42');
+    expect(normalizeMobileDeepLink('/chat/42?messageId=8')).toBe('/chat/42?messageId=8');
+    expect(normalizeMobileDeepLink('/knowledge?itemId=7')).toBe('/more/knowledge?itemId=7');
     expect(normalizeMobileDeepLink('/posts/9')).toBe('/inbox/post/9');
   });
 

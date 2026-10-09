@@ -2,7 +2,7 @@ class Api::KnowledgeItemsController < Api::BaseController
   before_action :set_knowledge_item, only: [:archive]
 
   def index
-    records = current_user.knowledge_items.includes(:knowledge_prompt_run).latest_first
+    records = KnowledgeItem.visible_to(current_user).includes(:knowledge_prompt_run).latest_first
     records = records.where(active: ActiveModel::Type::Boolean.new.cast(params[:active])) if params.key?(:active)
     records = records.where(category: params[:category]) if params[:category].present?
     records = records.where(collection_name: params[:collection_name]) if params[:collection_name].present?
@@ -35,6 +35,8 @@ class Api::KnowledgeItemsController < Api::BaseController
   def serialize_item(item)
     {
       id: item.id,
+      can_archive: item.user_id == current_user.id,
+      workspace_shared: item.payload["workspace_shared"] == true && item.knowledge_prompt_run&.source == "bedrock_daily",
       title: item.title,
       summary: item.summary,
       body: item.body,

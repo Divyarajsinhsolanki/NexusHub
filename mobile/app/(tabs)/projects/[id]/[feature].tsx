@@ -1,4 +1,4 @@
-import { canOpenProject } from "@/src/utils/projectAccess";
+import { canOpenProject, canEditProject, canManageProject } from "@/src/utils/projectAccess";
 import { MemberPreview } from "@/src/components/MemberPreview";
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Picker } from '@react-native-picker/picker';
@@ -37,9 +37,9 @@ export default function ProjectFeatureScreen() {
   if (feature === 'sprints' || feature === 'scheduler') return <ProjectSprintsScreen />;
   if (feature === 'statistics') return <ProjectStatisticsScreen />;
   if (feature === 'issues') return <IssuesScreen />;
-  if (feature === 'environments') return <EntityCollectionScreen title="Environments" subtitle="Project URLs and deployment notes" path={`/projects/${projectId}/environments`} wrapper="project_environment" primary="name" secondary={['url', 'description']} fields={[{ key: 'name', label: 'Environment name' }, { key: 'url', label: 'URL' }, { key: 'description', label: 'Description', multiline: true }]} />;
-  if (feature === 'vault') return <EntityCollectionScreen title="Project vault" subtitle="Credentials, references, and environment notes" path={`/projects/${projectId}/vault_items`} wrapper="project_vault_item" primary="title" secondary={['category', 'username']} fields={[{ key: 'title', label: 'Title' }, { key: 'category', label: 'Category' }, { key: 'username', label: 'Username' }, { key: 'content', label: 'Content', multiline: true }]} />;
-  if (feature === 'logs') return <EntityCollectionScreen title="Task logs" subtitle="Delivery effort and status records" path="/task_logs" params={{ project_id: projectId }} wrapper="task_log" primary="type" secondary={['log_date', 'hours_logged', 'status']} fields={[{ key: 'task_id', label: 'Task ID' }, { key: 'developer_id', label: 'Developer ID' }, { key: 'type', label: 'Log type' }, { key: 'log_date', label: 'Log date', placeholder: 'YYYY-MM-DD' }, { key: 'hours_logged', label: 'Hours' }, { key: 'status', label: 'Status' }]} />;
+  if (feature === 'environments') return <EntityCollectionScreen canWrite={project.data?.can_operate === true} title="Environments" subtitle="Project URLs and deployment notes" path={`/projects/${projectId}/environments`} wrapper="project_environment" primary="name" secondary={['url', 'description']} fields={[{ key: 'name', label: 'Environment name' }, { key: 'url', label: 'URL' }, { key: 'description', label: 'Description', multiline: true }]} />;
+  if (feature === 'vault') return <EntityCollectionScreen canWrite={canEditProject(project.data, user)} title="Project vault" subtitle="Credentials, references, and environment notes" path={`/projects/${projectId}/vault_items`} wrapper="project_vault_item" primary="title" secondary={['category', 'username']} fields={[{ key: 'title', label: 'Title' }, { key: 'category', label: 'Category' }, { key: 'username', label: 'Username' }, { key: 'content', label: 'Content', multiline: true }]} />;
+  if (feature === 'logs') return <EntityCollectionScreen canWrite={canEditProject(project.data, user)} title="Task logs" subtitle="Delivery effort and status records" path="/task_logs" params={{ project_id: projectId }} wrapper="task_log" primary="type" secondary={['log_date', 'hours_logged', 'status']} fields={[{ key: 'task_id', label: 'Task ID' }, { key: 'developer_id', label: 'Developer ID' }, { key: 'type', label: 'Log type' }, { key: 'log_date', label: 'Log date', placeholder: 'YYYY-MM-DD' }, { key: 'hours_logged', label: 'Hours' }, { key: 'status', label: 'Status' }]} />;
   if (feature === 'settings') return <ProjectSettingsScreen projectId={projectId} />;
   return <Screen><EmptyState title="Project feature unavailable" message="This project module is not enabled." /></Screen>;
 }
@@ -49,7 +49,6 @@ function MembersScreen({ projectId }: { projectId: number }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const canManage = !user?.demo_account && Boolean(user?.permissions?.includes('project_members.manage'));
   const [editing, setEditing] = useState<EntityRecord | null | undefined>(undefined);
   const [selectedUserId, setSelectedUserId] = useState<number | undefined>();
   const [role, setRole] = useState('collaborator');
@@ -57,6 +56,7 @@ function MembersScreen({ projectId }: { projectId: number }) {
   const [allocation, setAllocation] = useState('50');
   const [workload, setWorkload] = useState('partial');
   const project = useQuery({ queryKey: ['project', projectId], queryFn: () => endpoints.project(projectId) });
+  const canManage = canManageProject(project.data, user);
   const people = useQuery({ queryKey: ['users', 'project-member-options'], queryFn: () => endpoints.users(), enabled: canManage });
   const memberIds = new Set((project.data?.users || []).map((member) => member.id));
   const available = (people.data?.data || []).filter((person) => !memberIds.has(person.id));
@@ -101,8 +101,8 @@ function ProjectSettingsScreen({ projectId }: { projectId: number }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const canManage = !user?.demo_account && Boolean(user?.permissions?.includes('projects.manage'));
   const project = useQuery({ queryKey: ['project', projectId], queryFn: () => endpoints.project(projectId), enabled: Number.isFinite(projectId) });
+  const canManage = canManageProject(project.data, user);
   const [draft, setDraft] = useState<ProjectSettingsDraft>(draftFromProject());
 
   useEffect(() => {

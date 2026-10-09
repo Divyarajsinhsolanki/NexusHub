@@ -35,7 +35,7 @@ class NotificationCatalogTest < ActiveSupport::TestCase
     assert_equal "/chat/7", catalog.deep_link
     assert_not_includes catalog.message, "<b>"
     assert_operator catalog.message.length, :<=, 130
-    assert_equal "4 new messages in Design", catalog.message(aggregate_count: 4)
+    assert_equal "4 new messages in Design — #{catalog.message}", catalog.message(aggregate_count: 4)
   end
 
   test "uses call routes and distinct audio and video channels" do

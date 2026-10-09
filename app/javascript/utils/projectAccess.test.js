@@ -14,4 +14,8 @@ describe("project workspace access", () => {
     expect(canOpenProjectWorkspace({}, { id: 1 })).toBe(false);
     expect(canOpenProjectWorkspace({ users: [null, {}] }, {})).toBe(false);
   });
+  it('accepts authoritative access flags and project owners without memberships', () => {
+    expect(canOpenProjectWorkspace({ can_access: true, users: [] }, { id: 1 })).toBe(true);
+    expect(canOpenProjectWorkspace({ owner_id: 1, users: [] }, { id: '1' })).toBe(true);
+  });
 });

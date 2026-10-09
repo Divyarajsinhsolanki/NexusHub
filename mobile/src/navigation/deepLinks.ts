@@ -12,6 +12,8 @@ export function normalizeMobileDeepLink(deepLink: unknown) {
     if (destination.searchParams.get('tab') === 'environments') return `${destination.pathname.replace(/\/dashboard$/, '')}/environments`;
   }
 
+  if (/^\/knowledge(?:\?|$)/.test(path)) return path.replace(/^\/knowledge/, '/more/knowledge');
+
   if (path === '/notifications') return '/inbox/notifications';
   if (path === '/chat') return '/inbox';
   if (path.startsWith('/chat/')) return path;

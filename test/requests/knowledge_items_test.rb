@@ -68,6 +68,31 @@ class KnowledgeItemsTest < ActionDispatch::IntegrationTest
     assert @item.reload.archived_at.present?
   end
 
+  test "workspace members see daily cards but cannot archive another owner's cards" do
+    owner = create_test_user(workspace: @workspace, email: "daily-api-owner@example.test")
+    Current.set(workspace: @workspace, user: owner) do
+      run = owner.knowledge_prompt_runs.create!(prompt: "Daily tech", source: "bedrock_daily")
+      @shared = owner.knowledge_items.create!(knowledge_prompt_run: run, title: "Shared daily tip", payload: { workspace_shared: true })
+      private_run = owner.knowledge_prompt_runs.create!(prompt: "Private note")
+      owner.knowledge_items.create!(knowledge_prompt_run: private_run, title: "Owner private note")
+    end
+    Current.set(workspace: @foreign_workspace, user: @foreign_user) do
+      run = @foreign_user.knowledge_prompt_runs.create!(prompt: "Foreign daily", source: "bedrock_daily")
+      @foreign_user.knowledge_items.create!(knowledge_prompt_run: run, title: "Foreign daily tip", payload: { workspace_shared: true })
+    end
+    Current.reset_all
+    get "/api/knowledge_items", headers: json_headers
+    assert_response :success
+    items = JSON.parse(response.body)
+    shared = items.find { |item| item["id"] == @shared.id }
+    assert shared["workspace_shared"]
+    assert_equal false, shared["can_archive"]
+    assert_not items.any? { |item| ["Owner private note", "Foreign daily tip"].include?(item["title"]) }
+    patch "/api/knowledge_items/#{@shared.id}/archive", headers: json_headers
+    assert_response :not_found
+    assert @shared.reload.active?
+  end
+
   private
 
   def login_as(user)

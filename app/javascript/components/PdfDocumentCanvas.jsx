@@ -8,6 +8,7 @@ import React, {
 } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/TextLayer.css";
+import "react-pdf/dist/Page/AnnotationLayer.css";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { AlertTriangle, GripVertical, Loader2 } from "lucide-react";
 import {
@@ -49,6 +50,22 @@ const rotationTransform = (shape) =>
   shape.rotation
     ? `rotate(${shape.rotation} ${shape.x + shape.width / 2} ${shape.y + shape.height / 2})`
     : undefined;
+
+// Render document links, not executable actions or embedded file launchers.
+const filterPdfLinks = ({ annotations }) =>
+  annotations.filter((annotation) => {
+    if (annotation.annotationType !== pdfjs.AnnotationType.LINK) return false;
+    if (annotation.url) {
+      try {
+        return ["http:", "https:", "mailto:", "tel:"].includes(
+          new URL(annotation.url).protocol,
+        );
+      } catch {
+        return false;
+      }
+    }
+    return Boolean(annotation.dest) && !annotation.unsafeUrl;
+  });
 
 const defaultShape = (tool, point, pageNumber) => {
   const common = {
@@ -188,10 +205,6 @@ const Shape = ({ shape, editable, onPointerDown, onSelect }) => {
   const redaction = shape.type === "redact";
   const mode = shape.redaction_mode || "black";
   const redactionColor = shape.replacement_color || "#111827";
-  const replacementFontSize = Math.max(
-    6,
-    Math.min(shape.font_size || 14, Math.max(6, shape.height - 4)),
-  );
   const fill = redaction
     ? mode === "black"
       ? "#000000"
@@ -268,17 +281,6 @@ const Shape = ({ shape, editable, onPointerDown, onSelect }) => {
           strokeWidth={shape.stroke_width || 3}
         />
       ) : null}
-      {redaction && mode === "replace" && shape.replacement_text ? (
-        <text
-          x={shape.x + 3}
-          y={shape.y + shape.height / 2 + replacementFontSize * 0.34}
-          fill={redactionColor}
-          fontFamily="DejaVu Sans, sans-serif"
-          fontSize={replacementFontSize}
-        >
-          {shape.replacement_text}
-        </text>
-      ) : null}
     </g>
   );
 };
@@ -325,6 +327,9 @@ const TextShapeOverlay = ({
   ariaLabel,
   fontWeight = 700,
   textAlign = "left",
+  padding = 4,
+  leadingFactor = 0.15,
+  verticalAlign = "top",
 }) => {
   const textareaRef = useRef(null);
   const measureContextRef = useRef(null);
@@ -332,6 +337,7 @@ const TextShapeOverlay = ({
   const [appearance, setAppearance] = useState({
     size: requestedSize,
     baselineOffset: 0,
+    verticalOffset: 0,
   });
   useLayoutEffect(() => {
     const textarea = textareaRef.current;
@@ -341,24 +347,36 @@ const TextShapeOverlay = ({
       if (cancelled) return;
       let size = requestedSize;
       const previousHeight = textarea.style.height;
+      const previousPadding = textarea.style.padding;
+      const previousFontSize = textarea.style.fontSize;
+      const previousLineHeight = textarea.style.lineHeight;
+      // Reset any previous centering padding before measuring wrapped content.
+      textarea.style.padding = `${padding * scale}px`;
+      let textHeight = 0;
       const tooLarge = () => {
-        const lineHeight = size * 1.199 + requestedSize * 0.15;
+        const lineHeight = size * 1.199 + requestedSize * leadingFactor;
         textarea.style.fontSize = `${size * scale}px`;
         textarea.style.lineHeight = `${lineHeight * scale}px`;
         // Prawn places the first baseline at its OS/2 ascender, and measures
         // the last line through its descender rather than a full line box.
         textarea.style.height = "0px";
-        const textHeight =
-          textarea.scrollHeight - (lineHeight - size * 0.999) * scale;
+        textHeight = Math.max(
+          size * 0.999,
+          textarea.scrollHeight / scale - padding * 2 - (lineHeight - size * 0.999),
+        );
         return (
-          textHeight > shape.height * scale + 1 ||
+          (textHeight + padding * 2) * scale > shape.height * scale + 1 ||
           textarea.scrollWidth > textarea.clientWidth + 1
         );
       };
       if (textarea.clientWidth) {
         while (size > 6 && tooLarge()) size = Math.max(6, size - 0.5);
+        tooLarge();
       }
       textarea.style.height = previousHeight;
+      textarea.style.padding = previousPadding;
+      textarea.style.fontSize = previousFontSize;
+      textarea.style.lineHeight = previousLineHeight;
       let ascender = size * 0.928;
       let descender = size * 0.236;
       if (typeof CanvasRenderingContext2D !== "undefined") {
@@ -373,17 +391,20 @@ const TextShapeOverlay = ({
           descender = metrics.fontBoundingBoxDescent ?? descender;
         }
       }
-      const lineHeight = size * 1.199 + requestedSize * 0.15;
+      const lineHeight = size * 1.199 + requestedSize * leadingFactor;
       const baselineOffset =
         ascender + (lineHeight - ascender - descender) / 2 - size * 0.759;
-      setAppearance({ size, baselineOffset });
+      const verticalOffset = verticalAlign === "center"
+        ? Math.max(0, (shape.height - padding * 2 - textHeight) / 2)
+        : 0;
+      setAppearance({ size, baselineOffset, verticalOffset });
     };
     fit();
     document.fonts?.ready?.then(fit);
     return () => {
       cancelled = true;
     };
-  }, [shape.text, requestedSize, shape.width, shape.height, scale, fontWeight]);
+  }, [shape.text, requestedSize, shape.width, shape.height, scale, fontWeight, padding, leadingFactor, verticalAlign]);
   useEffect(() => {
     if (selected && editable)
       textareaRef.current?.focus({ preventScroll: true });
@@ -443,9 +464,10 @@ const TextShapeOverlay = ({
             fontVariantLigatures: "none",
             textAlign,
             fontSize: appearance.size * scale,
-            padding: `${4 * scale}px`,
+            padding: `${padding * scale}px`,
+            paddingTop: `${(padding + appearance.verticalOffset) * scale}px`,
             lineHeight:
-              (appearance.size * 1.199 + requestedSize * 0.15) * scale,
+              `${(appearance.size * 1.199 + requestedSize * leadingFactor) * scale}px`,
             height: `calc(100% + ${appearance.baselineOffset * scale}px)`,
             transform: `translateY(${-appearance.baselineOffset * scale}px)`,
             opacity: shape.opacity ?? 1,
@@ -521,6 +543,8 @@ const PdfDocumentCanvas = ({
   setSelectedShapeId,
   onDocumentLoaded,
   onPageLoaded,
+  onPageNavigate,
+  onViewScaleChange,
   editable = true,
   onGestureEnd,
   onGestureStart,
@@ -585,6 +609,14 @@ const PdfDocumentCanvas = ({
   const ready = loadedKey === pageKey && renderedKey === renderKey && !error;
   const canEdit = editable && ready;
   const drawing = canEdit && drawingTools.has(activeTool);
+  const selectMode = ready && (!activeTool || activeTool === "select");
+  // React-PDF retains the initial destination callback in its viewer ref.
+  const navigationRef = useRef({ selectMode, onPageNavigate });
+  navigationRef.current = { selectMode, onPageNavigate };
+  const navigatePdfLink = useCallback(({ pageNumber: destinationPage }) => {
+    if (navigationRef.current.selectMode && Number.isInteger(destinationPage))
+      navigationRef.current.onPageNavigate?.(destinationPage);
+  }, []);
   const pageShapes = useMemo(
     () =>
       shapes.filter(
@@ -617,6 +649,10 @@ const PdfDocumentCanvas = ({
       ),
     [matchesOnPage, selectedMatchId],
   );
+
+  useEffect(() => {
+    if (ready) onViewScaleChange?.(renderWidth / fitWidth);
+  }, [ready, renderWidth, fitWidth, onViewScaleChange]);
 
   useEffect(() => {
     setError("");
@@ -1003,12 +1039,16 @@ const PdfDocumentCanvas = ({
         </div>
       ) : (
         <div
-          className="nexus-pdf-page relative mx-auto shrink-0 overflow-hidden bg-white shadow-xl shadow-slate-900/15"
+          className={`nexus-pdf-page ${selectMode ? "is-select-mode" : ""} relative mx-auto shrink-0 overflow-hidden bg-white shadow-xl shadow-slate-900/15`}
           style={{ width: renderWidth, height: renderHeight }}
+          onPointerDown={handlePointerDown}
         >
           <Document
             key={documentKey}
             file={`${documentRecord.content_url}${documentRecord.content_url?.includes("?") ? "&" : "?"}version=${backgroundId}`}
+            externalLinkTarget="_blank"
+            externalLinkRel="noopener noreferrer"
+            onItemClick={navigatePdfLink}
             onLoadSuccess={(value) => {
               if (requestRef.current.documentKey === documentKey) {
                 setError("");
@@ -1033,9 +1073,11 @@ const PdfDocumentCanvas = ({
               key={pageKey}
               pageNumber={pageNumber}
               width={renderWidth}
-              renderTextLayer={findOpen}
+              renderTextLayer={findOpen || selectMode}
               customTextRenderer={textRenderer}
-              renderAnnotationLayer={false}
+              renderAnnotationLayer={selectMode}
+              renderForms={false}
+              filterAnnotations={filterPdfLinks}
               onRenderTextLayerSuccess={scrollToFindMatch}
               onLoadSuccess={(page) => {
                 if (pageKey !== requestRef.current.pageKey) return;
@@ -1084,10 +1126,9 @@ const PdfDocumentCanvas = ({
             style={{
               zIndex: 3,
               touchAction: drawing ? "none" : "auto",
-              pointerEvents: ready ? "auto" : "none",
+              pointerEvents: drawing ? "auto" : "none",
               cursor: drawing ? "crosshair" : "default",
             }}
-            onPointerDown={handlePointerDown}
           ></svg>
           <div
             className="pointer-events-none absolute inset-0"
@@ -1127,6 +1168,21 @@ const PdfDocumentCanvas = ({
                 </svg>
               ),
             )}
+            {pageShapes
+              .filter((shape) => shape.type === "redact" && shape.redaction_mode === "replace" && shape.replacement_text)
+              .map((shape) => (
+                <TextShapeOverlay
+                  key={`replacement-${shape.id}`}
+                  shape={{ ...shape, text: shape.replacement_text, color: shape.replacement_color || "#111827", opacity: 1, font_size: shape.font_size || 14 }}
+                  scale={scale}
+                  editable={false}
+                  fontWeight={400}
+                  padding={2}
+                  leadingFactor={0}
+                  verticalAlign="center"
+                  ariaLabel="Redaction replacement preview"
+                />
+              ))}
             {selectedShape && !isTextShape(selectedShape)
               ? (() => {
                   const bounds = ["pen", "arrow"].includes(selectedShape.type)

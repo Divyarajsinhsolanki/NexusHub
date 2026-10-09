@@ -160,13 +160,14 @@ function KnowledgeDashboardContent() {
       { id: "learning", name: "Learning", Icon: GraduationCap },
       { id: "stocks", name: "Markets", Icon: TrendingUp },
       { id: "tech", name: "Technology", Icon: Cpu },
-      { id: "mcp", name: 'ChatGPT inbox', Icon: BookOpen, count: activeGeneratedCount },
+      { id: "daily", name: "Daily tech", Icon: Cpu, count: knowledgeItems.filter((item) => item.active && item.generated_source === "bedrock_daily").length },
+      { id: "mcp", name: 'ChatGPT inbox', Icon: BookOpen, count: knowledgeItems.filter((item) => item.active && item.generated_source !== "bedrock_daily").length },
       { id: "history", name: 'Prompt history', Icon: Clock, count: promptRuns.length },
       { id: "saved", name: 'Saved', Icon: Bookmark, count: savedCount },
       { id: "due", name: 'Review due', Icon: Bell, count: dueCount },
       { id: "archived", name: 'Archived', Icon: Archive, count: archivedGeneratedCount },
     ],
-    [activeGeneratedCount, archivedGeneratedCount, dueCount, promptRuns.length, savedCount]
+    [activeGeneratedCount, archivedGeneratedCount, dueCount, promptRuns.length, savedCount, knowledgeItems]
   );
 
   const cardDefinitions = useMemo(
@@ -561,12 +562,14 @@ function KnowledgeDashboardContent() {
     const generatedCards = knowledgeItems
       .filter((item) => (activeCategory === "archived" ? !item.active : item.active))
       .filter((item) => {
+        if (activeCategory === "daily") return item.generated_source === "bedrock_daily";
+        if (activeCategory === "mcp") return item.generated_source !== "bedrock_daily";
         if (activeCategory === "all" || activeCategory === "mcp" || activeCategory === "archived") return true;
         return item.category === activeCategory;
       })
       .map(generatedCardFromItem);
 
-    const staticCards = activeCategory === "mcp" || activeCategory === "archived"
+    const staticCards = activeCategory === "daily" || activeCategory === "mcp" || activeCategory === "archived"
       ? []
       : cardDefinitions
       .filter((definition) => activeCategory === "all" || definition.category === activeCategory)
@@ -726,7 +729,7 @@ function GeneratedKnowledgeCard({ item, isSaved, onSave, onArchive }) {
               <FiCpu className="h-3 w-3" />
               {item.collection_name || "ChatGPT Inbox"}
             </span>
-            {item.category ? <span>{item.category}</span> : null}
+            {item.workspace_shared ? <span>Workspace · AI-generated</span> : item.category ? <span>{item.category}</span> : null}
           </div>
           <h3 className="line-clamp-2 text-base font-semibold leading-snug text-slate-950">{item.title}</h3>
         </div>
@@ -780,7 +783,7 @@ function GeneratedKnowledgeCard({ item, isSaved, onSave, onArchive }) {
             <FiBookmark className="h-3.5 w-3.5" />
             {isSaved ? "Saved" : "Save"}
           </button>
-          {item.active ? (
+          {item.active && item.can_archive !== false ? (
             <button
               type="button"
               onClick={() => onArchive(item)}

@@ -92,7 +92,7 @@ test('refreshes cached counters on foreground push and normalizes tap navigation
   queryClient.setQueryData(mobileQueryKeys.notifications, { pageParams: [1], pages: [{ data: [], meta: { unread_count: 0 } }] });
   queryClient.setQueryData(mobileQueryKeys.home, { summary: { unread_notifications: 0 }, tasks: [] });
 
-  render(<QueryClientProvider client={queryClient}><PushRegistrar /></QueryClientProvider>);
+  await render(<QueryClientProvider client={queryClient}><PushRegistrar /></QueryClientProvider>);
 
   await waitFor(() => expect(Notifications.addNotificationReceivedListener).toHaveBeenCalled());
   await act(async () => {
@@ -115,10 +115,25 @@ test('opens the last call notification after a terminated Android launch', async
   } as never);
   const queryClient = new QueryClient({ defaultOptions: { queries: { gcTime: Infinity, retry: false } } });
 
-  render(<QueryClientProvider client={queryClient}><PushRegistrar /></QueryClientProvider>);
+  await render(<QueryClientProvider client={queryClient}><PushRegistrar /></QueryClientProvider>);
 
   await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/call/11?type=video'));
   expect(Notifications.clearLastNotificationResponseAsync).toHaveBeenCalled();
   cleanup();
   queryClient.clear();
+});
+
+
+test('daily knowledge push refreshes the board and opens the exact post', async () => {
+  (Notifications.getLastNotificationResponseAsync as jest.MockedFunction<typeof Notifications.getLastNotificationResponseAsync>).mockResolvedValue(null);
+  const queryClient = new QueryClient({ defaultOptions: { queries: { gcTime: Infinity, retry: false } } });
+  queryClient.setQueryData(['knowledge-items', 'active'], { data: [] });
+  await render(<QueryClientProvider client={queryClient}><PushRegistrar /></QueryClientProvider>);
+  await waitFor(() => expect(Notifications.addNotificationReceivedListener).toHaveBeenCalled());
+  const data = { event_type: 'daily_knowledge_published', deep_link: '/more/knowledge?itemId=91' };
+  await act(async () => { receivedCallback?.({ request: { content: { data } } }); });
+  expect(queryClient.getQueryState(['knowledge-items', 'active'])?.isInvalidated).toBe(true);
+  await act(async () => { responseCallback?.({ notification: { request: { content: { data } } } }); });
+  expect(mockPush).toHaveBeenCalledWith('/more/knowledge?itemId=91');
+  cleanup(); queryClient.clear();
 });

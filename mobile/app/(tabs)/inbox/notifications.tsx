@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow, isToday, parseISO } from 'date-fns';
-import { BellRing, BriefcaseBusiness, CalendarClock, CheckCheck, Heart, MessageCircle, Phone } from 'lucide-react-native';
+import { BellRing, BriefcaseBusiness, CalendarClock, CheckCheck, Heart, Lightbulb, MessageCircle, Phone } from 'lucide-react-native';
 import { Href, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, SectionList, StyleSheet, Text, View } from 'react-native';
@@ -119,9 +119,9 @@ export function NotificationRow({ notification, onPress }: { notification: Notif
   );
 }
 
-type NotificationFilter = 'all' | 'chat' | 'calls' | 'work' | 'social' | 'reminders';
+type NotificationFilter = 'all' | 'chat' | 'calls' | 'work' | 'social' | 'reminders' | 'knowledge';
 const filterOptions: Array<{ value: NotificationFilter; label: string }> = [
-  { value: 'all', label: 'All' }, { value: 'chat', label: 'Chat' }, { value: 'calls', label: 'Calls' }, { value: 'work', label: 'Work' }, { value: 'social', label: 'Social' }, { value: 'reminders', label: 'Reminders' },
+  { value: 'all', label: 'All' }, { value: 'knowledge', label: 'Knowledge' }, { value: 'chat', label: 'Chat' }, { value: 'calls', label: 'Calls' }, { value: 'work', label: 'Work' }, { value: 'social', label: 'Social' }, { value: 'reminders', label: 'Reminders' },
 ];
 
 function notificationCategory(notification: Notification): Exclude<NotificationFilter, 'all'> {
@@ -135,6 +135,7 @@ function notificationCategory(notification: Notification): Exclude<NotificationF
 }
 
 function categoryIcon(category: Exclude<NotificationFilter, 'all'>) {
+  if (category === 'knowledge') return Lightbulb;
   if (category === 'chat') return MessageCircle;
   if (category === 'calls') return Phone;
   if (category === 'social') return Heart;

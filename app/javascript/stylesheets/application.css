@@ -3818,6 +3818,15 @@ a.member-profile-contact:hover { color: var(--theme-color); }
 .pdf-left-panel { width: 220px; flex-shrink: 0; flex-direction: column; border-right: 1px solid var(--nexus-line); background: var(--nexus-panel-subtle); }
 .pdf-left-panel nav { display: flex; gap: 6px; padding: 10px; border-bottom: 1px solid var(--nexus-line); }
 .pdf-left-panel nav .pdf-button { flex: 1; }
+.pdf-left-panel nav .pdf-collapse-button { flex: 0; min-width: 28px; padding: 5px; }
+.pdf-left-panel.is-collapsed, .pdf-right-panel.is-collapsed { width: 44px; }
+.pdf-panel-rail { display: flex; flex-direction: column; gap: 6px; align-items: center; padding: 8px 4px; }
+.pdf-panel-rail .pdf-button { min-height: 34px; width: 34px; padding: 6px; }
+.pdf-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pdf-panel-heading .pdf-collapse-button { min-height: 28px; padding: 5px; }
+.pdf-focus-actions { display: none; align-items: center; gap: 5px; }
+.pdf-workspace.is-focused :is(.pdf-left-panel, .pdf-right-panel) { display: none !important; }
+@media (min-width: 1024px) { .pdf-focus-actions { display: flex; } }
 .pdf-panel-scroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
 .pdf-right-panel { width: 256px; flex-shrink: 0; flex-direction: column; border-left: 1px solid var(--nexus-line); background: var(--nexus-panel); }
 .pdf-right-panel > header { padding: 15px 14px; border-bottom: 1px solid var(--nexus-line); }
@@ -3914,6 +3923,7 @@ a.member-profile-contact:hover { color: var(--theme-color); }
 .pdf-split-preview { display: grid; gap: 6px; max-height: 190px; overflow: auto; }
 .pdf-split-preview li { display: flex; flex-direction: column; gap: 3px; padding: 8px; border: 1px solid var(--nexus-line); border-radius: 6px; font-size: 11px; overflow-wrap: anywhere; }
 .pdf-split-preview span { color: var(--nexus-muted); }
+.pdf-split-warning { display: flex; flex-direction: column; gap: 8px; padding: 10px; font-size: 11px; line-height: 1.6; border: 1px solid color-mix(in srgb, #d97706 40%, var(--nexus-line)); border-radius: 8px; background: color-mix(in srgb, #d97706 8%, var(--nexus-panel)); }
 .pdf-object-list { display: flex; flex-direction: column; gap: 4px; max-height: 200px; overflow: auto; }
 .pdf-object-list button { padding: 8px; border-radius: 6px; text-align: left; font-size: 11px; background: var(--nexus-panel-subtle); }
 .pdf-object-list button[aria-pressed=true] { color: #6366f1; }
@@ -3931,6 +3941,7 @@ a.member-profile-contact:hover { color: var(--theme-color); }
   .pdf-header-toolbar { grid-column: 1 / -1; grid-row: 2; }
 }
 .nexus-pdf-page .textLayer { pointer-events: none; }
+.nexus-pdf-page.is-select-mode .textLayer { pointer-events: auto; }
 .nexus-pdf-page textarea { background: transparent !important; color: inherit; border: 0; box-shadow: none; }
 .pdf-find-match { color: transparent !important; background: rgba(250,204,21,.35); padding: 0; }
 .pdf-find-match.active { background: rgba(249,115,22,.55); }

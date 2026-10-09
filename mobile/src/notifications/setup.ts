@@ -22,6 +22,7 @@ export function setupNotificationPresentation() {
 async function configureNotifications() {
   if (Platform.OS === 'android') {
     await Promise.all([
+      channel(NOTIFICATION_CHANNELS.knowledge, 'Daily tech knowledge', 'Your daily technical post and learning tips', Notifications.AndroidImportance.DEFAULT, NOTIFICATION_SOUNDS.knowledge, [0, 100, 70, 100, 70, 220]),
       channel(NOTIFICATION_CHANNELS.chat, 'Chat', 'Messages, mentions, and reactions', Notifications.AndroidImportance.HIGH, NOTIFICATION_SOUNDS.chat, [0, 160, 90, 160]),
       channel(NOTIFICATION_CHANNELS.audioCall, 'Audio calls', 'Incoming and missed audio calls', Notifications.AndroidImportance.MAX, NOTIFICATION_SOUNDS.audioCall, [0, 420, 180, 420, 180, 420]),
       channel(NOTIFICATION_CHANNELS.videoCall, 'Video calls', 'Incoming and missed video calls', Notifications.AndroidImportance.MAX, NOTIFICATION_SOUNDS.videoCall, [0, 520, 150, 240, 150, 520]),

@@ -58,6 +58,7 @@ module PdfDocuments
             source = pages[reference - 1]
             blank = document.add({ Type: :Page, MediaBox: source.box(:media).value.dup,
                                    CropBox: source.box(:crop).value.dup, Rotate: source[:Rotate].to_i })
+            blank[:UserUnit] = source[:UserUnit] if source[:UserUnit]
             document.pages.insert(position - 1, blank)
             source_pages.insert(position - 1, nil)
           when "crop"
@@ -99,8 +100,10 @@ module PdfDocuments
       @editor.with_background do |background|
         @editor.version.file.open do |source|
           document = HexaPDF::Document.open(background)
+          invalid = grouped.keys.any? { |number| !number.between?(1, document.pages.count) }
+          raise ArgumentError, "Invalid page number." if invalid
+          PageSanitizer.finalize!(document, grouped.keys)
           grouped.each do |number, areas|
-            raise ArgumentError, "Invalid page number." unless number.between?(1, document.pages.count)
             Tempfile.create(["pdf-redacted-page-", ".pdf"]) do |single|
               single.close
               pdf = CombinePDF.new
@@ -122,6 +125,9 @@ module PdfDocuments
               object unless grouped.key?(object["page_number"])
             end
           end
+          # Removing a page does not remove its content/resource objects. They
+          # must be unreachable in both the new background and composed download.
+          document.task(:optimize, compact: true, prune_page_resources: true)
           write_transformed!(document, objects, "redact", base_version_id)
         end
       end

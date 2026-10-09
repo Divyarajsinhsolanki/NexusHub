@@ -91,30 +91,28 @@ class Api::PdfDocumentsController < Api::BaseController
   end
 
   def undo
-    target = @document.undo_version
-    return render json: { error: "No operations to undo." }, status: :unprocessable_content unless target
-
-    PdfDocuments::Manager.move_history!(document: @document, target_version: target)
-    render json: serialize(@document.reload)
+    move_history("undo")
   end
 
   def redo
-    target = @document.redo_version
-    return render json: { error: "No operations to redo." }, status: :unprocessable_content unless target
-
-    PdfDocuments::Manager.move_history!(document: @document, target_version: target)
-    render json: serialize(@document.reload)
+    move_history("redo")
   end
 
   def restore_original
-    PdfDocuments::Manager.move_history!(
-      document: @document,
-      target_version: @document.original_version
-    )
-    render json: serialize(@document.reload)
+    move_history("restore_original")
   end
 
   private
+
+  def move_history(direction)
+    expected = params[:base_version_id].present? ? Integer(params[:base_version_id]) : @document.current_version_id
+    PdfDocuments::Manager.move_history!(document: @document, direction:, base_version_id: expected)
+    render json: serialize(@document.reload)
+  rescue PdfDocuments::Manager::StaleVersion => error
+    render json: { error: error.message }, status: :conflict
+  rescue ArgumentError, TypeError => error
+    render json: { error: error.message }, status: :unprocessable_content
+  end
 
   def set_document
     @document = current_user.pdf_documents.find(params[:id])

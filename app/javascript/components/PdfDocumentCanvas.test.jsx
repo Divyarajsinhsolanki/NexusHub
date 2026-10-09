@@ -17,9 +17,12 @@ const pdfMock = vi.hoisted(() => ({
   height: 792,
   userUnit: 1,
   callbacks: [],
+  documentProps: {},
+  pageProps: {},
 }));
 vi.mock("react-pdf", () => ({
-  Document: ({ children, onLoadError, onLoadSuccess, file }) => {
+  Document: ({ children, onLoadError, onLoadSuccess, file, ...props }) => {
+    pdfMock.documentProps = props;
     React.useEffect(() => {
       onLoadSuccess?.({ numPages: 3, getPage: vi.fn() });
     }, [file]);
@@ -41,7 +44,9 @@ vi.mock("react-pdf", () => ({
     onRenderError,
     customTextRenderer,
     renderTextLayer,
+    ...props
   }) => {
+    pdfMock.pageProps = { ...props, renderTextLayer };
     React.useEffect(() => {
       pdfMock.callbacks.push({
         onLoadSuccess,
@@ -76,7 +81,7 @@ vi.mock("react-pdf", () => ({
       </div>
     );
   },
-  pdfjs: { GlobalWorkerOptions: {} },
+  pdfjs: { GlobalWorkerOptions: {}, AnnotationType: { LINK: 2 } },
 }));
 
 import PdfDocumentCanvas from "./PdfDocumentCanvas";
@@ -359,7 +364,7 @@ describe("PdfDocumentCanvas", () => {
       />,
     );
 
-    expect(screen.getByText("Approved")).toBeTruthy();
+    expect(screen.getByLabelText("Redaction replacement preview").value).toBe("Approved");
     const line = document.querySelector("svg line");
     expect(line?.getAttribute("stroke")).toBe("#dc2626");
     expect(line?.getAttribute("stroke-width")).toBe("4");
@@ -657,6 +662,7 @@ describe("PdfDocumentCanvas", () => {
     expect(parseFloat(textarea.style.lineHeight)).toBeCloseTo(
       (18 * 1.199 + 18 * 0.15) * scale,
     );
+    expect(textarea.style.lineHeight.endsWith("px")).toBe(true);
     expect(textarea.style.fontKerning).toBe("none");
     expect(textarea.style.fontVariantLigatures).toBe("none");
     expect(textarea.style.transform.startsWith("translateY(-")).toBe(true);
@@ -749,8 +755,106 @@ describe("PdfDocumentCanvas", () => {
   it("allows native pan in Select and switches touch handling for drawing", () => {
     const { rerender } = render(<Harness activeTool="select" />);
     expect(screen.getByTestId("pdf-edit-layer").style.touchAction).toBe("auto");
+    expect(screen.getByTestId("pdf-edit-layer").style.pointerEvents).toBe("none");
     rerender(<Harness activeTool="pen" />);
     expect(screen.getByTestId("pdf-edit-layer").style.touchAction).toBe("none");
+    expect(screen.getByTestId("pdf-edit-layer").style.pointerEvents).toBe("auto");
+  });
+
+  it("exposes PDF text and links in Select without intercepting native text selection", () => {
+    const onGestureStart = vi.fn();
+    const { rerender } = render(<Harness activeTool="select" onGestureStart={onGestureStart} />);
+    expect(pdfMock.pageProps.renderTextLayer).toBe(true);
+    expect(pdfMock.pageProps.renderAnnotationLayer).toBe(true);
+    expect(pdfMock.pageProps.renderForms).toBe(false);
+    expect(document.querySelector(".nexus-pdf-page").classList.contains("is-select-mode")).toBe(true);
+    const event = new MouseEvent("pointerdown", { bubbles: true, cancelable: true, button: 0 });
+    fireEvent(screen.getByTestId("find-text"), event);
+    expect(event.defaultPrevented).toBe(false);
+    expect(onGestureStart).not.toHaveBeenCalled();
+    expect(currentShape()).toEqual(initialTextShape);
+    rerender(<Harness activeTool="pen" onGestureStart={onGestureStart} />);
+    expect(pdfMock.pageProps.renderTextLayer).toBe(false);
+    expect(pdfMock.pageProps.renderAnnotationLayer).toBe(false);
+    rerender(<Harness activeTool="pen" findOpen onGestureStart={onGestureStart} />);
+    expect(pdfMock.pageProps.renderTextLayer).toBe(true);
+    expect(pdfMock.pageProps.renderAnnotationLayer).toBe(false);
+  });
+
+  it("keeps safe external and internal PDF links, blocks executable/embedded links, and navigates destinations", () => {
+    const onPageNavigate = vi.fn();
+    pdfMock.ready = false;
+    const { rerender } = render(<Harness onPageNavigate={onPageNavigate} />);
+    const initialDestinationCallback = pdfMock.documentProps.onItemClick;
+    act(() => pdfMock.callbacks.at(-1).onRenderSuccess());
+    const annotations = [
+      { annotationType: 2, url: "https://example.com/document" },
+      { annotationType: 2, url: "mailto:hello@example.com" },
+      { annotationType: 2, dest: "chapter-two" },
+      { annotationType: 2, url: "javascript:alert(1)" },
+      { annotationType: 2, url: "data:text/html,unsafe" },
+      { annotationType: 2, url: "file:///private/document" },
+      { annotationType: 2, unsafeUrl: "javascript:alert(1)", dest: "chapter-two" },
+      { annotationType: 2, action: "Print" },
+      { annotationType: 17, url: "https://example.com/attachment" },
+    ];
+    expect(pdfMock.pageProps.filterAnnotations({ annotations })).toEqual(annotations.slice(0, 3));
+    expect(pdfMock.documentProps.externalLinkTarget).toBe("_blank");
+    expect(pdfMock.documentProps.externalLinkRel).toBe("noopener noreferrer");
+    act(() => initialDestinationCallback({ pageNumber: 2 }));
+    expect(onPageNavigate).toHaveBeenCalledWith(2);
+    rerender(<Harness activeTool="pen" onPageNavigate={onPageNavigate} />);
+    act(() => initialDestinationCallback({ pageNumber: 3 }));
+    expect(onPageNavigate).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports the displayed zoom relative to available width after fitting and resizing", () => {
+    const onViewScaleChange = vi.fn();
+    const { rerender } = render(<Harness zoomMode="fit-page" onViewScaleChange={onViewScaleChange} />);
+    act(() => ResizeObserverMock.last.callback([{ contentRect: { width: 1000, height: 600 } }]));
+    const fitFactor = (600 * 612 / 792) / 1000;
+    expect(onViewScaleChange).toHaveBeenLastCalledWith(fitFactor);
+    rerender(<Harness zoom={fitFactor - 0.1} zoomMode="custom" onViewScaleChange={onViewScaleChange} />);
+    expect(parseFloat(document.querySelector(".nexus-pdf-page").style.width)).toBeLessThan(600 * 612 / 792);
+    expect(onViewScaleChange).toHaveBeenLastCalledWith(fitFactor - 0.1);
+    rerender(<Harness zoomMode="fit-page" onViewScaleChange={onViewScaleChange} />);
+    act(() => ResizeObserverMock.last.callback([{ contentRect: { width: 750, height: 600 } }]));
+    expect(onViewScaleChange).toHaveBeenLastCalledWith((600 * 612 / 792) / 750);
+  });
+
+  it("wraps and shrinks long redaction replacements within the region using regular centered text", () => {
+    const width = 90;
+    const height = 45;
+    const text = "Approved for release\nPublic information";
+    const clientWidth = vi.spyOn(HTMLTextAreaElement.prototype, "clientWidth", "get").mockReturnValue(width);
+    const scrollWidth = vi.spyOn(HTMLTextAreaElement.prototype, "scrollWidth", "get").mockReturnValue(width);
+    const scrollHeight = vi.spyOn(HTMLTextAreaElement.prototype, "scrollHeight", "get").mockImplementation(function () {
+      const scale = 800 / 612;
+      const size = parseFloat(this.style.fontSize) / scale;
+      const charactersPerLine = Math.max(1, Math.floor((width - 4) / (size * 0.6)));
+      const lines = this.value.split("\n").reduce((total, line) => total + Math.ceil(line.length / charactersPerLine), 0);
+      return (lines * size * 1.199 + 4) * scale;
+    });
+    try {
+      const { unmount } = render(<Harness initialShapes={[{ id: "replace-long", type: "redact", page_number: 1, x: 10, y: 20, width, height, redaction_mode: "replace", replacement_text: text, font_size: 24 }]} initialSelectedShapeId={null} />);
+      const preview = screen.getByLabelText("Redaction replacement preview");
+      const scale = 800 / 612;
+      expect(preview.value).toBe(text);
+      expect(parseFloat(preview.style.fontSize) / scale).toBeLessThan(24);
+      expect(parseFloat(preview.style.fontSize) / scale).toBeGreaterThanOrEqual(6);
+      expect(parseFloat(preview.style.lineHeight)).toBeCloseTo(parseFloat(preview.style.fontSize) * 1.199);
+      expect(parseFloat(preview.style.paddingTop)).toBeGreaterThanOrEqual(2 * scale);
+      expect(preview.style.fontWeight).toBe("400");
+      expect(preview.readOnly).toBe(true);
+      expect(document.querySelector("svg text")).toBeNull();
+      unmount();
+      render(<Harness initialShapes={[{ id: "replace-short", type: "redact", page_number: 1, x: 10, y: 20, width, height: 60, redaction_mode: "replace", replacement_text: "Public", font_size: 14 }]} initialSelectedShapeId={null} />);
+      expect(parseFloat(screen.getByLabelText("Redaction replacement preview").style.paddingTop)).toBeGreaterThan(2 * scale);
+    } finally {
+      clientWidth.mockRestore();
+      scrollWidth.mockRestore();
+      scrollHeight.mockRestore();
+    }
   });
 
   it("fits the whole page to available height and retains true width at higher zoom", () => {

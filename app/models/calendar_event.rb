@@ -31,6 +31,7 @@ class CalendarEvent < ApplicationRecord
   validate :end_after_start
   validate :project_required_for_project_visibility
   validate :validate_linked_resources
+  after_update :reschedule_pending_reminders, if: :saved_change_to_start_at?
 
   scope :within_range, ->(start_time, end_time) {
     where('start_at < ? AND end_at > ?', end_time, start_time)
@@ -88,6 +89,12 @@ class CalendarEvent < ApplicationRecord
   end
 
   private
+
+  def reschedule_pending_reminders
+    event_reminders.pending.find_each do |reminder|
+      reminder.update!(send_at: start_at - reminder.minutes_before.minutes)
+    end
+  end
 
   def validate_linked_resources
     return if managed_operation?

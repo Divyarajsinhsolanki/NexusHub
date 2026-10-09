@@ -5,7 +5,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { format } from 'date-fns';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Archive, ArrowLeft, Bookmark, CalendarPlus, CheckCircle2, ChevronRight, ExternalLink, FilePlus2, FileText, Plus, RefreshCw, Search, Settings2, Trash2, X } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, AppState, FlatList, Linking, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View, useWindowDimensions } from 'react-native';
 
 import { apiErrorMessage } from '@/src/api/client';
@@ -53,13 +53,14 @@ const pushCategoryOptions: Array<{ key: keyof PushNotificationSettings['categori
   { key: 'video_calls', label: 'Video calls', detail: 'Incoming, missed, and ended video calls' },
   { key: 'work', label: 'Work', detail: 'Projects, tasks, issues, and team changes' },
   { key: 'social', label: 'Social activity', detail: 'Post likes, comments, and endorsements' },
+  { key: 'knowledge', label: 'Daily tech knowledge', detail: 'One daily technical post and learning tips' },
   { key: 'reminders', label: 'Reminders', detail: 'Calendar and event reminders' },
 ];
 
 const defaultPushSettings: PushNotificationSettings = {
   enabled: true,
   previews: true,
-  categories: { chat: true, audio_calls: true, video_calls: true, work: true, social: true, reminders: true },
+  categories: { chat: true, audio_calls: true, video_calls: true, work: true, social: true, reminders: true, knowledge: true },
   quiet_hours: { enabled: false, start: '22:00', end: '07:00', timezone: 'UTC', allow_calls: true },
 };
 
@@ -148,12 +149,20 @@ function KnowledgeScreen() {
   const theme = useAppTheme();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const { itemId } = useLocalSearchParams<{ itemId?: string }>();
   const [mode, setMode] = useState<'feed' | 'saved' | 'archived'>('feed');
   const [selectedCard, setSelectedCard] = useState<EntityRecord | null>(null);
+  const openedItemId = useRef<number | null>(null);
   const { width, height } = useWindowDimensions();
   const feed = useQuery({ queryKey: ['knowledge-items', 'active'], queryFn: () => endpoints.knowledgeItems(true) });
   const saved = useQuery({ queryKey: ['knowledge-bookmarks'], queryFn: endpoints.knowledgeBookmarks });
   const archived = useQuery({ queryKey: ['knowledge-items', 'archived'], queryFn: () => endpoints.knowledgeItems(false) });
+  useEffect(() => {
+    const targetId = Number(itemId);
+    if (!Number.isSafeInteger(targetId) || targetId <= 0 || openedItemId.current === targetId) return;
+    const card = [...(feed.data?.data || []), ...(archived.data?.data || [])].find((item) => item.id === targetId);
+    if (card) { openedItemId.current = targetId; setMode(card.active === false ? 'archived' : 'feed'); setSelectedCard(card); }
+  }, [itemId, feed.data, archived.data]);
   const active = mode === 'feed' ? feed : mode === 'saved' ? saved : archived;
   const save = useMutation({ mutationFn: (item: EntityRecord) => endpoints.createKnowledgeBookmark({ card_type: String(item.item_type || 'knowledge'), collection_name: item.collection_name, source_id: String(item.id), payload: item }), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['knowledge-bookmarks'] }) });
   const archiveItem = useMutation({ mutationFn: endpoints.archiveKnowledgeItem, onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['knowledge-items'] }); }, onError: (error) => Alert.alert('Unable to archive card', apiErrorMessage(error)) });
@@ -167,7 +176,7 @@ function KnowledgeScreen() {
     {active.isLoading ? <LoadingState /> : null}{active.isError ? <ErrorState message={apiErrorMessage(active.error)} onRetry={() => active.refetch()} /> : null}
     {active.data ? <FlatList key={columns} numColumns={columns} columnWrapperStyle={{ gap: 10 }} contentContainerStyle={styles.list} data={active.data.data} keyExtractor={(item) => String(item.id)} ListEmptyComponent={<EmptyState title={emptyTitle} message="Knowledge collected for your workspace appears here." />} renderItem={({ item }) => <Pressable accessibilityRole="button" accessibilityLabel={`Open ${String(item.title || (item.payload as Record<string, unknown>)?.title || 'Knowledge card')}`} onPress={() => setSelectedCard(item)} style={[styles.knowledgeCard, { flex: 1, height: cardHeight, padding: 10, backgroundColor: theme.surfaceRaised, borderColor: theme.border }]}><Text numberOfLines={1} style={[styles.knowledgeType, { color: theme.primary }]}>{String(item.category || item.card_type || 'Knowledge')}</Text><Text numberOfLines={2} style={[styles.rowTitle, { color: theme.text, marginTop: 6, fontSize: 12 }]}>{String(item.title || (item.payload as Record<string, unknown>)?.title || 'Knowledge card')}</Text>{cardHeight >= 110 ? <Text numberOfLines={2} style={[styles.knowledgeBody, { color: theme.textMuted }]}>{String(item.summary || (item.payload as Record<string, unknown>)?.summary || 'Tap to read and save')}</Text> : null}</Pressable>} /> : null}
     <Modal transparent animationType="fade" visible={Boolean(selectedCard)} onRequestClose={() => setSelectedCard(null)}><View style={{ flex: 1, justifyContent: 'center', padding: 20, backgroundColor: 'rgba(2,6,23,0.5)' }}><View accessibilityViewIsModal style={{ maxHeight: '85%', borderRadius: 20, padding: 16, backgroundColor: theme.surfaceRaised }}><Pressable accessibilityRole="button" accessibilityLabel="Close knowledge card" onPress={() => setSelectedCard(null)} style={{ alignSelf: 'flex-end', minHeight: 44, minWidth: 44, alignItems: 'center', justifyContent: 'center' }}><X color={theme.text} size={22} /></Pressable><ScrollView>{selectedCard ? (() => { const item = selectedCard;
- const payload = item.payload as Record<string, unknown> | undefined; return <View style={[styles.knowledgeCard, { backgroundColor: theme.surface, borderColor: theme.border }]}><View style={styles.knowledgeHeader}><Text style={[styles.knowledgeType, { color: theme.primary }]}>{String(item.category || item.card_type || 'KNOWLEDGE').toUpperCase()}</Text>{!user?.demo_account ? <View style={styles.knowledgeActions}>{mode === 'feed' ? <><Pressable accessibilityLabel="Save knowledge card" onPress={() => save.mutate(item)} style={styles.knowledgeAction}><Bookmark color={theme.textMuted} size={18} /></Pressable><Pressable accessibilityLabel="Archive knowledge card" onPress={() => archiveItem.mutate(item.id)} style={styles.knowledgeAction}><Archive color={theme.textMuted} size={18} /></Pressable></> : null}{mode === 'saved' ? <><Pressable accessibilityLabel="Mark bookmark reviewed" onPress={() => review.mutate(item.id)} style={styles.knowledgeAction}><CheckCircle2 color={theme.success} size={18} /></Pressable><Pressable accessibilityLabel="Delete bookmark" onPress={() => remove.mutate(item.id)} style={styles.knowledgeAction}><Trash2 color={theme.danger} size={17} /></Pressable></> : null}</View> : null}</View><Text style={[styles.rowTitle, { color: theme.text }]}>{String(item.title || payload?.title || 'Knowledge card')}</Text><Text  style={[styles.knowledgeBody, { color: theme.textMuted }]}>{String(item.summary || item.body || payload?.summary || '')}</Text></View>;
+ const payload = item.payload as Record<string, unknown> | undefined; return <View style={[styles.knowledgeCard, { backgroundColor: theme.surface, borderColor: theme.border }]}><View style={styles.knowledgeHeader}><Text style={[styles.knowledgeType, { color: theme.primary }]}>{String(item.category || item.card_type || 'KNOWLEDGE').toUpperCase()}</Text>{!user?.demo_account ? <View style={styles.knowledgeActions}>{mode === 'feed' ? <><Pressable accessibilityLabel="Save knowledge card" onPress={() => save.mutate(item)} style={styles.knowledgeAction}><Bookmark color={theme.textMuted} size={18} /></Pressable>{item.can_archive !== false && <Pressable accessibilityLabel="Archive knowledge card" onPress={() => archiveItem.mutate(item.id)} style={styles.knowledgeAction}><Archive color={theme.textMuted} size={18} /></Pressable>}</> : null}{mode === 'saved' ? <><Pressable accessibilityLabel="Mark bookmark reviewed" onPress={() => review.mutate(item.id)} style={styles.knowledgeAction}><CheckCircle2 color={theme.success} size={18} /></Pressable><Pressable accessibilityLabel="Delete bookmark" onPress={() => remove.mutate(item.id)} style={styles.knowledgeAction}><Trash2 color={theme.danger} size={17} /></Pressable></> : null}</View> : null}</View><Text style={[styles.rowTitle, { color: theme.text }]}>{String(item.title || payload?.title || 'Knowledge card')}</Text><Text  style={[styles.knowledgeBody, { color: theme.textMuted }]}>{String(item.summary || payload?.summary || '')}</Text>{(item.body || payload?.body) ? <Text style={[styles.knowledgeBody, { color: theme.text }]}>{String(item.body || payload?.body)}</Text> : null}{item.workspace_shared ? <Text style={[styles.knowledgeType, { color: theme.primary }]}>WORKSPACE · AI-GENERATED</Text> : null}</View>;
 })() : null}</ScrollView></View></View></Modal>
   </Screen>;
 }
@@ -336,7 +345,7 @@ function SettingsScreen() {
           <View style={styles.flex}><Text style={[styles.rowTitle, { color: theme.text }]}>Message previews</Text><Text style={[styles.rowMeta, { color: theme.textMuted }]}>Show a short, sanitized preview on the lock screen</Text></View>
           <Switch accessibilityLabel="Message previews" disabled={preferenceMutation.isPending || readOnly || !pushSettings.enabled} onValueChange={(previews) => updatePush({ ...pushSettings, previews })} trackColor={{ false: theme.surfaceMuted, true: theme.primary }} value={pushSettings.previews} />
         </View>
-        {pushCategoryOptions.map((option) => <View key={option.key} style={[styles.settingRow, { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}><View style={styles.flex}><Text style={[styles.rowTitle, { color: theme.text }]}>{option.label}</Text><Text style={[styles.rowMeta, { color: theme.textMuted }]}>{option.detail}</Text></View><Switch accessibilityLabel={`${option.label} push notifications`} disabled={preferenceMutation.isPending || readOnly || !pushSettings.enabled} onValueChange={(value) => updatePushCategory(option.key, value)} trackColor={{ false: theme.surfaceMuted, true: theme.primary }} value={pushSettings.categories[option.key]} /></View>)}
+        {pushCategoryOptions.map((option) => <View key={option.key} style={[styles.settingRow, { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}><View style={styles.flex}><Text style={[styles.rowTitle, { color: theme.text }]}>{option.label}</Text><Text style={[styles.rowMeta, { color: theme.textMuted }]}>{option.detail}</Text></View><Switch accessibilityLabel={`${option.label} push notifications`} disabled={preferenceMutation.isPending || readOnly || !pushSettings.enabled} onValueChange={(value) => updatePushCategory(option.key, value)} trackColor={{ false: theme.surfaceMuted, true: theme.primary }} value={pushSettings.categories[option.key] !== false} /></View>)}
         <View style={[styles.settingRow, { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
           <View style={styles.flex}><Text style={[styles.rowTitle, { color: theme.text }]}>Quiet hours</Text><Text style={[styles.rowMeta, { color: theme.textMuted }]}>Hold routine alerts and send a summary later</Text></View>
           <Switch accessibilityLabel="Quiet hours" disabled={preferenceMutation.isPending || readOnly || !pushSettings.enabled} onValueChange={(enabled) => updatePush({ ...pushSettings, quiet_hours: { ...pushSettings.quiet_hours, enabled } })} trackColor={{ false: theme.surfaceMuted, true: theme.primary }} value={pushSettings.quiet_hours.enabled} />

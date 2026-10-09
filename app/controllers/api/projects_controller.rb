@@ -2,13 +2,17 @@ class Api::ProjectsController < Api::BaseController
   include Rails.application.routes.url_helpers
   PROJECT_USER_INCLUDES = { user: [:department, { profile_picture_attachment: :blob }] }.freeze
 
-  before_action :set_project, only: [:update, :destroy]
-  before_action :authorize_manager!, only: [:create, :update, :destroy]
+  before_action :set_project, only: [:show, :update, :destroy]
+  before_action :authorize_manager!, only: [:create]
   around_action :log_project_dashboard_exceptions
 
   def index
     projects = Project.accessible_to(current_user).includes(project_users: PROJECT_USER_INCLUDES).order(:name)
     render_paginated_collection(projects, serializer: method(:serialize_project))
+  end
+
+  def show
+    render json: serialize_project(@project)
   end
 
   def create
@@ -31,7 +35,7 @@ class Api::ProjectsController < Api::BaseController
 
   def set_project
     @project = Project.accessible_to(current_user).find(params[:id])
-    @project.authorize_management!(current_user)
+    @project.authorize_management!(current_user) unless action_name == "show"
   end
 
   def project_params
@@ -120,6 +124,11 @@ class Api::ProjectsController < Api::BaseController
   def serialize_project(project)
     {
       id: project.id,
+      owner_id: project.owner_id,
+      can_access: Project.accessible_to(current_user).exists?(id: project.id),
+      can_edit: project.editable_by?(current_user),
+      can_manage: project.manageable_by?(current_user),
+      can_operate: Operations::Policy.new(project, current_user).edit?,
       name: project.name,
       description: project.description,
       start_date: project.start_date,

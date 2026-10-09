@@ -244,6 +244,8 @@ export const updateLearningCheckpoint = (id, data) => api.patch(`/learning_check
 
 // PROJECT ENDPOINTS
 const inflightProjectRequests = new Map();
+export const fetchProject = (projectId) => api.get(`/projects/${projectId}.json`);
+
 export const fetchProjects = (params = {}) => {
   const normalizedParams = collectionParams(params);
   const requestKey = JSON.stringify(Object.entries(normalizedParams).sort(([left], [right]) => left.localeCompare(right)));
@@ -293,9 +295,9 @@ export const uploadPdfDocument = (file, title, onUploadProgress) => {
 };
 export const renamePdfDocument = (id, title) => api.patch(`/pdf_documents/${id}`, { title });
 export const deletePdfDocument = (id) => api.delete(`/pdf_documents/${id}`);
-export const undoPdfDocument = (id) => api.post(`/pdf_documents/${id}/undo`);
-export const redoPdfDocument = (id) => api.post(`/pdf_documents/${id}/redo`);
-export const restorePdfDocument = (id) => api.post(`/pdf_documents/${id}/restore_original`);
+export const undoPdfDocument = (id, base_version_id) => api.post(`/pdf_documents/${id}/undo`, { base_version_id });
+export const redoPdfDocument = (id, base_version_id) => api.post(`/pdf_documents/${id}/redo`, { base_version_id });
+export const restorePdfDocument = (id, base_version_id) => api.post(`/pdf_documents/${id}/restore_original`, { base_version_id });
 export const createPdfDocumentOperation = (payload, asset) => {
   if (!asset || (!(asset instanceof File) && !Object.keys(asset).length)) return api.post('/pdf_document_operations', payload);
 

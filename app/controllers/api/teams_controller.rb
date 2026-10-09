@@ -48,7 +48,9 @@ class Api::TeamsController < Api::BaseController
   end
 
   def authorize_leader!
-    allowed = current_user&.owner? || current_user&.team_leader?
+    allowed = current_user&.owner? || current_user&.admin? ||
+      (current_user&.team_leader? && (action_name == 'create' || @team.owner_id == current_user.id ||
+        @team.team_users.exists?(user_id: current_user.id, role: 'admin', status: 'accepted')))
     head :forbidden unless allowed
   end
 

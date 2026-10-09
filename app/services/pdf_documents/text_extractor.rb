@@ -7,9 +7,7 @@ module PdfDocuments
     MAX_INDEX_BYTES = 1.megabyte
 
     def self.call(path, max_bytes:, truncate: false, timeout: 90)
-      stdout, stderr, status = Timeout.timeout(timeout) do
-        Open3.capture3("pdftotext", "-layout", "-enc", "UTF-8", path, "-")
-      end
+      stdout, stderr, status = Command.capture3(["pdftotext", "-layout", "-enc", "UTF-8", path, "-"], timeout:)
       raise ArgumentError, "Text extraction failed." unless status.success?
 
       text = stdout.encode("UTF-8", invalid: :replace, undef: :replace, replace: "")

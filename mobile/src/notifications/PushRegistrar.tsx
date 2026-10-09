@@ -104,6 +104,9 @@ export function PushRegistrar() {
       const responseKey = `${request.identifier}:${response.actionIdentifier}:${response.userText || ''}`;
       if (handledResponse.current === responseKey) return;
       handledResponse.current = responseKey;
+      if (request.content.data?.event_type === 'daily_knowledge_published') {
+        void queryClient.invalidateQueries({ queryKey: ['knowledge-items'] });
+      }
       const defaultTap = !response.actionIdentifier || response.actionIdentifier === Notifications.DEFAULT_ACTION_IDENTIFIER;
       const immediateLink = defaultTap ? normalizeMobileDeepLink(request.content.data?.deep_link) : null;
       if (immediateLink) router.push(immediateLink as never);
@@ -118,6 +121,9 @@ export function PushRegistrar() {
     };
     const receivedSubscription = Notifications.addNotificationReceivedListener((notification) => {
       void refreshCachesForDeepLink(queryClient, notification.request.content.data?.deep_link);
+      if (notification.request.content.data?.event_type === 'daily_knowledge_published') {
+        void queryClient.invalidateQueries({ queryKey: ['knowledge-items'] });
+      }
     });
     const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
       void openNotification(response);

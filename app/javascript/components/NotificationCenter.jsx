@@ -58,12 +58,13 @@ const NotificationCenter = () => {
         }
       }
       if (payload?.type === "notification_received") {
-        if (!payload.notification || seenNotifications.current.has(payload.notification.id)) return;
-        seenNotifications.current.add(payload.notification.id);
+        if (!payload.notification || seenNotifications.current.has(String(payload.notification.id))) return;
+        const notice = readState.current.apply([payload.notification])[0];
+        seenNotifications.current.add(String(notice.id));
         if (seenNotifications.current.size > 500) seenNotifications.current.delete(seenNotifications.current.values().next().value);
         liveRevision.current += 1;
-        setNotifications(prev => mergeNotifications(prev, readState.current.apply([payload.notification])));
-        if (!payload.notification.read_at) setUnreadCount(prev => prev + 1);
+        setNotifications(prev => mergeNotifications(prev, [notice]));
+        if (!notice.read_at) setUnreadCount(prev => prev + 1);
         const presentation = notificationPresentation(payload.notification);
         if (presentation.toast && payload.notification?.message) {
           toast(payload.notification.message, {
@@ -90,7 +91,7 @@ const NotificationCenter = () => {
       const response = await fetchNotifications({ page: 1 });
       if (version !== requestVersion.current) return;
       const incoming = readState.current.apply(response.data.notifications || []);
-      incoming.forEach(notice => seenNotifications.current.add(notice.id));
+      incoming.forEach(notice => seenNotifications.current.add(String(notice.id)));
       setNotifications(previous => mergeNotifications(previous, incoming));
       if (revision === liveRevision.current) setUnreadCount(response.data.meta?.unread_count || 0);
       else void loadNotifications();

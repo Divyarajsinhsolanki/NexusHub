@@ -1,3 +1,4 @@
+import { canEditProject } from '../utils/projectAccess';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowDownToLine, ArrowLeft, ArrowUpFromLine, CalendarRange, FileSpreadsheet, Pencil, Plus, Trash2, X } from 'lucide-react-native';
@@ -21,9 +22,9 @@ export function ProjectSprintsScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const writable = !user?.demo_account && Boolean(user?.permissions?.includes('projects.manage'));
   const [editing, setEditing] = useState<Sprint | null | undefined>(undefined);
   const project = useQuery({ queryKey: ['project', projectId], queryFn: () => endpoints.project(projectId), enabled: Number.isFinite(projectId) });
+  const writable = canEditProject(project.data, user);
   const sprints = useQuery({ queryKey: ['project-sprints', projectId], queryFn: () => endpoints.sprints(projectId), enabled: Number.isFinite(projectId) });
   const refresh = async () => { setEditing(undefined); await queryClient.invalidateQueries({ queryKey: ['project-sprints', projectId] }); await queryClient.invalidateQueries({ queryKey: ['project', projectId] }); };
   const importBacklog = useMutation({ mutationFn: () => endpoints.importBacklog(projectId), onSuccess: async () => { await refresh(); Alert.alert('Backlog imported', 'Tasks were refreshed from the connected sheet.'); }, onError: (error) => Alert.alert('Unable to import backlog', apiErrorMessage(error)) });
@@ -33,7 +34,7 @@ export function ProjectSprintsScreen() {
     {sprints.isLoading || project.isLoading ? <LoadingState label="Loading sprints" /> : null}
     {sprints.isError || project.isError ? <ErrorState message={apiErrorMessage(sprints.error || project.error)} onRetry={() => Promise.all([sprints.refetch(), project.refetch()])} /> : null}
     {sprints.data ? <FlatList contentContainerStyle={styles.list} data={sprints.data} keyExtractor={(item) => String(item.id)} onRefresh={() => sprints.refetch()} refreshing={sprints.isRefetching} ListEmptyComponent={<EmptyState title="No sprints" message="Create a delivery window or keep tasks in the backlog." />} renderItem={({ item }) => <Pressable accessibilityRole={writable ? 'button' : undefined} onPress={writable ? () => setEditing(item) : undefined} style={[styles.sprint, { backgroundColor: theme.surface, borderColor: theme.border }]}><View style={[styles.dateIcon, { backgroundColor: theme.surfaceMuted }]}><CalendarRange color={theme.primary} size={20} /></View><View style={styles.flex}><View style={styles.titleLine}><Text numberOfLines={1} style={[styles.sprintName, { color: theme.text }]}>{item.name}</Text><Text style={[styles.status, { color: statusColor(item.status, theme) }]}>{item.status}</Text></View><Text style={[styles.meta, { color: theme.textMuted }]}>{item.start_date} to {item.end_date} · {item.task_count} tasks</Text><View style={[styles.progress, { backgroundColor: theme.surfaceMuted }]}><View style={[styles.progressFill, { backgroundColor: item.progress === 100 ? theme.success : theme.primary, width: `${Math.max(0, Math.min(100, item.progress || 0))}%` }]} /></View></View>{writable ? <Pencil color={theme.textMuted} size={17} /> : null}</Pressable>} /> : null}
-    <SprintEditor editing={editing} onClose={() => setEditing(undefined)} onSaved={refresh} projectId={projectId} sheetEnabled={Boolean(project.data?.sheet_integration_enabled && project.data.sheet_id)} />
+    <SprintEditor editing={writable ? editing : undefined} onClose={() => setEditing(undefined)} onSaved={refresh} projectId={projectId} sheetEnabled={Boolean(project.data?.sheet_integration_enabled && project.data.sheet_id)} />
   </Screen>;
 }
 

@@ -97,6 +97,11 @@ class Api::V1::BaseController < Api::BaseController
   def serialize_project(project)
     {
       id: project.id,
+      owner_id: project.owner_id,
+      can_access: Project.accessible_to(current_user).exists?(id: project.id),
+      can_edit: project.editable_by?(current_user),
+      can_manage: project.manageable_by?(current_user),
+      can_operate: Operations::Policy.new(project, current_user).edit?,
       name: project.name,
       description: project.description,
       start_date: project.start_date,

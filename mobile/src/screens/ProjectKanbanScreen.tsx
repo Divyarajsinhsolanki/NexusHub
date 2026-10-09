@@ -1,3 +1,4 @@
+import { canEditProject } from '../utils/projectAccess';
 import { Picker } from '@react-native-picker/picker';
 import { InfiniteData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { addDays, format, parseISO } from 'date-fns';
@@ -33,7 +34,6 @@ export function ProjectKanbanScreen({ projectId }: { projectId: number }) {
   const { user } = useAuth();
   const { height, width } = useWindowDimensions();
   const tablet = width >= 840;
-  const writable = !user?.demo_account;
   const [selectedSprintId, setSelectedSprintId] = useState<number>();
   const [mode, setMode] = useState<BoardMode>('combined');
   const [scope, setScope] = useState<BoardScope>('all');
@@ -44,6 +44,7 @@ export function ProjectKanbanScreen({ projectId }: { projectId: number }) {
   const [dragging, setDragging] = useState(false);
 
   const project = useQuery({ queryKey: ['project', projectId], queryFn: () => endpoints.project(projectId), enabled: Number.isFinite(projectId) });
+  const writable = canEditProject(project.data, user);
   const sprints = useQuery({ queryKey: ['project-sprints', projectId], queryFn: () => endpoints.sprints(projectId), enabled: Number.isFinite(projectId) });
 
   useEffect(() => {
@@ -216,7 +217,7 @@ export function ProjectKanbanScreen({ projectId }: { projectId: number }) {
       <DropTargets visible={dragging} />
       <MoveTaskSheet onClose={() => setMovingTask(undefined)} onMove={(status) => movingTask && moveTask(movingTask, status)} task={movingTask} />
       <TaskDetailsSheet onClose={() => setInspectingTask(undefined)} task={inspectingTask} />
-      {project.data ? <TaskEditor defaults={editing?.defaults} lockType={editing?.lockType} members={project.data.users || []} onClose={() => setEditing(undefined)} onSaved={editorSaved} projectId={projectId} sprints={sprints.data || []} task={editing?.task} visible={Boolean(editing)} /> : null}
+      {project.data ? <TaskEditor defaults={editing?.defaults} lockType={editing?.lockType} members={project.data.users || []} onClose={() => setEditing(undefined)} onSaved={editorSaved} projectId={projectId} sprints={sprints.data || []} task={editing?.task} visible={writable && Boolean(editing)} /> : null}
     </Screen>
   );
 }

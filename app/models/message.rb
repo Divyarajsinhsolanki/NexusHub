@@ -107,6 +107,7 @@ class Message < ApplicationRecord
         action: mentioned ? "chat_mention" : "chat_message",
         notifiable: self,
         metadata: {
+          message_id: id,
           conversation_id: conversation_id,
           conversation_name: conversation.display_name(recipient),
           mentioned: mentioned,
@@ -140,6 +141,11 @@ class Message < ApplicationRecord
 
   def attachment_preview
     count = attachments.count
-    count > 1 ? "Sent #{count} attachments" : "Sent an attachment"
+    return "📎 #{count} attachments" if count > 1
+    blob = attachments.first&.blob
+    return "📷 Photo" if blob&.content_type.to_s.start_with?("image/")
+    return "🎥 Video" if blob&.content_type.to_s.start_with?("video/")
+    return "🎙️ Audio message" if blob&.content_type.to_s.start_with?("audio/")
+    "📎 #{blob&.filename.to_s.presence || 'Attachment'}"
   end
 end

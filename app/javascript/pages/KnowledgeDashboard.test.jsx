@@ -88,3 +88,17 @@ it('saves with collection and reminder settings using an accessible dialog', asy
   await waitFor(() => expect(mocks.createBookmark).toHaveBeenCalledWith(expect.objectContaining({ sourceId: 'knowledge_item:1', collectionName: 'Engineering', reminderIntervalDays: 14 })));
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
 });
+
+it('shows shared daily content in Daily tech and hides unauthorized archive actions', async () => {
+  mocks.fetchItems.mockResolvedValue({ data: [
+    { id: 3, active: true, title: 'Shared Rails tip', summary: 'Review an index', body: 'An example', category: 'tech', generated_source: 'bedrock_daily', workspace_shared: true, can_archive: false, collection_name: 'Daily Tech Knowledge' },
+    { id: 4, active: true, title: 'Personal inbox note', category: 'tech', generated_source: 'mcp' },
+  ] });
+  render(<KnowledgeDashboard />);
+  await screen.findByRole('heading', { name: 'Shared Rails tip' });
+  fireEvent.click(screen.getByRole('button', { name: /Daily tech/ }));
+  expect(screen.getByText('Workspace · AI-generated')).toBeTruthy();
+  expect(screen.queryByRole('heading', { name: 'Personal inbox note' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Archive', exact: true })).toBeNull();
+  expect(screen.getByRole('button', { name: 'Save', exact: true })).toBeTruthy();
+});

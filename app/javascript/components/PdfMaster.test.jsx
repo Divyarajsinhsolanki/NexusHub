@@ -92,6 +92,22 @@ const record = (patch = {}) => ({
   editor_state: { layer_id: 4, background_url: "/background.pdf", objects: [] },
   ...patch,
 });
+const noteRecord = (patch = {}) => record({
+  editor_state: {
+    layer_id: 4,
+    background_url: "/background.pdf",
+    objects: [{
+      id: "note", type: "text", page_number: 1,
+      x: 40, y: 50, width: 180, height: 48,
+      text: "Before", font_size: 16,
+    }],
+  },
+  ...patch,
+});
+const queuedExport = {
+  id: 12, kind: "export_images", pdf_document_id: 42,
+  status: "processing", progress: 20, result: {}, artifacts: [],
+};
 const setup = (demo = false) =>
   render(
     <AuthContext.Provider value={{ user: { id: 1, demo_account: demo } }}>
@@ -321,9 +337,10 @@ describe("PDF Master workspace", () => {
     await userEvent.click(within(sidebar).getByRole("button", { name: "Next page" }));
     expect(within(sidebar).getByLabelText("Current page").value).toBe("2");
     await userEvent.selectOptions(within(sidebar).getByLabelText("PDF zoom"), "fit-page");
+    const fittedWidth = parseFloat(document.querySelector(".nexus-pdf-page").style.width);
     await userEvent.click(within(sidebar).getByRole("button", { name: "Zoom in" }));
     expect(within(sidebar).getByLabelText("PDF zoom").value).toBe("custom");
-    expect(within(sidebar).getByRole("option", { name: "110%" })).toBeTruthy();
+    await waitFor(() => expect(parseFloat(document.querySelector(".nexus-pdf-page").style.width)).toBeGreaterThan(fittedWidth));
     await userEvent.click(screen.getByRole("button", { name: "View settings" }));
     const dialog = screen.getByRole("dialog", { name: "Page & zoom" });
     expect(within(dialog).getByLabelText("Current page").value).toBe("2");
@@ -603,6 +620,7 @@ describe("PDF Master workspace", () => {
     expect(api.undoPdfDocument).not.toHaveBeenCalled();
     releaseSave();
     await waitFor(() => expect(api.undoPdfDocument).toHaveBeenCalledTimes(1));
+    expect(api.undoPdfDocument).toHaveBeenCalledWith(42, 101);
     expect(api.createPdfDocumentOperation.mock.calls[0][0]).toMatchObject({
       kind: "save_objects",
       base_version_id: 77,
@@ -879,6 +897,124 @@ describe("PDF Master workspace", () => {
       ),
     );
     expect(api.createPdfDocumentOperation).not.toHaveBeenCalled();
+  });
+  it("flushes edits before checking status and preserves same-version page and object selection", async () => {
+    api.fetchPdfDocumentOperations.mockResolvedValue({ data: { operations: [queuedExport] } });
+    api.fetchPdfDocumentOperation.mockImplementation(async () => ({
+      data: { ...queuedExport, status: "completed", document: fixture.documents[0] },
+    }));
+    const doc = noteRecord();
+    doc.editor_state.objects[0].page_number = 2;
+    await open(doc);
+    await userEvent.click(screen.getByRole("button", { name: "Next page" }));
+    const text = screen.getByLabelText(/text content/i);
+    fireEvent.focus(text);
+    fireEvent.change(text, { target: { value: "Keep latest edit" } });
+    await userEvent.click(screen.getByRole("button", { name: "Check status" }));
+    await waitFor(() => expect(api.fetchPdfDocumentOperation).toHaveBeenCalledTimes(1));
+    expect(api.createPdfDocumentOperation.mock.calls[0][0]).toMatchObject({
+      kind: "save_objects", base_version_id: 77,
+      parameters: { objects: [expect.objectContaining({ text: "Keep latest edit" })] },
+    });
+    expect(api.createPdfDocumentOperation.mock.invocationCallOrder[0]).toBeLessThan(api.fetchPdfDocumentOperation.mock.invocationCallOrder[0]);
+    expect(screen.getByLabelText(/text content/i).value).toBe("Keep latest edit");
+    expect(screen.getByText("Text properties")).toBeTruthy();
+    expect(screen.getByLabelText("Current page").value).toBe("2");
+  });
+  it("retains failed autosaves and waits for successful retry before checking status", async () => {
+    api.fetchPdfDocumentOperations.mockResolvedValue({ data: { operations: [queuedExport] } });
+    api.fetchPdfDocumentOperation.mockImplementation(async () => ({
+      data: { ...queuedExport, status: "completed", document: fixture.documents[0] },
+    }));
+    await open(noteRecord());
+    fixture.failSave = true;
+    fireEvent.change(screen.getByLabelText(/text content/i), { target: { value: "Recover this edit" } });
+    await userEvent.click(screen.getByRole("button", { name: "Check status" }));
+    await screen.findByRole("alert");
+    expect(api.fetchPdfDocumentOperation).not.toHaveBeenCalled();
+    expect(screen.getByLabelText(/text content/i).value).toBe("Recover this edit");
+    fixture.failSave = false;
+    await userEvent.click(screen.getByRole("button", { name: "Retry save" }));
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+    await userEvent.click(screen.getByRole("button", { name: "Check status" }));
+    await waitFor(() => expect(api.fetchPdfDocumentOperation).toHaveBeenCalledTimes(1));
+    expect(fixture.documents[0].editor_state.objects[0].text).toBe("Recover this edit");
+  });
+  it("keeps pending redaction regions when checking an export status", async () => {
+    api.fetchPdfDocumentOperations.mockResolvedValue({ data: { operations: [queuedExport] } });
+    await open();
+    await group("Secure");
+    await userEvent.click(screen.getByRole("button", { name: "Redact tool" }));
+    const svg = svgBounds();
+    fireEvent.pointerDown(svg, { pointerId: 8, clientX: 40, clientY: 60 });
+    fireEvent.pointerMove(window, { pointerId: 8, clientX: 220, clientY: 110 });
+    fireEvent.pointerUp(window, { pointerId: 8, clientX: 220, clientY: 110 });
+    await screen.findByLabelText("Redaction style");
+    await userEvent.click(screen.getByRole("button", { name: "Check status" }));
+    expect(notifications.error).toHaveBeenCalledWith("Finish or clear the pending crop or redaction first.");
+    expect(api.fetchPdfDocumentOperation).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Redaction style")).toBeTruthy();
+  });
+  it("clears page-specific selection before keyboard deletion on another page", async () => {
+    await open(noteRecord());
+    fireEvent.focus(screen.getByLabelText(/text content/i));
+    expect(screen.getByText("Text properties")).toBeTruthy();
+    const sidebar = document.querySelector(".pdf-left-panel");
+    await userEvent.click(within(sidebar).getByRole("button", { name: "Next page" }));
+    expect(screen.queryByText("Text properties")).toBeNull();
+    fireEvent.keyDown(window, { key: "Delete" });
+    expect(api.createPdfDocumentOperation).not.toHaveBeenCalled();
+    await userEvent.click(within(sidebar).getByRole("button", { name: "Previous page" }));
+    expect(screen.getByLabelText(/text content/i).value).toBe("Before");
+  });
+  it("blocks document shortcuts while Rename is open, including from its buttons", async () => {
+    await open(noteRecord({ can_undo: true }));
+    fireEvent.focus(screen.getByLabelText(/text content/i));
+    await userEvent.click(screen.getByRole("button", { name: "Rename PDF" }));
+    const dialog = screen.getByRole("dialog", { name: "Rename PDF" });
+    within(dialog).getByRole("button", { name: "Cancel" }).focus();
+    fireEvent.keyDown(window, { key: "Delete" });
+    fireEvent.keyDown(window, { key: "z", ctrlKey: true });
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    fireEvent.keyDown(window, { key: "f", ctrlKey: true });
+    expect(api.undoPdfDocument).not.toHaveBeenCalled();
+    expect(api.createPdfDocumentOperation).not.toHaveBeenCalled();
+    expect(document.querySelector(".pdf-find-bar")).toBeNull();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(screen.getByLabelText(/text content/i).value).toBe("Before");
+    expect(screen.getByLabelText("Current page").value).toBe("1");
+  });
+  it("keeps tools and view controls reachable when sidebars collapse or focus mode is active", async () => {
+    await open(noteRecord());
+    await userEvent.click(screen.getByRole("button", { name: "Collapse document sidebar" }));
+    await userEvent.click(screen.getByRole("button", { name: "Collapse tools sidebar" }));
+    expect(screen.getByRole("button", { name: "Expand document sidebar" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Expand tools sidebar" })).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Enter focus mode" }));
+    expect(document.querySelector("#pdf-document-sidebar").getAttribute("aria-hidden")).toBe("true");
+    await userEvent.click(screen.getByRole("button", { name: "Page and zoom settings" }));
+    const dialog = screen.getByRole("dialog", { name: "Page & zoom" });
+    expect(within(dialog).getByLabelText("Current page").value).toBe("1");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Close Page & zoom" }));
+    await userEvent.click(screen.getByRole("button", { name: "Exit focus mode" }));
+    expect(screen.getByRole("button", { name: "Expand document sidebar" })).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Expand document sidebar" }));
+    await userEvent.click(screen.getByRole("button", { name: "Expand tools sidebar" }));
+    expect(screen.getByLabelText(/text content/i).value).toBe("Before");
+    expect(screen.getByLabelText("Current page").value).toBe("1");
+  });
+  it("shows omitted split pages and can include them as a final output", async () => {
+    await open();
+    await group("Pages");
+    await userEvent.click(screen.getByText("Split PDF"));
+    expect(screen.getByText(/excluded from these files: 3, 4/)).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Include remaining pages" }));
+    expect(screen.getByLabelText("Part 3 pages").value).toBe("3, 4");
+    expect(screen.queryByText(/excluded from these files/)).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Create split documents" }));
+    await waitFor(() => expect(api.createPdfDocumentOperation).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "split_by_ranges", parameters: { page_groups: [[1], [2], [3, 4]] } }), undefined,
+    ));
   });
   it("adds an editable page-number rule and preserves selection", async () => {
     await open();

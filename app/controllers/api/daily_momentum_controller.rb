@@ -188,7 +188,7 @@ class Api::DailyMomentumController < Api::BaseController
       if log.actual_minutes.present? && log.actual_minutes.positive?
         log.actual_minutes
       else
-        ((log.end_time - log.start_time) / 60.0).round
+        log.planned_minutes
       end
     end
 

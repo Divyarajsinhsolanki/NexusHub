@@ -11,6 +11,7 @@ class PushNotificationDispatchJob < ApplicationJob
     return if !PushNotifications.v2_enabled? && !catalog.legacy_push_supported?
     return unless latest_group_notification?(notification)
     return if notification.read_at?
+    return unless chat_delivery_allowed?(notification)
 
     quiet_period = notification.recipient.push_quiet_period
     if quiet_period && quiet_period[:ends_at] > 1.second.from_now
@@ -35,6 +36,14 @@ class PushNotificationDispatchJob < ApplicationJob
 
   private
 
+  def chat_delivery_allowed?(notification)
+    return true unless notification.notifiable_type == "Message"
+    message = notification.notifiable
+    return false unless message && !message.deleted_at?
+    membership = ConversationParticipant.unscoped.find_by(conversation_id: message.conversation_id, user_id: notification.recipient_id, workspace_id: notification.workspace_id)
+    membership.present? && !membership.muted?
+  end
+
   def latest_group_notification?(notification)
     return true if notification.group_key.blank?
 
@@ -47,6 +56,7 @@ class PushNotificationDispatchJob < ApplicationJob
     Notification.unscoped.where(
       recipient_id: notification.recipient_id,
       group_key: notification.group_key,
+      read_at: nil,
       created_at: since..notification.created_at
     ).count.clamp(1, 99)
   rescue ArgumentError

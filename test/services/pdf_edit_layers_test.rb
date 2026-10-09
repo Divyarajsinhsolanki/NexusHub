@@ -33,6 +33,18 @@ class PdfEditLayersTest < ActiveSupport::TestCase
     assert_equal "Updated editable text", objects.first["text"]
   end
 
+  test "history movement rejects a document changed after the caller loaded it" do
+    snapshot = PdfDocument.find(@document.id)
+    original = snapshot.current_version
+    perform_operation("save_objects", objects: [text("latest", "Newer changes must remain current")])
+    current = @document.reload.current_version_id
+    assert_raises(PdfDocuments::Manager::StaleVersion) do
+      PdfDocuments::Manager.move_history!(document: snapshot, target_version: original)
+    end
+    assert_equal current, @document.reload.current_version_id
+    assert_includes extracted(@document).gsub(/\s+/, " "), "Newer changes must remain current"
+  end
+
   test "multiple images keep stable asset keys and share assets across history" do
     image = png
     upload = Rack::Test::UploadedFile.new(image.path, "image/png")
@@ -88,6 +100,28 @@ class PdfEditLayersTest < ActiveSupport::TestCase
     assert_green(pixel(@document, 15, 25))
     perform_operation("save_objects", objects: objects)
     assert_green(pixel(@document, 15, 25))
+  end
+
+  test "blank insertion retains the reference page user unit rotation and crop box" do
+    source = create_test_pdf(pages: 1)
+    @files << source
+    pdf = HexaPDF::Document.open(source.path)
+    page = pdf.pages[0]
+    page[:UserUnit] = 2
+    page[:Rotate] = 90
+    page.box(:crop, [50, 70, 350, 470])
+    pdf.write(source.path)
+    @document = PdfDocuments::Manager.create_from_path!(user: @user, path: source.path, filename: "scaled-blank.pdf")
+    perform_operation("add_blank_page", position: 2, reference_page_number: 1)
+    @document.reload.current_version.file.open do |file|
+      output = HexaPDF::Document.open(file.path)
+      first, blank = output.pages.to_a
+      assert_equal first[:UserUnit], blank[:UserUnit]
+      assert_equal first[:Rotate], blank[:Rotate]
+      assert_equal first.box(:media).value, blank.box(:media).value
+      assert_equal first.box(:crop).value, blank.box(:crop).value
+      assert_empty blank.contents
+    end
   end
 
   test "page number rules and strikethrough remain editable and export visible text" do

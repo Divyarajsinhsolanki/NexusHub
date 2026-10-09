@@ -1,4 +1,4 @@
-import { canOpenProject } from "@/src/utils/projectAccess";
+import { canOpenProject, canManageProject } from "@/src/utils/projectAccess";
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, BarChart3, Bug, Columns3, FolderLock, ListTree, Plus, Server, Settings2, TimerReset, Users } from 'lucide-react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -54,7 +54,7 @@ export default function ProjectDetailScreen() {
             <ProjectTool icon={TimerReset} label="Logs" onPress={() => router.push(`/projects/${projectId}/logs` as never)} />
             <ProjectTool icon={Server} label="Environments" onPress={() => router.push(`/projects/${projectId}/environments` as never)} />
             <ProjectTool icon={FolderLock} label="Vault" onPress={() => router.push(`/projects/${projectId}/vault` as never)} />
-            {user?.permissions?.includes('projects.manage') && !user.demo_account ? <ProjectTool icon={Settings2} label="Settings" onPress={() => router.push(`/projects/${projectId}/settings` as never)} /> : null}
+            {canManageProject(project.data, user) ? <ProjectTool icon={Settings2} label="Settings" onPress={() => router.push(`/projects/${projectId}/settings` as never)} /> : null}
           </View>
           <Text style={[styles.heading, { color: theme.text }]}>Sprints</Text>
           <View style={styles.sprints}>

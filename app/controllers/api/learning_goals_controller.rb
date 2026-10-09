@@ -10,19 +10,24 @@ class Api::LearningGoalsController < Api::BaseController
   def create
     goal = current_user.learning_goals.build(learning_goal_params)
 
-    if goal.team_id.present? && !current_user.team_users.exists?(team_id: goal.team_id)
+    if goal.team_id.present? && !current_user.team_users.exists?(team_id: goal.team_id, status: 'accepted')
       return render json: { errors: ["You must be a member of this team to create a goal."] }, status: :forbidden
     end
 
-    if goal.save
+    LearningGoal.transaction do
+      goal.save!
       create_checkpoints(goal)
-      render json: serialize(goal), status: :created
-    else
-      render json: { errors: goal.errors.full_messages }, status: :unprocessable_entity
     end
+    render json: serialize(goal), status: :created
+  rescue ActiveRecord::RecordInvalid => error
+    render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
   end
 
   def update
+    team_id = learning_goal_params[:team_id]
+    if team_id.present? && !current_user.team_users.exists?(team_id: team_id, status: 'accepted')
+      return render json: { errors: ['You must be a member of this team to create a goal.'] }, status: :forbidden
+    end
     if @learning_goal.update(learning_goal_params)
       render json: serialize(@learning_goal)
     else
@@ -54,7 +59,7 @@ class Api::LearningGoalsController < Api::BaseController
     return if checkpoints.blank?
 
     checkpoints.each do |checkpoint|
-      goal.learning_checkpoints.create(checkpoint)
+      goal.learning_checkpoints.create!(checkpoint)
     end
     goal.recalculate_progress!
   end

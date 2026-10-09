@@ -54,6 +54,7 @@ async function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS pending_notification_actions_created_index ON pending_notification_actions(created_at);
     CREATE INDEX IF NOT EXISTS processed_notification_actions_date_index ON processed_notification_actions(processed_at);
   `);
+  await database.execAsync("PRAGMA secure_delete = ON; DELETE FROM drafts WHERE draft_key LIKE '%:entity:/items' OR draft_key LIKE '%:entity:/projects/%/vault_items'; PRAGMA wal_checkpoint(TRUNCATE);");
   return database;
 }
 

@@ -186,8 +186,8 @@ const Notifications = () => {
       const response = await fetchNotifications({ page, cursor: true, ...(page > 1 && cursorRef.current ? { before_id: cursorRef.current } : {}), status: statusFilter, action_type: actionFilter === 'all' ? undefined : actionFilter });
       if (version !== requestVersion.current) return;
       const incoming = readState.current.apply(response.data.notifications || []);
-      incoming.forEach((notice) => seenNotifications.current.add(notice.id));
-      setNotifications(previous => mergeNotifications(previous, incoming).filter(notice => statusFilter !== 'unread' || !notice.read_at));
+      incoming.forEach((notice) => seenNotifications.current.add(String(notice.id)));
+      setNotifications(previous => mergeNotifications(previous, incoming).filter(notice => statusFilter === 'all' || (statusFilter === 'unread' ? !notice.read_at : Boolean(notice.read_at))));
       const cursor = response.data.meta?.next_before_id;
       cursorRef.current = cursor ?? null;
       setNextCursor(cursor ?? null);
@@ -230,9 +230,10 @@ const Notifications = () => {
         if (statusFilter === 'read') { setNotifications([]); void loadNotifications(); }
         return;
       }
-      const notice = event?.type === 'notification_received' ? event.notification : null;
-      if (!notice || seenNotifications.current.has(notice.id)) return;
-      seenNotifications.current.add(notice.id);
+      const received = event?.type === 'notification_received' ? event.notification : null;
+      if (!received || seenNotifications.current.has(String(received.id))) return;
+      const notice = readState.current.apply([received])[0];
+      seenNotifications.current.add(String(notice.id));
       liveRevision.current += 1;
       if (seenNotifications.current.size > 2000) seenNotifications.current.delete(seenNotifications.current.values().next().value);
       if (!notice.read_at) setUnreadCount((count) => count + 1);
@@ -355,7 +356,7 @@ const Notifications = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={loadNotifications}
+                  onClick={() => loadNotifications(1)}
                   className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-3 text-sm font-semibold text-white hover:bg-white/16"
                 >
                   <Sparkles className="h-4 w-4" />

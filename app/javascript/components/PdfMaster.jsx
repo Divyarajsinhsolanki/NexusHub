@@ -37,6 +37,12 @@ import {
   Merge,
   Minus,
   MousePointer2,
+  Maximize2,
+  Minimize2,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
   PenLine,
   Plus,
   Redo2,
@@ -419,7 +425,10 @@ export default function PdfMaster() {
   const [leftTab, setLeftTab] = useState("library"),
     [group, setGroup] = useState("edit"),
     [activeTool, setActiveTool] = useState("select"),
-    [panel, setPanel] = useState(null);
+    [panel, setPanel] = useState(null),
+    [leftCollapsed, setLeftCollapsed] = useState(false),
+    [rightCollapsed, setRightCollapsed] = useState(false),
+    [focusMode, setFocusMode] = useState(false);
   const [objects, setObjects] = useState([]),
     [regions, setRegions] = useState([]),
     [selectedShapeId, setSelectedShapeId] = useState(null),
@@ -430,6 +439,7 @@ export default function PdfMaster() {
     [rangeInput, setRangeInput] = useState("");
   const [zoom, setZoom] = useState(1),
     [zoomMode, setZoomMode] = useState("fit-page"),
+    [renderedZoom, setRenderedZoom] = useState(1),
     [pageSize, setPageSize] = useState({ width: 612, height: 792 });
   const [interacting, setInteracting] = useState(false);
   const [busy, setBusy] = useState(false),
@@ -500,6 +510,13 @@ export default function PdfMaster() {
   );
   const shapes = useMemo(() => [...objects, ...regions], [objects, regions]),
     selectedShape = shapes.find((s) => s.id === selectedShapeId);
+  useEffect(() => {
+    if (
+      selectedShape?.page_number &&
+      Number(selectedShape.page_number) !== currentPage
+    )
+      setSelectedShapeId(null);
+  }, [currentPage, selectedShape]);
   const savedObjects = useMemo(() => cleanObjects(objects), [objects]);
   const visibleOperations = recentOperations.filter(
     (item) => item.kind !== "save_objects",
@@ -818,14 +835,18 @@ export default function PdfMaster() {
         result.document &&
         String(result.document.id) === String(documentRef.current?.id)
       ) {
+        const versionChanged =
+          result.document.current_version_id !==
+          documentRef.current.current_version_id;
         updateDocument(result.document);
-        hydrate({
-          ...result.document,
-          recent_operations: [
-            result,
-            ...recentOperations.filter((item) => item.id !== result.id),
-          ].slice(0, 10),
-        });
+        if (versionChanged)
+          hydrate({
+            ...result.document,
+            recent_operations: [
+              result,
+              ...recentOperations.filter((item) => item.id !== result.id),
+            ].slice(0, 10),
+          });
         setArtifacts(result.artifacts || []);
       }
       const rows = await loadLibrary(search);
@@ -880,6 +901,21 @@ export default function PdfMaster() {
       recentOperations,
     ],
   );
+  const checkOperationStatus = async (operationId) => {
+    if (busy || interacting || editorLoading || !beginTransition()) return;
+    try {
+      if (regionsRef.current.length)
+        throw new Error("Finish or clear the pending crop or redaction first.");
+      await autosave.flush();
+      setBusy(true);
+      await finishOperation(await poll(operationId));
+    } catch (error) {
+      toast.error(message(error));
+    } finally {
+      if (mounted.current) setBusy(false);
+      endTransition();
+    }
+  };
   const runOperation = async (kind, parameters = {}, options = {}) => {
     if (
       demo ||
@@ -946,7 +982,10 @@ export default function PdfMaster() {
           : direction === "redo"
             ? redoPdfDocument
             : restorePdfDocument;
-      const { data } = await request(documentRef.current.id);
+      const { data } = await request(
+        documentRef.current.id,
+        documentRef.current.current_version_id,
+      );
       updateDocument(data);
       hydrate(data);
       await loadLibrary(search);
@@ -980,6 +1019,7 @@ export default function PdfMaster() {
   };
   useEffect(() => {
     const handler = (event) => {
+      if (signatureOpen || confirmation || panel || renameOpen) return;
       const field = event.target?.closest?.(
         "input,textarea,select,[contenteditable='true']",
       );
@@ -993,7 +1033,7 @@ export default function PdfMaster() {
         setFindOpen(true);
         return;
       }
-      if (field || !editable || signatureOpen || confirmation || panel) return;
+      if (field || !editable) return;
       if (interacting && event.key !== "Escape") return;
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {
         event.preventDefault();
@@ -1380,6 +1420,12 @@ export default function PdfMaster() {
   } catch (e) {
     splitError = e.message;
   }
+  const splitUsedPages = new Set(splitGroups.flat());
+  const splitExcludedPages = splitError
+    ? []
+    : Array.from({ length: count }, (_, index) => index + 1).filter(
+        (page) => !splitUsedPages.has(page),
+      );
 
   const rename = async (event) => {
     event.preventDefault();
@@ -1472,7 +1518,7 @@ export default function PdfMaster() {
           disabled={selectedDocument?.encrypted}
           onClick={() => {
             setZoomMode("custom");
-            setZoom((value) => Math.max(0.25, value - 0.1));
+            setZoom(Math.max(0.1, Math.round((renderedZoom - 0.1) * 1000) / 1000));
           }}
         />
         <select
@@ -1494,7 +1540,7 @@ export default function PdfMaster() {
           disabled={selectedDocument?.encrypted}
           onClick={() => {
             setZoomMode("custom");
-            setZoom((value) => Math.min(4, value + 0.1));
+            setZoom(Math.min(4, Math.round((renderedZoom + 0.1) * 1000) / 1000));
           }}
         />
       </div>
@@ -2365,6 +2411,27 @@ export default function PdfMaster() {
                             .join(" · ")}
                           . The original is kept.
                         </p>
+                        {splitExcludedPages.length > 0 && (
+                          <div className="pdf-split-warning" role="status">
+                            <p>
+                              {splitExcludedPages.length}{" "}
+                              {splitExcludedPages.length === 1 ? "page is" : "pages are"}{" "}
+                              excluded from these files: {splitExcludedPages.join(", ")}.
+                              They remain in the original.
+                            </p>
+                            <Button
+                              disabled={!editable || splitRows.length >= 25}
+                              onClick={() =>
+                                setSplitRows((rows) => [
+                                  ...rows,
+                                  splitExcludedPages.join(", "),
+                                ])
+                              }
+                            >
+                              Include remaining pages
+                            </Button>
+                          </div>
+                        )}
                         <ul
                           className="pdf-split-preview"
                           aria-label="Split file preview"
@@ -2564,19 +2631,8 @@ export default function PdfMaster() {
               {operation.error && <p>{operation.error}</p>}
               {["queued", "processing"].includes(operation.status) && !busy && (
                 <Button
-                  disabled={preparing}
-                  onClick={invoke(async () => {
-                    if (!beginTransition()) return;
-                    setBusy(true);
-                    try {
-                      await finishOperation(await poll(operation.id));
-                    } catch (e) {
-                      toast.error(message(e));
-                    } finally {
-                      setBusy(false);
-                      endTransition();
-                    }
-                  })}
+                  disabled={preparing || interacting || editorLoading}
+                  onClick={invoke(() => checkOperationStatus(operation.id))}
                 >
                   Check status
                 </Button>
@@ -2643,7 +2699,7 @@ export default function PdfMaster() {
       </div>
     );
   return (
-    <div className="nexus-pdf-master pdf-workspace">
+    <div className={`nexus-pdf-master pdf-workspace ${focusMode ? "is-focused" : ""}`}>
       <input
         ref={assetInput}
         className="hidden"
@@ -2733,7 +2789,7 @@ export default function PdfMaster() {
                 ))}
               </div>
               <Button
-                className="xl:hidden"
+                className={rightCollapsed || focusMode ? "" : "xl:hidden"}
                 icon={ChevronDown}
                 onClick={() => setPanel("tools")}
               >
@@ -2745,6 +2801,37 @@ export default function PdfMaster() {
         <div className="pdf-header-actions">
           {selectedDocument && (
             <>
+              <div className="pdf-focus-actions">
+                {(focusMode || leftCollapsed) && (
+                  <>
+                    <Button
+                      icon={Library}
+                      aria-label="Open document library"
+                      title="Document library"
+                      onClick={() => setPanel("library")}
+                    />
+                    <Button
+                      icon={Images}
+                      aria-label="Open page organizer"
+                      title="Page organizer"
+                      onClick={() => setPanel("pages")}
+                    />
+                    <Button
+                      icon={ZoomIn}
+                      aria-label="Page and zoom settings"
+                      title="Page and zoom"
+                      onClick={() => setPanel("view")}
+                    />
+                  </>
+                )}
+                <Button
+                  icon={focusMode ? Minimize2 : Maximize2}
+                  aria-label={focusMode ? "Exit focus mode" : "Enter focus mode"}
+                  aria-pressed={focusMode}
+                  title={focusMode ? "Exit focus mode" : "Focus on the PDF"}
+                  onClick={() => setFocusMode((current) => !current)}
+                />
+              </div>
               {!demo && (
                 <>
                   <span
@@ -2800,6 +2887,8 @@ export default function PdfMaster() {
               />
               <Button
                 icon={Download}
+                aria-label="Download"
+                title="Download PDF"
                 primary
                 disabled={busy || preparing || editorLoading || interacting}
                 onClick={invoke(download)}
@@ -2864,27 +2953,73 @@ export default function PdfMaster() {
       ) : (
         <>
           <div className="pdf-workspace-body">
-            <aside className="pdf-left-panel hidden lg:flex">
-              <nav aria-label="Document navigation">
-                <Button
-                  className={leftTab === "library" ? "is-active" : ""}
-                  icon={Library}
-                  onClick={() => setLeftTab("library")}
-                >
-                  Library
-                </Button>
-                <Button
-                  className={leftTab === "pages" ? "is-active" : ""}
-                  icon={Images}
-                  onClick={() => setLeftTab("pages")}
-                >
-                  Pages
-                </Button>
-              </nav>
-              <div className="pdf-panel-scroll">
-                {leftTab === "library" ? libraryPanel() : pagesPanel()}
-              </div>
-              {selectedDocument && viewControls()}
+            <aside
+              id="pdf-document-sidebar"
+              className={`pdf-left-panel hidden lg:flex ${leftCollapsed ? "is-collapsed" : ""}`}
+              aria-label="Document sidebar"
+              aria-hidden={focusMode || undefined}
+              inert={focusMode || undefined}
+            >
+              {leftCollapsed ? (
+                <div className="pdf-panel-rail">
+                  <Button
+                    icon={PanelLeftOpen}
+                    aria-label="Expand document sidebar"
+                    title="Expand document sidebar"
+                    onClick={() => setLeftCollapsed(false)}
+                  />
+                  <Button
+                    icon={Library}
+                    aria-label="Open library panel"
+                    title="Library"
+                    onClick={() => setPanel("library")}
+                  />
+                  <Button
+                    icon={Images}
+                    aria-label="Open pages panel"
+                    title="Pages"
+                    onClick={() => setPanel("pages")}
+                  />
+                  {selectedDocument && (
+                    <Button
+                      icon={ZoomIn}
+                      aria-label="Open view panel"
+                      title="Page and zoom"
+                      onClick={() => setPanel("view")}
+                    />
+                  )}
+                </div>
+              ) : (
+                <>
+                  <nav aria-label="Document navigation">
+                    <Button
+                      className={leftTab === "library" ? "is-active" : ""}
+                      icon={Library}
+                      onClick={() => setLeftTab("library")}
+                    >
+                      Library
+                    </Button>
+                    <Button
+                      className={leftTab === "pages" ? "is-active" : ""}
+                      icon={Images}
+                      onClick={() => setLeftTab("pages")}
+                    >
+                      Pages
+                    </Button>
+                    <Button
+                      className="pdf-collapse-button"
+                      icon={PanelLeftClose}
+                      aria-label="Collapse document sidebar"
+                      title="Collapse document sidebar"
+                      onClick={() => setLeftCollapsed(true)}
+                    />
+                  </nav>
+                  <div className="pdf-panel-scroll">
+                    {leftTab === "library" ? libraryPanel() : pagesPanel()}
+                  </div>
+                  {selectedDocument && viewControls()}
+                </>
+              )}
             </aside>
             <main className="pdf-editor-main">
               {selectedDocument ? (
@@ -2943,6 +3078,12 @@ export default function PdfMaster() {
                       pageNumber={currentPage}
                       zoom={zoom}
                       zoomMode={zoomMode}
+                      onViewScaleChange={setRenderedZoom}
+                      onPageNavigate={(page) =>
+                        setCurrentPage(
+                          Math.max(1, Math.min(count || 1, Math.trunc(page) || 1)),
+                        )
+                      }
                       activeTool={demo ? null : activeTool}
                       editable={editable}
                       shapes={shapes}
@@ -2985,18 +3126,52 @@ export default function PdfMaster() {
                 </div>
               )}
             </main>
-            <aside className="pdf-right-panel hidden xl:flex">
-              <header>
-                <h2>
-                  {selectedShape
-                    ? "Object settings"
-                    : `${GROUPS.find(([id]) => id === group)?.[1]} tools`}
-                </h2>
-                <span>Everything you need for this task</span>
-              </header>
-              <div className="pdf-panel-scroll">
-                {panel !== "tools" && toolsPanel()}
-              </div>
+            <aside
+              id="pdf-tools-sidebar"
+              className={`pdf-right-panel hidden xl:flex ${rightCollapsed ? "is-collapsed" : ""}`}
+              aria-label="Tool settings sidebar"
+              aria-hidden={focusMode || undefined}
+              inert={focusMode || undefined}
+            >
+              {rightCollapsed ? (
+                <div className="pdf-panel-rail">
+                  <Button
+                    icon={PanelRightOpen}
+                    aria-label="Expand tools sidebar"
+                    title="Expand tools sidebar"
+                    onClick={() => setRightCollapsed(false)}
+                  />
+                  <Button
+                    icon={ChevronDown}
+                    aria-label="Open tool settings"
+                    title="Tool settings"
+                    onClick={() => setPanel("tools")}
+                  />
+                </div>
+              ) : (
+                <>
+                  <header>
+                    <div className="pdf-panel-heading">
+                      <h2>
+                        {selectedShape
+                          ? "Object settings"
+                          : `${GROUPS.find(([id]) => id === group)?.[1]} tools`}
+                      </h2>
+                      <Button
+                        className="pdf-collapse-button"
+                        icon={PanelRightClose}
+                        aria-label="Collapse tools sidebar"
+                        title="Collapse tools sidebar"
+                        onClick={() => setRightCollapsed(true)}
+                      />
+                    </div>
+                    <span>Everything you need for this task</span>
+                  </header>
+                  <div className="pdf-panel-scroll">
+                    {panel !== "tools" && toolsPanel()}
+                  </div>
+                </>
+              )}
             </aside>
           </div>
           <nav

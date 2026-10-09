@@ -19,6 +19,8 @@ class PdfEncryptionTest < ActiveSupport::TestCase
       base_version_id: document.current_version_id
     )
     assert document.reload.encrypted?
+    assert_equal 1, document.page_count
+    assert_equal 1, document.current_version.page_count
 
     processor.unlock!(
       password: "StrongPassword!42",

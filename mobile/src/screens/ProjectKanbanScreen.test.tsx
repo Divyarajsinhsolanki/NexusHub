@@ -84,6 +84,16 @@ async function renderBoard() {
   return { client, screen };
 }
 
+test('hides task mutation controls when server project permissions are read-only', async () => {
+  (endpoints.project as jest.MockedFunction<typeof endpoints.project>).mockResolvedValue({ id: 1, name: 'Apollo', status: 'running', sprint_count: 1, task_count: 1, can_access: true, can_edit: false, users: [{ id: 5, status: 'active', role: 'viewer' }] });
+  const { client, screen } = await renderBoard();
+  await screen.findByText('Build native board');
+  expect(screen.queryByRole('button', { name: 'Create board task' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Move Build native board' })).toBeNull();
+  await screen.unmount();
+  client.clear();
+});
+
 test('renders the full dashboard and moves a task through the accessible sheet', async () => {
   const { client, screen } = await renderBoard();
 

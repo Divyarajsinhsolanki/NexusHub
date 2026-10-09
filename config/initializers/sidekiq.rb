@@ -4,6 +4,9 @@ Sidekiq.configure_server do |config|
     # Persist schedules in Redis and recover database-backed reminders on every
     # worker restart. Active Job supplies the environment-specific queue prefix.
     Sidekiq::Cron::Job.load_from_hash({
+      "#{Rails.env}:daily-knowledge" => {
+        'cron' => '30 3 * * * UTC', 'class' => 'DailyKnowledgePublishJob', 'active_job' => true
+      },
       "#{Rails.env}:project-statuses" => {
         'cron' => '0 * * * * UTC', 'class' => 'ProjectStatusRefreshJob', 'active_job' => true
       },
@@ -17,6 +20,7 @@ Sidekiq.configure_server do |config|
     OperationScheduleMaterializeJob.perform_later
     OperationReminderSweepJob.perform_later
     ProjectStatusRefreshJob.perform_later
+    DailyKnowledgePublishJob.perform_later
   end
 end
 

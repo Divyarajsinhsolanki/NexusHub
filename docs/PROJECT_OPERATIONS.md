@@ -85,6 +85,14 @@ server, and saved secret definitions cannot be downgraded to reveal values.
 Generic admin CRUD excludes protected operations records. Existing Vault
 credentials are not automatically copied or migrated.
 
+Personal and project Vault contents use Active Record authenticated encryption.
+Vault keys are derived separately from the stable Operations secret, with a
+domain-separated application-secret key for installations without that secret.
+Keep both secrets stable and include them in recovery procedures. The Vault
+backfill migration encrypts existing contents in place; authorized reads and
+search continue to work. Mobile Vault responses are excluded from offline cache,
+Vault drafts are never persisted, and existing drafts are cleared on startup.
+
 ## Reminders and calendars
 
 Reminder recipients are the owner plus selected active project members. Both

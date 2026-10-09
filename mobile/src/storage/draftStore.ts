@@ -8,12 +8,15 @@ type DraftIdentity = {
   workspaceId: number;
 };
 
+const isVaultDraft = (identity: DraftIdentity) => /^entity:\/(items|projects\/\d+\/vault_items)$/.test(identity.key);
+
 function scopedKey(identity: DraftIdentity) {
   return `${identity.workspaceId}:${identity.userId}:${identity.key}`;
 }
 
 export const draftStore = {
   async get<T>(identity: DraftIdentity): Promise<T | null> {
+    if (isVaultDraft(identity)) { await this.remove(identity); return null; }
     const database = await getDatabase();
     if (!database) return null;
     await database.runAsync('DELETE FROM drafts WHERE expires_at <= ?', Date.now());
@@ -24,6 +27,7 @@ export const draftStore = {
     return row ? (JSON.parse(row.payload) as T) : null;
   },
   async set<T>(identity: DraftIdentity, value: T) {
+    if (isVaultDraft(identity)) { await this.remove(identity); return; }
     const database = await getDatabase();
     if (!database) return;
     const now = Date.now();

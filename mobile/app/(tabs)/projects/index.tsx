@@ -1,4 +1,4 @@
-import { canOpenProject } from "@/src/utils/projectAccess";
+import { canOpenProject, canManageProject } from "@/src/utils/projectAccess";
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, FolderKanban, Plus, Search, Trash2, X } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
@@ -49,7 +49,7 @@ export default function ProjectsScreen() {
           onRefresh={() => projects.refetch()}
           removeClippedSubviews
           refreshing={projects.isRefetching}
-          renderItem={({ item }) => <ProjectRow onEdit={canManage ? () => openEditor(item) : undefined} project={item} />}
+          renderItem={({ item }) => <ProjectRow onEdit={canManageProject(item, user) ? () => openEditor(item) : undefined} project={item} />}
           windowSize={7}
           ListEmptyComponent={<EmptyState title="No projects" message="Workspace projects will appear here." />}
         />

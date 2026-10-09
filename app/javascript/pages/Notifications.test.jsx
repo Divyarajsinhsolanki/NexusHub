@@ -51,5 +51,40 @@ it('does not restore unread state when a read event precedes the initial respons
   act(() => mocks.listener({ type: 'notifications_read', notification_id: 21, read_at: '2026-10-09T12:01:00Z', unread_count: 0 }));
   await act(async () => resolve({ data: { notifications: [notice(21)], meta: { unread_count: 1, next_before_id: null } } }));
   expect(screen.getByText('Assignment 21')).toBeTruthy();
-  expect(screen.queryByRole('button', { name: /Mark as read/i })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Mark read' })).toBeNull();
+});
+it('uses the same unread cursor after marking the displayed page read', async () => {
+  mocks.fetch.mockImplementation(async ({ before_id }) => ({ data: {
+    notifications: [notice(before_id ? 1 : 21)],
+    meta: { unread_count: 2, next_before_id: before_id ? null : 21 },
+  } }));
+  render(<MemoryRouter><Notifications /></MemoryRouter>);
+  await screen.findByText('Assignment 21');
+  fireEvent.click(screen.getByRole('button', { name: 'Unread' }));
+  await waitFor(() => expect(mocks.fetch).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'unread' })));
+  await screen.findByText('Assignment 21');
+  fireEvent.click(screen.getByRole('button', { name: 'Mark read' }));
+  await waitFor(() => expect(screen.queryByText('Assignment 21')).toBeNull());
+  fireEvent.click(screen.getByRole('button', { name: 'Load older notifications' }));
+  await screen.findByText('Assignment 1');
+  expect(mocks.fetch).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: true, before_id: 21, status: 'unread' }));
+});
+it('refreshes the first page with a numeric page parameter', async () => {
+  render(<MemoryRouter><Notifications /></MemoryRouter>);
+  await screen.findByText('Assignment 21');
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh feed' }));
+  await waitFor(() => expect(mocks.fetch).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1 })));
+});
+it('deduplicates string IDs and keeps delayed already-read arrivals out of the unread lane', async () => {
+  mocks.fetch.mockResolvedValue({ data: { notifications: [notice(21)], meta: { unread_count: 1, next_before_id: null } } });
+  render(<MemoryRouter><Notifications /></MemoryRouter>);
+  await screen.findByText('Assignment 21');
+  act(() => mocks.listener({ type: 'notification_received', notification: notice('21') }));
+  expect(screen.getAllByText('Assignment 21')).toHaveLength(1);
+  fireEvent.click(screen.getByRole('button', { name: 'Unread' }));
+  await screen.findByText('Assignment 21');
+  act(() => mocks.listener({ type: 'notifications_read', notification_id: 22, read_at: '2026-10-09T12:01:00Z', unread_count: 1 }));
+  act(() => mocks.listener({ type: 'notification_received', notification: notice(22) }));
+  expect(screen.queryByText('Assignment 22')).toBeNull();
+  expect(screen.getByText('1 unread notifications are still live in the feed.')).toBeTruthy();
 });

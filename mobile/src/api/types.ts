@@ -34,6 +34,7 @@ export type PushNotificationSettings = {
     work: boolean;
     social: boolean;
     reminders: boolean;
+    knowledge?: boolean;
   };
   quiet_hours: {
     enabled: boolean;
@@ -247,6 +248,11 @@ export type HomeData = {
 };
 
 export type Project = {
+  owner_id?: number | null;
+  can_access?: boolean;
+  can_edit?: boolean;
+  can_manage?: boolean;
+  can_operate?: boolean;
   id: number;
   name: string;
   description?: string | null;
@@ -543,7 +549,7 @@ export type Notification = {
   notifiable_id: number;
   deep_link: string;
   event_type?: string;
-  category?: 'chat' | 'audio_calls' | 'video_calls' | 'work' | 'social' | 'reminders';
+  category?: 'chat' | 'audio_calls' | 'video_calls' | 'work' | 'social' | 'reminders' | 'knowledge';
   title?: string;
   group_key?: string;
 };

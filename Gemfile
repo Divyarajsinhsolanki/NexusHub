@@ -86,3 +86,5 @@ group :test do
   gem "minitest", "~> 5.25"
   gem "selenium-webdriver"
 end
+
+gem "aws-sdk-bedrockruntime", "~> 1.85"

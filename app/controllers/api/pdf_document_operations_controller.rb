@@ -8,6 +8,7 @@ class Api::PdfDocumentOperationsController < Api::BaseController
   end
 
   def show
+    PdfDocuments::OperationRunner.recover_expired!(@operation)
     render json: serialize_operation(@operation)
   end
 
@@ -90,7 +91,7 @@ class Api::PdfDocumentOperationsController < Api::BaseController
 
     value = raw.is_a?(String) ? JSON.parse(raw) : raw.is_a?(ActionController::Parameters) ? raw.to_unsafe_h : raw
     raise ArgumentError, "Operation parameters must be an object." unless value.is_a?(Hash)
-    value.deep_stringify_keys.except("_source_snapshots")
+    value.deep_stringify_keys.except("_source_snapshots", PdfDocumentOperation::PROCESSING_LEASE_KEY)
   rescue JSON::ParserError
     raise ArgumentError, "Operation parameters are invalid."
   end

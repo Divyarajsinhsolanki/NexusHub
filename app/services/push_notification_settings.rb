@@ -1,5 +1,5 @@
 class PushNotificationSettings
-  CATEGORIES = %w[chat audio_calls video_calls work social reminders].freeze
+  CATEGORIES = %w[chat audio_calls video_calls work social reminders knowledge].freeze
   DEFAULTS = {
     "enabled" => true,
     "previews" => true,

@@ -72,6 +72,46 @@ class CalendarAccessTest < ActionDispatch::IntegrationTest
     patch "/api/calendar_events/#{@event.id}", params: { calendar_event: { task_id: task.id } }
     assert_response :unprocessable_entity
   end
+  test "viewers cannot create shared events even when they would be the creator" do
+    assert_no_difference "CalendarEvent.unscoped.count" do
+      post "/api/calendar_events", params: { calendar_event: attributes.merge(project_id: @project.id, visibility: "project") }
+      assert_response :unprocessable_entity
+    end
+  end
+
+  test "personal events remain private from other project editors" do
+    Current.workspace = @workspace
+    Current.user = @author
+    personal = @author.calendar_events.create!(attributes.merge(project_id: @project.id))
+    Current.reset_all
+    @membership.update!(role: "developer")
+    get "/api/calendar_events"
+    assert_not_includes response.parsed_body.map { |event| event["id"] }, personal.id
+    patch "/api/calendar_events/#{personal.id}", params: { calendar_event: { title: "Denied" } }
+    assert_response :not_found
+  end
+
+  test "accessible links must be consistent and invalid updates leave the event unchanged" do
+    Current.workspace = @workspace
+    Current.user = @author
+    sprint = @project.sprints.create!(name: "Delivery", start_date: Date.current, end_date: Date.current + 7)
+    other_sprint = @project.sprints.create!(name: "Next", start_date: Date.current + 8, end_date: Date.current + 15)
+    task = @project.tasks.create!(type: "feature", task_id: "CAL-1", developer: @user, sprint: sprint)
+    Current.reset_all
+    @membership.update!(role: "developer")
+    links = { project_id: @project.id, task_id: task.id, sprint_id: sprint.id }
+    post "/api/calendar_events", params: { calendar_event: attributes.merge(links) }
+    assert_response :created
+    event_id = response.parsed_body["events"].first["id"]
+    patch "/api/calendar_events/#{event_id}", params: { calendar_event: { sprint_id: other_sprint.id } }
+    assert_response :unprocessable_entity
+    assert_equal sprint.id, CalendarEvent.unscoped.find(event_id).sprint_id
+    post "/api/calendar_events", params: { calendar_event: attributes.merge(task_id: task.id) }
+    assert_response :unprocessable_entity
+    post "/api/calendar_events", params: { calendar_event: attributes.merge(task_id: -1) }
+    assert_response :unprocessable_entity
+  end
+
   def attributes
     { title: "Personal", event_type: "meeting", visibility: "personal", start_at: 3.days.from_now.iso8601, end_at: (3.days.from_now + 1.hour).iso8601 }
   end

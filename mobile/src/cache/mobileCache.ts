@@ -19,9 +19,8 @@ import { endpoints } from '../api/endpoints';
 import { normalizeMobileDeepLink } from '../navigation/deepLinks';
 
 export const MOBILE_CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
-// Bump whenever a persisted response shape changes. v5 clears older chat
-// pages before the stable thread list and attachment guards read them.
-export const MOBILE_CACHE_BUSTER = 'mobile-cache-v5';
+// v6 clears project responses that lack authoritative access and editing flags.
+export const MOBILE_CACHE_BUSTER = 'mobile-cache-v6';
 export const MOBILE_CACHE_PAGE_LIMIT = 3;
 
 const LONG_STALE_TIME = 5 * 60 * 1000;

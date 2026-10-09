@@ -1,3 +1,4 @@
+import { canEditProject } from '../utils/projectAccess';
 import { Picker } from '@react-native-picker/picker';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
@@ -29,12 +30,12 @@ export function IssuesScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const writable = !user?.demo_account;
   const [mode, setMode] = useState<Mode>('active');
   const [editing, setEditing] = useState<EntityRecord | null | undefined>(undefined);
   const dismissedSelection = useRef<string | undefined>(undefined);
   const issues = useQuery({ queryKey: ['issues', projectId], queryFn: () => endpoints.issues(projectId), enabled: Number.isFinite(projectId) });
   const project = useQuery({ queryKey: ['project', projectId], queryFn: () => endpoints.project(projectId), enabled: Number.isFinite(projectId) });
+  const writable = canEditProject(project.data, user);
   const people = useQuery({ queryKey: ['users', 'issue-assignee'], queryFn: () => endpoints.users(), enabled: editing !== undefined });
   const rows = useMemo(() => (issues.data?.data || []).filter((issue) => mode === 'all' || (mode === 'resolved' ? ['Resolved', 'Not an issue', 'Not Reproducible'].includes(String(issue.status)) : !['Resolved', 'Not an issue', 'Not Reproducible'].includes(String(issue.status)))), [issues.data, mode]);
   const closeEditor = () => { dismissedSelection.current = issueId; setEditing(undefined); if (issueId) router.setParams({ issueId: undefined }); };
@@ -42,10 +43,10 @@ export function IssuesScreen() {
   const importSheet = useMutation({ mutationFn: () => endpoints.importIssues(projectId), onSuccess: async (result) => { await refresh(); Alert.alert('Issues imported', importSummary(result)); }, onError: (error) => Alert.alert('Issue import failed', apiErrorMessage(error)) });
 
   useEffect(() => {
-    if (!issueId || dismissedSelection.current === issueId || !issues.data || editing !== undefined) return;
+    if (!writable || !issueId || dismissedSelection.current === issueId || !issues.data || editing !== undefined) return;
     const selected = issues.data.data.find((issue) => issue.id === Number(issueId));
     if (selected) setEditing(selected);
-  }, [editing, issueId, issues.data]);
+  }, [editing, issueId, issues.data, writable]);
 
   return <Screen header={<PageHeader leading={<Pressable accessibilityLabel="Back" onPress={() => router.back()} style={styles.iconButton}><ArrowLeft color={theme.text} size={22} /></Pressable>} title="Issues" subtitle={project.data?.name || 'Triage and delivery status'} action={writable ? <Pressable accessibilityLabel="Create issue" onPress={() => setEditing(null)} style={[styles.add, { backgroundColor: theme.primary }]}><Plus color="#ffffff" size={21} /></Pressable> : undefined} />}>
     <View style={styles.filters}><SegmentedControl value={mode} onChange={setMode} options={[{ value: 'active', label: 'Active' }, { value: 'resolved', label: 'Resolved' }, { value: 'all', label: 'All' }]} /></View>
@@ -53,7 +54,7 @@ export function IssuesScreen() {
     {issues.isLoading ? <LoadingState label="Loading issues" /> : null}
     {issues.isError ? <ErrorState message={apiErrorMessage(issues.error)} onRetry={() => issues.refetch()} /> : null}
     {issues.data ? <FlatList contentContainerStyle={styles.list} data={rows} keyExtractor={(item) => String(item.id)} onRefresh={() => issues.refetch()} refreshing={issues.isRefetching} ListEmptyComponent={<EmptyState title="No issues here" message={mode === 'active' ? 'New defects and blockers will appear here.' : 'Change the filter to review other issues.'} />} renderItem={({ item }) => <IssueRow editable={writable} issue={item} onEdit={() => setEditing(item)} />} /> : null}
-    <IssueEditor editing={editing} onClose={closeEditor} onSaved={refresh} people={people.data?.data || []} projectId={projectId} />
+    <IssueEditor editing={writable ? editing : undefined} onClose={closeEditor} onSaved={refresh} people={people.data?.data || []} projectId={projectId} />
   </Screen>;
 }
 

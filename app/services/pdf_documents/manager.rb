@@ -35,6 +35,7 @@ module PdfDocuments
           ids = operation_record.result["document_ids"] || [operation_record.result["document_id"]]
           next user.pdf_documents.where(id: ids).to_a
         end
+        operation_record&.assert_processing_lease!
         lock_quota_scope!(user)
         ensure_document_slot!(user, additional: prepared.length)
         bytes = prepared.sum { |output| output[:inspection].byte_size } + extra_state_bytes(prepared.map { |output| output[:edit_state] })
@@ -71,6 +72,7 @@ module PdfDocuments
           version = document.versions.find(operation_record.result.fetch("version_id"))
           next
         end
+        operation_record&.assert_processing_lease!
         lock_quota_scope!(created_by)
         document.lock!
         raise StaleVersion, "Document changed in another request. Reload and try again." unless document.current_version_id == base_version_id.to_i
@@ -103,7 +105,7 @@ module PdfDocuments
         )
         document.update!(
           current_version: version,
-          page_count: inspection.page_count,
+          page_count: version.page_count,
           encrypted: inspection.encrypted
         )
         prune_old_versions!(document)
@@ -116,9 +118,18 @@ module PdfDocuments
       purge_unattached!(blob)
     end
 
-    def self.move_history!(document:, target_version:)
+    def self.move_history!(document:, target_version: nil, direction: nil, base_version_id: document.current_version_id)
       document.with_lock do
+        raise StaleVersion, "Document changed in another request. Reload and try again." unless document.current_version_id == base_version_id.to_i
+        target_version = case direction.to_s
+                         when "undo" then document.undo_version
+                         when "redo" then document.redo_version
+                         when "restore_original" then document.original_version
+                         else target_version
+                         end
+        raise ArgumentError, "No operations to #{direction || 'restore'}." unless target_version
         raise ArgumentError, "Version does not belong to this document" unless target_version.pdf_document_id == document.id
+        target_version = document.versions.find(target_version.id)
 
         document.update!(
           current_version: target_version,
@@ -150,10 +161,10 @@ module PdfDocuments
       version.file.open do |source|
         Dir.mktmpdir("pdf-thumbnail") do |directory|
           prefix = File.join(directory, "thumbnail")
-          success = system("pdftoppm", "-cropbox", "-f", "1", "-singlefile", "-scale-to", "360", "-png",
-                           source.path, prefix, out: File::NULL, err: File::NULL)
+          _, _, status = Command.capture3(["pdftoppm", "-cropbox", "-f", "1", "-singlefile", "-scale-to", "360", "-png",
+                                          source.path, prefix], timeout: 30)
           image_path = "#{prefix}.png"
-          return unless success && File.file?(image_path)
+          return unless status.success? && File.file?(image_path)
 
           document.with_lock do
             return unless document.current_version_id == version.id
@@ -239,7 +250,7 @@ module PdfDocuments
         parent_version:,
         version_number:,
         operation:,
-        page_count: inspection.page_count,
+        page_count: inspection.page_count || parent_version&.page_count,
         encrypted: inspection.encrypted,
         byte_size: inspection.byte_size,
         metadata:,
@@ -300,6 +311,7 @@ module PdfDocuments
     end
 
     def self.complete_operation!(operation, result)
+      operation&.assert_processing_lease!
       operation&.update!(status: "completed", progress: 100, completed_at: Time.current, error_message: nil, result:)
     end
 
@@ -307,6 +319,7 @@ module PdfDocuments
       PdfDocument.transaction do
         operation&.lock!
         next if operation&.status == "completed"
+        operation&.assert_processing_lease!
         document.lock!
         raise StaleVersion, "Document changed in another request. Reload and try again." unless document.current_version_id == base_version_id.to_i
         complete_operation!(operation, { document_id: document.id, version_id: document.current_version_id }.merge(result))

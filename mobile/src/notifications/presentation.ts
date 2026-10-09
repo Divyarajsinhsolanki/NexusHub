@@ -39,7 +39,7 @@ export function isViewingNotificationTarget(deepLink: unknown) {
   const destination = parseRoute(target);
   if (current.pathname !== destination.pathname) return false;
 
-  for (const key of ['taskId', 'issueId', 'eventId']) {
+  for (const key of ['taskId', 'issueId', 'eventId', 'itemId']) {
     const expected = destination.searchParams.get(key);
     if (expected && current.searchParams.get(key) !== expected) return false;
   }

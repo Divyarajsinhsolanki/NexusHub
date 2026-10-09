@@ -31,7 +31,7 @@ class EventReminder < ApplicationRecord
   end
 
   def schedule_delivery_job
-    return if send_at.blank?
+    return if send_at.blank? || !calendar_event.scheduled?
 
     if send_at <= Time.current
       EventReminderJob.perform_later(id)

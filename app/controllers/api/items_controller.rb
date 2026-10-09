@@ -50,8 +50,7 @@ class Api::ItemsController < Api::BaseController
     items = scope
 
     if params[:q].present?
-      query = "%#{params[:q]}%"
-      items = items.where("title ILIKE :query OR content ILIKE :query", query: query)
+      items = items.where(id: items.select { |item| [item.title, item.content].any? { |value| value.to_s.downcase.include?(params[:q].to_s.downcase) } }.map(&:id))
     end
 
     if params[:categories].present?

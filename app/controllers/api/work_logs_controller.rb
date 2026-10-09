@@ -11,22 +11,18 @@ class Api::WorkLogsController < Api::BaseController
   end
 
   def create
-    log = current_user.work_logs.new(work_log_params.except(:tags))
-    assign_tags(log)
-    if log.save
-      render json: serialize_log(log), status: :created
-    else
-      render json: { errors: log.errors.full_messages }, status: :unprocessable_entity
-    end
+    log = current_user.work_logs.new
+    log.save_with_tags!(work_log_params)
+    render json: serialize_log(log), status: :created
+  rescue ActiveRecord::RecordInvalid => error
+    render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
   end
 
   def update
-    assign_tags(@work_log)
-    if @work_log.update(work_log_params.except(:tags))
-      render json: serialize_log(@work_log)
-    else
-      render json: { errors: @work_log.errors.full_messages }, status: :unprocessable_entity
-    end
+    @work_log.save_with_tags!(work_log_params)
+    render json: serialize_log(@work_log)
+  rescue ActiveRecord::RecordInvalid => error
+    render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
   end
 
   def destroy
@@ -54,19 +50,14 @@ class Api::WorkLogsController < Api::BaseController
     )
   end
 
-  def assign_tags(log)
-    names = work_log_params[:tags] || []
-    log.tags = names.map { |n| WorkTag.find_or_create_by(name: n) }
-  end
-
   def serialize_log(log)
     log.as_json(include: {
       category: { only: [:id, :name, :color, :hex] },
       priority: { only: [:id, :name, :color, :hex] },
       tags: { only: [:id, :name] }
     }).merge(
-      start_time: log.start_time&.strftime("%H:%M"),
-      end_time: log.end_time&.strftime("%H:%M")
+      "start_time" => log.start_time&.strftime("%H:%M"),
+      "end_time" => log.end_time&.strftime("%H:%M")
     )
   end
 end

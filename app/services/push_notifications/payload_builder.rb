@@ -12,11 +12,11 @@ module PushNotifications
 
       payload = {
         to: device.expo_push_token,
-        title: catalog.title,
+        title: notification.recipient.push_notification_previews? ? catalog.title : (catalog.category == "knowledge" ? catalog.title : "Nexus Hub"),
         body: catalog.message(previews: notification.recipient.push_notification_previews?, aggregate_count: aggregate_count),
-        sound: catalog.sound,
+        sound: knowledge_channel_supported? ? catalog.sound : "nexus_work.wav",
         priority: priority,
-        channelId: catalog.channel_id,
+        channelId: knowledge_channel_supported? ? catalog.channel_id : "nexus_work_v1",
         badge: notification.recipient.notifications.visible_in_feed.unread.count,
         collapseId: notification.group_key,
         tag: notification.group_key,
@@ -34,6 +34,10 @@ module PushNotifications
 
     def v2_device?
       PushNotifications.v2_enabled? && device.push_schema_version.to_i >= 2
+    end
+
+    def knowledge_channel_supported?
+      catalog.category != "knowledge" || device.push_schema_version.to_i >= 3
     end
 
     def legacy_payload
@@ -57,13 +61,13 @@ module PushNotifications
         entity_id: notification.notifiable_id,
         category: catalog.category,
         group_key: notification.group_key,
-        deep_link: catalog.deep_link
+        deep_link: catalog.category == "knowledge" ? catalog.deep_link.sub("/knowledge", "/more/knowledge") : catalog.deep_link
       }.merge(interaction_data)
     end
 
     def interaction_data
       values = (notification.metadata || {}).with_indifferent_access
-      allowed = %i[conversation_id message_id call_session_id call_type project_id task_id issue_id post_id calendar_event_id team_id]
+      allowed = %i[knowledge_item_id daily_date conversation_id message_id call_session_id call_type project_id task_id issue_id post_id calendar_event_id team_id]
       values.slice(*allowed).compact.to_h.symbolize_keys.transform_keys do |key|
         key == :call_session_id ? :call_id : key
       end
@@ -75,6 +79,7 @@ module PushNotifications
 
     def ttl
       case catalog.category
+      when "knowledge" then 86_400
       when "chat" then 86_400
       when "reminders" then reminder_ttl
       else 604_800

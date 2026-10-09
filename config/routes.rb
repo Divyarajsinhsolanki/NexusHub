@@ -310,7 +310,7 @@ Rails.application.routes.draw do
     resources :learning_goals, only: [:index, :create, :update, :destroy]
     resources :learning_checkpoints, only: [:create, :update, :destroy]
 
-    resources :projects, only: [:index, :create, :update, :destroy] do
+    resources :projects, only: [:index, :show, :create, :update, :destroy] do
       get 'operations', to: 'project_operations#index'
       get 'operations/history', to: 'project_operations#history'
       post 'operations/items', to: 'project_operations#create'

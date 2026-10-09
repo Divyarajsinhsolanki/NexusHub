@@ -23,6 +23,13 @@ class KnowledgeItem < ApplicationRecord
     [category, title, source_url].map { |part| part.to_s.strip.downcase.parameterize }.reject(&:blank?).join(":").presence || SecureRandom.hex(8)
   end
 
+  scope :visible_to, ->(user) {
+    joins(:knowledge_prompt_run).where(
+      "knowledge_items.user_id = :user_id OR (knowledge_prompt_runs.source = :source AND knowledge_items.payload ->> 'workspace_shared' = 'true')",
+      user_id: user.id, source: "bedrock_daily"
+    )
+  }
+
   def archive!(replacement: nil)
     update!(active: false, archived_at: Time.current, replaced_by: replacement)
   end

@@ -1,11 +1,30 @@
 require "hexapdf"
 require "stringio"
+require "securerandom"
 
 module PdfDocuments
   class OperationRunner
     ASYNC_KINDS = %w[compress extract_text export_images redact merge extract_pages split_by_size split_by_ranges].freeze
     EDIT_KINDS = %w[reorder_pages delete_pages rotate_pages duplicate_pages add_blank_page crop annotations image save_objects].freeze
     ALLOWED_KINDS = (ASYNC_KINDS + EDIT_KINDS + %w[protect unlock]).freeze
+    LEASE_HEARTBEAT_SECONDS = 30
+
+    def self.recover_expired!(operation)
+      # Status checks can revive operations interrupted before watchdogs existed.
+      # Persist the request time so repeated polling does not flood the queue.
+      enqueue = operation.with_lock do
+        next false unless ASYNC_KINDS.include?(operation.kind) && operation.status == "processing" &&
+          operation.processing_lease_expires_at <= Time.current
+        lease = operation.parameters[PdfDocumentOperation::PROCESSING_LEASE_KEY] || {}
+        requested = Time.iso8601(lease["recovery_requested_at"]) rescue nil
+        next false if requested && requested > 30.seconds.ago
+        operation.update_columns(parameters: operation.parameters.merge(
+          PdfDocumentOperation::PROCESSING_LEASE_KEY => lease.merge("recovery_requested_at" => Time.current.iso8601(6))
+        ))
+        true
+      end
+      PdfDocumentOperationJob.perform_later(operation.id) if enqueue
+    end
 
     def initialize(operation)
       @operation = operation
@@ -16,15 +35,25 @@ module PdfDocuments
     end
 
     def run!(password: nil, asset: nil, assets: {})
-      already_completed = @operation.with_lock do
-        if %w[processing completed failed].include?(@operation.status)
+      unavailable = @operation.with_lock do
+        if %w[completed failed].include?(@operation.status) ||
+            (@operation.status == "processing" && @operation.processing_lease_expires_at > Time.current)
           true
         else
-          @operation.update!(status: "processing", progress: 15, started_at: Time.current, error_message: nil)
+          @operation.processing_lease_token = SecureRandom.uuid
+          @operation.update!(status: "processing", progress: 15, started_at: Time.current,
+            completed_at: nil, error_message: nil, parameters: @operation.parameters.merge(
+              PdfDocumentOperation::PROCESSING_LEASE_KEY => lease_parameters
+            ))
           false
         end
       end
-      return @operation.result if already_completed
+      return @operation.result if unavailable
+      if ASYNC_KINDS.include?(@operation.kind)
+        # This watchdog remains queued if the worker exits before its ensure.
+        PdfDocumentOperationJob.set(wait_until: @operation.processing_lease_expires_at).perform_later(@operation.id)
+        start_lease_heartbeat
+      end
       @captured_sources = Sources.resolve(@operation)
       @source_version = @captured_sources.first || @operation.base_version if @document
       if @document && (!@source_version || @source_version.pdf_document_id != @document.id)
@@ -39,17 +68,52 @@ module PdfDocuments
       result
     rescue StandardError => e
       @operation.with_lock do
-        unless @operation.status == "completed"
+        if @operation.owns_processing_lease?
           @operation.update!(status: "failed", progress: 100, completed_at: Time.current, error_message: e.message.to_s.first(500))
         end
       end
       raise
     ensure
+      @lease_heartbeat&.kill
+      @lease_heartbeat&.join
       @staged_blobs.each { |blob| Manager.purge_unattached!(blob) }
       Sources.release!(@operation) if @operation.persisted?
     end
 
     private
+
+    def lease_parameters
+      { "token" => @operation.processing_lease_token,
+        "expires_at" => (Time.current + PdfDocumentOperation::PROCESSING_LEASE_DURATION).iso8601(6) }
+    end
+
+    def start_lease_heartbeat
+      token = @operation.processing_lease_token
+      operation_id = @operation.id
+      @lease_heartbeat = Thread.new do
+        loop do
+          sleep LEASE_HEARTBEAT_SECONDS
+          alive = PdfDocumentOperation.connection_pool.with_connection do
+            operation = PdfDocumentOperation.unscoped.find_by(id: operation_id)
+            next false unless operation
+            operation.processing_lease_token = token
+            operation.with_lock do
+              next false unless operation.owns_processing_lease?
+              operation.update_columns(parameters: operation.parameters.merge(
+                PdfDocumentOperation::PROCESSING_LEASE_KEY => {
+                  "token" => token,
+                  "expires_at" => (Time.current + PdfDocumentOperation::PROCESSING_LEASE_DURATION).iso8601(6)
+                }
+              ))
+              true
+            end
+          end
+          break unless alive
+        end
+      rescue StandardError => error
+        Rails.logger.warn("[PDF] Processing lease heartbeat failed for operation #{operation_id}: #{error.class}")
+      end
+    end
 
     def execute(password:, asset:, assets:)
       case @operation.kind

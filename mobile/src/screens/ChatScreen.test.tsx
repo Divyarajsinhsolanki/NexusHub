@@ -7,10 +7,11 @@ import { endpoints } from '../api/endpoints';
 import { mobileQueryKeys } from '../cache/mobileCache';
 
 const mockPerform = jest.fn();
+let mockRouteParams: { id: string; messageId?: string } = { id: '7' };
 let mockChatEvent: (event: any) => void;
 jest.mock('@sentry/react-native', () => ({ captureException: jest.fn(), addBreadcrumb: jest.fn(), captureMessage: jest.fn() }));
 jest.mock('expo-router', () => ({
-  useLocalSearchParams: () => ({ id: '7' }),
+  useLocalSearchParams: () => mockRouteParams,
   usePathname: () => '/chat/7',
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn(), canGoBack: () => true }),
   useFocusEffect: (callback: () => void) => require('react').useEffect(callback, [callback]),
@@ -22,7 +23,7 @@ jest.mock('react-native-safe-area-context', () => ({
 jest.mock('../auth/AuthProvider', () => ({ useAuth: () => ({ user: { id: 5, full_name: 'Mobile user' } }) }));
 jest.mock('../realtime/useChatRealtime', () => ({ useChatRealtime: (_id: number, callback: (event: any) => void) => { mockChatEvent = callback; return 'connected'; } }));
 jest.mock('../realtime/RealtimeProvider', () => ({ useRealtimeActions: () => ({ perform: mockPerform }) }));
-jest.mock('../api/endpoints', () => ({ endpoints: { createMessage: jest.fn(), updateConversationReceipt: jest.fn(async () => undefined) } }));
+jest.mock('../api/endpoints', () => ({ endpoints: { messageContext: jest.fn(), createMessage: jest.fn(), updateConversationReceipt: jest.fn(async () => undefined) } }));
 jest.mock('expo-crypto', () => ({ randomUUID: () => 'stable-client-draft' }));
 
 test('opens a cached chat safely and sends an idempotent message', async () => {
@@ -135,4 +136,18 @@ test('inserts workspace mention and task suggestions without losing composer tex
   await fireEvent.press(screen.getByRole('button', { name: 'Insert #AC-7' }));
   expect(input.props.value).toBe('Hello @sam check #AC-7 ');
   await screen.unmount(); client.clear();
+});
+
+
+test('a push target loads older message context instead of only the latest page', async () => {
+  jest.clearAllMocks();
+  mockRouteParams = { id: '7', messageId: '8' };
+  const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, gcTime: Infinity, retry: false } } });
+  client.setQueryData(mobileQueryKeys.conversation(7), { id: 7, title: 'Notification target', participants: [] });
+  client.setQueryData(mobileQueryKeys.messages(7), { pageParams: [undefined], pages: [{ data: [] }] });
+  jest.mocked(endpoints.messageContext).mockResolvedValue({ data: [{ id: 8, body: 'Older message from the push', user_id: 2, user_name: 'Teammate', created_at: '2026-10-06T00:00:00Z' }] } as never);
+  const screen = await render(<QueryClientProvider client={client}><ChatRoute /></QueryClientProvider>);
+  await waitFor(() => expect(endpoints.messageContext).toHaveBeenCalledWith(7, 8));
+  await waitFor(() => expect(screen.getByText(/Older message from the push/)).toBeTruthy());
+  await screen.unmount(); client.clear(); mockRouteParams = { id: '7' };
 });

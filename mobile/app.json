@@ -2,7 +2,7 @@
   "expo": {
     "name": "Nexus Hub",
     "slug": "nexushub",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "nexushub",
@@ -66,7 +66,8 @@
             "./assets/sounds/nexus_video_call.wav",
             "./assets/sounds/nexus_work.wav",
             "./assets/sounds/nexus_social.wav",
-            "./assets/sounds/nexus_reminder.wav"
+            "./assets/sounds/nexus_reminder.wav",
+            "./assets/sounds/nexus_knowledge.wav"
           ]
         }
       ],

@@ -12,19 +12,18 @@ class Api::V1::WorkLogsController < Api::V1::BaseController
   end
 
   def create
-    work_log = current_user.work_logs.new(work_log_attributes)
-    assign_tags(work_log)
-    return render_validation_error(work_log) unless work_log.save
-
+    work_log = current_user.work_logs.new
+    work_log.save_with_tags!(permitted_work_log)
     render_data(serialize_work_log(work_log), status: :created)
+  rescue ActiveRecord::RecordInvalid => error
+    render_validation_error(error.record)
   end
 
   def update
-    @work_log.assign_attributes(work_log_attributes)
-    assign_tags(@work_log)
-    return render_validation_error(@work_log) unless @work_log.save
-
+    @work_log.save_with_tags!(permitted_work_log)
     render_data(serialize_work_log(@work_log))
+  rescue ActiveRecord::RecordInvalid => error
+    render_validation_error(error.record)
   end
 
   def destroy
@@ -52,12 +51,4 @@ class Api::V1::WorkLogsController < Api::V1::BaseController
     )
   end
 
-  def work_log_attributes
-    permitted_work_log.except(:tags)
-  end
-
-  def assign_tags(work_log)
-    names = Array(permitted_work_log[:tags]).filter_map { |name| name.to_s.strip.presence }.uniq
-    work_log.tags = names.map { |name| WorkTag.find_or_create_by!(name: name) }
-  end
 end

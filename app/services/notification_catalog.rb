@@ -1,5 +1,6 @@
 class NotificationCatalog
   CATEGORY_CHANNELS = {
+    "knowledge" => "nexus_knowledge_v1",
     "chat" => "nexus_chat_v1",
     "audio_calls" => "nexus_audio_calls_v1",
     "video_calls" => "nexus_video_calls_v1",
@@ -9,6 +10,7 @@ class NotificationCatalog
   }.freeze
 
   CATEGORY_SOUNDS = {
+    "knowledge" => "nexus_knowledge.wav",
     "chat" => "nexus_chat.wav",
     "audio_calls" => "nexus_audio_call.wav",
     "video_calls" => "nexus_video_call.wav",
@@ -25,7 +27,7 @@ class NotificationCatalog
   ENDED_CALL_ACTIONS = %w[ended_audio_call ended_video_call].freeze
   CALL_ACTIONS = (MISSED_CALL_ACTIONS + ENDED_CALL_ACTIONS).freeze
   LEGACY_PUSH_ACTIONS = %w[
-    assigned commented update chat_message chat_ping reacted missed_call calendar_reminder operations_reminder
+    daily_knowledge_published assigned commented update chat_message chat_ping reacted missed_call calendar_reminder operations_reminder
     project_assigned task_assigned task_updated post_commented chat_mention message_reacted
     missed_audio_call missed_video_call ended_audio_call ended_video_call
   ].freeze
@@ -47,6 +49,7 @@ class NotificationCatalog
   end
 
   def category
+    return "knowledge" if event_type == "daily_knowledge_published"
     return "chat" if CHAT_ACTIONS.include?(event_type)
     return "work" if WORK_ACTIONS.include?(event_type)
     return "social" if SOCIAL_ACTIONS.include?(event_type)
@@ -68,9 +71,13 @@ class NotificationCatalog
   end
 
   def group_key
+    return "reactions:#{metadata[:conversation_id] || related_id}" if event_type == "message_reacted"
+
     case category
     when "chat", "audio_calls", "video_calls"
       "conversation:#{metadata[:conversation_id] || related_id}"
+    when "knowledge"
+      "knowledge:#{metadata[:daily_date]}"
     when "social"
       social_group_key
     when "reminders"
@@ -82,7 +89,11 @@ class NotificationCatalog
 
   def title
     value = case event_type
-    when "chat_message" then metadata[:conversation_name].presence || "New message"
+    when "daily_knowledge_published" then "💡 Today's tech drop"
+    when "chat_message"
+      actor = sanitized_preview(notification.actor&.full_name).presence || "New message"
+      conversation = sanitized_preview(metadata[:conversation_name])
+      conversation.present? && conversation != actor ? "#{actor} · #{conversation}" : actor
     when "chat_mention" then "Mention in #{metadata[:conversation_name].presence || 'Chat'}"
     when "message_reacted" then "New message reaction"
     when "missed_audio_call" then "Missed audio call"
@@ -111,6 +122,8 @@ class NotificationCatalog
 
     actor = notification.actor&.full_name.presence || "Someone"
     case event_type
+    when "daily_knowledge_published"
+      "#{sanitized_preview(metadata[:post_title])} · 3 fresh tips + one technical post"
     when "chat_message"
       preview = sanitized_preview(metadata[:message_preview])
       preview.present? ? "#{actor}: #{preview}" : "#{actor} sent a message"
@@ -158,6 +171,7 @@ class NotificationCatalog
     return "A video call has ended" if event_type == "ended_video_call"
 
     case category
+    when "knowledge" then "Your daily tech tips and technical post are ready"
     when "chat" then "You have new chat activity"
     when "audio_calls" then "You missed an audio call"
     when "video_calls" then "You missed a video call"
@@ -176,9 +190,11 @@ class NotificationCatalog
     end
 
     case event_type
+    when "daily_knowledge_published"
+      "/knowledge?itemId=#{metadata[:knowledge_item_id] || related_id}"
     when *CHAT_ACTIONS
       conversation_id = metadata[:conversation_id]
-      conversation_id ? "/chat/#{conversation_id}" : "/inbox"
+      conversation_id ? "/chat/#{conversation_id}#{metadata[:message_id] ? "?messageId=#{metadata[:message_id]}" : ""}" : "/inbox"
     when *CALL_ACTIONS
       conversation_id = metadata[:conversation_id]
       call_id = metadata[:call_session_id]
@@ -216,7 +232,7 @@ class NotificationCatalog
   end
 
   def dispatch_delay
-    return 2.seconds if category == "chat"
+    return 4.seconds if category == "chat"
     return 10.seconds if %w[work social].include?(category)
 
     0.seconds
@@ -272,7 +288,7 @@ class NotificationCatalog
   def aggregate_message(count)
     case event_type
     when "chat_message", "chat_mention"
-      "#{count} new messages#{conversation_suffix}"
+      "#{count} new messages#{conversation_suffix} — #{message(aggregate_count: 1)}"
     when "message_reacted"
       "#{count} new reactions to your messages"
     when "post_liked"

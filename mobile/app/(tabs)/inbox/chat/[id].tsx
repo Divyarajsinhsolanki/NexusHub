@@ -39,7 +39,7 @@ import { canChangeMessage, mergeMessage, patchMessageRows } from '@/src/chat/mes
 type MessageDraft = { body: string; attachment: DocumentPicker.DocumentPickerAsset | null; clientId: string; replyTo?: Message | null };
 
 export default function ChatRoute() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, messageId } = useLocalSearchParams<{ id: string; messageId?: string }>();
   const conversationId = Number(id);
   const pathname = usePathname();
   const router = useRouter();
@@ -49,13 +49,14 @@ export default function ChatRoute() {
   }
 
   if (pathname.startsWith('/inbox/chat/')) {
-    return <Redirect href={`/chat/${conversationId}` as never} />;
+    return <Redirect href={`/chat/${conversationId}${messageId ? `?messageId=${encodeURIComponent(messageId)}` : ''}` as never} />;
   }
 
   return <ChatScreen key={conversationId} conversationId={conversationId} />;
 }
 
 function ChatScreen({ conversationId }: { conversationId: number }) {
+  const { messageId } = useLocalSearchParams<{ messageId?: string }>();
   const presenceNow = usePresenceNow();
   const theme = useAppTheme();
   const router = useRouter();
@@ -170,6 +171,10 @@ function ChatScreen({ conversationId }: { conversationId: number }) {
       return true;
     } catch (error) { Alert.alert('Unable to open message', apiErrorMessage(error)); return false; }
   };
+  useEffect(() => {
+    const target = Number(messageId);
+    if (Number.isSafeInteger(target) && target > 0) void openContext(target);
+  }, [conversationId, messageId]);
   useEffect(() => () => { ++contextRequestRef.current; }, []);
   useEffect(() => {
     if (!contextId || !contextRows) return;
