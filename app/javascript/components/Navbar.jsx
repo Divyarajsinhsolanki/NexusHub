@@ -663,17 +663,22 @@ const Navbar = () => {
         mobileOpen={mobileOpen}
       />
 
-      <header className="nexus-top-command-bar">
+      <header className={`nexus-top-command-bar ${["/home", "/my-work", "/posts"].includes(location.pathname) ? "nexus-home-command-bar" : ""}`}>
         <div className="nexus-topbar-left">
           {layout.context ? <button type="button" className="nexus-icon-button nexus-context-trigger" onClick={openContext} aria-label="Open context navigation" aria-haspopup="dialog" aria-expanded={contextOpen} aria-controls="workspace-context-drawer"><FiLayers /></button> : null}
-          <nav className="nexus-breadcrumbs" aria-label="Breadcrumb">
+          {["/home", "/my-work", "/posts"].includes(location.pathname) ? (
+            <div className="nexus-home-command-title">
+              <h1>Home</h1>
+              <p>Stay connected with your team and keep your day on track.</p>
+            </div>
+          ) : <nav className="nexus-breadcrumbs" aria-label="Breadcrumb">
             {breadcrumbs.map((crumb, index) => (
               <React.Fragment key={`${crumb.label}-${index}`}>
                 {index ? <FiChevronRight /> : null}
                 {crumb.to ? <Link to={crumb.to}>{crumb.label}</Link> : <span>{crumb.label}</span>}
               </React.Fragment>
             ))}
-          </nav>
+          </nav>}
         </div>
         <div className="nexus-topbar-actions">
           <button type="button" className="nexus-search-trigger" onClick={() => window.dispatchEvent(new Event("nexus:open-search"))} aria-label="Search workspace">

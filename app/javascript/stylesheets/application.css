@@ -3720,7 +3720,7 @@ a.member-profile-contact:hover { color: var(--theme-color); }
 
 /* Home keeps the familiar posts feed with a compact personal sidebar. */
 .nexus-home-page { max-width: none; margin-inline: 0; }
-.nexus-home-page .nexus-updates-header { padding: 0.65rem 0; border: 0; border-bottom: 1px solid var(--nexus-line); border-radius: 0; background: transparent; gap: 0.6rem; }
+.nexus-home-page .nexus-updates-header { display: flex; justify-content: flex-end; padding: 0.35rem 0; border: 0; border-bottom: 1px solid var(--nexus-line); border-radius: 0; background: transparent; gap: 0.6rem; }
 .nexus-home-page .nexus-updates-title h1 { font-size: 1.25rem; font-weight: 650; margin: 0; }
 .nexus-home-page .nexus-updates-title p { font-size: 0.75rem; }
 .nexus-home-page .nexus-updates-actions .app-primary-button { min-height: 32px; padding: 0.4rem 0.65rem; border-radius: 5px; }
@@ -3734,7 +3734,7 @@ a.member-profile-contact:hover { color: var(--theme-color); }
 .nexus-home-composer-heading strong { font-size: 0.9rem; color: var(--nexus-text); }
 .nexus-home-composer-heading span { font-size: 0.73rem; color: var(--nexus-muted); }
 .nexus-home-composer .nexus-post-composer { border: 0; border-radius: 0; padding: 1rem 1.2rem; }
-.nexus-home-composer .nexus-post-composer-input { min-height: 90px; background: var(--nexus-panel); }
+.nexus-home-composer .nexus-post-composer-input { min-height: 64px; background: transparent; }
 .nexus-home-page .nexus-updates-toolbar { border-radius: 12px; padding: 0.8rem; }
 .nexus-home-page .nexus-home-card-link { padding-inline: 1rem; }
 @media (max-width: 640px) {
@@ -3986,3 +3986,22 @@ a.member-profile-contact:hover { color: var(--theme-color); }
 
 .nexus-shortcut-customize { font-size: 0.7rem; color: var(--theme-color); }
 .nexus-shortcut-customize:hover { text-decoration: underline; }
+
+/* Compact Home title and controls share the existing command bar. */
+.nexus-home-command-title { min-width: 0; }
+.nexus-home-command-title h1 { margin: 0; color: var(--nexus-text); font-size: 1rem; font-weight: 650; line-height: 1.3; }
+.nexus-home-command-title p { margin: 0.15rem 0 0; color: var(--nexus-muted); font-size: 0.72rem; line-height: 1.35; }
+.nexus-home-command-bar .nexus-topbar-primary { display: none; }
+.nexus-home-command-bar .nexus-search-trigger { width: auto; flex-shrink: 0; }
+.nexus-home-command-bar .nexus-search-trigger span,
+.nexus-home-command-bar .nexus-search-trigger kbd { display: none; }
+.nexus-post-dropzone { padding: 0; border: 1px solid var(--nexus-line); background: var(--nexus-panel-subtle); }
+.nexus-post-dropzone:focus-within { border-color: rgb(var(--theme-color-rgb) / 0.55); box-shadow: 0 0 0 3px rgb(var(--theme-color-rgb) / 0.11); }
+.nexus-post-dropzone .nexus-post-composer-input { display: block; border: 0; border-radius: 8px 8px 0 0; background: transparent; }
+.nexus-post-dropzone .nexus-post-composer-input:focus { box-shadow: none; }
+.nexus-post-composer-actions { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.25rem 0.45rem 0.45rem; }
+.nexus-post-dropzone .nexus-post-image-preview { margin: 0.25rem 0.5rem 0.5rem; }
+@media (max-width: 640px) {
+  .nexus-home-command-bar { gap: 0.5rem; padding-inline: 0.65rem; }
+  .nexus-home-command-title p { font-size: 0.65rem; }
+}

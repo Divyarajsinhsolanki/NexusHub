@@ -101,7 +101,7 @@ const PostForm = ({ refreshPosts, onPostCreated, user }) => {
     <form onSubmit={handleSubmit} className="nexus-post-composer" encType="multipart/form-data">
       <div className="flex items-start space-x-3">
         <Avatar name={userName} src={user?.profile_picture || user?.profile_picture_url} className="h-10 w-10 flex-shrink-0" />
-        <div className="flex-1">
+        <div className="min-w-0 flex-1">
           <div
             data-testid="post-form-dropzone"
             onDragOver={handleDragOver}
@@ -113,7 +113,7 @@ const PostForm = ({ refreshPosts, onPostCreated, user }) => {
               placeholder="Share progress, a decision, question, or blocker…"
               aria-label="Write an update"
               className="nexus-post-composer-input"
-              rows="3"
+              rows="2"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               disabled={isSubmitting}
@@ -138,7 +138,7 @@ const PostForm = ({ refreshPosts, onPostCreated, user }) => {
               </div>
             )}
 
-            <div className="mt-3 flex items-center justify-between gap-3">
+            <div className="nexus-post-composer-actions">
               <div className="flex space-x-2">
                 <button
                   type="button"

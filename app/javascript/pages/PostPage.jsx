@@ -391,10 +391,6 @@ const PostPage = () => {
       </Helmet>
       <div className="nexus-updates-page nexus-home-page">
         <header className="nexus-updates-header">
-          <div className="nexus-updates-title">
-            <h1>Home</h1>
-            <p>Stay connected with your team and keep your day on track.</p>
-          </div>
           <div className="nexus-updates-actions">
             <Link to="/settings?tab=home" className="nexus-secondary-action">Customize Home</Link>
             <Link to="/notifications" className="nexus-secondary-action"><FiBell /> Notifications</Link>
