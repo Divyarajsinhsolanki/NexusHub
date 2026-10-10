@@ -11,7 +11,6 @@ import { Helmet } from "react-helmet-async";
 
 // --- Icon Imports ---
 import {
-  FiBell,
   FiCheckCircle,
   FiCheckSquare,
   FiClock,
@@ -390,17 +389,10 @@ const PostPage = () => {
         <meta property="og:type" content="website" />
       </Helmet>
       <div className="nexus-updates-page nexus-home-page">
-        <header className="nexus-updates-header">
-          <div className="nexus-updates-actions">
-            <Link to="/settings?tab=home" className="nexus-secondary-action">Customize Home</Link>
-            <Link to="/notifications" className="nexus-secondary-action"><FiBell /> Notifications</Link>
-          </div>
-        </header>
-
         <div className="nexus-updates-layout">
           <main className="nexus-updates-feed">
             <section ref={postFormRef} className="nexus-home-composer" aria-label="Share with your team">
-              <div className="nexus-home-composer-heading"><strong>Share with your team</strong><span>Progress, ideas, or a question</span></div>
+              <div className="nexus-home-composer-heading"><strong>Share with your team</strong><Link to="/settings?tab=home" className="nexus-shortcut-customize">Customize Home</Link></div>
               <PostForm
                 user={user}
                 refreshPosts={refreshPosts}

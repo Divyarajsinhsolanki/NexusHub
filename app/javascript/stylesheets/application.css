@@ -4005,3 +4005,17 @@ a.member-profile-contact:hover { color: var(--theme-color); }
   .nexus-home-command-bar { gap: 0.5rem; padding-inline: 0.65rem; }
   .nexus-home-command-title p { font-size: 0.65rem; }
 }
+
+/* One input surface, with controls anchored inside its lower corners. */
+.nexus-home-composer-heading { padding: 0.65rem 0.8rem 0; }
+.nexus-home-composer .nexus-post-composer { padding: 0.55rem 0.8rem 0.7rem; }
+.nexus-home-composer .nexus-post-dropzone { border: 0; background: transparent; }
+.nexus-home-composer .nexus-post-dropzone:focus-within { box-shadow: none; }
+.nexus-post-input-surface { position: relative; border: 1px solid var(--nexus-line); border-radius: 10px; background: var(--nexus-panel-subtle); overflow: hidden; }
+.nexus-post-input-surface:focus-within { border-color: rgb(var(--theme-color-rgb) / 0.55); box-shadow: 0 0 0 3px rgb(var(--theme-color-rgb) / 0.11); }
+.nexus-home-composer .nexus-post-composer-input { min-height: 86px; max-height: 200px; resize: none; padding: 0.6rem 0.65rem 2.85rem; border-radius: 0; }
+.nexus-post-input-surface .nexus-post-composer-actions { position: absolute; inset: auto 0 0; padding: 0.25rem 0.4rem 0.35rem; background: var(--nexus-panel-subtle); }
+.nexus-post-input-surface .nexus-post-attachment-button,
+.nexus-post-input-surface .nexus-post-submit { min-height: 30px; padding: 0.3rem 0.55rem; font-size: 0.7rem; }
+.nexus-post-input-surface .nexus-post-submit { min-width: 70px; }
+.nexus-home-composer .nexus-post-dropzone.is-dragging .nexus-post-input-surface { border-color: var(--theme-color); }
