@@ -1,3 +1,6 @@
+import toast from "react-hot-toast";
+import { splitMessageLinks } from "../utils/messageLinks";
+import MessageLinkPreview from "../components/chat/MessageLinkPreview";
 import React, { Suspense, useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import QuickMeetingButton from "../components/chat/QuickMeetingButton";
@@ -425,7 +428,9 @@ const RichMessageText = ({ text = "", isMe, searchQuery, mentionLookups, childre
     <span className="whitespace-pre-wrap break-words text-sm leading-6">
       {segments.map((segment, index) => {
         if (segment.kind === "text") {
-          return <HighlightText key={`${segment.kind}-${index}`} text={segment.text} query={searchQuery} />;
+          return splitMessageLinks(segment.text).map((part, linkIndex) => part.url
+            ? <a key={`${index}-${linkIndex}`} href={part.url} target="_blank" rel="noopener noreferrer" className="font-semibold text-blue-700 underline underline-offset-2 dark:text-sky-300"><HighlightText text={part.text} query={searchQuery} /></a>
+            : <HighlightText key={`${index}-${linkIndex}`} text={part.text} query={searchQuery} />);
         }
 
         if (segment.kind === "user") {
@@ -777,7 +782,7 @@ const MessageAttachmentCard = ({ attachment, isMe, searchQuery }) => {
   );
 };
 
-const MessageBubble = React.memo(({ message, isMe, showAvatar, onToggleReaction, onReply, onEdit, onDelete, onContext, participants, conversationType, searchQuery, mentionLookups }) => {
+const MessageBubble = React.memo(({ message, conversationId, isMe, showAvatar, onToggleReaction, onReply, onEdit, onDelete, onContext, participants, conversationType, searchQuery, mentionLookups }) => {
   const [isReactionPickerOpen, setIsReactionPickerOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [isReactionPickerExpanded, setIsReactionPickerExpanded] = useState(false);
@@ -862,6 +867,8 @@ const MessageBubble = React.memo(({ message, isMe, showAvatar, onToggleReaction,
             {message.reply_to && <blockquote className="mb-2 border-l-2 border-sky-500 pl-2 text-xs"><strong>{message.reply_to.user_name}</strong><p className="line-clamp-2">{message.reply_to.body || "Attachment"}</p></blockquote>}
             {message.body && <RichMessageText text={message.body} isMe={isMe} searchQuery={searchQuery} mentionLookups={mentionLookups}>{!message.attachments?.length && metadata}</RichMessageText>}
 
+            {!message.deleted_at && <MessageLinkPreview message={message} conversationId={conversationId} />}
+
             {message.attachments?.length > 0 && (
               <div className={`grid gap-2 ${message.body ? "mt-3" : ""} ${message.attachments.length > 1 ? "sm:grid-cols-2" : "grid-cols-1"}`}>
                 {message.attachments.map((attachment) => (
@@ -886,6 +893,10 @@ const MessageBubble = React.memo(({ message, isMe, showAvatar, onToggleReaction,
               <button type="button" onClick={() => onDelete(message)} aria-label="Delete message" className="chat-icon-button"><FiTrash2 /></button>
             </>}
             {!message.deleted_at && <>
+            {message.body && <button type="button" aria-label="Copy message" title="Copy message" className="chat-icon-button" onClick={async () => {
+              try { await navigator.clipboard.writeText(message.body); setToolsOpen(false); toast.success("Message copied"); }
+              catch { toast.error("Could not copy message"); }
+            }}><FiCopy /></button>}
             <button type="button" onClick={() => onReply(message)} aria-label={`Reply to ${message.user_name}`} title="Reply" className="chat-icon-button"><FiCornerUpLeft /></button>
             <button
               ref={reactionTriggerRef}
@@ -3908,7 +3919,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                             const dayStart = !previous || !isSameDay(new Date(previous.created_at), new Date(message.created_at));
                             return <>
                               {dayStart && <div className="chat-day-divider"><span>{formatDayLabel(message.created_at)}</span></div>}
-                              <MessageBubble message={message} isMe={Number(message.user_id) === Number(user?.id)}
+                              <MessageBubble conversationId={conversationId} message={message} isMe={Number(message.user_id) === Number(user?.id)}
                                 showAvatar={dayStart || Number(previous?.user_id) !== Number(message.user_id)}
                                 onToggleReaction={handleToggleReaction}
                                 onReply={(message) => { setReplyTo(message); composerTextareaRef.current?.focus(); }}

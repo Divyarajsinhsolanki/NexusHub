@@ -8,9 +8,11 @@ export const API_URL = configuredUrl.replace(/\/$/, '');
 const API_ORIGIN = API_URL.replace(/\/api\/v1$/, '');
 
 export function absoluteAssetUrl(path?: string | null) {
-  if (!path) return undefined;
-  if (/^https?:\/\//.test(path)) return path;
-  return `${API_ORIGIN}${path.startsWith('/') ? '' : '/'}${path}`;
+  const value = path?.trim();
+  if (!value || value === 'null' || value === 'undefined') return undefined;
+  if (/^(?:https?:|file:|content:|data:|blob:|ph:|assets-library:)/i.test(value)) return value;
+  if (value.startsWith('//')) return `${new URL(API_ORIGIN).protocol}${value}`;
+  return `${API_ORIGIN}${value.startsWith('/') ? '' : '/'}${value}`;
 }
 
 export const api = axios.create({

@@ -35,3 +35,12 @@ describe('authRedirectTarget', () => {
     expect(authRedirectTarget({ isLoading: true, pathname: '/', signedIn: true })).toBeNull();
   });
 });
+
+test('honors saved landing pages while keeping an explicit return destination', () => {
+  const input = { isLoading: false, pathname: '/login', firstSegment: 'login', signedIn: true, landingPage: 'projects' };
+  expect(authRedirectTarget(input)).toBe('/projects');
+  expect(authRedirectTarget({ ...input, landingPage: 'chat' })).toBe('/inbox?mode=chat');
+  expect(authRedirectTarget({ ...input, landingPage: 'worklog' })).toBe('/work?mode=logs');
+  expect(authRedirectTarget({ ...input, returnTo: '/profile/3' })).toBe('/profile/3');
+  expect(authRedirectTarget({ ...input, returnTo: '//evil.test' })).toBe('/projects');
+});

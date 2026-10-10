@@ -62,25 +62,35 @@ export default function InboxScreen() {
       </View>
       {active.isPending && !active.data ? <LoadingState label={mode === 'posts' ? 'Loading updates' : 'Loading conversations'} /> : null}
       {active.isError && !active.data ? <ErrorState message={apiErrorMessage(active.error)} onRetry={() => active.refetch()} /> : null}
-      {mode === 'posts' && posts.data ? <PostFeed posts={posts.data.data} /> : null}
+      {mode === 'posts' && posts.data ? <PostFeed posts={posts.data.data} nextPage={posts.data.meta?.next_page} refreshing={posts.isRefetching} onRefresh={() => posts.refetch()} /> : null}
       {mode === 'chat' && conversations.data ? <ConversationList conversations={filteredConversations} loadingMore={conversations.isFetchingNextPage} onEndReached={() => conversations.hasNextPage && conversations.fetchNextPage()} /> : null}
       <NewConversationSheet onClose={() => setNewConversation(false)} visible={newConversation} />
     </Screen>
   );
 }
 
-function PostFeed({ posts }: { posts: Post[] }) {
-  if (!posts.length) return <EmptyState title="No updates yet" message="Team posts will appear here." />;
-  return <FlatList contentContainerStyle={styles.list} data={posts} keyExtractor={(post) => String(post.id)} renderItem={({ item }) => <PostCard post={item} />} />;
+export function PostFeed({ posts, nextPage, refreshing = false, onRefresh }: { posts: Post[]; nextPage?: number | null; refreshing?: boolean; onRefresh: () => unknown }) {
+  const queryClient = useQueryClient();
+  const theme = useAppTheme();
+  const more = useMutation({
+    mutationFn: (page: number) => endpoints.posts(page),
+    onSuccess: (page) => queryClient.setQueryData<CollectionResult<Post>>(mobileQueryKeys.posts, (previous) => {
+      if (!previous) return page;
+      const ids = new Set(previous.data.map((post) => post.id));
+      return { ...previous, meta: page.meta, data: [...previous.data, ...page.data.filter((post) => !ids.has(post.id))] };
+    }),
+    onError: (error) => Alert.alert('Unable to load more updates', apiErrorMessage(error)),
+  });
+  return <FlatList contentContainerStyle={styles.list} data={posts} keyExtractor={(post) => String(post.id)} onRefresh={() => { if (!more.isPending) onRefresh(); }} refreshing={refreshing} ListEmptyComponent={<EmptyState title="No updates yet" message="Share an update or pull down to refresh." />} ListFooterComponent={nextPage ? <View style={{ paddingVertical: 16 }}><PrimaryButton label="Load more updates" loading={more.isPending} disabled={refreshing} onPress={() => more.mutate(nextPage)} /></View> : posts.length ? <Text style={{ color: theme.textMuted, padding: 16, textAlign: 'center' }}>You’re all caught up</Text> : null} renderItem={({ item }) => <PostCard post={item} />} />;
 }
 
-function PostCard({ post }: { post: Post }) {
+export function PostCard({ post }: { post: Post }) {
   const theme = useAppTheme();
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const like = useMutation({
-    mutationFn: () => post.liked_by_current_user ? endpoints.unlikePost(post.id) : endpoints.likePost(post.id),
+    mutationFn: (liked: boolean) => liked ? endpoints.likePost(post.id) : endpoints.unlikePost(post.id),
     onMutate: async () => {
       await queryClient.cancelQueries({ queryKey: mobileQueryKeys.posts });
       const previous = queryClient.getQueryData<CollectionResult<Post>>(mobileQueryKeys.posts);
@@ -98,7 +108,7 @@ function PostCard({ post }: { post: Post }) {
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: mobileQueryKeys.posts }),
   });
-  return <View style={[styles.post, { borderBottomColor: theme.border }]}><View style={styles.postHeader}><Avatar name={`${post.user.first_name} ${post.user.last_name}`} size={42} uri={absoluteAssetUrl(post.user.profile_picture)} /><View style={styles.postCopy}><Text style={[styles.name, { color: theme.text }]}>{post.user.first_name} {post.user.last_name}</Text><Text style={[styles.time, { color: theme.textMuted }]}>{formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}</Text></View></View><Text style={[styles.message, { color: theme.text }]}>{post.message}</Text><PostAttachment uri={post.image_url} /><View style={styles.actions}>{!user?.demo_account ? <Pressable accessibilityLabel={post.liked_by_current_user ? 'Unlike post' : 'Like post'} disabled={like.isPending} onPress={() => like.mutate()} style={styles.actionButton}><Heart color={post.liked_by_current_user ? theme.danger : theme.textMuted} fill={post.liked_by_current_user ? theme.danger : 'transparent'} size={18} /><Text style={[styles.actionText, { color: theme.textMuted }]}>{post.likes_count}</Text></Pressable> : null}<Pressable accessibilityLabel="Open comments" onPress={() => router.push(`/inbox/post/${post.id}` as never)} style={styles.actionButton}><MessageCircle color={theme.textMuted} size={18} /><Text style={[styles.actionText, { color: theme.textMuted }]}>{post.comments_count}</Text></Pressable></View></View>;
+  return <View style={[styles.post, { borderBottomColor: theme.border }]}><View style={styles.postHeader}><Avatar name={`${post.user.first_name} ${post.user.last_name}`} size={42} uri={absoluteAssetUrl(post.user.profile_picture)} /><View style={styles.postCopy}><Text style={[styles.name, { color: theme.text }]}>{post.user.first_name} {post.user.last_name}</Text><Text style={[styles.time, { color: theme.textMuted }]}>{formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}</Text></View></View><Text style={[styles.message, { color: theme.text }]}>{post.message}</Text><PostAttachment uri={post.image_url} /><View style={styles.actions}>{!user?.demo_account ? <Pressable accessibilityLabel={post.liked_by_current_user ? 'Unlike post' : 'Like post'} disabled={like.isPending} onPress={() => like.mutate(!post.liked_by_current_user)} style={styles.actionButton}><Heart color={post.liked_by_current_user ? theme.danger : theme.textMuted} fill={post.liked_by_current_user ? theme.danger : 'transparent'} size={18} /><Text style={[styles.actionText, { color: theme.textMuted }]}>{post.likes_count}</Text></Pressable> : null}<Pressable accessibilityRole="button" accessibilityLabel={`Open comments, ${post.comments_count} comments`} onPress={() => router.push(`/inbox/post/${post.id}` as never)} style={styles.actionButton}><MessageCircle color={theme.textMuted} size={18} /><Text style={[styles.actionText, { color: theme.textMuted }]}>{post.comments_count ? `${post.comments_count} comments` : "Comment"}</Text></Pressable></View>{post.comments?.length ? <Pressable accessibilityRole="button" accessibilityLabel="View discussion" onPress={() => router.push(`/inbox/post/${post.id}` as never)} style={{ gap: 8, paddingVertical: 12 }}>{post.comments.slice(-2).map((comment) => <View key={comment.id} style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}><Avatar name={[comment.user.first_name, comment.user.last_name].filter(Boolean).join(' ')} uri={comment.user.profile_picture} size={24} /><Text numberOfLines={2} style={{ color: theme.textMuted, fontSize: 13, lineHeight: 19, flex: 1 }}><Text style={{ color: theme.text, fontWeight: '700' }}>{comment.user.first_name} </Text>{comment.body}</Text></View>)}</Pressable> : null}</View>;
 }
 
 function ConversationList({ conversations, loadingMore, onEndReached }: { conversations: Conversation[]; loadingMore: boolean; onEndReached: () => void }) {

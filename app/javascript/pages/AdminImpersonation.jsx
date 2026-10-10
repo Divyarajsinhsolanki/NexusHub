@@ -1,3 +1,4 @@
+import { workspaceLandingPath } from "../utils/workspaceAccess";
 import React, { useContext, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { LogIn, Search, Shield } from "lucide-react";
@@ -7,7 +8,7 @@ import { AuthContext } from "../context/AuthContext";
 
 const AdminImpersonation = () => {
   const navigate = useNavigate();
-  const { setUser } = useContext(AuthContext);
+  const { setUser, user: currentUser } = useContext(AuthContext);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busyUserId, setBusyUserId] = useState(null);
@@ -18,7 +19,7 @@ const AdminImpersonation = () => {
       setLoading(true);
       try {
         const { data } = await getUsers();
-        setUsers(normalizeCollectionResponse(data));
+        setUsers(normalizeCollectionResponse(data).filter((user) => user.id !== currentUser?.id && !user.site_admin));
       } catch (error) {
         console.error("Failed to fetch users", error);
         toast.error("Could not load users");
@@ -45,7 +46,7 @@ const AdminImpersonation = () => {
       const { data } = await adminImpersonate(userId);
       setUser(data.user);
       toast.success(`Logged in as ${data.user.first_name} ${data.user.last_name}`);
-      navigate(data.user.landing_page ? `/${data.user.landing_page}` : "/");
+      navigate(workspaceLandingPath(data.user));
     } catch (error) {
       console.error("Failed to impersonate user", error);
       toast.error(error?.response?.data?.error || "Unable to login as user");

@@ -6,6 +6,8 @@ import ChatRoute from '../../app/(tabs)/inbox/chat/[id]';
 import { endpoints } from '../api/endpoints';
 import { mobileQueryKeys } from '../cache/mobileCache';
 
+const mockCopy = jest.fn(async (_text: unknown) => undefined);
+jest.mock('expo-clipboard', () => ({ setStringAsync: (...args: unknown[]) => mockCopy(args[0]) }));
 const mockPerform = jest.fn();
 let mockRouteParams: { id: string; messageId?: string } = { id: '7' };
 let mockChatEvent: (event: any) => void;
@@ -150,4 +152,16 @@ test('a push target loads older message context instead of only the latest page'
   await waitFor(() => expect(endpoints.messageContext).toHaveBeenCalledWith(7, 8));
   await waitFor(() => expect(screen.getByText(/Older message from the push/)).toBeTruthy());
   await screen.unmount(); client.clear(); mockRouteParams = { id: '7' };
+});
+
+test('copies the full message from the long-press menu', async () => {
+  jest.clearAllMocks();
+  const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, gcTime: Infinity, retry: false } } });
+  client.setQueryData(mobileQueryKeys.conversation(7), { id: 7, title: 'Copy', participants: [] });
+  client.setQueryData(mobileQueryKeys.messages(7), { pageParams: [undefined], pages: [{ data: [{ id: 10, body: 'Copy this entire message', user_id: 2, created_at: '2026-10-06T00:00:00Z' }] }] });
+  const screen = await render(<QueryClientProvider client={client}><ChatRoute /></QueryClientProvider>);
+  await fireEvent(screen.getByText(/Copy this entire message/), 'longPress');
+  await fireEvent.press(screen.getByRole('button', { name: 'Copy message' }));
+  expect(mockCopy).toHaveBeenCalledWith('Copy this entire message');
+  await screen.unmount(); client.clear();
 });

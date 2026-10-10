@@ -165,3 +165,16 @@ describe("Navbar responsive behavior", () => {
     expect(screen.queryByRole("dialog", { name: /workspace inspector/i })).toBeNull();
   });
 });
+
+
+describe("role navigation", () => {
+  it.each([['member', false, false], ['admin', true, false], ['owner', true, true]])("shows links permitted for %s", (role, admin, owner) => {
+    render(<MemoryRouter initialEntries={["/settings"]}><AuthContext.Provider value={{ user: { ...user, roles: [{ name: role }] }, handleLogout: vi.fn() }}><Navbar /></AuthContext.Provider></MemoryRouter>);
+    expect(screen.getAllByRole('link', { name: 'People' }).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Open account menu' }));
+    expect(Boolean(screen.queryByRole('menuitem', { name: 'Admin console' }))).toBe(admin);
+    expect(Boolean(screen.queryByRole('menuitem', { name: 'View as user' }))).toBe(owner);
+    fireEvent.click(screen.getByRole('button', { name: 'Open context navigation' }));
+    expect(Boolean(screen.queryByRole('link', { name: 'System admin' }))).toBe(admin);
+  });
+});

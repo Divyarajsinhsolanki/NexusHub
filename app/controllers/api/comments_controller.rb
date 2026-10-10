@@ -5,7 +5,7 @@ class Api::CommentsController < Api::BaseController
   before_action :set_comment, only: :destroy
 
   def index
-    comments = @post.comments.includes(:user).order(:created_at)
+    comments = @post.comments.includes(user: { profile_picture_attachment: :blob }).order(:created_at, :id)
     render json: comments.map { |comment| serialize_comment(comment) }
   end
 

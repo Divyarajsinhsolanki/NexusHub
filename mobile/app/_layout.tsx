@@ -101,6 +101,7 @@ function AuthGate() {
     pathname,
     returnTo,
     signedIn: Boolean(user),
+    landingPage: user?.preferences?.landing_page,
   });
 
   useEffect(() => {

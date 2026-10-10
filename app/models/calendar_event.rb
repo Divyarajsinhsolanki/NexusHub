@@ -17,13 +17,13 @@ class CalendarEvent < ApplicationRecord
   enum :visibility, {
     personal: 'personal',
     project: 'project'
-  }, default: 'personal'
+  }, default: 'personal', validate: true
 
   enum :status, {
     scheduled: 'scheduled',
     cancelled: 'cancelled',
     completed: 'completed'
-  }, default: 'scheduled'
+  }, default: 'scheduled', validate: true
 
   validates :title, :start_at, :end_at, :event_type, :visibility, :status, presence: true
   validates :event_type, inclusion: { in: EVENT_TYPES }

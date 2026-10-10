@@ -1,3 +1,4 @@
+import { canAccessWorkspacePath, hasWorkspaceRole } from "../utils/workspaceAccess";
 import { canOpenProjectWorkspace } from "../utils/projectAccess";
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
@@ -54,6 +55,7 @@ const navigationGroups = [
     label: "Collaboration",
     items: [
       { to: "/teams", label: "Teams", icon: FiUsers },
+      { to: "/users", label: "People", icon: FiUsers },
       { to: "/chat", label: "Chat", icon: FiMessageSquare },
       { to: "/departments", label: "Departments", icon: FiGrid },
     ],
@@ -320,6 +322,7 @@ const ProjectContext = ({ projects, activeProjectId, onNavigate }) => {
 };
 
 const StandardContext = ({ type, onNavigate }) => {
+  const { user } = useContext(AuthContext);
   const [title, description] = labelForContext[type] || ["Workspace", "Navigate your NexusHub workspace"];
   return (
     <>
@@ -329,7 +332,7 @@ const StandardContext = ({ type, onNavigate }) => {
         <p>{description}</p>
       </div>
       <nav className="nexus-context-links" aria-label={`${title} navigation`}>
-        {(contextLinks[type] || []).map(([to, label, Icon]) => (
+        {(contextLinks[type] || []).filter(([to]) => canAccessWorkspacePath(user, to)).map(([to, label, Icon]) => (
           <NavLink key={to} to={to} onClick={onNavigate} className={({ isActive }) => isActive ? "active" : ""}>
             <Icon />
             <span>{label}</span>
@@ -521,6 +524,9 @@ const MobileDrawer = ({ open, onClose, onLogout, user, hasAdminRole }) => {
           <RailLink item={{ to: "/profile", label: "Profile", icon: FiUsers }} onNavigate={onClose} />
           <RailLink item={{ to: "/settings", label: "Settings", icon: FiSettings }} onNavigate={onClose} />
           {hasAdminRole ? <RailLink item={{ to: "/admin", label: "Admin", icon: FiSliders }} onNavigate={onClose} /> : null}
+          {canAccessWorkspacePath(user, "/admin/login-as-user") ? <RailLink item={{ to: "/admin/login-as-user", label: "View as user", icon: FiUsers }} onNavigate={onClose} /> : null}
+          {canAccessWorkspacePath(user, "/admin/portfolio") ? <RailLink item={{ to: "/admin/portfolio", label: "Portfolio admin", icon: FiSliders }} onNavigate={onClose} /> : null}
+          <RailLink item={{ to: "/notifications", label: "Notifications", icon: FiBell }} onNavigate={onClose} />
           <button type="button" className="nexus-mobile-account-action" onClick={onLogout}><FiLogOut />Sign out</button>
         </div>
     </OverlayDrawer>
@@ -561,7 +567,8 @@ const Navbar = () => {
   const profileMenuRef = useRef(null);
   const selection = useMemo(() => getSelectionFromSearch(location.search), [location.search]);
 
-  const hasAdminRole = user?.roles?.some((role) => ["owner", "admin"].includes(role.name));
+  const hasAdminRole = canAccessWorkspacePath(user, "/admin");
+  const showNewProject = location.pathname === "/projects" && !user?.demo_account && hasWorkspaceRole(user, ["owner", "admin", "project_manager"]);
 
   useEffect(() => {
     const previousNav = document.documentElement.dataset.nexusNav;
@@ -647,7 +654,7 @@ const Navbar = () => {
   }, []);
 
   const dispatchPrimaryAction = () => {
-    if (location.pathname === "/projects") window.dispatchEvent(new Event("nexus:new-project"));
+    if (showNewProject) window.dispatchEvent(new Event("nexus:new-project"));
     else window.dispatchEvent(new Event("nexus:open-search"));
   };
 
@@ -685,7 +692,7 @@ const Navbar = () => {
             <FiSearch /><span>Search projects, tasks, people…</span><kbd>Ctrl K</kbd>
           </button>
           <button type="button" className="nexus-primary-action nexus-topbar-primary" onClick={dispatchPrimaryAction}>
-            {location.pathname === "/projects" ? "New project" : "Quick search"}
+            {showNewProject ? "New project" : "Quick search"}
           </button>
           {layout.inspector ? <button type="button" className="nexus-icon-button nexus-inspector-trigger" onClick={openInspector} aria-label="Open inspector" aria-haspopup="dialog" aria-expanded={inspectorOpen} aria-controls="workspace-inspector-drawer"><FiActivity /></button> : null}
           {!isMobileViewport ? <NotificationCenter /> : null}
@@ -697,6 +704,8 @@ const Navbar = () => {
             <Link to="/profile" role="menuitem"><FiUsers />Profile</Link>
             <Link to="/settings" role="menuitem"><FiSettings />Settings</Link>
             {hasAdminRole ? <Link to="/admin" role="menuitem"><FiSliders />Admin console</Link> : null}
+            {canAccessWorkspacePath(user, "/admin/login-as-user") ? <Link to="/admin/login-as-user" role="menuitem"><FiUsers />View as user</Link> : null}
+            {canAccessWorkspacePath(user, "/admin/portfolio") ? <Link to="/admin/portfolio" role="menuitem"><FiSliders />Portfolio admin</Link> : null}
             <button type="button" onClick={handleLogout} role="menuitem"><FiLogOut />Sign out</button>
           </div>
         ) : null}

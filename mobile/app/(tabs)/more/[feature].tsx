@@ -1,16 +1,17 @@
+import { SettingsScreen } from '@/src/screens/SettingsScreen';
+import { KnowledgeScreen } from '@/src/screens/KnowledgeScreen';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as DocumentPicker from 'expo-document-picker';
-import * as Notifications from 'expo-notifications';
 import * as WebBrowser from 'expo-web-browser';
 import { format } from 'date-fns';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Archive, ArrowLeft, Bookmark, CalendarPlus, CheckCircle2, ChevronRight, ExternalLink, FilePlus2, FileText, Plus, RefreshCw, Search, Settings2, Trash2, X } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, AppState, FlatList, Linking, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 
 import { apiErrorMessage } from '@/src/api/client';
 import { endpoints } from '@/src/api/endpoints';
-import type { CalendarEvent, EntityRecord, PdfDocument, PushNotificationSettings } from '@/src/api/types';
+import type { CalendarEvent, EntityRecord, PdfDocument } from '@/src/api/types';
 import { useAuth } from '@/src/auth/AuthProvider';
 import { EntityCollectionScreen, type EntityField } from '@/src/components/EntityCollectionScreen';
 import { PageHeader } from '@/src/components/PageHeader';
@@ -18,7 +19,7 @@ import { PrimaryButton } from '@/src/components/PrimaryButton';
 import { Screen } from '@/src/components/Screen';
 import { SegmentedControl } from '@/src/components/SegmentedControl';
 import { EmptyState, ErrorState, LoadingState } from '@/src/components/StateView';
-import { themePresets, useAppTheme } from '@/src/theme';
+import { useAppTheme } from '@/src/theme';
 import { DemoTourScreen } from '@/src/screens/DemoTourScreen';
 import { PortfolioAdminScreen } from '@/src/screens/PortfolioAdminScreen';
 import { PortfolioScreen } from '@/src/screens/PortfolioScreen';
@@ -27,7 +28,6 @@ import { FullCalendarScreen } from '@/src/screens/CalendarScreen';
 import { DepartmentsScreen } from '@/src/screens/DepartmentsScreen';
 import { TeamsScreen } from '@/src/screens/TeamsScreen';
 import { LearningGoalsScreen } from '@/src/screens/LearningGoalsScreen';
-import { registerCurrentPushDevice } from '@/src/notifications/PushRegistrar';
 
 const configs: Record<string, { title: string; subtitle: string; path: string; wrapper: string; primary: string; secondary: string[]; fields: EntityField[]; permission?: string }> = {
   skills: { title: 'Skills', subtitle: 'Your capabilities and proficiency', path: '/user_skills', wrapper: 'user_skill', primary: 'name', secondary: ['proficiency_label', 'endorsements_count'], fields: [{ key: 'name', label: 'Skill name' }, { key: 'proficiency', label: 'Proficiency', placeholder: 'beginner, intermediate, advanced, expert' }] },
@@ -35,56 +35,11 @@ const configs: Record<string, { title: string; subtitle: string; path: string; w
   vault: { title: 'Vault', subtitle: 'Private notes and references', path: '/items', wrapper: 'item', primary: 'title', secondary: ['category', 'content'], fields: [{ key: 'title', label: 'Title' }, { key: 'category', label: 'Category' }, { key: 'content', label: 'Content', multiline: true }] },
 };
 
-const notificationOptions = [
-  { key: 'commented', label: 'Comments', detail: 'Replies and comments on your posts' },
-  { key: 'assigned', label: 'Assignments', detail: 'Tasks or projects assigned to you' },
-  { key: 'update', label: 'Task updates', detail: 'Status changes on work assigned to you' },
-  { key: 'chat_message', label: 'Chat messages', detail: 'New messages in your conversations' },
-  { key: 'chat_ping', label: 'Chat mentions', detail: 'Direct mentions in chat' },
-  { key: 'reacted', label: 'Message reactions', detail: 'Reactions to your chat messages' },
-  { key: 'missed_call', label: 'Missed calls', detail: 'Calls you did not answer' },
-  { key: 'calendar_reminder', label: 'Calendar reminders', detail: 'Upcoming meetings and reminders' },
-  { key: 'digest', label: 'Weekly digest', detail: 'Summary of team activity' },
-];
-
-const pushCategoryOptions: Array<{ key: keyof PushNotificationSettings['categories']; label: string; detail: string }> = [
-  { key: 'chat', label: 'Chat', detail: 'Messages, mentions, and reactions' },
-  { key: 'audio_calls', label: 'Audio calls', detail: 'Incoming, missed, and ended calls' },
-  { key: 'video_calls', label: 'Video calls', detail: 'Incoming, missed, and ended video calls' },
-  { key: 'work', label: 'Work', detail: 'Projects, tasks, issues, and team changes' },
-  { key: 'social', label: 'Social activity', detail: 'Post likes, comments, and endorsements' },
-  { key: 'knowledge', label: 'Daily tech knowledge', detail: 'One daily technical post and learning tips' },
-  { key: 'reminders', label: 'Reminders', detail: 'Calendar and event reminders' },
-];
-
-const defaultPushSettings: PushNotificationSettings = {
-  enabled: true,
-  previews: true,
-  categories: { chat: true, audio_calls: true, video_calls: true, work: true, social: true, reminders: true, knowledge: true },
-  quiet_hours: { enabled: false, start: '22:00', end: '07:00', timezone: 'UTC', allow_calls: true },
-};
-
-const landingPageOptions = [
-  { value: 'calendar', label: 'Calendar' },
-  { value: 'posts', label: 'Updates' },
-  { value: 'profile', label: 'Profile' },
-  { value: 'vault', label: 'Vault' },
-  { value: 'knowledge', label: 'Knowledge' },
-  { value: 'worklog', label: 'Work logs' },
-  { value: 'projects', label: 'Projects' },
-  { value: 'teams', label: 'Teams' },
-  { value: 'pdf', label: 'PDF Master' },
-  { value: 'users', label: 'People' },
-  { value: 'departments', label: 'Departments' },
-  { value: 'chat', label: 'Chat' },
-  { value: 'notifications', label: 'Notifications' },
-];
-
 export default function MoreFeatureScreen() {
   const { feature } = useLocalSearchParams<{ feature: string }>();
   const { user } = useAuth();
   const config = configs[feature];
-  if (config) return <EntityCollectionScreen {...config} canWrite={!config.permission || Boolean(user?.permissions?.includes(config.permission))} />;
+  if (config) return <EntityCollectionScreen {...config} canCreate={feature === "people" ? Boolean(user?.permissions?.includes("users.create")) : !config.permission || Boolean(user?.permissions?.includes(config.permission))} canWrite={!config.permission || Boolean(user?.permissions?.includes(config.permission))} />;
   if (feature === 'teams') return <TeamsScreen />;
   if (feature === 'departments') return <DepartmentsScreen />;
   if (feature === 'goals') return <LearningGoalsScreen />;
@@ -145,41 +100,6 @@ function TaskSection({ title, rows }: { title: string; rows: EntityRecord[] }) {
   return <View style={styles.section}><Text style={[styles.sectionTitle, { color: theme.text }]}>{title}</Text>{rows.map((row) => <View key={row.id} style={[styles.simpleRow, { borderBottomColor: theme.border }]}><View style={styles.flex}><Text style={[styles.rowTitle, { color: theme.text }]}>{String(row.title)}</Text><Text style={[styles.rowMeta, { color: theme.textMuted }]}>{String(row.project_name || row.status || '')}</Text></View></View>)}</View>;
 }
 
-function KnowledgeScreen() {
-  const theme = useAppTheme();
-  const queryClient = useQueryClient();
-  const { user } = useAuth();
-  const { itemId } = useLocalSearchParams<{ itemId?: string }>();
-  const [mode, setMode] = useState<'feed' | 'saved' | 'archived'>('feed');
-  const [selectedCard, setSelectedCard] = useState<EntityRecord | null>(null);
-  const openedItemId = useRef<number | null>(null);
-  const { width, height } = useWindowDimensions();
-  const feed = useQuery({ queryKey: ['knowledge-items', 'active'], queryFn: () => endpoints.knowledgeItems(true) });
-  const saved = useQuery({ queryKey: ['knowledge-bookmarks'], queryFn: endpoints.knowledgeBookmarks });
-  const archived = useQuery({ queryKey: ['knowledge-items', 'archived'], queryFn: () => endpoints.knowledgeItems(false) });
-  useEffect(() => {
-    const targetId = Number(itemId);
-    if (!Number.isSafeInteger(targetId) || targetId <= 0 || openedItemId.current === targetId) return;
-    const card = [...(feed.data?.data || []), ...(archived.data?.data || [])].find((item) => item.id === targetId);
-    if (card) { openedItemId.current = targetId; setMode(card.active === false ? 'archived' : 'feed'); setSelectedCard(card); }
-  }, [itemId, feed.data, archived.data]);
-  const active = mode === 'feed' ? feed : mode === 'saved' ? saved : archived;
-  const save = useMutation({ mutationFn: (item: EntityRecord) => endpoints.createKnowledgeBookmark({ card_type: String(item.item_type || 'knowledge'), collection_name: item.collection_name, source_id: String(item.id), payload: item }), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['knowledge-bookmarks'] }) });
-  const archiveItem = useMutation({ mutationFn: endpoints.archiveKnowledgeItem, onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['knowledge-items'] }); }, onError: (error) => Alert.alert('Unable to archive card', apiErrorMessage(error)) });
-  const review = useMutation({ mutationFn: endpoints.markKnowledgeBookmarkReviewed, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['knowledge-bookmarks'] }), onError: (error) => Alert.alert('Unable to mark reviewed', apiErrorMessage(error)) });
-  const remove = useMutation({ mutationFn: endpoints.deleteKnowledgeBookmark, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['knowledge-bookmarks'] }), onError: (error) => Alert.alert('Unable to remove bookmark', apiErrorMessage(error)) });
-  const count = active.data?.data.length || 1;
-  const columns = Math.max(2, Math.min(4, Math.ceil(Math.sqrt(count * width / Math.max(300, height - 300)))));
-  const cardHeight = Math.max(64, Math.min(140, (height - 300) / Math.ceil(count / columns) - 10));
-  const emptyTitle = mode === 'feed' ? 'No briefing cards' : mode === 'saved' ? 'No saved cards' : 'No archived cards';
-  return <Screen header={<BackHeader title="Knowledge" subtitle="Briefings, prompts, and saved cards" />}><View style={styles.segment}><SegmentedControl value={mode} onChange={setMode} options={[{ value: 'feed', label: 'Briefing' }, { value: 'saved', label: 'Saved' }, { value: 'archived', label: 'Archive' }]} /></View>
-    {active.isLoading ? <LoadingState /> : null}{active.isError ? <ErrorState message={apiErrorMessage(active.error)} onRetry={() => active.refetch()} /> : null}
-    {active.data ? <FlatList key={columns} numColumns={columns} columnWrapperStyle={{ gap: 10 }} contentContainerStyle={styles.list} data={active.data.data} keyExtractor={(item) => String(item.id)} ListEmptyComponent={<EmptyState title={emptyTitle} message="Knowledge collected for your workspace appears here." />} renderItem={({ item }) => <Pressable accessibilityRole="button" accessibilityLabel={`Open ${String(item.title || (item.payload as Record<string, unknown>)?.title || 'Knowledge card')}`} onPress={() => setSelectedCard(item)} style={[styles.knowledgeCard, { flex: 1, height: cardHeight, padding: 10, backgroundColor: theme.surfaceRaised, borderColor: theme.border }]}><Text numberOfLines={1} style={[styles.knowledgeType, { color: theme.primary }]}>{String(item.category || item.card_type || 'Knowledge')}</Text><Text numberOfLines={2} style={[styles.rowTitle, { color: theme.text, marginTop: 6, fontSize: 12 }]}>{String(item.title || (item.payload as Record<string, unknown>)?.title || 'Knowledge card')}</Text>{cardHeight >= 110 ? <Text numberOfLines={2} style={[styles.knowledgeBody, { color: theme.textMuted }]}>{String(item.summary || (item.payload as Record<string, unknown>)?.summary || 'Tap to read and save')}</Text> : null}</Pressable>} /> : null}
-    <Modal transparent animationType="fade" visible={Boolean(selectedCard)} onRequestClose={() => setSelectedCard(null)}><View style={{ flex: 1, justifyContent: 'center', padding: 20, backgroundColor: 'rgba(2,6,23,0.5)' }}><View accessibilityViewIsModal style={{ maxHeight: '85%', borderRadius: 20, padding: 16, backgroundColor: theme.surfaceRaised }}><Pressable accessibilityRole="button" accessibilityLabel="Close knowledge card" onPress={() => setSelectedCard(null)} style={{ alignSelf: 'flex-end', minHeight: 44, minWidth: 44, alignItems: 'center', justifyContent: 'center' }}><X color={theme.text} size={22} /></Pressable><ScrollView>{selectedCard ? (() => { const item = selectedCard;
- const payload = item.payload as Record<string, unknown> | undefined; return <View style={[styles.knowledgeCard, { backgroundColor: theme.surface, borderColor: theme.border }]}><View style={styles.knowledgeHeader}><Text style={[styles.knowledgeType, { color: theme.primary }]}>{String(item.category || item.card_type || 'KNOWLEDGE').toUpperCase()}</Text>{!user?.demo_account ? <View style={styles.knowledgeActions}>{mode === 'feed' ? <><Pressable accessibilityLabel="Save knowledge card" onPress={() => save.mutate(item)} style={styles.knowledgeAction}><Bookmark color={theme.textMuted} size={18} /></Pressable>{item.can_archive !== false && <Pressable accessibilityLabel="Archive knowledge card" onPress={() => archiveItem.mutate(item.id)} style={styles.knowledgeAction}><Archive color={theme.textMuted} size={18} /></Pressable>}</> : null}{mode === 'saved' ? <><Pressable accessibilityLabel="Mark bookmark reviewed" onPress={() => review.mutate(item.id)} style={styles.knowledgeAction}><CheckCircle2 color={theme.success} size={18} /></Pressable><Pressable accessibilityLabel="Delete bookmark" onPress={() => remove.mutate(item.id)} style={styles.knowledgeAction}><Trash2 color={theme.danger} size={17} /></Pressable></> : null}</View> : null}</View><Text style={[styles.rowTitle, { color: theme.text }]}>{String(item.title || payload?.title || 'Knowledge card')}</Text><Text  style={[styles.knowledgeBody, { color: theme.textMuted }]}>{String(item.summary || payload?.summary || '')}</Text>{(item.body || payload?.body) ? <Text style={[styles.knowledgeBody, { color: theme.text }]}>{String(item.body || payload?.body)}</Text> : null}{item.workspace_shared ? <Text style={[styles.knowledgeType, { color: theme.primary }]}>WORKSPACE · AI-GENERATED</Text> : null}</View>;
-})() : null}</ScrollView></View></View></Modal>
-  </Screen>;
-}
 
 function PdfLibraryScreen() {
   const theme = useAppTheme();
@@ -199,190 +119,6 @@ function PdfLibraryScreen() {
 function PdfRow({ document, onPress }: { document: PdfDocument; onPress: () => void }) {
   const theme = useAppTheme();
   return <Pressable onPress={onPress} style={[styles.pdfRow, { backgroundColor: theme.surface, borderColor: theme.border }]}><View style={[styles.fileIcon, { backgroundColor: '#fff1f2' }]}><FileText color={theme.danger} size={23} /></View><View style={styles.flex}><Text numberOfLines={1} style={[styles.rowTitle, { color: theme.text }]}>{document.title}</Text><Text style={[styles.rowMeta, { color: theme.textMuted }]}>{document.page_count || 0} pages · {formatBytes(document.byte_size || 0)}</Text></View><ChevronRight color={theme.textMuted} size={19} /></Pressable>;
-}
-
-function SettingsScreen() {
-  const theme = useAppTheme();
-  const router = useRouter();
-  const { user, refreshUser } = useAuth();
-  const queryClient = useQueryClient();
-  const [passwordForm, setPasswordForm] = useState({ current_password: '', password: '', password_confirmation: '' });
-  const preferences = user?.preferences || {};
-  const prefs = preferences.notification_preferences || {};
-  const pushSettings = user?.push_notification_settings || defaultPushSettings;
-  const [permissionStatus, setPermissionStatus] = useState<string>('checking');
-  const [quietStart, setQuietStart] = useState(pushSettings.quiet_hours.start);
-  const [quietEnd, setQuietEnd] = useState(pushSettings.quiet_hours.end);
-  const selectedColor = preferences.color_theme || user?.color_theme || 'blue';
-  const selectedLandingPage = preferences.landing_page || 'posts';
-  const darkMode = Boolean(preferences.dark_mode ?? user?.dark_mode);
-  const readOnly = Boolean(user?.demo_account);
-
-  useEffect(() => {
-    const refreshPermission = () => void Notifications.getPermissionsAsync().then((permission) => setPermissionStatus(permission.status)).catch(() => setPermissionStatus('unavailable'));
-    refreshPermission();
-    const subscription = AppState.addEventListener('change', (state) => { if (state === 'active') refreshPermission(); });
-    return () => subscription.remove();
-  }, []);
-  useEffect(() => {
-    setQuietStart(pushSettings.quiet_hours.start);
-    setQuietEnd(pushSettings.quiet_hours.end);
-  }, [pushSettings.quiet_hours.end, pushSettings.quiet_hours.start]);
-
-  const preferenceMutation = useMutation({
-    mutationFn: (input: Record<string, unknown>) => endpoints.updateMe(input),
-    onSuccess: async () => {
-      await refreshUser();
-      await queryClient.invalidateQueries();
-    },
-    onError: (error) => Alert.alert('Unable to save setting', apiErrorMessage(error)),
-  });
-
-  const passwordMutation = useMutation({
-    mutationFn: endpoints.changePassword,
-    onSuccess: () => {
-      setPasswordForm({ current_password: '', password: '', password_confirmation: '' });
-      Alert.alert('Password updated', 'Your password was changed and other mobile sessions were revoked.');
-    },
-    onError: (error) => Alert.alert('Unable to change password', apiErrorMessage(error)),
-  });
-
-  const updatePreference = (input: Record<string, unknown>) => preferenceMutation.mutate(input);
-  const updateNotification = (key: string, value: boolean) => updatePreference({ notification_preferences: { ...prefs, [key]: value } });
-  const updatePush = (next: PushNotificationSettings) => updatePreference({ push_notification_settings: next });
-  const updatePushCategory = (key: keyof PushNotificationSettings['categories'], value: boolean) => updatePush({ ...pushSettings, categories: { ...pushSettings.categories, [key]: value } });
-  const requestPushPermission = async () => {
-    try {
-      const permission = await Notifications.requestPermissionsAsync({ android: {}, ios: { allowAlert: true, allowBadge: true, allowSound: true } });
-      setPermissionStatus(permission.status);
-      if (permission.status === 'granted' && user) await registerCurrentPushDevice(user);
-      else if (!permission.canAskAgain) await Linking.openSettings();
-    } catch (error) {
-      Alert.alert('Notifications unavailable', apiErrorMessage(error));
-    }
-  };
-  const saveQuietTime = (key: 'start' | 'end', value: string) => {
-    if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value)) {
-      Alert.alert('Use a valid time', 'Enter quiet hours in 24-hour HH:MM format, for example 22:00.');
-      key === 'start' ? setQuietStart(pushSettings.quiet_hours.start) : setQuietEnd(pushSettings.quiet_hours.end);
-      return;
-    }
-    updatePush({ ...pushSettings, quiet_hours: { ...pushSettings.quiet_hours, [key]: value } });
-  };
-  const submitPassword = () => {
-    if (passwordForm.password.length < 8) {
-      Alert.alert('Password too short', 'Use at least 8 characters.');
-      return;
-    }
-    if (passwordForm.password !== passwordForm.password_confirmation) {
-      Alert.alert('Passwords do not match', 'Confirm the same new password.');
-      return;
-    }
-    passwordMutation.mutate(passwordForm);
-  };
-
-  return <Screen header={<BackHeader title="Settings" subtitle="Appearance, alerts, and account behavior" />}>
-    <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-      <Text style={[styles.sectionTitle, { color: theme.text }]}>Appearance</Text>
-      <View style={[styles.settingsPanel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <View style={styles.settingRow}>
-          <View style={styles.flex}>
-            <Text style={[styles.rowTitle, { color: theme.text }]}>Dark mode</Text>
-            <Text style={[styles.rowMeta, { color: theme.textMuted }]}>Use the dark mobile theme on this account.</Text>
-          </View>
-          <Switch accessibilityLabel="Dark mode" disabled={preferenceMutation.isPending || readOnly} onValueChange={(value) => updatePreference({ dark_mode: value })} trackColor={{ false: theme.surfaceMuted, true: theme.primary }} value={darkMode} />
-        </View>
-        <View style={[styles.preferenceBlock, { borderTopColor: theme.border }]}>
-          <Text style={[styles.rowTitle, { color: theme.text }]}>Accent color</Text>
-          <View style={styles.colorGrid}>
-            {themePresets.map((preset) => {
-              const selected = selectedColor === preset.key || selectedColor === preset.value;
-              return <Pressable accessibilityLabel={`${preset.name} theme`} accessibilityRole="button" key={preset.key} disabled={preferenceMutation.isPending || readOnly} onPress={() => updatePreference({ color_theme: preset.key })} style={[styles.colorOption, { borderColor: selected ? theme.text : theme.border }]}>
-                <View style={[styles.swatch, { backgroundColor: preset.value }]} />
-                {selected ? <Text style={[styles.selectedMark, { color: theme.text }]}>Selected</Text> : <Text style={[styles.selectedMark, { color: theme.textMuted }]}>{preset.name}</Text>}
-              </Pressable>;
-            })}
-          </View>
-        </View>
-        <View style={[styles.preferenceBlock, { borderTopColor: theme.border }]}>
-          <Text style={[styles.rowTitle, { color: theme.text }]}>Landing page</Text>
-          <View style={styles.chipGrid}>
-            {landingPageOptions.map((option) => {
-              const selected = selectedLandingPage === option.value;
-              return <Pressable accessibilityRole="button" key={option.value} disabled={preferenceMutation.isPending || readOnly} onPress={() => updatePreference({ landing_page: option.value })} style={[styles.chip, { backgroundColor: selected ? theme.primary : theme.surfaceMuted }]}>
-                <Text style={{ color: selected ? '#ffffff' : theme.text, fontSize: 12, fontWeight: '800' }}>{option.label}</Text>
-              </Pressable>;
-            })}
-          </View>
-        </View>
-      </View>
-
-      <Text style={[styles.sectionTitle, { color: theme.text }]}>Notifications</Text>
-      <View style={[styles.settingsPanel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        {notificationOptions.map((option, index) => <View key={option.key} style={[styles.settingRow, index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
-          <View style={styles.flex}>
-            <Text style={[styles.rowTitle, { color: theme.text }]}>{option.label}</Text>
-            <Text style={[styles.rowMeta, { color: theme.textMuted }]}>{option.detail}</Text>
-          </View>
-          <Switch accessibilityLabel={option.label} disabled={preferenceMutation.isPending || readOnly} onValueChange={(value) => updateNotification(option.key, value)} trackColor={{ false: theme.surfaceMuted, true: theme.primary }} value={prefs[option.key] ?? option.key !== 'digest'} />
-        </View>)}
-      </View>
-
-      <Text style={[styles.sectionTitle, { color: theme.text }]}>Push notifications</Text>
-      <View style={[styles.settingsPanel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <View style={styles.settingRow}>
-          <View style={styles.flex}>
-            <Text style={[styles.rowTitle, { color: theme.text }]}>Phone permission</Text>
-            <Text style={[styles.rowMeta, { color: theme.textMuted }]}>{humanize(permissionStatus)} · controls whether this phone can show alerts</Text>
-          </View>
-          <Pressable accessibilityRole="button" onPress={() => ['denied', 'granted'].includes(permissionStatus) ? void Linking.openSettings() : void requestPushPermission()} style={[styles.smallButton, { borderColor: theme.border }]}><Text style={[styles.smallButtonText, { color: theme.primary }]}>{permissionStatus === 'granted' ? 'Settings' : 'Enable'}</Text></Pressable>
-        </View>
-        <View style={[styles.settingRow, { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
-          <View style={styles.flex}><Text style={[styles.rowTitle, { color: theme.text }]}>Push notifications</Text><Text style={[styles.rowMeta, { color: theme.textMuted }]}>Master switch for alerts sent to your devices</Text></View>
-          <Switch accessibilityLabel="Push notifications" disabled={preferenceMutation.isPending || readOnly} onValueChange={(enabled) => updatePush({ ...pushSettings, enabled })} trackColor={{ false: theme.surfaceMuted, true: theme.primary }} value={pushSettings.enabled} />
-        </View>
-        <View style={[styles.settingRow, { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
-          <View style={styles.flex}><Text style={[styles.rowTitle, { color: theme.text }]}>Message previews</Text><Text style={[styles.rowMeta, { color: theme.textMuted }]}>Show a short, sanitized preview on the lock screen</Text></View>
-          <Switch accessibilityLabel="Message previews" disabled={preferenceMutation.isPending || readOnly || !pushSettings.enabled} onValueChange={(previews) => updatePush({ ...pushSettings, previews })} trackColor={{ false: theme.surfaceMuted, true: theme.primary }} value={pushSettings.previews} />
-        </View>
-        {pushCategoryOptions.map((option) => <View key={option.key} style={[styles.settingRow, { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}><View style={styles.flex}><Text style={[styles.rowTitle, { color: theme.text }]}>{option.label}</Text><Text style={[styles.rowMeta, { color: theme.textMuted }]}>{option.detail}</Text></View><Switch accessibilityLabel={`${option.label} push notifications`} disabled={preferenceMutation.isPending || readOnly || !pushSettings.enabled} onValueChange={(value) => updatePushCategory(option.key, value)} trackColor={{ false: theme.surfaceMuted, true: theme.primary }} value={pushSettings.categories[option.key] !== false} /></View>)}
-        <View style={[styles.settingRow, { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
-          <View style={styles.flex}><Text style={[styles.rowTitle, { color: theme.text }]}>Quiet hours</Text><Text style={[styles.rowMeta, { color: theme.textMuted }]}>Hold routine alerts and send a summary later</Text></View>
-          <Switch accessibilityLabel="Quiet hours" disabled={preferenceMutation.isPending || readOnly || !pushSettings.enabled} onValueChange={(enabled) => updatePush({ ...pushSettings, quiet_hours: { ...pushSettings.quiet_hours, enabled } })} trackColor={{ false: theme.surfaceMuted, true: theme.primary }} value={pushSettings.quiet_hours.enabled} />
-        </View>
-        {pushSettings.quiet_hours.enabled ? <View style={[styles.preferenceBlock, { borderTopColor: theme.border }]}>
-          <View style={styles.timeFields}><View style={styles.timeField}><SettingsField label="Starts" placeholder="22:00" value={quietStart} onChangeText={setQuietStart} onEndEditing={() => saveQuietTime('start', quietStart)} /></View><View style={styles.timeField}><SettingsField label="Ends" placeholder="07:00" value={quietEnd} onChangeText={setQuietEnd} onEndEditing={() => saveQuietTime('end', quietEnd)} /></View></View>
-          <Text style={[styles.rowMeta, { color: theme.textMuted }]}>Timezone: {pushSettings.quiet_hours.timezone}</Text>
-          <View style={styles.settingRowCompact}><View style={styles.flex}><Text style={[styles.rowTitle, { color: theme.text }]}>Allow calls</Text><Text style={[styles.rowMeta, { color: theme.textMuted }]}>Incoming calls can interrupt quiet hours</Text></View><Switch accessibilityLabel="Allow calls during quiet hours" disabled={preferenceMutation.isPending || readOnly} onValueChange={(allow_calls) => updatePush({ ...pushSettings, quiet_hours: { ...pushSettings.quiet_hours, allow_calls } })} trackColor={{ false: theme.surfaceMuted, true: theme.primary }} value={pushSettings.quiet_hours.allow_calls} /></View>
-        </View> : null}
-      </View>
-
-      <Text style={[styles.sectionTitle, { color: theme.text }]}>Security</Text>
-      <Pressable onPress={() => router.push('/more/profile')} style={[styles.settingsLink, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <Settings2 color={theme.primary} size={20} />
-        <View style={styles.flex}>
-          <Text style={[styles.rowTitle, { color: theme.text }]}>Device sessions</Text>
-          <Text style={[styles.rowMeta, { color: theme.textMuted }]}>Review and revoke signed-in devices from Profile.</Text>
-        </View>
-      </Pressable>
-      {!readOnly ? <View style={[styles.passwordPanel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <Text style={[styles.rowTitle, { color: theme.text }]}>Change password</Text>
-        <Text style={[styles.rowMeta, { color: theme.textMuted }]}>Other mobile sessions are revoked after a successful change.</Text>
-        <SettingsField label="Current password" secureTextEntry value={passwordForm.current_password} onChangeText={(value) => setPasswordForm((current) => ({ ...current, current_password: value }))} />
-        <SettingsField label="New password" secureTextEntry value={passwordForm.password} onChangeText={(value) => setPasswordForm((current) => ({ ...current, password: value }))} />
-        <SettingsField label="Confirm new password" secureTextEntry value={passwordForm.password_confirmation} onChangeText={(value) => setPasswordForm((current) => ({ ...current, password_confirmation: value }))} />
-        <PrimaryButton disabled={passwordMutation.isPending || !passwordForm.current_password || !passwordForm.password || !passwordForm.password_confirmation} label={passwordMutation.isPending ? 'Updating...' : 'Update password'} loading={passwordMutation.isPending} onPress={submitPassword} />
-      </View> : null}
-    </ScrollView>
-  </Screen>;
-}
-
-function SettingsField({ label, ...props }: { label: string } & React.ComponentProps<typeof TextInput>) {
-  const theme = useAppTheme();
-  return <View>
-    <Text style={[styles.label, { color: theme.text }]}>{label}</Text>
-    <TextInput accessibilityLabel={label} autoCapitalize="none" placeholderTextColor={theme.textMuted} {...props} style={[styles.field, { backgroundColor: theme.surfaceMuted, borderColor: theme.border, color: theme.text }, props.multiline && styles.multiline]} />
-  </View>;
 }
 
 function KekaScreen() {
@@ -434,11 +170,8 @@ function humanize(value: string) { return value.replace(/([a-z])([A-Z])/g, '$1 $
 
 const styles = StyleSheet.create({
   flex: { flex: 1 }, back: { alignItems: 'center', height: 44, justifyContent: 'center', width: 44 }, action: { alignItems: 'center', borderRadius: 8, height: 42, justifyContent: 'center', width: 42 },
-  list: { padding: 20, paddingBottom: 40 }, scroll: { padding: 20, paddingBottom: 40 }, segment: { paddingHorizontal: 20, paddingTop: 14 },
-  calendarRow: { alignItems: 'center', borderRadius: 8, borderWidth: 1, flexDirection: 'row', marginBottom: 9, minHeight: 76, padding: 11 }, dateBlock: { alignItems: 'center', borderRadius: 7, height: 52, justifyContent: 'center', marginRight: 12, width: 52 }, month: { fontSize: 10, fontWeight: '800' }, day: { fontSize: 20, fontWeight: '800' }, rowTitle: { fontSize: 15, fontWeight: '700' }, rowMeta: { fontSize: 12, lineHeight: 17, marginTop: 4 },
+  list: { padding: 20, paddingBottom: 40 }, scroll: { padding: 20, paddingBottom: 40 }, calendarRow: { alignItems: 'center', borderRadius: 8, borderWidth: 1, flexDirection: 'row', marginBottom: 9, minHeight: 76, padding: 11 }, dateBlock: { alignItems: 'center', borderRadius: 7, height: 52, justifyContent: 'center', marginRight: 12, width: 52 }, month: { fontSize: 10, fontWeight: '800' }, day: { fontSize: 20, fontWeight: '800' }, rowTitle: { fontSize: 15, fontWeight: '700' }, rowMeta: { fontSize: 12, lineHeight: 17, marginTop: 4 },
   eyebrow: { fontSize: 11, fontWeight: '800' }, heroTitle: { fontSize: 25, fontWeight: '800', lineHeight: 32, marginTop: 8, maxWidth: 330 }, metricGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 9, marginTop: 22 }, metric: { borderRadius: 8, borderWidth: 1, minHeight: 110, padding: 13, width: '48%' }, metricLabel: { fontSize: 11, fontWeight: '700' }, metricValue: { fontSize: 28, fontWeight: '800', marginTop: 8 }, metricDetail: { fontSize: 11, marginTop: 3 }, section: { marginTop: 28 }, sectionTitle: { fontSize: 17, fontWeight: '800', marginBottom: 10 }, simpleRow: { borderBottomWidth: StyleSheet.hairlineWidth, minHeight: 62, paddingVertical: 11 },
-  knowledgeCard: { borderRadius: 16, borderWidth: 1, marginBottom: 10, padding: 15 }, knowledgeHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }, knowledgeType: { fontSize: 10, fontWeight: '800' }, knowledgeBody: { fontSize: 13, lineHeight: 20, marginTop: 8 }, knowledgeActions: { flexDirection: 'row', gap: 2 }, knowledgeAction: { alignItems: 'center', height: 36, justifyContent: 'center', width: 36 },
   uploading: { alignItems: 'center', flexDirection: 'row', gap: 9, minHeight: 44, paddingHorizontal: 20 }, pdfRow: { alignItems: 'center', borderRadius: 8, borderWidth: 1, flexDirection: 'row', marginBottom: 9, minHeight: 70, padding: 11 }, fileIcon: { alignItems: 'center', borderRadius: 7, height: 42, justifyContent: 'center', marginRight: 12, width: 42 },
-  settingsPanel: { borderRadius: 8, borderWidth: 1, marginBottom: 22, overflow: 'hidden' }, settingRow: { alignItems: 'center', flexDirection: 'row', minHeight: 70, paddingHorizontal: 14 }, settingsLink: { alignItems: 'center', borderRadius: 8, borderWidth: 1, flexDirection: 'row', gap: 12, marginBottom: 9, minHeight: 66, padding: 13 }, preferenceBlock: { borderTopWidth: StyleSheet.hairlineWidth, gap: 12, padding: 14 }, colorGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 9, marginTop: 10 }, colorOption: { alignItems: 'center', borderRadius: 8, borderWidth: 1, minHeight: 62, minWidth: 76, padding: 8 }, swatch: { borderRadius: 13, height: 26, width: 26 }, selectedMark: { fontSize: 9, fontWeight: '900', marginTop: 5 }, chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }, chip: { borderRadius: 8, justifyContent: 'center', minHeight: 38, paddingHorizontal: 12 }, passwordPanel: { borderRadius: 8, borderWidth: 1, gap: 12, marginTop: 9, padding: 14 }, label: { fontSize: 13, fontWeight: '800', marginBottom: 7 }, field: { borderRadius: 8, borderWidth: 1, fontSize: 15, minHeight: 46, paddingHorizontal: 12, paddingVertical: 10 }, multiline: { minHeight: 96, textAlignVertical: 'top' }, adminRow: { alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', minHeight: 66 },
-  smallButton: { alignItems: 'center', borderRadius: 8, borderWidth: 1, justifyContent: 'center', marginLeft: 12, minHeight: 38, paddingHorizontal: 12 }, smallButtonText: { fontSize: 12, fontWeight: '900' }, timeFields: { flexDirection: 'row', gap: 10 }, timeField: { flex: 1 }, settingRowCompact: { alignItems: 'center', flexDirection: 'row', minHeight: 58 },
-});
+  settingsLink: { alignItems: 'center', borderRadius: 8, borderWidth: 1, flexDirection: 'row', gap: 12, marginBottom: 9, minHeight: 66, padding: 13 }, adminRow: { alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', minHeight: 66 },
+  });

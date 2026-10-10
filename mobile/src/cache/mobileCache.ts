@@ -44,6 +44,7 @@ const PERSISTED_QUERY_PREFIXES = new Set([
   'pdf-document',
   'pdf-documents',
   'portfolio',
+  'post',
   'post-comments',
   'posts',
   'project',
@@ -77,6 +78,7 @@ type PersistableQuery = Pick<Query, 'queryKey' | 'state'>;
 export const mobileQueryKeys = {
   home: ['home'] as const,
   posts: ['posts'] as const,
+  post: (postId: number) => ['post', postId] as const,
   postComments: (postId: number) => ['post-comments', postId] as const,
   conversations: ['conversations'] as const,
   conversation: (conversationId: number) => ['conversation', conversationId] as const,
@@ -485,6 +487,7 @@ export function refreshCachesForDeepLink(queryClient: QueryClient, deepLink: unk
     const postId = Number(postMatch[1]);
     tasks.push(queryClient.invalidateQueries({ queryKey: mobileQueryKeys.posts }));
     tasks.push(queryClient.invalidateQueries({ queryKey: mobileQueryKeys.postComments(postId) }));
+    tasks.push(queryClient.invalidateQueries({ queryKey: mobileQueryKeys.post(postId) }));
   }
 
   return Promise.all(tasks);

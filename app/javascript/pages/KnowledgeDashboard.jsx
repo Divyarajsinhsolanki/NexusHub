@@ -628,7 +628,7 @@ function KnowledgeDashboardContent() {
   return (
     <>
       <section className={`knowledge-library ${view === 'room' ? 'knowledge-room-view' : ''}`}>
-        <header className="knowledge-page-header"><div><span className="knowledge-date">{currentDate}</span><h1>Knowledge</h1><p>A little curiosity, every day.</p></div><div className="knowledge-view-switch" role="group" aria-label="Knowledge view"><button type="button" aria-pressed={view === 'library'} onClick={() => setView('library')}><LayoutGrid size={16} /> Library</button><button type="button" aria-pressed={view === 'room'} onClick={() => setView('room')}><Box size={16} /> 3D room</button></div></header>
+        <header className="knowledge-page-header"><div className="knowledge-heading"><h1>Knowledge</h1><span className="knowledge-date">{currentDate}</span></div><div className="knowledge-view-switch" role="group" aria-label="Knowledge view"><button type="button" aria-pressed={view === 'library'} onClick={() => setView('library')}><LayoutGrid size={16} /> Library</button><button type="button" aria-pressed={view === 'room'} onClick={() => setView('room')}><Box size={16} /> 3D room</button></div></header>
         {view === 'library' ? <div className="knowledge-workspace">
           <aside className="knowledge-sidebar" aria-label="Knowledge navigation">
             <span className="knowledge-nav-label">Explore</span><nav aria-label="Topics">{categories.slice(0, 5).map((category) => <CategoryTab key={category.id} category={category} isActive={activeCategory === category.id} onClick={() => selectCategory(category.id)} />)}</nav>

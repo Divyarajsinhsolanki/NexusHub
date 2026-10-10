@@ -3,7 +3,7 @@ class Api::V1::ImpersonationsController < Api::V1::BaseController
 
   def create
     target = authenticated_mobile_user.workspace.users.find(params.require(:user_id))
-    return render_error(code: "invalid_impersonation", message: "Choose another active user.", status: :unprocessable_entity) if target == authenticated_mobile_user || target.locked?
+    return render_error(code: "invalid_impersonation", message: "Choose another active user.", status: :unprocessable_entity) if target == authenticated_mobile_user || target.locked? || target.site_admin?
 
     current_mobile_session.update!(impersonated_user: target)
     log_impersonation("started", target)

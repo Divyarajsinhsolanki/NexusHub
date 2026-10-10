@@ -4,7 +4,7 @@ class Api::PostsController < Api::BaseController
 
   COMMENTS_PREVIEW_LIMIT = 5
 
-  before_action :set_post, only: [:like, :unlike]
+  before_action :set_post, only: [:show, :like, :unlike]
 
   def index
     posts = Post.includes(image_attachment: :blob, user: { profile_picture_attachment: :blob })
@@ -29,6 +29,10 @@ class Api::PostsController < Api::BaseController
       end,
       meta: pagination_meta(paginated)
     }
+  end
+
+  def show
+    render json: serialize_post(@post)
   end
 
   def create

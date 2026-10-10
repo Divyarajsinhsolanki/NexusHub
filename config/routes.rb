@@ -114,7 +114,7 @@ Rails.application.routes.draw do
       end
       resources :event_reminders, controller: "/api/event_reminders", only: [:update, :destroy]
 
-      resources :posts, controller: "/api/posts", only: [:index, :create, :update, :destroy] do
+      resources :posts, controller: "/api/posts", only: [:index, :show, :create, :update, :destroy] do
         resources :comments, controller: "/api/comments", only: [:index, :create, :destroy]
         member do
           post :like
@@ -156,6 +156,16 @@ Rails.application.routes.draw do
       end
       resources :knowledge_prompt_runs, controller: "/api/knowledge_prompt_runs", only: [:index]
 
+      # Read-only discovery cards shared by web and native Knowledge.
+      get "coding_tip", to: "/api/coding_tips#show"
+      get "dev_tool_of_the_day", to: "/api/dev_tools#show"
+      get "open_issue_spotlight", to: "/api/open_source_issues#show"
+      get "english_word", to: "/api/english_words#show"
+      get "english_tense", to: "/api/english_tenses#show"
+      get "english_phrase", to: "/api/english_phrases#show"
+      get "news/local_headlines", to: "/api/news#local_headlines"
+      get "news/policy_briefs", to: "/api/news#policy_briefs"
+
       resources :conversations, controller: "/api/conversations", only: [:index, :show, :create, :update, :destroy] do
         collection { post :start_direct }
         member do
@@ -170,6 +180,7 @@ Rails.application.routes.draw do
         resources :calls, controller: "/api/conversation_calls", only: [:create]
         resource :receipt, controller: "/api/conversation_receipts", only: [:update]
         resources :messages, controller: "/api/messages", only: [:index, :create, :update, :destroy] do
+          get :link_preview, on: :member
           resources :reactions, controller: "/api/message_reactions", only: [:create]
           delete :reactions, to: "/api/message_reactions#destroy"
         end
@@ -276,7 +287,7 @@ Rails.application.routes.draw do
       end
     end
     post 'admin/impersonate', to: 'admin_sessions#create'
-    resources :posts, only: [:index, :create, :update, :destroy] do
+    resources :posts, only: [:index, :show, :create, :update, :destroy] do
       resources :comments, only: [:index, :create, :destroy]
       member do
         post :like
@@ -397,6 +408,7 @@ Rails.application.routes.draw do
       resources :calls, controller: "conversation_calls", only: [:create]
       resource :receipt, controller: "conversation_receipts", only: [:update]
       resources :messages, only: [:index, :create, :update, :destroy] do
+        get :link_preview, on: :member
         resources :reactions, controller: "message_reactions", only: [:create]
         delete "reactions", to: "message_reactions#destroy"
       end

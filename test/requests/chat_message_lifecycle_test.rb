@@ -1,4 +1,5 @@
 require "test_helper"
+require "minitest/mock"
 
 class ChatMessageLifecycleTest < ActionDispatch::IntegrationTest
   include ActionCable::TestHelper
@@ -156,6 +157,33 @@ class ChatMessageLifecycleTest < ActionDispatch::IntegrationTest
     assert_equal "Message deleted", mobile.response.parsed_body.dig("data", "body")
     get collection_path
     assert_equal "Message deleted", response.parsed_body["data"].find { |message| message["id"] == id }["body"]
+  end
+
+  test "preview only fetches links in visible messages and wraps mobile data" do
+    @message.update!(body: "Read www.example.com?x=1.")
+    url = "https://www.example.com/?x=1"
+    result = { title: "Example", description: "News", hostname: "www.example.com" }
+    Chat::LinkPreview.stub(:call, ->(requested) { assert_equal url, requested; result }) do
+      get "#{message_path}/link_preview", params: { url: url }
+      assert_response :success
+      assert_equal "Example", response.parsed_body["title"]
+      get "/api/v1/conversations/#{@conversation.id}/messages/#{@message.id}/link_preview", params: { url: url }
+      assert_response :success
+      assert_equal "Example", response.parsed_body.dig("data", "title")
+    end
+    Chat::LinkPreview.stub(:call, ->(*) { flunk "Must not fetch unrelated or deleted links" }) do
+      get "#{message_path}/link_preview", params: { url: "https://unrelated.example/" }
+      assert_response :unprocessable_entity
+      @message.update!(deleted_at: Time.current)
+      get "#{message_path}/link_preview", params: { url: url }
+      assert_response :unprocessable_entity
+    end
+    outsider = create_test_user(workspace: @workspace, email: "preview-outsider@example.test")
+    other_conversation = Conversation.create!(creator: outsider, conversation_type: "group", title: "Private")
+    other_conversation.conversation_participants.create!(user: outsider)
+    hidden = other_conversation.messages.create!(user: outsider, body: url)
+    get "/api/conversations/#{other_conversation.id}/messages/#{hidden.id}/link_preview", params: { url: url }
+    assert_response :not_found
   end
 
   private

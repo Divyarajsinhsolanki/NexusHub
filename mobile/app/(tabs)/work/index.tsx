@@ -25,11 +25,12 @@ type TaskFilter = 'all' | TaskStatus;
 export default function WorkScreen() {
   const theme = useAppTheme();
   const router = useRouter();
-  const { taskId } = useLocalSearchParams<{ taskId?: string }>();
+  const { taskId, mode: requestedMode } = useLocalSearchParams<{ taskId?: string; mode?: string }>();
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const writable = !user?.demo_account;
-  const [mode, setMode] = useState<Mode>('tasks');
+  const [mode, setMode] = useState<Mode>(requestedMode === 'logs' ? 'logs' : 'tasks');
+  useEffect(() => { if (requestedMode === 'logs' || requestedMode === 'tasks') setMode(requestedMode); }, [requestedMode]);
   const [search, setSearch] = useState('');
   const [taskFilter, setTaskFilter] = useState<TaskFilter>('all');
   const [editing, setEditing] = useState<WorkLog | null | undefined>(undefined);

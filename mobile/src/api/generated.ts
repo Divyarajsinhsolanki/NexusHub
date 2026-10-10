@@ -502,6 +502,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/posts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get: operations["getPost"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/posts/{id}/comments": {
         parameters: {
             query?: never;
@@ -858,6 +876,142 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/coding_tip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Read-only discovery content shared with the web Knowledge library. */
+        get: operations["getKnowledgeCodingTip"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dev_tool_of_the_day": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Read-only discovery content shared with the web Knowledge library. */
+        get: operations["getKnowledgeDeveloperTool"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/open_issue_spotlight": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Read-only discovery content shared with the web Knowledge library. */
+        get: operations["getKnowledgeOpenIssue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/english_word": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Read-only discovery content shared with the web Knowledge library. */
+        get: operations["getKnowledgeEnglishWord"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/english_tense": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Read-only discovery content shared with the web Knowledge library. */
+        get: operations["getKnowledgeEnglishTense"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/english_phrase": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Read-only discovery content shared with the web Knowledge library. */
+        get: operations["getKnowledgeEnglishPhrase"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/news/local_headlines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Read-only discovery content shared with the web Knowledge library. */
+        get: operations["getKnowledgeLocalHeadlines"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/news/policy_briefs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Read-only discovery content shared with the web Knowledge library. */
+        get: operations["getKnowledgePolicyBriefs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/knowledge_items": {
         parameters: {
             query?: never;
@@ -1115,6 +1269,26 @@ export interface paths {
         get: operations["listConversationMessages"];
         put?: never;
         post: operations["createConversationMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/conversations/{id}/messages/{message_id}/link_preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                message_id: number;
+            };
+            cookie?: never;
+        };
+        /** @description Cached metadata for the first HTTP link in a visible message. Unsupported sites return an empty object. */
+        get: operations["getMessageLinkPreview"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2697,6 +2871,20 @@ export interface operations {
             201: components["responses"]["GenericSuccess"];
         };
     };
+    getPost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
     listPostComments: {
         parameters: {
             query?: never;
@@ -3155,6 +3343,106 @@ export interface operations {
             200: components["responses"]["GenericSuccess"];
         };
     };
+    getKnowledgeCodingTip: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    getKnowledgeDeveloperTool: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    getKnowledgeOpenIssue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    getKnowledgeEnglishWord: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    getKnowledgeEnglishTense: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    getKnowledgeEnglishPhrase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    getKnowledgeLocalHeadlines: {
+        parameters: {
+            query?: {
+                region?: "in" | "us" | "gb" | "ca" | "au";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    getKnowledgePolicyBriefs: {
+        parameters: {
+            query?: {
+                topic?: "global" | "economy" | "technology" | "health";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
     listKnowledgeItems: {
         parameters: {
             query?: never;
@@ -3478,6 +3766,41 @@ export interface operations {
         };
         responses: {
             201: components["responses"]["GenericSuccess"];
+        };
+    };
+    getMessageLinkPreview: {
+        parameters: {
+            query: {
+                url: string;
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                message_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Website metadata when available. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data?: {
+                            url?: string;
+                            title?: string;
+                            description?: string;
+                            image?: string | null;
+                            hostname?: string;
+                        };
+                    };
+                };
+            };
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
         };
     };
     deleteConversationMessage: {

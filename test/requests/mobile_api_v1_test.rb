@@ -34,6 +34,18 @@ class MobileApiV1Test < ActionDispatch::IntegrationTest
     Current.reset_all
   end
 
+  test "admin project capabilities agree with project creation authorization" do
+    Current.workspace = @workspace
+    @user.roles = [Role.find_by!(name: "admin")]
+    @user.update!(landing_page: "projects")
+    payload = mobile_login
+    assert_includes payload.dig("user", "permissions"), "projects.manage"
+    assert_includes payload.dig("user", "permissions"), "project_members.manage"
+    assert_equal "projects", payload.dig("user", "preferences", "landing_page")
+    post "/api/v1/projects", params: { project: { name: "Admin-created project" } }, headers: bearer_headers(payload.fetch("access_token")), as: :json
+    assert_response :success
+  end
+
   test "login returns bearer and rotating refresh tokens without setting browser cookies" do
     payload = mobile_login
 
@@ -496,6 +508,32 @@ class MobileApiV1Test < ActionDispatch::IntegrationTest
 
     post "/api/v1/impersonation", params: { user_id: @other_user.id }, headers: bearer_headers(response.parsed_body.dig("data", "access_token"))
     assert_response :not_found
+  end
+
+  test "web and mobile impersonation reject admins and protected targets" do
+    @user.roles = [Role.find_or_create_by!(name: "admin")]
+    teammate = create_user(@workspace, "support-target@example.com", "Target")
+    token = mobile_login.fetch("access_token")
+    post "/api/v1/impersonation", params: { user_id: teammate.id }, headers: bearer_headers(token)
+    assert_response :forbidden
+
+    post "/api/login", params: { email: @user.email, password: PASSWORD }, as: :json
+    assert_response :success
+    post "/api/admin/impersonate", params: { user_id: teammate.id }, as: :json
+    assert_response :forbidden
+
+    @user.roles = [Role.find_or_create_by!(name: "owner")]
+    token = mobile_login.fetch("access_token")
+    teammate.update!(site_admin: true)
+    post "/api/v1/impersonation", params: { user_id: teammate.id }, headers: bearer_headers(token)
+    assert_response :unprocessable_entity
+    post "/api/v1/impersonation", params: { user_id: @user.id }, headers: bearer_headers(token)
+    assert_response :unprocessable_entity
+
+    post "/api/admin/impersonate", params: { user_id: teammate.id }, as: :json
+    assert_response :forbidden
+    post "/api/admin/impersonate", params: { user_id: @user.id }, as: :json
+    assert_response :forbidden
   end
 
   test "legacy v1 resources are normalized and invalid direct uploads return standard errors" do

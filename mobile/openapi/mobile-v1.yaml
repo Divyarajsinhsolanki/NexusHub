@@ -381,6 +381,13 @@ paths:
       operationId: createPost
       responses:
         "201": { $ref: "#/components/responses/GenericSuccess" }
+  /posts/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      operationId: getPost
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
   /posts/{id}/comments:
     parameters:
       - $ref: "#/components/parameters/Id"
@@ -567,6 +574,62 @@ paths:
       operationId: importIssuesFromSheet
       responses:
         "200": { $ref: "#/components/responses/GenericSuccess" }
+  /coding_tip:
+    get:
+      operationId: getKnowledgeCodingTip
+      description: Read-only discovery content shared with the web Knowledge library.
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /dev_tool_of_the_day:
+    get:
+      operationId: getKnowledgeDeveloperTool
+      description: Read-only discovery content shared with the web Knowledge library.
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /open_issue_spotlight:
+    get:
+      operationId: getKnowledgeOpenIssue
+      description: Read-only discovery content shared with the web Knowledge library.
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /english_word:
+    get:
+      operationId: getKnowledgeEnglishWord
+      description: Read-only discovery content shared with the web Knowledge library.
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /english_tense:
+    get:
+      operationId: getKnowledgeEnglishTense
+      description: Read-only discovery content shared with the web Knowledge library.
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /english_phrase:
+    get:
+      operationId: getKnowledgeEnglishPhrase
+      description: Read-only discovery content shared with the web Knowledge library.
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /news/local_headlines:
+    get:
+      operationId: getKnowledgeLocalHeadlines
+      description: Read-only discovery content shared with the web Knowledge library.
+      parameters:
+        - name: region
+          in: query
+          schema: { type: string, enum: [in, us, gb, ca, au] }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /news/policy_briefs:
+    get:
+      operationId: getKnowledgePolicyBriefs
+      description: Read-only discovery content shared with the web Knowledge library.
+      parameters:
+        - name: topic
+          in: query
+          schema: { type: string, enum: [global, economy, technology, health] }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
   /knowledge_items:
     get:
       operationId: listKnowledgeItems
@@ -750,6 +813,39 @@ paths:
                     reply_to_id: { type: [integer, 'null'], description: A regular message in the same conversation. }
       responses:
         "201": { $ref: "#/components/responses/GenericSuccess" }
+  /conversations/{id}/messages/{message_id}/link_preview:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+      - name: message_id
+        in: path
+        required: true
+        schema: { type: integer }
+    get:
+      operationId: getMessageLinkPreview
+      description: Cached metadata for the first HTTP link in a visible message. Unsupported sites return an empty object.
+      parameters:
+        - name: url
+          in: query
+          required: true
+          schema: { type: string, maxLength: 2048 }
+      responses:
+        "200":
+          description: Website metadata when available.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      url: { type: string }
+                      title: { type: string }
+                      description: { type: string }
+                      image: { type: [string, 'null'] }
+                      hostname: { type: string }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
   /conversations/{id}/messages/{message_id}:
     parameters:
       - $ref: "#/components/parameters/Id"

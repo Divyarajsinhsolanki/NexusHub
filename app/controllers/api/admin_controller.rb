@@ -1,6 +1,9 @@
 class Api::AdminController < Api::BaseController
   before_action :authorize_admin_access!
   before_action :set_model, except: [:tables, :reset_user_password]
+  rescue_from ActiveRecord::RecordInvalid do |error|
+    render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
+  end
   
   def tables
     render json: admin_model_names
@@ -51,10 +54,12 @@ class Api::AdminController < Api::BaseController
         data[:image_url] = url_for(record.image)
       end
 
+      data[:admin_permissions] = { update: record_mutation_allowed?(record), destroy: record_mutation_allowed?(record), password_reset: record.is_a?(User) && password_reset_allowed?(record) }
       data
     end
 
     render json: {
+      permissions: { create: @model != User && record_mutation_allowed?(@model.new) },
       records: json_records,
       pagination: {
         current_page: page,
@@ -66,7 +71,8 @@ class Api::AdminController < Api::BaseController
   end
 
   def create
-    record = @model.new(record_params)
+    record = admin_records.new(record_params)
+    return head :forbidden unless record_mutation_allowed?(record)
     return reject_managed_record if managed_record?(record)
     record.save!
     render json: serialize_record(record)
@@ -74,6 +80,7 @@ class Api::AdminController < Api::BaseController
   
   def update
     record = admin_records.find(params[:id])
+    return head :forbidden unless record_mutation_allowed?(record)
     record.assign_attributes(record_params)
     return reject_managed_record if managed_record?(record)
     record.save!
@@ -82,6 +89,7 @@ class Api::AdminController < Api::BaseController
 
   def destroy
     record = admin_records.find(params[:id])
+    return head :forbidden unless record_mutation_allowed?(record)
     record.destroy!
     render json: { success: true }
   rescue ActiveRecord::RecordNotDestroyed => error
@@ -115,10 +123,23 @@ class Api::AdminController < Api::BaseController
   private
 
   def admin_records
-    return @model.where(operation_source_type: nil) if @model == CalendarEvent
-    return @model.joins(:calendar_event).where(calendar_events: { operation_source_type: nil }) if @model == EventReminder
+    return admin_user_scope if @model == User
+    records = @model.column_names.include?("workspace_id") ? @model.where(workspace_id: current_user.workspace_id) : @model.all
+    return records.where(operation_source_type: nil) if @model == CalendarEvent
+    return records.joins(:calendar_event).where(calendar_events: { operation_source_type: nil }) if @model == EventReminder
 
-    @model.all
+    records
+  end
+
+  def record_mutation_allowed?(record)
+    # Role changes must use the dedicated owner-authorized user endpoints.
+    return false if @model == Role
+    return true unless record.is_a?(User)
+    return true if current_user.site_admin?
+
+    return current_user.owner? || current_user.admin? if record.new_record?
+
+    current_user.owner? && !record.site_admin?
   end
 
   def managed_record?(record)
@@ -145,12 +166,14 @@ class Api::AdminController < Api::BaseController
   end
 
   def admin_model_names
-    Rails.cache.fetch("api_admin_model_names_v3_operations", expires_in: 12.hours) do
+    names = Rails.cache.fetch("api_admin_model_names_v5_security", expires_in: 12.hours) do
       Rails.application.eager_load!
 
       not_needed_tables = %w[
         ApplicationRecord
+        UserRole
         WebSession
+        MobileDevice
         MobileSession
         McpAccessToken
         ProjectEnvironment
@@ -173,6 +196,9 @@ class Api::AdminController < Api::BaseController
 
       ActiveRecord::Base.descendants.map(&:name).uniq - not_needed_tables
     end
+    return names if current_user.site_admin?
+
+    names.select { |name| name.in?(%w[User Role]) || name.constantize.column_names.include?("workspace_id") }
   end
 
   def serialize_record(record)
@@ -204,7 +230,7 @@ class Api::AdminController < Api::BaseController
 
   def record_params
     scalar_columns = @model.columns.reject { |column| json_column?(column) }.map { |column| column.name.to_sym }
-    scalar_columns -= protected_admin_columns
+    scalar_columns -= protected_admin_columns + %i[id workspace_id created_at updated_at]
     json_columns = @model.columns.select { |column| json_column?(column) }.map { |column| { column.name.to_sym => {} } }
 
     params.require(:record).permit(*scalar_columns, *json_columns)
@@ -224,7 +250,7 @@ class Api::AdminController < Api::BaseController
       confirmation_token
       encrypted_keka_api_key
       encrypted_keka_api_key_iv
-    ]
+    ] + User::PUBLIC_JSON_EXCLUDED_ATTRIBUTES.map(&:to_sym)
   end
 
   def hidden_admin_column?(column)

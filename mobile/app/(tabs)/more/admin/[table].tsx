@@ -22,7 +22,7 @@ export default function AdminTableScreen() {
   if (meta.isLoading) return <Screen><LoadingState label="Loading resource definition" /></Screen>;
   if (meta.isError || !meta.data) return <Screen><ErrorState message={apiErrorMessage(meta.error)} onRetry={() => meta.refetch()} /></Screen>;
 
-  const editable = meta.data.filter((column) => !['id', 'created_at', 'updated_at', 'encrypted_password', 'reset_password_token', 'confirmation_token'].includes(column.name)).slice(0, 12);
+  const editable = meta.data.filter((column) => !['id', 'workspace_id', 'created_at', 'updated_at', 'encrypted_password', 'reset_password_token', 'confirmation_token'].includes(column.name)).slice(0, 12);
   const fields: EntityField[] = editable.map((column) => ({ key: column.name, label: humanize(column.name), multiline: ['text', 'json', 'jsonb'].includes(column.type) }));
   const primary = ['name', 'title', 'email', 'first_name'].find((key) => editable.some((column) => column.name === key)) || editable[0]?.name || 'id';
 

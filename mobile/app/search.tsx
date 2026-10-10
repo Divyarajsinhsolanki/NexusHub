@@ -7,6 +7,7 @@ import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-na
 import { apiErrorMessage } from '@/src/api/client';
 import { endpoints } from '@/src/api/endpoints';
 import type { EntityRecord } from '@/src/api/types';
+import { searchResultPath } from '@/src/navigation/searchResultPath';
 import { Screen } from '@/src/components/Screen';
 import { EmptyState, ErrorState, LoadingState } from '@/src/components/StateView';
 import { useAppTheme } from '@/src/theme';
@@ -19,13 +20,7 @@ export default function SearchScreen() {
   useEffect(() => { const timer = setTimeout(() => setQuery(input.trim()), 250); return () => clearTimeout(timer); }, [input]);
   const results = useQuery({ queryKey: ['global-search', query], queryFn: () => endpoints.search(query), enabled: query.length >= 2 });
   const open = (item: EntityRecord) => {
-    const type = String(item.type);
-    if (type === 'project') router.push(`/projects/${item.id}`);
-    else if (type === 'task') { const projectId = String(item.path || '').match(/projects\/(\d+)/)?.[1]; router.push(projectId ? `/projects/${projectId}?taskId=${item.id}` as never : '/work'); }
-    else if (type === 'pdf_document') router.push(`/more/pdf/${item.id}` as never);
-    else if (type === 'knowledge') router.push('/more/knowledge');
-    else if (type === 'post') router.push('/inbox');
-    else router.push('/more/people');
+    router.push(searchResultPath(item) as never);
   };
   return <Screen><View style={[styles.header, { borderBottomColor: theme.border }]}><Pressable accessibilityLabel="Close search" onPress={() => router.back()} style={styles.iconButton}><ArrowLeft color={theme.text} size={22} /></Pressable><View style={[styles.searchBox, { backgroundColor: theme.surfaceMuted }]}><Search color={theme.textMuted} size={19} /><TextInput accessibilityLabel="Search Nexus Hub" autoFocus onChangeText={setInput} placeholder="Search tasks, projects, people..." placeholderTextColor={theme.textMuted} returnKeyType="search" style={[styles.input, { color: theme.text }]} value={input} />{input ? <Pressable accessibilityLabel="Clear search" onPress={() => setInput('')}><X color={theme.textMuted} size={18} /></Pressable> : null}</View></View>
     {query.length < 2 ? <EmptyState title="Search your workspace" message="Enter at least two characters to find work across Nexus Hub." /> : null}

@@ -1,16 +1,18 @@
+import { absoluteAssetUrl } from '../api/client';
 import { useEffect, useState } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 
 export function Avatar({ name, uri, color = '#475569', size = 40 }: { name: string; uri?: string | null; color?: string; size?: number }) {
   const [imageFailed, setImageFailed] = useState(false);
-  const hasValidUri = Boolean(uri && uri !== 'null' && !imageFailed);
+  const imageUri = absoluteAssetUrl(uri);
+  const hasValidUri = Boolean(imageUri && !imageFailed);
 
   useEffect(() => {
     setImageFailed(false);
-  }, [uri]);
+  }, [imageUri]);
 
-  if (hasValidUri && uri) {
-    return <Image accessibilityLabel={`${name} profile picture`} onError={() => setImageFailed(true)} source={{ uri }} style={{ borderRadius: size / 2, height: size, width: size }} />;
+  if (hasValidUri && imageUri) {
+    return <Image accessibilityLabel={`${name} profile picture`} onError={() => setImageFailed(true)} source={{ uri: imageUri }} style={{ borderRadius: size / 2, height: size, width: size }} />;
   }
 
   const initials = name

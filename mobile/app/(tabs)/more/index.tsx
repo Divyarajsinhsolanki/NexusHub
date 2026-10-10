@@ -1,3 +1,4 @@
+import { canOpenMoreFeature } from "@/src/navigation/featureAccess";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { BookOpen, BriefcaseBusiness, Building2, CalendarDays, ChevronRight, ExternalLink, FileText, FolderLock, GraduationCap, Images, PlayCircle, ScanEye, Search, Settings, Shield, Sparkles, Users, UserRound } from 'lucide-react-native';
@@ -47,7 +48,7 @@ export default function MoreScreen() {
   const [search, setSearch] = useState('');
   const [recent, setRecent] = useState<string[]>([]);
   const menuGroups: typeof groups = user?.demo_account ? [{ title: 'Guided experience', items: [{ slug: 'demo', label: 'Demo tour', detail: 'Explore six product areas with synthetic data', icon: PlayCircle }] }, ...groups] : groups;
-  const allowed = useMemo(() => menuGroups.flatMap((group) => group.items).filter((item) => (!item.feature || user?.features?.[item.feature]) && (!item.permission || user?.permissions?.includes(item.permission))), [menuGroups, user?.features, user?.permissions]);
+  const allowed = useMemo(() => menuGroups.flatMap((group) => group.items).filter((item) => canOpenMoreFeature(user, item.slug)), [menuGroups, user?.features, user?.permissions]);
   const recentItems = recent.map((slug) => allowed.find((item) => item.slug === slug)).filter(Boolean) as MenuItem[];
 
   useEffect(() => {
@@ -65,7 +66,7 @@ export default function MoreScreen() {
 
   return <Screen header={<PageHeader title="More" subtitle={user?.workspace.name || 'Workspace tools'} />}><ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled"><View style={[styles.identity, { backgroundColor: theme.surface, borderColor: theme.border }]}><Avatar color={user?.avatar_color} name={user?.full_name || 'NexusHub user'} size={48} uri={absoluteAssetUrl(user?.profile_picture)} /><View style={styles.identityCopy}><Text numberOfLines={1} style={[styles.identityName, { color: theme.text }]}>{user?.full_name}</Text><Text numberOfLines={1} style={[styles.identityMeta, { color: theme.textMuted }]}>{user?.job_title || user?.email}</Text></View></View><View style={[styles.search, { backgroundColor: theme.surface, borderColor: theme.border }]}><Search color={theme.textMuted} size={18} /><TextInput accessibilityLabel="Search tools" onChangeText={setSearch} placeholder="Search tools and settings" placeholderTextColor={theme.textMuted} style={[styles.searchInput, { color: theme.text }]} value={search} /></View>{!search && recentItems.length ? <ToolGroup items={recentItems} onOpen={openTool} title="Recent tools" /> : null}{menuGroups.map((group) => {
     const query = search.trim().toLowerCase();
-    const visible = group.items.filter((item) => (!item.feature || user?.features?.[item.feature]) && (!item.permission || user?.permissions?.includes(item.permission)) && (!query || item.label.toLowerCase().includes(query) || item.detail.toLowerCase().includes(query)));
+    const visible = group.items.filter((item) => canOpenMoreFeature(user, item.slug) && (!query || item.label.toLowerCase().includes(query) || item.detail.toLowerCase().includes(query)));
     if (!visible.length) return null;
     return <ToolGroup items={visible} key={group.title} onOpen={openTool} title={group.title} />})}</ScrollView></Screen>;
 }

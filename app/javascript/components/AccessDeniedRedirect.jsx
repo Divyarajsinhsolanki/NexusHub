@@ -8,7 +8,7 @@ const AccessDeniedRedirect = ({ message = "You are not authorized to access that
 
   useEffect(() => {
     toast.error(message);
-    navigate("/", { replace: true });
+    navigate("/home", { replace: true });
   }, [message, navigate]);
 
   return <PageLoader title="Redirecting" message="Taking you back to the home page…" />;

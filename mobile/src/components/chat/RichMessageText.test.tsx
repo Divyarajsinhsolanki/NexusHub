@@ -11,3 +11,15 @@ test('opens member profiles and focuses referenced project tasks', async () => {
   await fireEvent.press(screen.getByText('#AC-7'));
   expect(mockPush).toHaveBeenCalledWith('/projects/4?taskId=7');
 });
+
+test('highlights ordinary URLs and opens them without trailing punctuation', async () => {
+  const linking = require('react-native').Linking;
+  const open = jest.spyOn(linking, 'openURL').mockResolvedValue(undefined);
+  const screen = await render(<Text><RichMessageText text="See https://example.com/page, please." color="#2563eb" lookups={{}} /></Text>);
+  const link = screen.getByText('https://example.com/page');
+  expect(link.props.accessibilityRole).toBe('link');
+  expect(link.props.style.textDecorationLine).toBe('underline');
+  await fireEvent.press(link);
+  expect(open).toHaveBeenCalledWith('https://example.com/page');
+  open.mockRestore();
+});

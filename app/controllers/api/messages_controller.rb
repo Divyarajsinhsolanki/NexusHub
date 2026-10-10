@@ -57,6 +57,17 @@ class Api::MessagesController < Api::BaseController
     }
   end
 
+  def link_preview
+    message = @conversation.messages.find(params[:id])
+    url = params[:url].to_s.first(2048)
+    # Only fetch links in a visible, existing message.
+    requested = Chat::LinkPreview.canonical_url(url)
+    unless !message.deleted_at? && requested.present? && Chat::LinkPreview.message_urls(message.body).include?(requested)
+      return render json: {}, status: :unprocessable_entity
+    end
+    render json: Chat::LinkPreview.call(url)
+  end
+
   def create
     client_id = params.dig(:message, :client_id).presence
     if client_id

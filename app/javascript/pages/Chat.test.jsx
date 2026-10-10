@@ -46,6 +46,7 @@ vi.mock("framer-motion", async () => {
 });
 
 vi.mock("../components/api", () => ({
+  default: { get: vi.fn(() => Promise.resolve({ data: {} })) },
   editChatMessage: apiMocks.editChatMessage,
   deleteChatMessage: apiMocks.deleteChatMessage,
   SchedulerAPI: { getTasks: apiMocks.getTasks },
@@ -536,4 +537,18 @@ it('offers one Mute action and shows durations only after selecting it', async (
   const dialog = screen.getByRole('dialog', { name: 'Mute notifications for…' });
   fireEvent.click(within(dialog).getByRole('button', { name: '8 hours' }));
   await waitFor(() => expect(apiMocks.muteConversation).toHaveBeenCalledWith(conversation.id, '8h'));
+});
+
+it('renders distinct clickable links and copies the original message body', async () => {
+  const body = 'Visit https://example.com/page, please.';
+  apiMocks.fetchConversation.mockResolvedValue({ data: { ...conversation, messages: [{ ...conversation.messages[0], body }] } });
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+  renderChat();
+  await waitFor(() => expect(screen.getByRole('link', { name: 'https://example.com/page' })).toBeTruthy());
+  const link = screen.getByRole('link', { name: 'https://example.com/page' });
+  expect(link.getAttribute('href')).toBe('https://example.com/page');
+  expect(link.className).toContain('underline');
+  fireEvent.click(screen.getByRole('button', { name: 'Copy message' }));
+  await waitFor(() => expect(writeText).toHaveBeenCalledWith(body));
 });

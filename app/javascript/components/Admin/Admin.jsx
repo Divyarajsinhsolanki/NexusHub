@@ -164,7 +164,7 @@ function Admin() {
               <h3 className="text-2xl font-bold text-gray-900 mb-2">Welcome to Admin Dashboard</h3>
               <p className="text-gray-500 mb-8">
                 Select a database table from the sidebar to view, edit, and manage records.
-                You can perform full CRUD operations on any table in the system.
+                Available actions follow your workspace permissions.
               </p>
             </div>
           )}

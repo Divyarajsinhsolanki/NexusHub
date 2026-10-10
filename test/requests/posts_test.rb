@@ -43,6 +43,37 @@ class PostsTest < ActionDispatch::IntegrationTest
     assert_includes image_url, "old-post.png"
   end
 
+  test "shows a single post with discussion context" do
+    get "/api/posts/#{@post.id}", headers: { "Accept" => "application/json" }
+    assert_response :success
+    payload = response.parsed_body
+    assert_equal "API post", payload.fetch("message")
+    assert_equal @user.id, payload.dig("user", "id")
+    assert_equal 6, payload.fetch("comments_count")
+    assert_equal 5, payload.fetch("comments").length
+  end
+
+  test "mobile post details and comments support the full discussion lifecycle" do
+    post "/api/v1/auth/login", params: { auth: { email: @user.email, password: "Password!42", device_name: "Posts test" } }, as: :json
+    assert_response :success
+    headers = { "Authorization" => "Bearer #{response.parsed_body.dig('data', 'access_token')}", "Accept" => "application/json" }
+    get "/api/v1/posts/#{@post.id}", headers: headers
+    assert_response :success
+    assert_equal @post.id, response.parsed_body.dig("data", "id")
+    post "/api/v1/posts/#{@post.id}/comments", params: { comment: { body: "Comment from mobile" } }, headers: headers, as: :json
+    assert_response :created
+    created = response.parsed_body.fetch("data")
+    assert_equal "Comment from mobile", created.fetch("body")
+    assert created.fetch("can_delete")
+    get "/api/v1/posts/#{@post.id}/comments", headers: headers
+    assert_response :success
+    assert_equal 7, response.parsed_body.fetch("data").length
+    delete "/api/v1/posts/#{@post.id}/comments/#{created.fetch('id')}", headers: headers
+    assert_response :success
+    assert response.parsed_body.dig("data", "deleted")
+    assert_equal 6, @post.reload.comments_count
+  end
+
   private
 
   def login_as(user)

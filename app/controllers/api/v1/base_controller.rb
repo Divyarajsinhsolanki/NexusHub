@@ -230,7 +230,7 @@ class Api::V1::BaseController < Api::BaseController
       activity.read calendar.manage posts.manage work.manage knowledge.read chat.manage
       profile.manage notifications.manage vault.manage pdf.manage
     ]
-    permissions.concat(%w[projects.manage project_members.manage]) if user.owner? || user.project_manager?
+    permissions.concat(%w[projects.manage project_members.manage]) if user.owner? || user.admin? || user.project_manager?
     permissions.concat(%w[teams.manage]) if user.owner? || user.team_leader?
     permissions.concat(%w[users.create departments.manage]) if user.owner? || user.admin?
     permissions.concat(%w[users.manage impersonation.manage]) if user.owner?

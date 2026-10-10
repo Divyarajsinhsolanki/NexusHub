@@ -2,12 +2,12 @@ class Api::AdminSessionsController < Api::BaseController
   include Rails.application.routes.url_helpers
 
   def create
-    return head :forbidden unless current_user&.owner? || current_user&.admin?
+    return head :forbidden unless current_user&.owner?
 
     user = current_user.workspace.users.find_by(id: params[:user_id])
     return render json: { error: 'User not found' }, status: :not_found unless user
 
-    if user.site_admin? || (!current_user.owner? && (user.owner? || user.admin?))
+    if user == current_user || user.site_admin?
       return head :forbidden
     end
 

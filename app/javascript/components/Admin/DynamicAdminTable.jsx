@@ -107,6 +107,7 @@ const buildPayloadFromRecord = (record, cols) => {
 function DynamicAdminTable({ table }) {
   const [columns, setColumns] = useState([]);
   const [records, setRecords] = useState([]);
+  const [canCreate, setCanCreate] = useState(false);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({});
   const [query, setQuery] = useState('');
@@ -153,6 +154,7 @@ function DynamicAdminTable({ table }) {
 
       const recRes = await getRecords(table, params);
       setRecords(recRes.data.records);
+      setCanCreate(recRes.data.permissions?.create === true);
       setTotalPages(recRes.data.pagination.total_pages);
     } catch (error) {
       toast.error('Failed to load table data');
@@ -297,13 +299,13 @@ function DynamicAdminTable({ table }) {
             <option value={100}>100 per page</option>
           </select>
 
-          <button
+          {canCreate && <button
             onClick={openCreateModal}
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm"
           >
             <Plus className="w-4 h-4" />
             Add Record
-          </button>
+          </button>}
         </div>
       </div>
 
@@ -347,22 +349,22 @@ function DynamicAdminTable({ table }) {
                   ))}
                   <td className="px-6 py-3 text-right whitespace-nowrap sticky right-0 bg-white group-hover:bg-blue-50/30 shadow-[-10px_0_10px_-10px_rgba(0,0,0,0.05)]">
                     <div className="flex items-center justify-end gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
-                      <button
+                      {(rec.admin_permissions?.update || rec.admin_permissions?.password_reset) && <button
                         onClick={() => openEditModal(rec)}
                         className="inline-flex h-11 w-11 items-center justify-center rounded-md text-blue-600 transition-colors hover:bg-blue-100"
                         title="Edit"
                         aria-label={`Edit ${table} record ${rec.id}`}
                       >
                         <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
+                      </button>}
+                      {rec.admin_permissions?.destroy && <button
                         onClick={() => handleDelete(rec.id)}
                         className="inline-flex h-11 w-11 items-center justify-center rounded-md text-red-600 transition-colors hover:bg-red-100"
                         title="Delete"
                         aria-label={`Delete ${table} record ${rec.id}`}
                       >
                         <Trash2 className="w-4 h-4" />
-                      </button>
+                      </button>}
                     </div>
                   </td>
                 </tr>
@@ -442,9 +444,10 @@ function DynamicAdminTable({ table }) {
 
                   <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">
                     <form onSubmit={handleSubmit}>
+                      <fieldset disabled={modalMode === 'edit' && !currentRecord.admin_permissions?.update}>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {columns.map(col => {
-                          if (col.name === 'id' || col.name === 'created_at' || col.name === 'updated_at') return null;
+                          if (col.name === 'id' || col.name === 'workspace_id' || col.name === 'created_at' || col.name === 'updated_at') return null;
 
                           return (
                             <div key={col.name} className={col.type === 'text' || col.type === 'string' || isJsonColumn(col.type) ? 'md:col-span-2' : ''}>
@@ -477,9 +480,10 @@ function DynamicAdminTable({ table }) {
                           );
                         })}
                       </div>
+                      </fieldset>
                     </form>
 
-                    {table === 'User' && modalMode === 'edit' ? (
+                    {table === 'User' && modalMode === 'edit' && currentRecord.admin_permissions?.password_reset ? (
                       <form onSubmit={handlePasswordReset} className="border-t border-gray-200 pt-5">
                         <div className="mb-4 flex items-start gap-3">
                           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-700">
@@ -534,7 +538,7 @@ function DynamicAdminTable({ table }) {
                     >
                       Cancel
                     </button>
-                    <button
+                    {(modalMode === 'create' || currentRecord.admin_permissions?.update) && <button
                       type="button"
                       className="inline-flex justify-center rounded-lg border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-wait"
                       onClick={handleSubmit}
@@ -545,7 +549,7 @@ function DynamicAdminTable({ table }) {
                       ) : (
                         <>{modalMode === 'create' ? 'Create Record' : 'Save Changes'}</>
                       )}
-                    </button>
+                    </button>}
                   </div>
                 </Dialog.Panel>
               </Transition.Child>

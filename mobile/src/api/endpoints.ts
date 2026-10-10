@@ -312,6 +312,10 @@ export const endpoints = {
   },
   updatePost(id: number, message: string) { return update<Post>(`/posts/${id}`, { post: { message } }); },
   async deletePost(id: number) { await api.delete(`/posts/${id}`); },
+  async post(id: number) {
+    const response = await api.get<ApiEnvelope<Post> | Post>(`/posts/${id}`);
+    return unwrapData(response.data);
+  },
   postComments(id: number) { return collection<Comment>(`/posts/${id}/comments`); },
   createComment(id: number, body: string) { return create<Comment>(`/posts/${id}/comments`, { comment: { body } }); },
   async deleteComment(postId: number, id: number) { await api.delete(`/posts/${postId}/comments/${id}`); },
@@ -352,6 +356,11 @@ export const endpoints = {
     const response = await api.patch<ApiEnvelope<{ department: Department; users: EntityRecord[] }> | { department: Department; users: EntityRecord[] }>(`/departments/${id}/update_members`, { user_ids: userIds });
     return unwrapData(response.data);
   },
+  async knowledgeDiscovery(path: string, params?: Record<string, unknown>, signal?: AbortSignal) {
+    const response = await api.get<ApiEnvelope<Record<string, unknown>> | Record<string, unknown>>(path, { params, signal });
+    return unwrapData(response.data);
+  },
+  knowledgePromptRuns() { return collection<EntityRecord>('/knowledge_prompt_runs', { limit: 40 }); },
   knowledgeItems(active?: boolean) { return collection<EntityRecord>('/knowledge_items', { limit: 120, ...(active === undefined ? {} : { active }) }); },
   knowledgeBookmarks() { return collection<EntityRecord>('/knowledge_bookmarks'); },
   createKnowledgeBookmark(input: Record<string, unknown>) {
