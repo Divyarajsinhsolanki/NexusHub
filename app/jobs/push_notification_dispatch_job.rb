@@ -3,9 +3,19 @@ class PushNotificationDispatchJob < ApplicationJob
   retry_on PushNotifications::ExpoClient::TransientError, wait: :polynomially_longer, attempts: 5
 
   def perform(notification_id, aggregate_since = nil)
-    notification = Notification.unscoped.includes(:actor, :recipient, :notifiable).find_by(id: notification_id)
+    notification = Notification.unscoped.find_by(id: notification_id)
     return unless notification
 
+    # Sidekiq has no request workspace. Resolve scoped associations only inside
+    # the notification's workspace, and restore the previous context afterward.
+    Current.set(workspace: notification.workspace) do
+      dispatch(notification, aggregate_since)
+    end
+  end
+
+  private
+
+  def dispatch(notification, aggregate_since)
     catalog = notification.catalog
     return unless notification.recipient.push_notification_enabled_for?(catalog.category)
     return if !PushNotifications.v2_enabled? && !catalog.legacy_push_supported?
@@ -33,8 +43,6 @@ class PushNotificationDispatchJob < ApplicationJob
     end
     PushNotifications::DeliveryDispatcher.new.call(entries) if entries.any?
   end
-
-  private
 
   def chat_delivery_allowed?(notification)
     return true unless notification.notifiable_type == "Message"

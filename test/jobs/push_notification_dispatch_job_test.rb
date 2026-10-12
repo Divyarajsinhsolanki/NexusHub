@@ -45,6 +45,20 @@ class PushNotificationDispatchJobTest < ActiveSupport::TestCase
     end
   end
 
+  test "a background job delivers chat without a request workspace" do
+    notification = make_notification("Background message")
+    Current.reset_all
+    entries = []
+    dispatcher = Object.new
+    dispatcher.define_singleton_method(:call) { |batch| entries.concat(batch) }
+    PushNotifications::DeliveryDispatcher.stub(:new, -> { dispatcher }) do
+      PushNotificationDispatchJob.perform_now(notification.id)
+    end
+    assert_equal 1, entries.size
+    assert_equal notification.metadata["message_id"], entries.first.last.dig(:data, :message_id)
+    assert_nil Current.workspace
+  end
+
   private
 
   def make_notification(body)
