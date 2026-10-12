@@ -4,7 +4,7 @@ import { normalizeMobileDeepLink } from './deepLinks';
 
 describe('normalizeMobileDeepLink', () => {
   test('maps notification and web chat paths to native mobile routes', () => {
-    expect(normalizeMobileDeepLink('/projects/3/dashboard?tab=environments&operation=license&record=7')).toBe('/projects/3/environments');
+    expect(normalizeMobileDeepLink('/projects/3/dashboard?tab=environments&operation=license&record=7')).toBe('/projects/3/environments?record=7');
     expect(normalizeMobileDeepLink('/notifications')).toBe('/inbox/notifications');
     expect(normalizeMobileDeepLink('/chat/42')).toBe('/chat/42');
     expect(normalizeMobileDeepLink('/chat/42?messageId=8')).toBe('/chat/42?messageId=8');
@@ -19,6 +19,11 @@ describe('normalizeMobileDeepLink', () => {
     expect(normalizeMobileDeepLink('/admin/login-as-user')).toBe('/more/impersonation');
     expect(normalizeMobileDeepLink('/admin/portfolio')).toBe('/more/portfolio-admin');
     expect(normalizeMobileDeepLink('/pdf-master')).toBe('/more/pdf');
+  });
+
+  test('preserves operations reminder targets and section selection', () => {
+    expect(normalizeMobileDeepLink('/projects/3/dashboard?tab=environments&section=licenses&record=7')).toBe('/projects/3/environments?section=licenses&record=7');
+    expect(normalizeMobileDeepLink('/projects/3/dashboard?tab=environments&section=deployments&series=9')).toBe('/projects/3/environments?section=deployments&series=9');
   });
 
   test('keeps native paths and extracts paths from absolute URLs', () => {

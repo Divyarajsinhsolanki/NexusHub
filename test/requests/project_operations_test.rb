@@ -19,6 +19,29 @@ class ProjectOperationsRequestTest < ActionDispatch::IntegrationTest
     ENV["PROJECT_OPERATIONS_ENCRYPTION_KEY"] = @previous_key
   end
 
+  test "mobile operations routes preserve secrets revisions and project permissions" do
+    post "/api/v1/auth/login", params: { auth: { email: @user.email, password: "Password!42" }, device: { name: "Operations test" } }
+    assert_response :success
+    headers = { "Authorization" => "Bearer #{response.parsed_body.dig('data', 'access_token')}" }
+    get "/api/v1/projects/#{@project.id}/operations", headers: headers
+    assert_response :success
+    assert_equal 0, response.parsed_body.dig('data', 'revision')
+    post "/api/v1/projects/#{@project.id}/operations/items", params: { revision: 0, item: { kind: 'configuration', name: 'API_TOKEN', secret: true, entries: [{ environment_id: @environment.id, value: 'never-return-this-secret' }] } }, headers: headers
+    assert_response :created
+    assert_equal 1, response.parsed_body.dig('data', 'revision')
+    assert_not_includes response.body, 'never-return-this-secret'
+    id = response.parsed_body.dig('data', 'item', 'id')
+    patch "/api/v1/projects/#{@project.id}/operations/items/#{id}", params: { revision: 0, item: { description: 'Stale edit' } }, headers: headers
+    assert_response :conflict
+    @membership.update!(role: 'viewer')
+    get "/api/v1/projects/#{@project.id}/operations", headers: headers
+    assert_response :success
+    assert_equal false, response.parsed_body.dig('data', 'can_edit')
+    post "/api/v1/projects/#{@project.id}/operations/deployments", params: { revision: 1, deployment: { name: 'Release', project_environment_id: @environment.id, owner_id: @user.id, time_zone: 'Asia/Kolkata', scheduled_at: 1.day.from_now.iso8601 } }, headers: headers
+    assert_response :forbidden
+    assert_equal 1, @project.reload.operations_revision
+  end
+
   test "snapshot permissions and mutation serialization are enforced at the HTTP boundary" do
     get endpoint
     assert_response :success

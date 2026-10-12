@@ -63,6 +63,26 @@ Rails.application.routes.draw do
       post "keka/refresh", to: "/api/keka#refresh"
 
       resources :projects, only: [:index, :show] do
+        get 'operations', to: '/api/project_operations#index'
+        get 'operations/history', to: '/api/project_operations#history'
+        post 'operations/items', to: '/api/project_operations#create'
+        patch 'operations/items/:id', to: '/api/project_operations#update'
+        delete 'operations/items/:id', to: '/api/project_operations#destroy'
+        put 'operations/items/:id/entries/:environment_id', to: '/api/project_operations#update_entry'
+        patch 'operations/items/:id/entries/:environment_id', to: '/api/project_operations#update_entry'
+        post 'operations/imports/preview', to: '/api/project_operations#import_preview'
+        post 'operations/imports/commit', to: '/api/project_operations#import_commit'
+        get 'operations/deployments', to: '/api/project_deployments#index'
+        post 'operations/deployments', to: '/api/project_deployments#create'
+        patch 'operations/deployments/:id', to: '/api/project_deployments#update'
+        delete 'operations/deployments/:id', to: '/api/project_deployments#destroy'
+        post 'operations/deployments/:id/transition', to: '/api/project_deployments#transition'
+        post 'operations/deployments/:id/observations', to: '/api/project_deployments#observations'
+        post 'operations/deployments/:id/verify', to: '/api/project_deployments#verify'
+        post 'operations/deployment_series', to: '/api/project_deployments#create_series'
+        patch 'operations/deployment_series/:id', to: '/api/project_deployments#update_series'
+        delete 'operations/deployment_series/:id', to: '/api/project_deployments#destroy_series'
+
         resources :sprints, only: [:index]
         resources :environments, controller: "/api/project_environments", only: [:index, :create, :update, :destroy]
         resources :vault_items, controller: "/api/project_vault_items", only: [:index, :create, :update, :destroy]

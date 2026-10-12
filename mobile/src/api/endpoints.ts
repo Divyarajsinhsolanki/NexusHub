@@ -1,3 +1,4 @@
+import type { OperationsSnapshot } from '../operations/model';
 import { api } from './client';
 import type {
   AccessSession,
@@ -99,6 +100,17 @@ async function update<T>(path: string, body: unknown) {
 }
 
 export const endpoints = {
+  async projectOperations(projectId: number, signal?: AbortSignal): Promise<OperationsSnapshot> {
+    return unwrapData((await api.get(`/projects/${projectId}/operations`, { signal })).data);
+  },
+  async operationsMutation(projectId: number, path: string, method: 'post' | 'patch' | 'put' | 'delete', payload: Record<string, unknown>) {
+    const url = `/projects/${projectId}/${path}`;
+    const response = method === 'delete' ? await api.delete(url, { data: payload }) : await api[method](url, payload);
+    return unwrapData<{ revision: number }>(response.data);
+  },
+  async operationsHistory(projectId: number, beforeId?: number) {
+    return unwrapData<{ history: import('../operations/model').OperationRecord[] }>((await api.get(`/projects/${projectId}/operations/history`, { params: { before_id: beforeId } })).data);
+  },
   async presence() {
     const response = await api.post('/users/presence');
     return unwrapData(response.data);

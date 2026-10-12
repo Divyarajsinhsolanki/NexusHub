@@ -10,7 +10,7 @@ export function normalizeMobileDeepLink(deepLink: unknown) {
   if (/^\/projects\/\d+\/dashboard(?:\?|$)/.test(path)) {
     const destination = new URL(path, 'https://nexushub.local');
     const projectPath = destination.pathname.replace(/\/dashboard$/, '');
-    if (destination.searchParams.get('tab') === 'environments') return `${projectPath}/environments`;
+    if (destination.searchParams.get('tab') === 'environments') { destination.searchParams.delete('tab'); destination.searchParams.delete('operation'); return `${projectPath}/environments${destination.search}${destination.hash}`; }
     destination.searchParams.delete('tab');
     return `${projectPath}${destination.search}${destination.hash}`;
   }

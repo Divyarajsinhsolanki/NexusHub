@@ -198,6 +198,441 @@ paths:
       responses:
         "201":
           $ref: "#/components/responses/GenericSuccess"
+  /projects/{id}/operations:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      operationId: getProjectOperations
+      description: Project operations with server-enforced membership, secret redaction, and revision checks.
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /projects/{id}/operations/history:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      operationId: getProjectOperationsHistory
+      description: Project operations with server-enforced membership, secret redaction, and revision checks.
+      parameters:
+        - name: before_id
+          in: query
+          schema: { type: integer }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /projects/{id}/operations/items:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      operationId: postProjectOperationsItems
+      description: Project operations with server-enforced membership, secret redaction, and revision checks.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              required: [revision]
+              properties:
+                revision: { type: integer }
+                reason: { type: string, maxLength: 500 }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "201": { $ref: "#/components/responses/GenericSuccess" }
+  /projects/{id}/operations/items/{item_id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+      - name: item_id
+        in: path
+        required: true
+        schema: { type: integer }
+    patch:
+      operationId: patchProjectOperationsItemsItemId
+      description: Project operations with server-enforced membership, secret redaction, and revision checks.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              required: [revision]
+              properties:
+                revision: { type: integer }
+                reason: { type: string, maxLength: 500 }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: deleteProjectOperationsItemsItemId
+      description: Project operations with server-enforced membership, secret redaction, and revision checks.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              required: [revision]
+              properties:
+                revision: { type: integer }
+                reason: { type: string, maxLength: 500 }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /projects/{id}/operations/items/{item_id}/entries/{environment_id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+      - name: item_id
+        in: path
+        required: true
+        schema: { type: integer }
+      - name: environment_id
+        in: path
+        required: true
+        schema: { type: integer }
+    put:
+      operationId: putProjectOperationsItemsItemIdEntriesEnvironmentId
+      description: Project operations with server-enforced membership, secret redaction, and revision checks.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              required: [revision]
+              properties:
+                revision: { type: integer }
+                reason: { type: string, maxLength: 500 }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /projects/{id}/operations/deployments:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      operationId: getProjectOperationsDeployments
+      description: Project operations with server-enforced membership, secret redaction, and revision checks.
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: postProjectOperationsDeployments
+      description: Project operations with server-enforced membership, secret redaction, and revision checks.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              required: [revision]
+              properties:
+                revision: { type: integer }
+                reason: { type: string, maxLength: 500 }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "201": { $ref: "#/components/responses/GenericSuccess" }
+  /projects/{id}/operations/deployments/{deployment_id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+      - name: deployment_id
+        in: path
+        required: true
+        schema: { type: integer }
+    patch:
+      operationId: patchProjectOperationsDeploymentsDeploymentId
+      description: Project operations with server-enforced membership, secret redaction, and revision checks.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              required: [revision]
+              properties:
+                revision: { type: integer }
+                reason: { type: string, maxLength: 500 }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: deleteProjectOperationsDeploymentsDeploymentId
+      description: Project operations with server-enforced membership, secret redaction, and revision checks.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              required: [revision]
+              properties:
+                revision: { type: integer }
+                reason: { type: string, maxLength: 500 }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /projects/{id}/operations/deployments/{deployment_id}/transition:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+      - name: deployment_id
+        in: path
+        required: true
+        schema: { type: integer }
+    post:
+      operationId: postProjectOperationsDeploymentsDeploymentIdTransition
+      description: Project operations with server-enforced membership, secret redaction, and revision checks.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              required: [revision]
+              properties:
+                revision: { type: integer }
+                reason: { type: string, maxLength: 500 }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /projects/{id}/operations/deployments/{deployment_id}/observations:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+      - name: deployment_id
+        in: path
+        required: true
+        schema: { type: integer }
+    post:
+      operationId: postProjectOperationsDeploymentsDeploymentIdObservations
+      description: Project operations with server-enforced membership, secret redaction, and revision checks.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              required: [revision]
+              properties:
+                revision: { type: integer }
+                reason: { type: string, maxLength: 500 }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /projects/{id}/operations/deployments/{deployment_id}/verify:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+      - name: deployment_id
+        in: path
+        required: true
+        schema: { type: integer }
+    post:
+      operationId: postProjectOperationsDeploymentsDeploymentIdVerify
+      description: Project operations with server-enforced membership, secret redaction, and revision checks.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              required: [revision]
+              properties:
+                revision: { type: integer }
+                reason: { type: string, maxLength: 500 }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /projects/{id}/operations/deployment_series:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      operationId: postProjectOperationsDeploymentSeries
+      description: Project operations with server-enforced membership, secret redaction, and revision checks.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              required: [revision]
+              properties:
+                revision: { type: integer }
+                reason: { type: string, maxLength: 500 }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "201": { $ref: "#/components/responses/GenericSuccess" }
+  /projects/{id}/operations/deployment_series/{series_id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+      - name: series_id
+        in: path
+        required: true
+        schema: { type: integer }
+    patch:
+      operationId: patchProjectOperationsDeploymentSeriesSeriesId
+      description: Project operations with server-enforced membership, secret redaction, and revision checks.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              required: [revision]
+              properties:
+                revision: { type: integer }
+                reason: { type: string, maxLength: 500 }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: deleteProjectOperationsDeploymentSeriesSeriesId
+      description: Project operations with server-enforced membership, secret redaction, and revision checks.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              required: [revision]
+              properties:
+                revision: { type: integer }
+                reason: { type: string, maxLength: 500 }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /projects/{id}/environments:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      operationId: getProjectEnvironments
+      description: Project operations with server-enforced membership, secret redaction, and revision checks.
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: postProjectEnvironments
+      description: Project operations with server-enforced membership, secret redaction, and revision checks.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              required: [revision]
+              properties:
+                revision: { type: integer }
+                reason: { type: string, maxLength: 500 }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "201": { $ref: "#/components/responses/GenericSuccess" }
+  /projects/{id}/environments/{environment_id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+      - name: environment_id
+        in: path
+        required: true
+        schema: { type: integer }
+    patch:
+      operationId: patchProjectEnvironmentsEnvironmentId
+      description: Project operations with server-enforced membership, secret redaction, and revision checks.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              required: [revision]
+              properties:
+                revision: { type: integer }
+                reason: { type: string, maxLength: 500 }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: deleteProjectEnvironmentsEnvironmentId
+      description: Project operations with server-enforced membership, secret redaction, and revision checks.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              required: [revision]
+              properties:
+                revision: { type: integer }
+                reason: { type: string, maxLength: 500 }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "204": { description: Environment removed. }
   /projects/{id}:
     parameters:
       - $ref: "#/components/parameters/Id"
