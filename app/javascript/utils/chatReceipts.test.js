@@ -38,3 +38,9 @@ describe("getOutgoingReceiptStatus", () => {
     expect(status.allRead).toBe(true);
   });
 });
+
+it("treats read as proof of delivery when events arrive out of order", () => {
+  const status = getOutgoingReceiptStatus(message, [{ id: 2, last_read_message_id: 42 }]);
+  expect(status.allDelivered).toBe(true);
+  expect(status.allRead).toBe(true);
+});

@@ -36,3 +36,7 @@ describe('outgoingReceiptState', () => {
 function conversation(participants: NonNullable<Conversation['participants']>): Conversation {
   return { id: 1, participants };
 }
+
+test('a read receipt also confirms delivery when the delivery event is missing', () => {
+  expect(outgoingReceiptState(conversation([{ id: 2, name: 'Recipient', last_read_message_id: 20 }]), message, 1)).toMatchObject({ symbol: '✓✓', read: true });
+});

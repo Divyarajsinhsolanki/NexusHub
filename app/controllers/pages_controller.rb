@@ -1,5 +1,9 @@
 class PagesController < ApplicationController
   def index
+    if PortfolioAccess.enabled? && request.path == "/"
+      @portfolio_profile = PortfolioProfile.published.first
+      @portfolio_projects = PortfolioProject.published.ordered.includes(:portfolio_features)
+    end
     response.set_header("X-Robots-Tag", "noindex, nofollow") unless public_portfolio_page?
     respond_to do |format|
       format.html

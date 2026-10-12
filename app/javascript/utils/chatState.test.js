@@ -24,3 +24,8 @@ it("uses a strict 15-minute cutoff and excludes system messages", () => {
   expect(canChangeMessage(message, 5, Date.parse("2026-10-07T10:15:00Z"))).toBe(false);
   expect(canChangeMessage({ ...message, message_type: "system" }, 5, Date.parse("2026-10-07T10:01:00Z"))).toBe(false);
 });
+it("keeps unchanged sync rows stable but renders edited nested values", () => {
+  const message = { id: 4, body: "Hello", reactions: { "👍": 1 }, attachments: [{ id: 2, filename: "photo.jpg" }] };
+  expect(mergeMessage(message, JSON.parse(JSON.stringify(message)))).toBe(message);
+  expect(mergeMessage(message, { ...message, reactions: { "👍": 2 } })).not.toBe(message);
+});

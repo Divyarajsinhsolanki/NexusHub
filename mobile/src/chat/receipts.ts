@@ -10,7 +10,7 @@ export function outgoingReceiptStateForParticipants(participants: unknown, messa
     participant.id !== currentUserId &&
     (!participant.joined_at || new Date(participant.joined_at) <= new Date(message.created_at))
   ));
-  const delivered = recipients.filter((participant) => Number(participant.last_delivered_message_id || 0) >= message.id).length;
+  const delivered = recipients.filter((participant) => Math.max(Number(participant.last_delivered_message_id || 0), Number(participant.last_read_message_id || 0)) >= message.id).length;
   const read = recipients.filter((participant) => Number(participant.last_read_message_id || 0) >= message.id).length;
   const total = recipients.length;
 

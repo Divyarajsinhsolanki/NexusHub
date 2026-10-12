@@ -1,0 +1,54 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { expect, jest, test } from '@jest/globals';
+import { ChatToolsSheet } from './ChatToolsSheet';
+import { endpoints } from '../../api/endpoints';
+jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ bottom: 0 }) }));
+jest.mock('../CreateDateField', () => ({ CreateDateField: () => null }));
+jest.mock('./ChatAttachment', () => ({ ChatAttachment: () => null }));
+jest.mock('../../api/endpoints', () => ({ endpoints: { chatToolMessages: jest.fn(), scheduledMessages: jest.fn(), cancelScheduledMessage: jest.fn(), pinMessage: jest.fn() } }));
+test('thread actions reply to the root and pins can be removed', async () => {
+  const root = { id: 10, body: 'Thread root', user_name: 'Alice', created_at: '2026-01-01' };
+  (endpoints.chatToolMessages as jest.Mock).mockResolvedValue({ data: [root], meta: { thread_root: root } } as never);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { gcTime: Infinity } } });
+  const reply = jest.fn();
+  const close = jest.fn();
+  const props = { conversationId: 7, onClose: close, onReply: reply, onOpen: jest.fn(), onSchedule: jest.fn(async () => undefined), draftLabel: 'Draft', canSchedule: true, readOnly: false };
+  const screen = await render(<QueryClientProvider client={client}><ChatToolsSheet {...props} mode={{ kind: 'thread', id: 10 }} /></QueryClientProvider>);
+  await waitFor(() => expect(screen.getByText('Thread root')).toBeTruthy());
+  await fireEvent.press(screen.getByRole('button', { name: 'Reply in thread' }));
+  expect(reply).toHaveBeenCalledWith(root);
+  expect(close).toHaveBeenCalled();
+  await screen.rerender(<QueryClientProvider client={client}><ChatToolsSheet {...props} mode={{ kind: 'pins' }} /></QueryClientProvider>);
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Unpin' })).toBeTruthy());
+  await fireEvent.press(screen.getByRole('button', { name: 'Unpin' }));
+  await waitFor(() => expect(endpoints.pinMessage).toHaveBeenCalledWith(7, 10, false));
+  await screen.unmount(); client.clear();
+});
+test('scheduled messages can be cancelled and current drafts scheduled', async () => {
+  (endpoints.scheduledMessages as jest.Mock).mockResolvedValue({ data: [{ id: 4, body: 'Later', send_at: '2030-01-01T09:00:00Z' }], meta: {} } as never);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { gcTime: Infinity } } });
+  const schedule = jest.fn(async () => undefined);
+  const screen = await render(<QueryClientProvider client={client}><ChatToolsSheet mode={{ kind: 'scheduled' }} conversationId={7} onClose={jest.fn()} onReply={jest.fn()} onOpen={jest.fn()} onSchedule={schedule} draftLabel="Draft" canSchedule readOnly={false} /></QueryClientProvider>);
+  await waitFor(() => expect(screen.getByText('Later')).toBeTruthy());
+  await fireEvent.press(screen.getByRole('button', { name: 'Cancel scheduled send' }));
+  await waitFor(() => expect(endpoints.cancelScheduledMessage).toHaveBeenCalledWith(7, 4));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Schedule message' }).props.accessibilityState?.disabled).not.toBe(true));
+  await fireEvent.press(screen.getByRole('button', { name: 'Schedule message' }));
+  await waitFor(() => expect(schedule).toHaveBeenCalledWith(expect.any(Date)));
+  await screen.unmount(); client.clear();
+});
+
+test('shared files gallery loads the filtered messages and opens their context', async () => {
+  (endpoints.chatToolMessages as jest.Mock).mockResolvedValue({ data: [{ id: 15, body: 'Report', user_name: 'Alice', attachments: [{ id: 1, content_type: 'text/plain', filename: 'report.txt' }] }], meta: {} } as never);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { gcTime: Infinity } } });
+  const open = jest.fn();
+  const close = jest.fn();
+  const screen = await render(<QueryClientProvider client={client}><ChatToolsSheet mode={{ kind: 'files' }} conversationId={7} onClose={close} onReply={jest.fn()} onOpen={open} onSchedule={jest.fn(async () => undefined)} draftLabel="" canSchedule={false} readOnly /></QueryClientProvider>);
+  await waitFor(() => expect(screen.getByText('Report')).toBeTruthy());
+  expect(endpoints.chatToolMessages).toHaveBeenCalledWith(7, { attachments: 'files' }, undefined);
+  await fireEvent.press(screen.getByRole('button', { name: 'Open in conversation' }));
+  expect(open).toHaveBeenCalledWith(15);
+  expect(close).toHaveBeenCalled();
+  await screen.unmount(); client.clear();
+});

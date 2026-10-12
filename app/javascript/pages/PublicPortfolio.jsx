@@ -380,7 +380,7 @@ const PublicPortfolio = () => {
   const browserOrigin =
     typeof window === "undefined"
       ? "http://localhost:3000"
-      : window.location.origin;
+      : document.querySelector('meta[name="nexus-site-url"]')?.content || window.location.origin;
   const structuredData = {
     "@context": "https://schema.org",
     "@type": "Person",
@@ -690,13 +690,23 @@ const PublicPortfolio = () => {
           <div data-reveal>
             <SectionLabel number="01">A little about me</SectionLabel>
             <h2>
-              I connect the dots.
+              About {profile.full_name}
               <br />
-              <span className="pf-muted">You get the whole picture.</span>
+              <span className="pf-muted">Full-stack engineer &amp; product builder.</span>
             </h2>
           </div>
           <div className="pf-about-body" data-reveal>
             <p>{profile.summary}</p>
+            <h3>Engineering experience</h3>
+            <p>{project.case_study?.role || profile.headline}</p>
+            <h3>Skills</h3>
+            <p>{(profile.skills || []).join(" · ")}</p>
+            <h3>Engineering achievements</h3>
+            <ul>
+              {(profile.engineering_highlights || []).map((highlight) => (
+                <li key={highlight}>{highlight}</li>
+              ))}
+            </ul>
             <div className="pf-about-signature">
               {profile.full_name}
               <span>Full-stack engineer & product builder</span>

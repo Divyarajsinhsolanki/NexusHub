@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowUpRight, ShieldCheck } from 'lucide-react';
-import logo from '../../images/logo.webp';
+import logo from '../../images/sparkle.png';
 import AuthWorkspaceScene from './AuthWorkspaceScene';
 import './AuthLayout.css';
 

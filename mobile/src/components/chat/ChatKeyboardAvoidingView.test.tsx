@@ -17,3 +17,17 @@ test('keeps padding avoidance on iOS', async () => {
   expect(screen.getByTestId('keyboard-avoidance').props.accessibilityLabel).toBe('padding');
   await screen.unmount();
 });
+
+test('synchronizes iOS layout changes with keyboard frame animations and cleans up', async () => {
+  jest.replaceProperty(Platform, 'OS', 'ios');
+  const Keyboard = require('react-native').Keyboard;
+  let listener: any;
+  const remove = jest.fn();
+  jest.spyOn(Keyboard, 'addListener').mockImplementation((_name: unknown, callback: unknown) => { listener = callback; return { remove }; });
+  const schedule = jest.spyOn(Keyboard, 'scheduleLayoutAnimation').mockImplementation(() => undefined);
+  const screen = await render(<ChatKeyboardAvoidingView style={{ flex: 1 }}><View /></ChatKeyboardAvoidingView>);
+  const event = { duration: 250, easing: 'keyboard' };
+  listener(event);
+  expect(schedule).toHaveBeenCalledWith(event);
+  await screen.unmount(); expect(remove).toHaveBeenCalled();
+});

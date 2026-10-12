@@ -459,7 +459,7 @@ export function refreshCachesForDeepLink(queryClient: QueryClient, deepLink: unk
 
   if (!normalized) return Promise.all(tasks);
 
-  const conversationMatch = normalized.match(/^\/inbox\/chat\/(\d+)/);
+  const conversationMatch = normalized.match(/^\/(?:inbox\/)?chat\/(\d+)/);
   const projectMatch = normalized.match(/^\/projects\/(\d+)/);
   const postMatch = normalized.match(/^\/inbox\/post\/(\d+)/);
 

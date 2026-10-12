@@ -1,7 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
 
-import { processNotificationResponse } from './actions';
+import { NotificationReplyError, processNotificationResponse } from './actions';
 import { BACKGROUND_NOTIFICATION_TASK } from './constants';
 
 if (!TaskManager.isTaskDefined(BACKGROUND_NOTIFICATION_TASK)) {
@@ -9,8 +9,18 @@ if (!TaskManager.isTaskDefined(BACKGROUND_NOTIFICATION_TASK)) {
     if (error || !isNotificationResponse(data)) return;
     try {
       await processNotificationResponse(data);
-    } catch {
-      // Failed actions are persisted to the encrypted offline queue by the action processor.
+    } catch (error) {
+      // Android may run without any mounted UI, so explain a failed/queued send in the tray.
+      if (error instanceof NotificationReplyError) {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: error.queued ? 'Reply saved for retry' : 'Reply not sent',
+            body: error.message,
+            data: { deep_link: data.notification.request.content.data?.deep_link },
+          },
+          trigger: null,
+        }).catch(() => undefined);
+      }
     }
   });
 }

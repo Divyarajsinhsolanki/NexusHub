@@ -1,44 +1,12 @@
-import React, { useEffect } from "react";
+import React from "react";
+import { Helmet } from "react-helmet-async";
+import pageMetadata from "../config/pageMetadata.json";
 import { useLocation } from "react-router-dom";
 import { portfolioEnabled } from "../config/features";
 
 const APP_NAME = portfolioEnabled ? "Divyarajsinh Solanki" : "Nexus Hub";
 
-const routeTitles = {
-  "/": portfolioEnabled ? "Full-stack Rails and React Engineer" : "Workspace Login",
-  "/login": "Workspace Login",
-  "/signup": "Create Workspace",
-  "/demo": "Nexus Hub Guided Demo",
-  "/planning": "Planning",
-  "/calendar": "Planning",
-  "/contact": "Contact",
-  "/legal": "Legal",
-  "/metaverse-landing": "Metaverse Landing",
-  "/pdf": "PDF Master",
-  "/pdf-master": "PDF Master",
-  "/momentum": "Planning",
-  "/posts": "Home",
-  "/vault": "Vault",
-  "/profile": "Profile",
-  "/knowledge": "Knowledge Dashboard",
-  "/worklog": "Planning",
-  "/projects": "Projects",
-  "/teams": "Teams",
-  "/users": "Users",
-  "/departments": "Departments",
-  "/admin": "Admin",
-  "/admin/portfolio": "Portfolio Editor",
-  "/home": "Home",
-  "/my-work": "Home",
-  "/admin/login-as-user": "Admin Impersonation",
-  "/settings": "Settings",
-  "/chat": "Chat",
-  "/meet": "Meeting",
-  "/notifications": "Notifications",
-  "/forgot-password": "Forgot Password",
-  "/reset-password": "Reset Password",
-};
-
+const routeTitles = Object.fromEntries(Object.entries(pageMetadata).map(([path, meta]) => [path, meta.title]));
 const pageTitleForPath = (pathname) => {
   if (routeTitles[pathname]) return routeTitles[pathname];
 
@@ -56,12 +24,28 @@ const pageTitleForPath = (pathname) => {
 const PageTitle = () => {
   const location = useLocation();
 
-  useEffect(() => {
-    const title = pageTitleForPath(location.pathname);
-    document.title = title ? `${title} | ${APP_NAME}` : APP_NAME;
-  }, [location.pathname]);
+  const path = location.pathname.replace(/\/+$/, "") || "/";
+  const page = pageTitleForPath(path) || "Page Not Found";
+  const publicPage = portfolioEnabled && ["/", "/contact", "/legal"].includes(path);
+  const title = path === "/" && !portfolioEnabled ? "Workspace Login | Nexus Hub" : `${page} | ${APP_NAME}`;
+  const description = pageMetadata[path]?.description || `${page} in Nexus Hub. Manage your workspace and collaborate with your team.`;
+  const origin = document.querySelector('meta[name="nexus-site-url"]')?.content || window.location.origin;
+  const url = `${origin}${path}`;
 
-  return null;
+  return <Helmet>
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="robots" content={publicPage ? "index, follow" : "noindex, nofollow"} />
+    <link rel="canonical" href={url} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={url} />
+    <meta property="og:site_name" content={APP_NAME} />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+  </Helmet>;
 };
 
 export default PageTitle;

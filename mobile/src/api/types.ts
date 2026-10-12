@@ -473,7 +473,11 @@ export type ConversationReceipt = {
   read_at?: string | null;
 };
 
+export type ScheduledChatMessage = EntityRecord & { body?: string; send_at: string; state: string; attachment_count: number };
+
 export type Message = EntityRecord & {
+  pinned_at?: string | null;
+  pinned_by_id?: number | null;
   updated_at?: string;
   edited_at?: string | null;
   deleted_at?: string | null;

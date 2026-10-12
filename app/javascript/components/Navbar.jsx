@@ -33,7 +33,7 @@ import { AuthContext } from "../context/AuthContext";
 import { useWorkspaceData } from "../context/WorkspaceDataContext";
 import { fetchCalendarEvents, getIssues, SchedulerAPI } from "./api";
 import NotificationCenter from "./NotificationCenter";
-import logo from "../images/logo.webp";
+import logo from "../images/sparkle.png";
 import { buildAvatarStyle, getAvatarInitial, normalizeAvatarColor } from "../utils/avatar";
 import { clearSelectionFromSearch, getBreadcrumbs, getRouteLayout, getSelectionFromSearch } from "./shell/routeLayout";
 

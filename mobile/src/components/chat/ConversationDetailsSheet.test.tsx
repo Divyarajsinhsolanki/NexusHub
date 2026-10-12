@@ -1,3 +1,4 @@
+jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { expect, jest, test } from '@jest/globals';
@@ -11,7 +12,7 @@ jest.mock('../../api/endpoints', () => ({ endpoints: {
 } }));
 
 test('confirms deletion with readable chat text and keeps the API identifier internal', async () => {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { gcTime: Infinity } } });
   const removed = jest.fn();
   const screen = await render(<QueryClientProvider client={client}><ConversationDetailsSheet conversationId={12} visible onClose={jest.fn()} onConversationRemoved={removed} /></QueryClientProvider>);
   await waitFor(() => expect(screen.getByLabelText('Delete confirmation')).toBeTruthy());

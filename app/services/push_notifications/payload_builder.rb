@@ -57,6 +57,7 @@ module PushNotifications
         type: "notification",
         event_type: catalog.event_type,
         notification_id: notification.id,
+        recipient_user_id: notification.recipient_id,
         entity_type: notification.notifiable_type,
         entity_id: notification.notifiable_id,
         category: catalog.category,

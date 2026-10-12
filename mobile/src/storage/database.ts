@@ -67,6 +67,8 @@ export async function clearOfflineData() {
 export type StoredNotificationAction = {
   actionKey: string;
   actionIdentifier: string;
+  createdAt?: number;
+  notificationIdentifier?: string;
   data: Record<string, unknown>;
   userText?: string;
 };
@@ -86,9 +88,9 @@ export async function enqueueNotificationAction(action: StoredNotificationAction
 export async function pendingNotificationActions(): Promise<StoredNotificationAction[]> {
   const database = await getDatabase();
   if (!database) return [];
-  const rows = await database.getAllAsync<{ payload: string }>('SELECT payload FROM pending_notification_actions ORDER BY created_at ASC LIMIT 50');
+  const rows = await database.getAllAsync<{ payload: string; created_at: number }>('SELECT payload, created_at FROM pending_notification_actions ORDER BY created_at ASC LIMIT 50');
   return rows.flatMap((row) => {
-    try { return [JSON.parse(row.payload) as StoredNotificationAction]; } catch { return []; }
+    try { return [{ createdAt: row.created_at, ...JSON.parse(row.payload) } as StoredNotificationAction]; } catch { return []; }
   });
 }
 

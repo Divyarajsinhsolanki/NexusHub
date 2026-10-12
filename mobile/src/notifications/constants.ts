@@ -41,6 +41,7 @@ export type NexusPushData = {
   category?: string;
   deep_link?: string;
   notification_id?: number | string;
+  recipient_user_id?: number | string;
   conversation_id?: number | string;
   message_id?: number | string;
   call_id?: number | string;

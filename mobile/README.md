@@ -144,3 +144,13 @@ Before releasing, run `npm run typecheck` and `npm test`, then verify with a rea
 4. Start audio/video calls from either device, answer or decline on the other, and verify shared call state after leaving a group call or ending it for everyone.
 
 Source changes and commits alone do not update an installed binary. Publish a compatible OTA update or build a new binary only when a release is explicitly requested.
+
+### Inline replies to chat notifications
+
+New builds register a **Reply** text action on chat-message and mention notifications. On Android, expand the notification, tap Reply, type text and tap Send; the shared background task sends without opening chat. On iOS, long-press the notification and choose Reply; device authentication is required and Expo brings the app to the foreground to finish sending.
+
+Deploy the Rails `/api/v1/notifications/:id/reply` endpoint before releasing the mobile changes. The server checks notification ownership and current conversation membership, threads the reply to the original visible message, and acknowledges only that message. Deleted originals fall back to a normal message. Repeated delivery callbacks and retries use the same server idempotency key.
+
+Replies are saved to the local notification-action queue before sending. Temporary network/login failures retry on app launch, resume or reconnect; queued replies expire after 24 hours. Removed conversations or lost access stop retries. A failed background reply displays a status notification without including the reply text. Successful sending dismisses the original notification and updates the badge.
+
+Verify on physical Android and iOS devices with a native development/release build (not Expo Go): foreground, background, terminated app, offline then reconnect, expired login, switching accounts, duplicate callbacks, deleted originals, and a newer unread message arriving before replying. Confirm no duplicate message, correct reply target, correct badge, and that newer messages remain unread. Automated tests cover the JS task/category setup, action processor, API authorization, receipts and idempotency; OS tray behavior still requires this device check.

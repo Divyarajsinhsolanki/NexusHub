@@ -1,0 +1,18 @@
+import { expect, jest, test } from '@jest/globals';
+let mockPlatform = 'android';
+const mockCategory = jest.fn(async (..._args: unknown[]) => undefined);
+jest.mock('react-native', () => { const actual = jest.requireActual('react-native') as typeof import('react-native'); return new Proxy(actual, { get(target, key) { if (key === 'Platform') return { ...actual.Platform, OS: mockPlatform }; return Reflect.get(target, key); } }); });
+jest.mock('expo-notifications', () => ({ AndroidImportance: { DEFAULT: 3, HIGH: 4, MAX: 5 }, AndroidNotificationVisibility: { PRIVATE: 0 }, setNotificationChannelAsync: jest.fn(async () => undefined), setNotificationCategoryAsync: (...args: unknown[]) => mockCategory(...args) }));
+const { NOTIFICATION_ACTIONS, NOTIFICATION_CATEGORIES } = require('./constants');
+test.each(['android', 'ios'])('registers inline text replies with safe %s presentation', async platform => {
+  mockPlatform = platform;
+  mockCategory.mockClear();
+  let setup: () => Promise<void>;
+  jest.isolateModules(() => { setup = require('./setup').setupNotificationPresentation; });
+  await setup!();
+  const chat = (mockCategory.mock.calls as unknown as [string, { identifier: string; options: { opensAppToForeground: boolean; isAuthenticationRequired?: boolean }; textInput?: { submitButtonTitle: string } }[]][]).find(([category]) => category === NOTIFICATION_CATEGORIES.chat);
+  const reply = chat?.[1].find(action => action.identifier === NOTIFICATION_ACTIONS.reply);
+  expect(reply?.textInput?.submitButtonTitle).toBe('Send');
+  expect(reply?.options.opensAppToForeground).toBe(platform === 'ios');
+  expect(reply?.options.isAuthenticationRequired).toBe(true);
+});

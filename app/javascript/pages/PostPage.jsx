@@ -382,7 +382,7 @@ const PostPage = () => {
   return (
     <>
       <Helmet>
-        <title>Home</title>
+        <title>Home | Nexus Hub</title>
         <meta name="description" content="Team updates, discussions, tasks, and workspace activity" />
         <meta property="og:title" content="Home" />
         <meta property="og:description" content="Team updates, discussions, tasks, and workspace activity" />

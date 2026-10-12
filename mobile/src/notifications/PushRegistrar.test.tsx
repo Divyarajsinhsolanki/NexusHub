@@ -12,6 +12,7 @@ const mockPush = jest.fn();
 let receivedCallback: ((notification: { request: { content: { data?: Record<string, unknown> } } }) => void) | undefined;
 let responseCallback: ((response: { notification: { request: { content: { data?: Record<string, unknown> } } } }) => void) | undefined;
 
+jest.mock('expo-crypto', () => ({ CryptoDigestAlgorithm: { SHA256: 'sha256' }, digestStringAsync: async (_algorithm: string, input: string) => require('crypto').createHash('sha256').update(input).digest('hex') }));
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
 jest.mock('expo-constants', () => ({
   __esModule: true,
@@ -38,9 +39,13 @@ jest.mock('expo-notifications', () => {
     getPermissionsAsync: jestGlobals.fn(),
     requestPermissionsAsync: jestGlobals.fn(),
     setNotificationChannelAsync: jestGlobals.fn(),
+    setNotificationCategoryAsync: jestGlobals.fn(async () => undefined),
+    dismissNotificationAsync: jestGlobals.fn(async () => undefined),
+    setBadgeCountAsync: jestGlobals.fn(async () => true),
   };
 });
-jest.mock('../api/endpoints', () => ({ endpoints: { registerDevice: jest.fn() } }));
+jest.mock('../api/endpoints', () => ({ endpoints: { registerDevice: jest.fn(), replyToNotification: jest.fn(async () => ({ message_id: 8, conversation_id: 4, reply_to_id: 7, unread_count: 0 })), notifications: jest.fn(async () => ({ data: [], meta: { unread_count: 0 } })) } }));
+jest.mock('../storage/database', () => ({ pendingNotificationActions: jest.fn(async () => []), notificationActionWasProcessed: jest.fn(async () => false), markNotificationActionProcessed: jest.fn(async () => undefined), enqueueNotificationAction: jest.fn(async () => undefined), removePendingNotificationAction: jest.fn(async () => undefined) }));
 jest.mock('../auth/AuthProvider', () => ({ useAuth: jest.fn() }));
 
 beforeEach(() => {
@@ -136,4 +141,19 @@ test('daily knowledge push refreshes the board and opens the exact post', async 
   await act(async () => { responseCallback?.({ notification: { request: { content: { data } } } }); });
   expect(mockPush).toHaveBeenCalledWith('/more/knowledge?itemId=91');
   cleanup(); queryClient.clear();
+});
+
+test('inline reply sends and refreshes chat without navigating away from the current screen', async () => {
+  const { endpoints } = require('../api/endpoints');
+  const client = new QueryClient({ defaultOptions: { queries: { gcTime: Infinity, retry: false } } });
+  const invalidate = jest.spyOn(client, 'invalidateQueries');
+  await render(<QueryClientProvider client={client}><PushRegistrar /></QueryClientProvider>);
+  await waitFor(() => expect(responseCallback).toBeDefined());
+  await act(async () => {
+    responseCallback?.({ actionIdentifier: 'nexus_reply', userText: 'Inline response', notification: { request: { identifier: 'chat-reply', content: { data: { notification_id: 3, conversation_id: 4, deep_link: '/chat/4' } } } } } as never);
+  });
+  await waitFor(() => expect(endpoints.replyToNotification).toHaveBeenCalledWith(3, 'Inline response', expect.stringMatching(/^push-/)));
+  expect(mockPush).not.toHaveBeenCalled();
+  await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: mobileQueryKeys.messages(4) }));
+  cleanup(); client.clear();
 });

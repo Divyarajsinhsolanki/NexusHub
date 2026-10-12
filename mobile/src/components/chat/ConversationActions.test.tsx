@@ -1,3 +1,4 @@
+jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { Alert } from 'react-native';
@@ -13,15 +14,15 @@ test('long press shows actions before mute durations, and requires delete confir
   const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
   const screen = await render(<QueryClientProvider client={client}><ConversationRow conversation={{ id: 7, title: 'Team chat', participants: [], conversation_type: 'group', muted: false } as unknown as Conversation} /></QueryClientProvider>);
   await fireEvent(screen.getByRole('button', { name: 'Open Team chat' }), 'longPress');
-  const buttons = alert.mock.calls[0][2]!;
-  expect(buttons.map(button => button.text)).toEqual(['Mute', 'Delete chat for me', 'Cancel']);
-  await act(async () => buttons[0].onPress!());
+  expect(alert).not.toHaveBeenCalled();
+  await fireEvent.press(screen.getByRole('button', { name: 'Mute' }));
   await fireEvent.press(screen.getByRole('button', { name: '1 week' }));
   await waitFor(() => expect(endpoints.setConversationMuted).toHaveBeenCalledWith(7, true, '1w'));
-  await act(async () => buttons[1].onPress!());
+  await fireEvent(screen.getByRole('button', { name: 'Open Team chat' }), 'longPress');
+  await fireEvent.press(screen.getByRole('button', { name: 'Delete chat for me' }));
   expect(endpoints.hideConversation).not.toHaveBeenCalled();
-  const confirm = alert.mock.calls[1][2]!;
-  await act(async () => confirm.find(button => button.text === 'Delete')!.onPress!());
+  expect(alert).not.toHaveBeenCalled();
+  await fireEvent.press(screen.getByRole('button', { name: 'Delete' }));
   await waitFor(() => expect(endpoints.hideConversation).toHaveBeenCalledWith(7));
   await screen.unmount(); client.clear(); alert.mockRestore();
 });

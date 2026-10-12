@@ -83,6 +83,7 @@ class User < ApplicationRecord
   has_many :notifications, foreign_key: :recipient_id, dependent: :destroy
   has_many :conversation_participants, dependent: :destroy
   has_many :conversations, through: :conversation_participants
+  has_many :scheduled_chat_messages, dependent: :destroy
   has_many :messages, dependent: :destroy
   has_many :message_reactions, dependent: :destroy
   has_many :initiated_call_sessions, class_name: "CallSession", foreign_key: :initiator_id, dependent: :destroy, inverse_of: :initiator

@@ -57,6 +57,14 @@ class Api::NotificationsController < Api::BaseController
     }
   end
 
+  def reply
+    message = params.require(:message).permit(:body, :client_id)
+    result = Chat::NotificationReply.call(user: current_user, notification_id: params[:id], body: message[:body], client_id: message[:client_id])
+    render json: result
+  rescue Chat::NotificationReply::InvalidReply, ActiveRecord::RecordInvalid => error
+    render json: { error: { code: "invalid_reply", message: error.message } }, status: :unprocessable_entity
+  end
+
   def mark_read
     notification = current_user.notifications.visible_in_feed.find(params[:id])
     notification.mark_as_read!

@@ -17,7 +17,7 @@ import { useAuth } from '../auth/AuthProvider';
 import { refreshCachesForDeepLink } from '../cache/mobileCache';
 import { normalizeMobileDeepLink } from '../navigation/deepLinks';
 import { useAppTheme } from '../theme';
-import { processNotificationResponse, retryPendingNotificationActions } from './actions';
+import { NotificationReplyError, processNotificationResponse, retryPendingNotificationActions } from './actions';
 import { PUSH_SCHEMA_VERSION } from './constants';
 import { setupNotificationPresentation } from './setup';
 
@@ -82,9 +82,13 @@ export function PushRegistrar() {
   useEffect(() => {
     if (!user || Platform.OS === 'web') return;
     const recover = () => {
-      void retryPendingNotificationActions();
+      void retryPendingNotificationActions().then(async links => {
+        await Promise.all(links.map(link => refreshCachesForDeepLink(queryClient, link)));
+        if (links.length) await syncBadgeCount();
+      }).catch(() => undefined);
       void registerDevice().catch(() => undefined);
     };
+    recover();
     const appStateSubscription = AppState.addEventListener('change', (state) => {
       if (state === 'active') recover();
     });
@@ -95,7 +99,7 @@ export function PushRegistrar() {
       appStateSubscription.remove();
       networkSubscription();
     };
-  }, [registerDevice, user]);
+  }, [queryClient, registerDevice, user]);
 
   useEffect(() => {
     if (!user || Platform.OS === 'web') return;
@@ -115,8 +119,8 @@ export function PushRegistrar() {
         await refreshCachesForDeepLink(queryClient, request.content.data?.deep_link);
         await syncBadgeCount();
         if (result.deepLink && result.deepLink !== immediateLink) router.push(result.deepLink as never);
-      } catch {
-        // The action processor queued the operation; normal notification content remains available.
+      } catch (error) {
+        if (error instanceof NotificationReplyError) Alert.alert(error.queued ? 'Reply saved' : 'Reply not sent', error.message);
       }
     };
     const receivedSubscription = Notifications.addNotificationReceivedListener((notification) => {

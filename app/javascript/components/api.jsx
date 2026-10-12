@@ -1,4 +1,6 @@
 import axios from "axios";
+import { createSingleFlight } from "../utils/chatRequests";
+import { getDraftGeneration } from "../utils/chatState";
 import { toast } from "react-hot-toast";
 
 const getCsrfToken = () => document.querySelector('meta[name="csrf-token"]')?.content;
@@ -343,9 +345,15 @@ export const fetchSheetData = (params) => api.get('/sheet', { params });
 
 
 // CHAT ENDPOINTS
-export const fetchConversations = (params = {}) => api.get('/conversations.json', { params });
-export const fetchConversation = (id) => api.get(`/conversations/${id}.json`);
-export const fetchConversationSummary = (id) => api.get(`/conversations/${id}/summary.json`);
+const chatRead = createSingleFlight();
+const readChat = (url, params = {}) => {
+  const sortedParams = Object.entries(params).sort(([a], [b]) => a.localeCompare(b));
+  const key = JSON.stringify([getDraftGeneration(), getCsrfToken(), url, sortedParams]);
+  return chatRead(key, () => api.get(url, { params }));
+};
+export const fetchConversations = (params = {}) => readChat('/conversations.json', params);
+export const fetchConversation = (id) => readChat(`/conversations/${id}.json`);
+export const fetchConversationSummary = (id) => readChat(`/conversations/${id}/summary.json`);
 export const createConversation = (data) => api.post('/conversations.json', { conversation: data, participant_ids: data.participant_ids || [] });
 export const updateConversation = (id, data) => api.patch(`/conversations/${id}`, { conversation: data });
 export const addConversationParticipants = (id, participantIds) =>
@@ -360,7 +368,7 @@ export const muteConversation = (id, duration = "forever") =>
   api.patch(`/conversations/${id}/mute`, { duration });
 export const unmuteConversation = (id) => api.delete(`/conversations/${id}/mute`);
 export const fetchConversationMessages = (conversationId, params = {}) =>
-  api.get(`/conversations/${conversationId}/messages`, { params });
+  readChat(`/conversations/${conversationId}/messages`, params);
 export const updateConversationReceipt = (conversationId, messageId, state) =>
   api.patch(`/conversations/${conversationId}/receipt`, { receipt: { message_id: messageId, state } });
 export const editChatMessage = (conversationId, messageId, body) =>
@@ -404,3 +412,8 @@ export const updateEventReminder = (id, data) => api.patch(`/event_reminders/${i
 export const deleteEventReminder = (id) => api.delete(`/event_reminders/${id}`);
 
 export default api;
+
+export const pinChatMessage = (conversationId, messageId, pinned) => api.patch(`/conversations/${conversationId}/messages/${messageId}/pin`, { pinned });
+export const fetchScheduledMessages = (conversationId, before) => readChat(`/conversations/${conversationId}/scheduled_messages`, before ? { before_id: before } : {});
+export const scheduleChatMessage = (conversationId, form) => api.post(`/conversations/${conversationId}/scheduled_messages`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
+export const cancelScheduledMessage = (conversationId, id) => api.delete(`/conversations/${conversationId}/scheduled_messages/${id}`);

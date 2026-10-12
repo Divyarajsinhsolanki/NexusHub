@@ -1,3 +1,4 @@
+import * as DocumentPicker from 'expo-document-picker';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { expect, jest, test } from '@jest/globals';
@@ -6,6 +7,7 @@ import ChatRoute from '../../app/(tabs)/inbox/chat/[id]';
 import { endpoints } from '../api/endpoints';
 import { mobileQueryKeys } from '../cache/mobileCache';
 
+jest.mock('expo-document-picker', () => ({ getDocumentAsync: require('@jest/globals').jest.fn() }));
 const mockCopy = jest.fn(async (_text: unknown) => undefined);
 jest.mock('expo-clipboard', () => ({ setStringAsync: (...args: unknown[]) => mockCopy(args[0]) }));
 const mockPerform = jest.fn();
@@ -119,19 +121,20 @@ test('offers all web reactions and sends an added emoji', async () => {
   await screen.unmount();
   client.clear();
 });
-test('inserts workspace mention and task suggestions without losing composer text', async () => {
+test('inserts participant mentions and task suggestions while excluding people outside the chat', async () => {
   jest.clearAllMocks();
   Object.assign(endpoints, {
-    users: jest.fn(async () => ({ data: [{ id: 2, name: 'Sam', email: 'sam@example.test' }], meta: {} })),
+    users: jest.fn(async () => ({ data: [{ id: 2, name: 'Sam', email: 'sam@example.test' }, { id: 3, name: 'Sarah', email: 'sarah@example.test' }], meta: {} })),
     tasks: jest.fn(async () => ({ data: [{ id: 7, task_id: 'AC-7', title: 'Fix calendar', project_id: 4 }], meta: {} })),
   });
   const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, gcTime: Infinity, retry: false }, mutations: { gcTime: Infinity } } });
-  client.setQueryData(mobileQueryKeys.conversation(7), { id: 7, title: 'Mentions', participants: [] });
+  client.setQueryData(mobileQueryKeys.conversation(7), { id: 7, title: 'Mentions', participants: [{ id: 2, name: 'Sam' }] });
   client.setQueryData(mobileQueryKeys.messages(7), { pageParams: [undefined], pages: [{ data: [] }] });
   const screen = await render(<QueryClientProvider client={client}><ChatRoute /></QueryClientProvider>);
   const input = screen.getByPlaceholderText('Message');
   await fireEvent.changeText(input, 'Hello @sa');
   await waitFor(() => expect(screen.getByRole('button', { name: 'Insert @sam' })).toBeTruthy());
+  expect(screen.queryByRole('button', { name: 'Insert @sarah' })).toBeNull();
   await fireEvent.press(screen.getByRole('button', { name: 'Insert @sam' }));
   expect(input.props.value).toBe('Hello @sam ');
   await fireEvent.changeText(input, 'Hello @sam check #AC');
@@ -163,5 +166,53 @@ test('copies the full message from the long-press menu', async () => {
   await fireEvent(screen.getByText(/Copy this entire message/), 'longPress');
   await fireEvent.press(screen.getByRole('button', { name: 'Copy message' }));
   expect(mockCopy).toHaveBeenCalledWith('Copy this entire message');
+  await screen.unmount(); client.clear();
+});
+
+test('adds multiple files across picks, removes one, and retries the complete attachment set', async () => {
+  jest.clearAllMocks();
+  const files = [
+    { uri: 'file:///one.txt', name: 'one.txt', mimeType: 'text/plain', lastModified: 0 },
+    { uri: 'file:///two.txt', name: 'two.txt', mimeType: 'text/plain', lastModified: 0 },
+    { uri: 'file:///three.txt', name: 'three.txt', mimeType: 'text/plain', lastModified: 0 },
+  ];
+  jest.mocked(DocumentPicker.getDocumentAsync).mockResolvedValueOnce({ canceled: false, assets: files.slice(0, 2) }).mockResolvedValueOnce({ canceled: false, assets: [files[2]] });
+  jest.mocked(endpoints.createMessage).mockRejectedValueOnce(new Error('Offline')).mockResolvedValueOnce({ id: 20, body: '', created_at: '2026-10-12T00:00:00Z', attachments: files.filter(file => file.name !== 'two.txt').map((file, index) => ({ id: index + 1, filename: file.name, url: file.uri, content_type: file.mimeType })) } as never);
+  const append = jest.spyOn(FormData.prototype, 'append');
+  const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, gcTime: Infinity, retry: false }, mutations: { gcTime: Infinity } } });
+  client.setQueryData(mobileQueryKeys.conversation(7), { id: 7, title: 'Files', conversation_type: 'direct', participants: [] });
+  client.setQueryData(mobileQueryKeys.messages(7), { pageParams: [undefined], pages: [{ data: [] }] });
+  const screen = await render(<QueryClientProvider client={client}><ChatRoute /></QueryClientProvider>);
+  await fireEvent.press(screen.getByRole('button', { name: 'Attach file' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Remove attachment two.txt' })).toBeTruthy());
+  expect(DocumentPicker.getDocumentAsync).toHaveBeenCalledWith({ copyToCacheDirectory: true, multiple: true });
+  await fireEvent.press(screen.getByRole('button', { name: 'Attach file' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Remove attachment three.txt' })).toBeTruthy());
+  await fireEvent.press(screen.getByRole('button', { name: 'Remove attachment two.txt' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Send message' }));
+  await waitFor(() => expect(screen.getByText('Not sent · Tap to retry')).toBeTruthy());
+  expect(jest.mocked(endpoints.createMessage).mock.calls[0][1].getAll('message[attachments][]')).toHaveLength(2);
+  expect(append).toHaveBeenCalledWith('message[attachments][]', expect.objectContaining({ name: 'one.txt' }));
+  expect(append).toHaveBeenCalledWith('message[attachments][]', expect.objectContaining({ name: 'three.txt' }));
+  expect(append).not.toHaveBeenCalledWith('message[attachments][]', expect.objectContaining({ name: 'two.txt' }));
+  await fireEvent.press(screen.getByText('Not sent · Tap to retry'));
+  await waitFor(() => expect(endpoints.createMessage).toHaveBeenCalledTimes(2));
+  expect(jest.mocked(endpoints.createMessage).mock.calls[1][1].getAll('message[attachments][]')).toHaveLength(2);
+  expect(jest.mocked(endpoints.createMessage).mock.calls[1][1].get('message[client_id]')).toBe(jest.mocked(endpoints.createMessage).mock.calls[0][1].get('message[client_id]'));
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Remove attachment one.txt' })).toBeNull());
+  expect(screen.queryByText(/Live (chat|conversation)/i)).toBeNull();
+  append.mockRestore(); await screen.unmount(); client.clear();
+});
+
+test('supports accessible swipe reply without opening the message menu', async () => {
+  jest.clearAllMocks();
+  const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, gcTime: Infinity, retry: false } } });
+  client.setQueryData(mobileQueryKeys.conversation(7), { id: 7, title: 'Swipe reply', participants: [] });
+  client.setQueryData(mobileQueryKeys.messages(7), { pageParams: [undefined], pages: [{ data: [{ id: 10, body: 'Reply to this', user_id: 2, user_name: 'Sam', created_at: '2026-10-12T00:00:00Z' }] }] });
+  const screen = await render(<QueryClientProvider client={client}><ChatRoute /></QueryClientProvider>);
+  await fireEvent(screen.getByText(/Reply to this/), 'accessibilityAction', { nativeEvent: { actionName: 'reply' } });
+  expect(screen.getAllByText('Reply to this').length).toBeGreaterThan(0);
+  expect(screen.getByLabelText('Cancel reply')).toBeTruthy();
+  expect(screen.queryByText('Message actions')).toBeNull();
   await screen.unmount(); client.clear();
 });

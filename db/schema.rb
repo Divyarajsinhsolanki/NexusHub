@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2027_08_23_000000) do
+ActiveRecord::Schema[8.1].define(version: 2027_08_24_001000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -110,7 +110,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_23_000000) do
     t.string "status", default: "ringing", null: false
     t.datetime "updated_at", null: false
     t.bigint "workspace_id", null: false
-    t.index ["conversation_id"], name: "idx_one_live_call_per_conversation", unique: true, where: "((status)::text = ANY (ARRAY[('ringing'::character varying)::text, ('active'::character varying)::text]))"
+    t.index ["conversation_id"], name: "idx_one_live_call_per_conversation", unique: true, where: "((status)::text = ANY ((ARRAY['ringing'::character varying, 'active'::character varying])::text[]))"
     t.index ["conversation_id"], name: "index_call_sessions_on_conversation_id"
     t.index ["initiator_id"], name: "index_call_sessions_on_initiator_id"
     t.index ["livekit_room_name"], name: "index_call_sessions_on_livekit_room_name", unique: true
@@ -440,13 +440,18 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_23_000000) do
     t.datetime "deleted_at"
     t.datetime "edited_at"
     t.string "message_type", default: "message", null: false
+    t.datetime "pinned_at"
+    t.bigint "pinned_by_id"
     t.bigint "reply_to_id"
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.bigint "workspace_id", null: false
     t.index ["conversation_id", "created_at"], name: "index_messages_on_conversation_id_and_created_at"
+    t.index ["conversation_id", "pinned_at"], name: "index_messages_on_conversation_id_and_pinned_at"
+    t.index ["conversation_id", "reply_to_id"], name: "index_messages_on_conversation_id_and_reply_to_id"
     t.index ["conversation_id", "user_id", "client_id"], name: "idx_messages_conversation_user_client", unique: true, where: "(client_id IS NOT NULL)"
     t.index ["conversation_id"], name: "index_messages_on_conversation_id"
+    t.index ["pinned_by_id"], name: "index_messages_on_pinned_by_id"
     t.index ["reply_to_id"], name: "index_messages_on_reply_to_id"
     t.index ["user_id"], name: "index_messages_on_user_id"
     t.index ["workspace_id", "conversation_id", "id"], name: "idx_messages_workspace_conversation_cursor"
@@ -939,6 +944,27 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_23_000000) do
     t.index ["name"], name: "index_roles_on_name", unique: true
   end
 
+  create_table "scheduled_chat_messages", force: :cascade do |t|
+    t.text "body"
+    t.string "client_id", null: false
+    t.bigint "conversation_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "reply_to_id"
+    t.datetime "send_at", null: false
+    t.bigint "sent_message_id"
+    t.string "state", default: "pending", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.bigint "workspace_id", null: false
+    t.index ["conversation_id", "user_id", "client_id"], name: "index_scheduled_chat_messages_identity", unique: true
+    t.index ["conversation_id"], name: "index_scheduled_chat_messages_on_conversation_id"
+    t.index ["reply_to_id"], name: "index_scheduled_chat_messages_on_reply_to_id"
+    t.index ["sent_message_id"], name: "index_scheduled_chat_messages_on_sent_message_id"
+    t.index ["state", "send_at"], name: "index_scheduled_chat_messages_on_state_and_send_at"
+    t.index ["user_id"], name: "index_scheduled_chat_messages_on_user_id"
+    t.index ["workspace_id"], name: "index_scheduled_chat_messages_on_workspace_id"
+  end
+
   create_table "skill_endorsements", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.bigint "endorser_id", null: false
@@ -1345,6 +1371,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_23_000000) do
   add_foreign_key "messages", "conversations"
   add_foreign_key "messages", "messages", column: "reply_to_id", on_delete: :nullify
   add_foreign_key "messages", "users"
+  add_foreign_key "messages", "users", column: "pinned_by_id", on_delete: :nullify
   add_foreign_key "messages", "workspaces"
   add_foreign_key "mobile_devices", "users"
   add_foreign_key "mobile_devices", "workspaces"
@@ -1417,6 +1444,11 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_23_000000) do
   add_foreign_key "push_deliveries", "notifications", on_delete: :nullify
   add_foreign_key "push_deliveries", "users", column: "recipient_id"
   add_foreign_key "push_deliveries", "workspaces"
+  add_foreign_key "scheduled_chat_messages", "conversations"
+  add_foreign_key "scheduled_chat_messages", "messages", column: "reply_to_id", on_delete: :nullify
+  add_foreign_key "scheduled_chat_messages", "messages", column: "sent_message_id", on_delete: :nullify
+  add_foreign_key "scheduled_chat_messages", "users"
+  add_foreign_key "scheduled_chat_messages", "workspaces"
   add_foreign_key "skill_endorsements", "teams"
   add_foreign_key "skill_endorsements", "user_skills"
   add_foreign_key "skill_endorsements", "users", column: "endorser_id"

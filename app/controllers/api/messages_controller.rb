@@ -11,6 +11,21 @@ class Api::MessagesController < Api::BaseController
       .includes(:message_reactions, reply_to: [:user, :attachments_attachments], user: { profile_picture_attachment: :blob })
       .with_attached_attachments
       .order(id: :desc)
+    if params[:pinned] == 'true'
+      scope = scope.where.not(pinned_at: nil).where(deleted_at: nil)
+    end
+    if params[:attachments].present?
+      return render json: { errors: ['Invalid attachment filter'] }, status: :unprocessable_entity unless %w[all media files].include?(params[:attachments])
+      attachments = ActiveStorage::Attachment.where(record_type: 'Message', name: 'attachments').joins(:blob)
+      media = "active_storage_blobs.content_type LIKE 'image/%' OR active_storage_blobs.content_type LIKE 'video/%' OR active_storage_blobs.content_type LIKE 'audio/%'"
+      attachments = attachments.where(media) if params[:attachments] == 'media'
+      attachments = attachments.where("NOT (#{media})") if params[:attachments] == 'files'
+      scope = scope.where(deleted_at: nil, id: attachments.select(:record_id))
+    end
+    if params[:thread_id].present?
+      root = @conversation.messages.find(params[:thread_id])
+      scope = scope.where('messages.id = :id OR messages.reply_to_id = :id', id: root.id)
+    end
     if params[:updated_since].present?
       begin
         since = Time.iso8601(params[:updated_since].to_s)
@@ -52,9 +67,21 @@ class Api::MessagesController < Api::BaseController
         has_more: has_more,
         next_before_id: has_more ? messages.last&.id : nil,
         server_time: response_time,
+        thread_root: root && serialize_message(root),
         per_page: limit
       }
     }
+  end
+
+  def pin
+    message = @conversation.messages.find(params[:id])
+    message.with_lock do
+      return render json: { errors: ['Only visible messages can be pinned'] }, status: :unprocessable_entity if message.deleted_at? || message.message_type != 'message'
+      pinned = ActiveModel::Type::Boolean.new.cast(params.require(:pinned))
+      message.update!(pinned_at: pinned ? Time.current : nil, pinned_by_id: pinned ? current_user.id : nil)
+    end
+    Chat::Broadcaster.broadcast_message_changed(message.reload)
+    render json: serialize_message(message)
   end
 
   def link_preview
@@ -107,7 +134,7 @@ class Api::MessagesController < Api::BaseController
 
   def destroy
     mutate_message do |message|
-      message.update!(body: "Message deleted", deleted_at: Time.current)
+      message.update!(body: "Message deleted", deleted_at: Time.current, pinned_at: nil, pinned_by_id: nil)
       message.attachments.detach
       message.message_reactions.delete_all
     end

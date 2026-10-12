@@ -552,3 +552,16 @@ it('renders distinct clickable links and copies the original message body', asyn
   fireEvent.click(screen.getByRole('button', { name: 'Copy message' }));
   await waitFor(() => expect(writeText).toHaveBeenCalledWith(body));
 });
+
+it('opens a labeled message actions menu and closes it with Escape', async () => {
+  renderChat();
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Message actions' })).toBeTruthy());
+  fireEvent.click(screen.getByRole('button', { name: 'Message actions' }));
+  const menu = screen.getByRole('group', { name: 'Message actions menu' });
+  expect(menu.getAttribute('data-open')).toBe('true');
+  expect(within(menu).getByText('Copy message')).toBeTruthy();
+  expect(within(menu).getByText('Reply')).toBeTruthy();
+  expect(within(menu).getByText('Add reaction')).toBeTruthy();
+  fireEvent.keyDown(document, { key: 'Escape' });
+  expect(menu.getAttribute('data-open')).toBe('false');
+});

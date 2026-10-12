@@ -7,6 +7,7 @@ class Conversation < ApplicationRecord
   belongs_to :last_message, class_name: "Message", optional: true
   has_many :conversation_participants, dependent: :destroy
   has_many :participants, through: :conversation_participants, source: :user
+  has_many :scheduled_chat_messages, dependent: :destroy
   has_many :messages, dependent: :destroy
   has_many :call_sessions, dependent: :destroy
 

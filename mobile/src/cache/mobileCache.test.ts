@@ -3,6 +3,7 @@ import { afterEach, describe, expect, test } from '@jest/globals';
 
 import type { CollectionResult, Conversation, Message, Post } from '../api/types';
 import {
+  refreshCachesForDeepLink,
   appendIncomingMessage,
   applyConversationReceipt,
   applyPostToFeed,
@@ -183,3 +184,13 @@ function postRow(id: number, likesCount: number, liked: boolean): Post {
     user: { id: 1, first_name: 'Alex', last_name: 'Morgan' },
   };
 }
+
+test.each(['/chat/42?messageId=8', '/inbox/chat/42?messageId=8'])('notification replies refresh conversation caches for %s', async link => {
+  const client = new QueryClient({ defaultOptions: { queries: { gcTime: Infinity } } });
+  clients.push(client);
+  client.setQueryData(mobileQueryKeys.messages(42), { pages: [], pageParams: [] });
+  client.setQueryData(mobileQueryKeys.conversation(42), { id: 42 });
+  await refreshCachesForDeepLink(client, link);
+  expect(client.getQueryState(mobileQueryKeys.messages(42))?.isInvalidated).toBe(true);
+  expect(client.getQueryState(mobileQueryKeys.conversation(42))?.isInvalidated).toBe(true);
+});

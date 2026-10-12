@@ -1275,6 +1275,65 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/conversations/{id}/messages/{message_id}/pin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                message_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["pinConversationMessage"];
+        trace?: never;
+    };
+    "/conversations/{id}/scheduled_messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /** @description Pending sends owned by the current member; other members cannot access drafts. */
+        get: operations["listScheduledChatMessages"];
+        put?: never;
+        /** @description Persist a send for a future instant, within one year. A client_id makes retries idempotent. Supports attachments through multipart/form-data. */
+        post: operations["scheduleChatMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/conversations/{id}/scheduled_messages/{schedule_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                schedule_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** @description Cancel your own pending send. A delivered send returns a conflict. */
+        delete: operations["cancelScheduledChatMessage"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/conversations/{id}/messages/{message_id}/link_preview": {
         parameters: {
             query?: never;
@@ -1529,6 +1588,25 @@ export interface paths {
         options?: never;
         head?: never;
         patch: operations["readNotification"];
+        trace?: never;
+    };
+    "/notifications/{id}/reply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Send an idempotent reply to an owned chat notification and acknowledge only its message. */
+        post: operations["replyToNotification"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/mobile_sessions": {
@@ -1941,6 +2019,9 @@ export interface components {
             edited_at?: string | null;
             /** Format: date-time */
             deleted_at?: string | null;
+            /** Format: date-time */
+            pinned_at?: string | null;
+            pinned_by_id?: number | null;
             /** Format: date-time */
             editable_until?: string | null;
             reply_to_id?: number | null;
@@ -3704,6 +3785,12 @@ export interface operations {
                 before_id?: number;
                 /** @description Literal case-insensitive text or attachment filename search; excludes deleted messages. */
                 q?: string;
+                /** @description Only visible messages containing shared attachments of the selected type. */
+                attachments?: "all" | "media" | "files";
+                /** @description Return only pinned, visible messages in this conversation. */
+                pinned?: boolean;
+                /** @description Return the root message and its direct replies, with thread_root in metadata. */
+                thread_id?: number;
                 /** @description Return messages surrounding this message in the current conversation. */
                 around_id?: number;
                 limit?: number;
@@ -3766,6 +3853,90 @@ export interface operations {
         };
         responses: {
             201: components["responses"]["GenericSuccess"];
+        };
+    };
+    pinConversationMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                message_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    pinned: boolean;
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    listScheduledChatMessages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    scheduleChatMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    message: {
+                        body?: string;
+                        client_id: string;
+                        /** Format: date-time */
+                        send_at: string;
+                        reply_to_id?: number | null;
+                    };
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            201: components["responses"]["GenericSuccess"];
+        };
+    };
+    cancelScheduledChatMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                schedule_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            /** @description Message already sent. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     getMessageLinkPreview: {
@@ -4079,6 +4250,43 @@ export interface operations {
         requestBody?: never;
         responses: {
             200: components["responses"]["GenericSuccess"];
+        };
+    };
+    replyToNotification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    message: {
+                        body: string;
+                        client_id: string;
+                    };
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            /** @description Notification or conversation unavailable. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid reply or notification type. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     listMobileSessions: {

@@ -1,0 +1,130 @@
+{
+  "/": {
+    "title": "Full-stack Rails and React Engineer",
+    "description": "Portfolio of Divyarajsinh Solanki, a full-stack Ruby on Rails and React engineer building Nexus Hub."
+  },
+  "/login": {
+    "title": "Workspace Login",
+    "description": "Workspace Login in Nexus Hub. Manage your workspace and collaborate with your team."
+  },
+  "/signup": {
+    "title": "Create Workspace",
+    "description": "Create Workspace in Nexus Hub. Manage your workspace and collaborate with your team."
+  },
+  "/demo": {
+    "title": "Nexus Hub Guided Demo",
+    "description": "Nexus Hub Guided Demo in Nexus Hub. Manage your workspace and collaborate with your team."
+  },
+  "/planning": {
+    "title": "Planning",
+    "description": "Planning in Nexus Hub. Manage your workspace and collaborate with your team."
+  },
+  "/calendar": {
+    "title": "Planning",
+    "description": "Planning in Nexus Hub. Manage your workspace and collaborate with your team."
+  },
+  "/contact": {
+    "title": "Contact",
+    "description": "Contact Divyarajsinh Solanki about Ruby on Rails, React development, and software engineering opportunities."
+  },
+  "/legal": {
+    "title": "Legal",
+    "description": "Privacy policy and terms for Divyarajsinh Solanki\u2019s portfolio and Nexus Hub."
+  },
+  "/metaverse-landing": {
+    "title": "Metaverse Landing",
+    "description": "Explore the Nexus Hub metaverse workspace built by Divyarajsinh Solanki."
+  },
+  "/pdf": {
+    "title": "PDF Master",
+    "description": "PDF Master in Nexus Hub. Manage your workspace and collaborate with your team."
+  },
+  "/pdf-master": {
+    "title": "PDF Master",
+    "description": "PDF Master in Nexus Hub. Manage your workspace and collaborate with your team."
+  },
+  "/momentum": {
+    "title": "Planning",
+    "description": "Planning in Nexus Hub. Manage your workspace and collaborate with your team."
+  },
+  "/posts": {
+    "title": "Home",
+    "description": "Home in Nexus Hub. Manage your workspace and collaborate with your team."
+  },
+  "/vault": {
+    "title": "Vault",
+    "description": "Vault in Nexus Hub. Manage your workspace and collaborate with your team."
+  },
+  "/profile": {
+    "title": "Profile",
+    "description": "Profile in Nexus Hub. Manage your workspace and collaborate with your team."
+  },
+  "/knowledge": {
+    "title": "Knowledge Dashboard",
+    "description": "Knowledge Dashboard in Nexus Hub. Manage your workspace and collaborate with your team."
+  },
+  "/worklog": {
+    "title": "Planning",
+    "description": "Planning in Nexus Hub. Manage your workspace and collaborate with your team."
+  },
+  "/projects": {
+    "title": "Projects",
+    "description": "Projects in Nexus Hub. Manage your workspace and collaborate with your team."
+  },
+  "/teams": {
+    "title": "Teams",
+    "description": "Teams in Nexus Hub. Manage your workspace and collaborate with your team."
+  },
+  "/users": {
+    "title": "Users",
+    "description": "Users in Nexus Hub. Manage your workspace and collaborate with your team."
+  },
+  "/departments": {
+    "title": "Departments",
+    "description": "Departments in Nexus Hub. Manage your workspace and collaborate with your team."
+  },
+  "/admin": {
+    "title": "Admin",
+    "description": "Admin in Nexus Hub. Manage your workspace and collaborate with your team."
+  },
+  "/admin/portfolio": {
+    "title": "Portfolio Editor",
+    "description": "Portfolio Editor in Nexus Hub. Manage your workspace and collaborate with your team."
+  },
+  "/home": {
+    "title": "Home",
+    "description": "Home in Nexus Hub. Manage your workspace and collaborate with your team."
+  },
+  "/my-work": {
+    "title": "Home",
+    "description": "Home in Nexus Hub. Manage your workspace and collaborate with your team."
+  },
+  "/admin/login-as-user": {
+    "title": "Admin Impersonation",
+    "description": "Admin Impersonation in Nexus Hub. Manage your workspace and collaborate with your team."
+  },
+  "/settings": {
+    "title": "Settings",
+    "description": "Settings in Nexus Hub. Manage your workspace and collaborate with your team."
+  },
+  "/chat": {
+    "title": "Chat",
+    "description": "Chat in Nexus Hub. Manage your workspace and collaborate with your team."
+  },
+  "/meet": {
+    "title": "Meeting",
+    "description": "Meeting in Nexus Hub. Manage your workspace and collaborate with your team."
+  },
+  "/notifications": {
+    "title": "Notifications",
+    "description": "Notifications in Nexus Hub. Manage your workspace and collaborate with your team."
+  },
+  "/forgot-password": {
+    "title": "Forgot Password",
+    "description": "Forgot Password in Nexus Hub. Manage your workspace and collaborate with your team."
+  },
+  "/reset-password": {
+    "title": "Reset Password",
+    "description": "Reset Password in Nexus Hub. Manage your workspace and collaborate with your team."
+  }
+}

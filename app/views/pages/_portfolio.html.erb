@@ -1,0 +1,58 @@
+<main class="mx-auto max-w-5xl px-6 py-16 text-slate-900" id="portfolio-main">
+  <header>
+    <h1 class="text-4xl font-bold"><%= profile.full_name %></h1>
+    <p class="mt-4 text-xl"><%= profile.headline %></p>
+    <p class="mt-2"><%= profile.location %></p>
+    <nav class="mt-6 flex gap-4" aria-label="Portfolio navigation">
+      <a href="#about">About</a>
+      <a href="#projects">Projects</a>
+      <%= link_to "Contact", "/contact" %>
+    </nav>
+  </header>
+  <section id="about" class="mt-12" aria-labelledby="about-heading">
+    <h2 id="about-heading" class="text-2xl font-bold">About <%= profile.full_name %></h2>
+    <p class="mt-4"><%= profile.summary %></p>
+    <h3 class="mt-6 text-xl font-semibold">Engineering experience</h3>
+    <% projects.each do |project| %>
+      <% if project.case_study&.dig("role").present? %>
+        <p class="mt-3"><strong><%= project.title %>:</strong> <%= project.case_study["role"] %></p>
+      <% end %>
+    <% end %>
+    <h3 class="mt-6 text-xl font-semibold">Skills</h3>
+    <p class="mt-3"><%= Array(profile.skills).join(" · ") %></p>
+    <h3 class="mt-6 text-xl font-semibold">Engineering achievements</h3>
+    <ul class="mt-3 list-disc pl-6">
+      <% Array(profile.engineering_highlights).each do |highlight| %>
+        <li><%= highlight %></li>
+      <% end %>
+    </ul>
+    <ul class="mt-4 list-disc pl-6">
+      <% Array(profile.metrics).each do |metric| %>
+        <li><%= metric %></li>
+      <% end %>
+    </ul>
+  </section>
+  <section id="projects" class="mt-12" aria-labelledby="projects-heading">
+    <h2 id="projects-heading" class="text-2xl font-bold">Projects</h2>
+    <% projects.each do |project| %>
+      <article class="mt-8">
+        <h3 class="text-xl font-semibold"><%= project.title %></h3>
+        <p class="mt-3"><%= project.summary %></p>
+        <p class="mt-3"><%= project.description %></p>
+        <p class="mt-3">Built with <%= Array(project.stack).join(", ") %>.</p>
+        <% if project.case_study&.dig("outcomes").present? %>
+          <h4 class="mt-4 font-semibold">Outcomes</h4>
+          <ul class="mt-3 list-disc pl-6">
+            <% Array(project.case_study["outcomes"]).each do |outcome| %>
+              <li><%= outcome %></li>
+            <% end %>
+          </ul>
+        <% end %>
+        <% project.portfolio_features.select(&:published?).sort_by { |feature| [feature.position, feature.id] }.each do |feature| %>
+          <h4 class="mt-4 font-semibold"><%= feature.title %></h4>
+          <p class="mt-2"><%= feature.summary %></p>
+        <% end %>
+      </article>
+    <% end %>
+  </section>
+</main>

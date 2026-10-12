@@ -17,6 +17,7 @@ import type {
   LearningCheckpoint,
   LearningGoal,
   Message,
+  ScheduledChatMessage,
   MobileConfig,
   DemoManifest,
   MobileSession,
@@ -434,6 +435,21 @@ export const endpoints = {
   async deleteConversationForEveryone(id: number, confirmation: string) {
     await api.delete(`/conversations/${id}/for_everyone`, { data: { confirmation } });
   },
+  chatToolMessages(conversationId: number, filters: Record<string, unknown>, before?: number) {
+    return collection<Message>(`/conversations/${conversationId}/messages`, { ...filters, limit: 50, ...(before ? { before_id: before } : {}) });
+  },
+  pinMessage(conversationId: number, messageId: number, pinned: boolean) {
+    return update<Message>(`/conversations/${conversationId}/messages/${messageId}/pin`, { pinned });
+  },
+  scheduledMessages(conversationId: number, before?: number) {
+    return collection<ScheduledChatMessage>(`/conversations/${conversationId}/scheduled_messages`, before ? { before_id: before } : {});
+  },
+  scheduleMessage(conversationId: number, form: FormData) {
+    return create<ScheduledChatMessage>(`/conversations/${conversationId}/scheduled_messages`, form);
+  },
+  async cancelScheduledMessage(conversationId: number, id: number) {
+    await api.delete(`/conversations/${conversationId}/scheduled_messages/${id}`);
+  },
   messages(conversationId: number, before?: number) {
     return collection<Message>(`/conversations/${conversationId}/messages`, { limit: 50, ...(before ? { before_id: before } : {}) });
   },
@@ -452,6 +468,11 @@ export const endpoints = {
   },
   createMessage(conversationId: number, form: FormData) {
     return create<Message>(`/conversations/${conversationId}/messages`, form);
+  },
+  replyToNotification(notificationId: number, body: string, clientId: string) {
+    return create<{ message_id: number; conversation_id: number; reply_to_id: number | null; unread_count: number }>(`/notifications/${notificationId}/reply`, {
+      message: { body, client_id: clientId },
+    });
   },
   createTextMessage(conversationId: number, body: string, clientId: string) {
     return create<Message>(`/conversations/${conversationId}/messages`, {

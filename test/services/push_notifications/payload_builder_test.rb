@@ -25,6 +25,7 @@ class PushNotifications::PayloadBuilderTest < ActiveSupport::TestCase
       assert_equal "chat_message_actions", payload[:categoryId]
       assert_equal "conversation:41", payload[:collapseId]
       assert_equal "3 new messages in Delivery — PDF Tester: Private update", payload[:body]
+      assert_equal @recipient.id, payload.dig(:data, :recipient_user_id)
       assert_equal 41, payload.dig(:data, :conversation_id)
       assert_equal 73, payload.dig(:data, :message_id)
       assert_equal "/chat/41?messageId=73", payload.dig(:data, :deep_link)

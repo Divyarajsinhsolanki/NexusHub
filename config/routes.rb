@@ -177,10 +177,12 @@ Rails.application.routes.draw do
           delete :mute, action: :unmute
           delete :for_everyone
         end
+        resources :scheduled_messages, controller: "/api/scheduled_chat_messages", only: [:index, :create, :destroy]
         resources :calls, controller: "/api/conversation_calls", only: [:create]
         resource :receipt, controller: "/api/conversation_receipts", only: [:update]
         resources :messages, controller: "/api/messages", only: [:index, :create, :update, :destroy] do
           get :link_preview, on: :member
+          patch :pin, on: :member
           resources :reactions, controller: "/api/message_reactions", only: [:create]
           delete :reactions, to: "/api/message_reactions#destroy"
         end
@@ -201,6 +203,7 @@ Rails.application.routes.draw do
       resources :notifications, only: [:index] do
         member do
           patch :read
+          post :reply, to: "/api/notifications#reply"
         end
         collection do
           patch :read_all
@@ -405,10 +408,12 @@ Rails.application.routes.draw do
         delete :mute, action: :unmute
         delete :for_everyone
       end
+      resources :scheduled_messages, controller: "scheduled_chat_messages", only: [:index, :create, :destroy]
       resources :calls, controller: "conversation_calls", only: [:create]
       resource :receipt, controller: "conversation_receipts", only: [:update]
       resources :messages, only: [:index, :create, :update, :destroy] do
         get :link_preview, on: :member
+          patch :pin, on: :member
         resources :reactions, controller: "message_reactions", only: [:create]
         delete "reactions", to: "message_reactions#destroy"
       end
@@ -433,6 +438,7 @@ Rails.application.routes.draw do
       end
       member do
         post :mark_read
+        post :reply
       end
     end
 

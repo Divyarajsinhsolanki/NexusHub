@@ -63,7 +63,7 @@ class Message < ApplicationRecord
 
   def chat_context
     {
-      message_type: message_type,
+      message_type: message_type, pinned_at: pinned_at, pinned_by_id: pinned_by_id,
       edited_at: edited_at, deleted_at: deleted_at, updated_at: updated_at,
       editable_until: created_at && created_at + 15.minutes,
       reply_to_id: reply_to_id,

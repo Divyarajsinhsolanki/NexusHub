@@ -1,4 +1,5 @@
-import { MuteDurationSheet } from '@/src/components/chat/MuteDurationSheet';
+import { ChatActionSheet, ChatSheetAction } from "@/src/components/chat/ChatActionSheet";
+import { MuteOptions } from '@/src/components/chat/MuteDurationSheet';
 import { PostAttachment } from "@/src/components/PostAttachment";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
@@ -126,20 +127,16 @@ export function ConversationRow({ conversation }: { conversation: Conversation }
   const group = conversation.conversation_type === 'group';
   const online = !group && Boolean(other && isParticipantOnline(other, presenceNow));
   const queryClient = useQueryClient();
-  const [muteOpen, setMuteOpen] = useState(false);
+  const [actionStage, setActionStage] = useState<"actions" | "mute" | "delete" | null>(null);
   const refresh = () => queryClient.invalidateQueries({ queryKey: mobileQueryKeys.conversations });
   const actOnConversation = async (action: () => Promise<unknown>) => {
     try { await action(); await refresh(); } catch (error) { Alert.alert('Unable to update chat', apiErrorMessage(error)); }
   };
-  const actions = () => {
-    if (user?.demo_account) return;
-    Alert.alert(conversationTitle(conversation), 'Chat actions', [
-      { text: conversation.muted ? 'Unmute' : 'Mute', onPress: () => conversation.muted ? void actOnConversation(() => endpoints.setConversationMuted(conversation.id, false)) : setMuteOpen(true) },
-      { text: 'Delete chat for me', style: 'destructive', onPress: () => Alert.alert('Delete chat for me?', 'This removes it from your inbox. Other members keep their messages.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => void actOnConversation(() => endpoints.hideConversation(conversation.id)) }]) },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
-  };
-  return <><Pressable onLongPress={actions} accessibilityHint="Long press for chat actions" accessibilityLabel={`Open ${conversationTitle(conversation)}`} accessibilityRole="button" onPress={() => router.push(`/chat/${conversation.id}` as never)} style={({ pressed }) => [styles.conversation, { backgroundColor: pressed ? theme.surfaceMuted : theme.background, borderBottomColor: theme.border }]}><View><Avatar name={conversationTitle(conversation)} size={48} uri={!group ? absoluteAssetUrl(other?.profile_picture) : undefined} /><View style={[styles.presence, { backgroundColor: online ? theme.success : theme.border, borderColor: theme.background }]} /></View><View style={styles.conversationCopy}><View style={styles.conversationTitleRow}><Text numberOfLines={1} style={[styles.name, { color: theme.text }]}>{conversationTitle(conversation)}</Text>{conversation.muted ? <MicOff color={theme.textMuted} size={14} /> : null}</View><Text numberOfLines={1} style={[styles.preview, { color: theme.textMuted }]}>{conversationPreview(conversation)}</Text></View><View style={styles.conversationMeta}>{conversation.active_call ? <PhoneCall color={theme.success} size={17} /> : null}{conversation.unread_count ? <View style={[styles.badge, { backgroundColor: theme.primary }]}><Text style={styles.badgeText}>{conversation.unread_count > 99 ? '99+' : conversation.unread_count}</Text></View> : null}<Text style={[styles.kind, { color: theme.textMuted }]}>{group ? `${participants.length} people` : online ? 'Online' : ''}</Text></View></Pressable><MuteDurationSheet visible={muteOpen} onClose={() => setMuteOpen(false)} onSelect={duration => { setMuteOpen(false); void actOnConversation(() => endpoints.setConversationMuted(conversation.id, true, duration)); }} /></>;
+  const actions = () => { if (!user?.demo_account) setActionStage('actions'); };
+  return <><Pressable onLongPress={actions} accessibilityHint="Long press for chat actions" accessibilityLabel={`Open ${conversationTitle(conversation)}`} accessibilityRole="button" onPress={() => router.push(`/chat/${conversation.id}` as never)} style={({ pressed }) => [styles.conversation, { backgroundColor: pressed ? theme.surfaceMuted : theme.background, borderBottomColor: theme.border }]}><View><Avatar name={conversationTitle(conversation)} size={48} uri={!group ? absoluteAssetUrl(other?.profile_picture) : undefined} /><View style={[styles.presence, { backgroundColor: online ? theme.success : theme.border, borderColor: theme.background }]} /></View><View style={styles.conversationCopy}><View style={styles.conversationTitleRow}><Text numberOfLines={1} style={[styles.name, { color: theme.text }]}>{conversationTitle(conversation)}</Text>{conversation.muted ? <MicOff color={theme.textMuted} size={14} /> : null}</View><Text numberOfLines={1} style={[styles.preview, { color: theme.textMuted }]}>{conversationPreview(conversation)}</Text></View><View style={styles.conversationMeta}>{conversation.active_call ? <PhoneCall color={theme.success} size={17} /> : null}{conversation.unread_count ? <View style={[styles.badge, { backgroundColor: theme.primary }]}><Text style={styles.badgeText}>{conversation.unread_count > 99 ? '99+' : conversation.unread_count}</Text></View> : null}<Text style={[styles.kind, { color: theme.textMuted }]}>{group ? `${participants.length} people` : online ? 'Online' : ''}</Text></View></Pressable><ChatActionSheet visible={actionStage !== null} title={actionStage === 'mute' ? 'Mute notifications for…' : actionStage === 'delete' ? 'Delete chat for me?' : conversationTitle(conversation)} onClose={() => setActionStage(null)}>
+    {actionStage === 'mute' ? <MuteOptions onClose={() => setActionStage(null)} onSelect={duration => { setActionStage(null); void actOnConversation(() => endpoints.setConversationMuted(conversation.id, true, duration)); }} /> : actionStage === 'delete' ? <><Text style={{ color: theme.textMuted, marginBottom: 12 }}>This removes it from your inbox. Other members keep their messages.</Text><ChatSheetAction label="Delete" danger onPress={() => { setActionStage(null); void actOnConversation(() => endpoints.hideConversation(conversation.id)); }} /></> : <><ChatSheetAction label={conversation.muted ? 'Unmute' : 'Mute'} onPress={() => { if (conversation.muted) { setActionStage(null); void actOnConversation(() => endpoints.setConversationMuted(conversation.id, false)); } else setActionStage('mute'); }} /><ChatSheetAction label="Delete chat for me" danger onPress={() => setActionStage('delete')} /></>}
+    {actionStage !== 'mute' && <ChatSheetAction label="Cancel" onPress={() => setActionStage(null)} />}
+  </ChatActionSheet></>;
 }
 
 function NewConversationSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {

@@ -38,7 +38,7 @@ async function configureNotifications() {
       {
         identifier: NOTIFICATION_ACTIONS.reply,
         buttonTitle: 'Reply',
-        options: { opensAppToForeground: !headlessAction },
+        options: { opensAppToForeground: !headlessAction, isAuthenticationRequired: true },
         textInput: { submitButtonTitle: 'Send', placeholder: 'Write a reply' },
       },
       {

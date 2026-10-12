@@ -1,12 +1,24 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <title><%= public_portfolio_page? ? "Divyarajsinh Solanki | Full-stack Engineer" : "Nexus Hub | Workspace Login" %></title>
-    <% unless public_portfolio_page? %>
-      <meta name="robots" content="noindex, nofollow">
-    <% end %>
+    <% metadata = page_metadata %>
+    <title><%= metadata["title"] %></title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <meta name="description" content="<%= public_portfolio_page? ? "Portfolio of Divyarajsinh Solanki, a full-stack Ruby on Rails and React engineer building Nexus Hub." : "Sign in or create a Nexus Hub workspace." %>">
+    <meta name="description" content="<%= metadata["description"] %>">
+    <meta name="robots" content="<%= public_portfolio_page? ? 'index, follow' : 'noindex, nofollow' %>">
+    <meta name="nexus-site-url" content="<%= seo_site_url %>">
+    <link rel="canonical" href="<%= metadata["url"] %>">
+    <meta property="og:title" content="<%= metadata["title"] %>">
+    <meta property="og:description" content="<%= metadata["description"] %>">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="<%= metadata["url"] %>">
+    <meta property="og:site_name" content="<%= PortfolioAccess.enabled? ? 'Divyarajsinh Solanki' : 'Nexus Hub' %>">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="<%= metadata["title"] %>">
+    <meta name="twitter:description" content="<%= metadata["description"] %>">
+    <% if public_portfolio_page? && request.path == "/" %>
+      <script type="application/ld+json"><%= raw(json_escape({ "@context" => "https://schema.org", "@graph" => [ { "@type" => "WebSite", "name" => "Divyarajsinh Solanki", "alternateName" => "Divyarajsinh", "url" => "#{seo_site_url}/" }, { "@type" => "Person", "name" => "Divyarajsinh Solanki", "url" => "#{seo_site_url}/", "jobTitle" => "Full-stack Engineer" } ] }.to_json)) %></script>
+    <% end %>
     <meta name="nexus-portfolio-enabled" content="<%= PortfolioAccess.enabled? %>">
     <% recaptcha_enabled = ActiveModel::Type::Boolean.new.cast(ENV["RECAPTCHA_ENABLED"]) || ENV["VITE_RECAPTCHA_SITE_KEY"].present? %>
     <meta name="nexus-recaptcha-enabled" content="<%= recaptcha_enabled %>">
@@ -35,6 +47,10 @@
   </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <% if @portfolio_profile.present? %>
+        <%= render "pages/portfolio", profile: @portfolio_profile, projects: @portfolio_projects %>
+      <% end %>
+    </div>
   </body>
 </html>

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>3D clay icon concepts · DS</title>
+<style>
+:root{color-scheme:light dark;font-family:system-ui,sans-serif;background:#f6f5f2;color:#182034}
+*{box-sizing:border-box}body{margin:0}main{max-width:1240px;margin:auto;padding:40px 24px}
+header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:24px;margin-bottom:32px}
+h1{font-size:clamp(24px,4vw,38px);letter-spacing:-.04em;margin:0 0 10px}p{line-height:1.6;margin:0;color:#5a6274}
+label{display:flex;align-items:center;gap:10px}select{padding:10px;border:1px solid #c7cbd5;border-radius:10px;background:transparent;color:inherit}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:20px}
+article{border:1px solid #dfe1e7;background:white;border-radius:22px;padding:20px}
+.hero{display:block;width:100%;aspect-ratio:1;object-fit:contain;border-radius:20%}
+h2{font-size:18px;margin:20px 0 8px}article p{font-size:14px;min-height:48px}
+.sizes{display:flex;align-items:end;justify-content:space-around;gap:14px;border-top:1px solid #e4e6ec;padding-top:18px;margin:20px 0}
+figure{margin:0;text-align:center}figure img{display:block;border-radius:20%;margin:0 auto 10px}figcaption{font-size:12px;color:#677080}
+[data-mask="circle"] img{border-radius:50%}[data-mask="square"] img{border-radius:0}
+a{color:#4b4ad9;display:inline-block;padding:8px 0;font-size:14px}a:focus-visible,select:focus-visible{outline:3px solid #8b86ef;outline-offset:4px}
+footer{margin-top:28px;font-size:14px;color:#5a6274}
+@media(prefers-color-scheme:dark){:root{background:#101421;color:#f2f1f8}article{background:#191e2c;border-color:#343b4e}p,footer,figcaption{color:#b0b8cb}.sizes{border-color:#343b4e}a{color:#b1aaff}}
+</style>
+</head>
+<body data-mask="rounded"><main><header><div><h1>3D clay icon concepts</h1><p>Two DS monograms, a connected hub, and a chat icon. Compare at everyday app sizes.</p></div>
+<label for="mask">Icon mask <select id="mask"><option value="rounded">Rounded square</option><option value="circle">Circle</option><option value="square">Original square</option></select></label></header>
+<div class="grid"><article><img class="hero" src="ds-clay-interlock.png" alt="DS · Interlock 3D clay icon"><h2>DS · Interlock</h2><p>Porcelain and lavender on indigo. Soft joined letterforms.</p><div class="sizes"><figure><img src="ds-clay-interlock.png" width="96" height="96" alt=""><figcaption>96px</figcaption></figure><figure><img src="ds-clay-interlock.png" width="48" height="48" alt=""><figcaption>48px</figcaption></figure><figure><img src="ds-clay-interlock.png" width="32" height="32" alt=""><figcaption>32px</figcaption></figure></div><a href="ds-clay-interlock.png" download>Download original PNG</a></article>
+<article><img class="hero" src="ds-clay-emboss.png" alt="DS · Sculpted 3D clay icon"><h2>DS · Sculpted</h2><p>Teal and terracotta on ivory. A sharper joined monogram.</p><div class="sizes"><figure><img src="ds-clay-emboss.png" width="96" height="96" alt=""><figcaption>96px</figcaption></figure><figure><img src="ds-clay-emboss.png" width="48" height="48" alt=""><figcaption>48px</figcaption></figure><figure><img src="ds-clay-emboss.png" width="32" height="32" alt=""><figcaption>32px</figcaption></figure></div><a href="ds-clay-emboss.png" download>Download original PNG</a></article>
+<article><img class="hero" src="clay-connected-hub.png" alt="Connected hub 3D clay icon"><h2>Connected hub</h2><p>Three sculpted links for chat, projects, and work.</p><div class="sizes"><figure><img src="clay-connected-hub.png" width="96" height="96" alt=""><figcaption>96px</figcaption></figure><figure><img src="clay-connected-hub.png" width="48" height="48" alt=""><figcaption>48px</figcaption></figure><figure><img src="clay-connected-hub.png" width="32" height="32" alt=""><figcaption>32px</figcaption></figure></div><a href="clay-connected-hub.png" download>Download original PNG</a></article>
+<article><img class="hero" src="clay-chat-bubble.png" alt="Clay chat 3D clay icon"><h2>Clay chat</h2><p>A soft lavender bubble with inset porcelain dots.</p><div class="sizes"><figure><img src="clay-chat-bubble.png" width="96" height="96" alt=""><figcaption>96px</figcaption></figure><figure><img src="clay-chat-bubble.png" width="48" height="48" alt=""><figcaption>48px</figcaption></figure><figure><img src="clay-chat-bubble.png" width="32" height="32" alt=""><figcaption>32px</figcaption></figure></div><a href="clay-chat-bubble.png" download>Download original PNG</a></article></div>
+<footer>Saved concept assets for review. <a href="prompts.md">Generation prompts</a></footer></main>
+<script>document.getElementById('mask').addEventListener('change',event=>{document.body.dataset.mask=event.target.value;});</script>
+</body></html>

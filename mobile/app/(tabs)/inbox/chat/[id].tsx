@@ -1,4 +1,7 @@
-import * as Clipboard from "expo-clipboard";
+import { ChatActionSheet, ChatSheetAction } from "@/src/components/chat/ChatActionSheet";
+import { ChatToolsSheet, type ChatToolMode } from "@/src/components/chat/ChatToolsSheet";
+import { SwipeToReply } from "@/src/components/chat/SwipeToReply";
+import { MessageActionsSheet } from "@/src/components/chat/MessageActionsSheet";
 import { MessageLinkPreview } from "@/src/components/chat/MessageLinkPreview";
 import { RichMessageText } from '@/src/components/chat/RichMessageText';
 import { getUserMentionAliases, getTaskReferenceKey, getPreferredUserMentionHandle, getComposerEntityQuery, applyComposerEntity, type MentionLookups } from '@/src/chat/mentions';
@@ -9,7 +12,7 @@ import { randomUUID } from 'expo-crypto';
 import { Redirect, useFocusEffect, useLocalSearchParams, usePathname, useRouter, type ErrorBoundaryProps } from 'expo-router';
 import { ArrowLeft, Search, CornerUpLeft, FilePlus2, MoreHorizontal, Phone, Send, UsersRound, Video, X } from 'lucide-react-native';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, AppState, FlatList, Keyboard, Linking, Modal, NativeScrollEvent, NativeSyntheticEvent, Platform, Pressable, StyleSheet, Text, TextInput, View, type ListRenderItemInfo } from 'react-native';
+import { Alert, AppState, FlatList, Keyboard, Linking, Modal, NativeScrollEvent, NativeSyntheticEvent, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type ListRenderItemInfo } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { absoluteAssetUrl, apiErrorMessage } from '@/src/api/client';
@@ -38,7 +41,7 @@ import { useAppTheme } from '@/src/theme';
 import { useChatDraft } from '@/src/chat/drafts';
 import { canChangeMessage, mergeMessage, patchMessageRows } from '@/src/chat/messageLifecycle';
 
-type MessageDraft = { body: string; attachment: DocumentPicker.DocumentPickerAsset | null; clientId: string; replyTo?: Message | null };
+type MessageDraft = { body: string; attachments: DocumentPicker.DocumentPickerAsset[]; clientId: string; replyTo?: Message | null };
 
 export default function ChatRoute() {
   const { id, messageId } = useLocalSearchParams<{ id: string; messageId?: string }>();
@@ -69,6 +72,7 @@ function ChatScreen({ conversationId }: { conversationId: number }) {
   const writable = !user?.demo_account;
   const { body, setBody, replyTo, setReplyTo, clientId, setClientId } = useChatDraft(user?.id, user?.workspace?.id, conversationId);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [toolMode, setToolMode] = useState<ChatToolMode | null>(null);
   const [searchText, setSearchText] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [contextRows, setContextRows] = useState<Message[] | null>(null);
@@ -88,9 +92,10 @@ function ChatScreen({ conversationId }: { conversationId: number }) {
     enabled: Boolean(searchQuery),
     gcTime: 60_000,
   });
-  const [attachment, setAttachment] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
-  const composerRef = useRef({ body, attachment, replyTo });
-  composerRef.current = { body, attachment, replyTo };
+  const [attachments, setAttachments] = useState<DocumentPicker.DocumentPickerAsset[]>([]);
+  const scheduledDraftRef = useRef<{ body: string; attachments: DocumentPicker.DocumentPickerAsset[]; replyTo?: Message | null; when: string; clientId: string } | null>(null);
+  const composerRef = useRef({ body, attachments, replyTo });
+  composerRef.current = { body, attachments, replyTo };
   const sendingDraftRef = useRef<MessageDraft | null>(null);
   const [hasUnreadBelow, setHasUnreadBelow] = useState(false);
   const [unreadStartId, setUnreadStartId] = useState<number | null>(null);
@@ -101,7 +106,7 @@ function ChatScreen({ conversationId }: { conversationId: number }) {
   const listRef = useRef<FlatList<Message>>(null);
   useEffect(() => {
     const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
-    const subscription = Keyboard.addListener('keyboardDidShow', () => {
+    const subscription = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => {
       setKeyboardVisible(true);
       if (focusedRef.current && atLatestRef.current && !viewingHistoryRef.current) {
         atLatestRef.current = true;
@@ -215,7 +220,7 @@ function ChatScreen({ conversationId }: { conversationId: number }) {
   }, [people.data, linkedTasks.data, conversation.data?.participants]);
   const composerEntity = getComposerEntityQuery(body, composerCaret);
   const suggestions = composerEntity ? (composerEntity.trigger === '@'
-    ? (people.data || normalizedParticipants(conversation.data?.participants)).filter(person => getUserMentionAliases(person).some(alias => alias.includes(composerEntity.query.toLowerCase()))).map(person => ({ key: String(person.id), label: String(person.name || ('full_name' in person && person.full_name) || ('email' in person && person.email) || 'Member'), value: '@' + getPreferredUserMentionHandle(person) }))
+    ? normalizedParticipants(conversation.data?.participants).map(participant => ({ ...(people.data || []).find(person => Number(person.id) === Number(participant.id)), ...participant })).filter(person => Number(person.id) !== Number(user?.id) && getUserMentionAliases(person).some(alias => alias.includes(composerEntity.query.toLowerCase()))).map(person => ({ key: String(person.id), label: String(person.name || ('full_name' in person && person.full_name) || ('email' in person && person.email) || 'Member'), value: '@' + getPreferredUserMentionHandle(person) }))
     : (linkedTasks.data || []).filter(task => task.task_id && (String(task.task_id) + ' ' + task.title).toLowerCase().includes(composerEntity.query.toLowerCase())).map(task => ({ key: String(task.id), label: '#' + task.task_id + ' · ' + task.title, value: '#' + task.task_id }))).slice(0, 6) : [];
   const chooseSuggestion = (replacement: string) => {
     if (!composerEntity) return;
@@ -295,6 +300,7 @@ function ChatScreen({ conversationId }: { conversationId: number }) {
       if (replyRef.current?.id === incoming.id) setReplyTo(incoming.deleted_at ? null : mergeMessage(replyRef.current, incoming));
       setContextRows((previous) => previous && patchMessageRows(previous, incoming));
       void queryClient.invalidateQueries({ queryKey: ['chat-search', conversationId] });
+      void queryClient.invalidateQueries({ queryKey: ['chat-tools', conversationId] });
       return;
     }
     if (event.type !== 'message_created') return;
@@ -372,7 +378,7 @@ function ChatScreen({ conversationId }: { conversationId: number }) {
       form.append('message[body]', draft.body.trim());
       form.append('message[client_id]', draft.clientId);
       if (draft.replyTo) form.append('message[reply_to_id]', String(draft.replyTo.id));
-      if (draft.attachment) form.append('message[attachments][]', { uri: draft.attachment.uri, name: draft.attachment.name, type: draft.attachment.mimeType || 'application/octet-stream' } as never);
+      for (const file of draft.attachments) form.append('message[attachments][]', { uri: file.uri, name: file.name, type: file.mimeType || 'application/octet-stream' } as never);
       return endpoints.createMessage(conversationId, form);
     },
     onMutate: async (draft) => {
@@ -389,7 +395,7 @@ function ChatScreen({ conversationId }: { conversationId: number }) {
         user_name: user?.full_name,
         reply_to_id: draft.replyTo?.id,
         reply_to: draft.replyTo ? { id: draft.replyTo.id, body: draft.replyTo.body || '', user_id: draft.replyTo.user_id || 0, user_name: draft.replyTo.user_name || 'Teammate' } : null,
-        attachments: draft.attachment ? [{ id: temporaryId, filename: draft.attachment.name, url: draft.attachment.uri, content_type: draft.attachment.mimeType }] : [],
+        attachments: draft.attachments.map((file, index) => ({ id: temporaryId - index, filename: file.name, url: file.uri, content_type: file.mimeType })),
       };
       failedDrafts.current.set(temporaryId, draft);
       appendIncomingMessage(queryClient, conversationId, optimistic);
@@ -399,8 +405,8 @@ function ChatScreen({ conversationId }: { conversationId: number }) {
       return { temporaryId };
     },
     onSuccess: (created, draft, context) => {
-      if (composerRef.current.body === draft.body && composerRef.current.attachment === draft.attachment && composerRef.current.replyTo?.id === draft.replyTo?.id) {
-        setBody(''); setReplyTo(null); setAttachment(null); setClientId(undefined);
+      if (composerRef.current.body === draft.body && composerRef.current.attachments === draft.attachments && composerRef.current.replyTo?.id === draft.replyTo?.id) {
+        setBody(''); setReplyTo(null); setAttachments([]); setClientId(undefined);
       }
       sendingDraftRef.current = null;
       if (context) {
@@ -415,9 +421,36 @@ function ChatScreen({ conversationId }: { conversationId: number }) {
       Alert.alert('Message not sent', apiErrorMessage(error));
     },
   });
+  const scheduleCurrent = async (when: Date) => {
+    const snapshot = composerRef.current;
+    const form = new FormData();
+    form.append('message[body]', snapshot.body);
+    const cached = scheduledDraftRef.current;
+    const time = when.toISOString();
+    const same = cached && cached.body === snapshot.body && cached.attachments === snapshot.attachments && cached.replyTo?.id === snapshot.replyTo?.id && cached.when === time;
+    const scheduleClientId = same ? cached.clientId : randomUUID();
+    scheduledDraftRef.current = { ...snapshot, when: time, clientId: scheduleClientId };
+    form.append('message[client_id]', scheduleClientId);
+    form.append('message[send_at]', when.toISOString());
+    if (snapshot.replyTo) form.append('message[reply_to_id]', String(snapshot.replyTo.id));
+    for (const file of snapshot.attachments) form.append('message[attachments][]', { uri: file.uri, name: file.name, type: file.mimeType || 'application/octet-stream' } as never);
+    await endpoints.scheduleMessage(conversationId, form);
+    if (composerRef.current.body === snapshot.body && composerRef.current.attachments === snapshot.attachments && composerRef.current.replyTo?.id === snapshot.replyTo?.id) {
+      setBody(''); setReplyTo(null); setAttachments([]); setClientId(undefined);
+    }
+    stopTyping();
+  };
+  const pinSelected = async () => {
+    if (!reactionMessage) return;
+    try {
+      const message = await endpoints.pinMessage(conversationId, reactionMessage.id, !reactionMessage.pinned_at);
+      applyMessageChange(queryClient, conversationId, message);
+      setReactionMessage(null);
+    } catch (error) { Alert.alert('Pin not updated', apiErrorMessage(error)); }
+  };
   const sendCurrent = () => {
-    if ((!body.trim() && !attachment) || send.isPending || sendingDraftRef.current) return;
-    const draft = { body, attachment, clientId: clientId || randomUUID(), replyTo };
+    if ((!body.trim() && !attachments.length) || send.isPending || sendingDraftRef.current) return;
+    const draft = { body, attachments, clientId: clientId || randomUUID(), replyTo };
     failedDrafts.current.forEach((failed, temporaryId) => {
       if (failed.clientId === draft.clientId) {
         removeCachedMessage(queryClient, conversationId, temporaryId);
@@ -476,8 +509,8 @@ function ChatScreen({ conversationId }: { conversationId: number }) {
   };
   const pickAttachment = async () => {
     try {
-      const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true, multiple: false });
-      if (!result.canceled) { setAttachment(result.assets[0] || null); setClientId(undefined); }
+      const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true, multiple: true });
+      if (!result.canceled) { setAttachments(current => [...current, ...result.assets.filter(file => !current.some(existing => existing.uri === file.uri && existing.name === file.name))]); setClientId(undefined); }
     } catch (error) { Alert.alert('Unable to attach file', apiErrorMessage(error)); }
   };
   const react = useMutation({
@@ -509,6 +542,7 @@ function ChatScreen({ conversationId }: { conversationId: number }) {
       applyMessageChange(queryClient, conversationId, message);
       setContextRows((previous) => previous && patchMessageRows(previous, message));
       void queryClient.invalidateQueries({ queryKey: ['chat-search', conversationId] });
+      void queryClient.invalidateQueries({ queryKey: ['chat-tools', conversationId] });
       setEditMessage(null);
       setReactionMessage(null);
     },
@@ -516,10 +550,7 @@ function ChatScreen({ conversationId }: { conversationId: number }) {
   });
   const deleteSelected = () => {
     if (!reactionMessage) return;
-    Alert.alert('Delete message?', 'This deletes the message for everyone.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => changeMessage.mutate({ message: reactionMessage, deleting: true }) },
-    ]);
+    changeMessage.mutate({ message: reactionMessage, deleting: true });
   };
 
   const nextOlderCursor = Number(messages.data?.pages[messages.data.pages.length - 1]?.meta?.next_before_id) || undefined;
@@ -612,18 +643,26 @@ function ChatScreen({ conversationId }: { conversationId: number }) {
   const selectReaction = useCallback((message: Message) => {
     if (message.id > 0 && !message.deleted_at && writable) setReactionMessage(message);
   }, [writable]);
+  const replyActionRef = useRef(setReplyTo); replyActionRef.current = setReplyTo;
+  const replyMessage = useCallback((message: Message) => {
+    if (message.id <= 0 || message.deleted_at) return;
+    replyActionRef.current(message);
+    requestAnimationFrame(() => composerInput.current?.focus());
+  }, []);
   const renderMessage = useCallback(({ item }: ListRenderItemInfo<Message>) => {
     const mine = Number(item.user_id) === Number(user?.id);
     const receipt = mine && item.id > 0
       ? outgoingReceiptStateForParticipants(participants, item, user?.id)
       : null;
-    return <View>{!searchMode && item.id === unreadStartId ? <Text accessibilityRole="header" style={{ color: theme.primary, textAlign: 'center', padding: 10, fontWeight: '600' }}>Unread messages</Text> : null}{searchMode ? <Pressable accessibilityRole="button" onPress={() => openContext(item.id)}><Text style={{ color: theme.primary, padding: 8 }}>Open in conversation</Text></Pressable> : null}<MessageBubble conversationId={conversationId} mentionLookups={mentionLookups} message={item} mine={mine} onLongPress={selectReaction} onRetry={retryMessage} receiptLabel={receipt?.label} receiptRead={receipt?.read} receiptSymbol={receipt?.symbol} /></View>;
-  }, [mentionLookups, participants, retryMessage, selectReaction, user?.id, searchMode, theme.primary, unreadStartId]);
+    return <View>{!searchMode && item.id === unreadStartId ? <Text accessibilityRole="header" style={{ color: theme.primary, textAlign: 'center', padding: 10, fontWeight: '600' }}>Unread messages</Text> : null}{searchMode ? <Pressable accessibilityRole="button" onPress={() => openContext(item.id)}><Text style={{ color: theme.primary, padding: 8 }}>Open in conversation</Text></Pressable> : null}<MessageBubble conversationId={conversationId} mentionLookups={mentionLookups} message={item} mine={mine} onReply={writable ? replyMessage : undefined} onLongPress={selectReaction} onRetry={retryMessage} onReaction={writable && !react.isPending ? (emoji: string) => react.mutate({ message: item, emoji }) : undefined} receiptLabel={receipt?.label} receiptRead={receipt?.read} receiptSymbol={receipt?.symbol} /></View>;
+  }, [replyMessage, writable, mentionLookups, participants, retryMessage, selectReaction, user?.id, searchMode, theme.primary, unreadStartId, react]);
   const typingNames = Object.values(typingUsers);
-  const subtitle = typingNames.length ? (typingNames.length === 1 ? `${typingNames[0]} is typing…` : 'Several people are typing…') : connection === 'connected' ? conversation.data?.conversation_type === 'group' ? `${participants.length} members` : participants.some((participant) => participant.id !== user?.id && isParticipantOnline(participant, presenceNow)) ? 'Online' : 'Live conversation' : 'Reconnecting…';
+  const subtitle = typingNames.length ? (typingNames.length === 1 ? `${typingNames[0]} is typing…` : 'Several people are typing…') : connection === 'connected' ? conversation.data?.conversation_type === 'group' ? `${participants.length} members` : participants.some((participant) => participant.id !== user?.id && isParticipantOnline(participant, presenceNow)) ? 'Online' : undefined : 'Reconnecting…';
   const back = () => router.canGoBack() ? router.back() : router.replace('/inbox' as never);
 
   return <Screen header={<PageHeader leading={<IconButton label="Back" onPress={back}><ArrowLeft color={theme.text} size={22} /></IconButton>} title={conversation.data?.title || 'Conversation'} subtitle={subtitle} action={writable ? <View style={styles.headerActions}><IconButton label="Search conversation" onPress={() => setSearchOpen((open) => !open)}><Search color={theme.text} size={20} /></IconButton><IconButton label={conversation.data?.active_call ? 'Join active call' : 'Start video call'} onPress={() => startCall('video')}><Video color={conversation.data?.active_call ? theme.success : theme.text} size={20} /></IconButton><IconButton label="More conversation actions" onPress={() => setMenuOpen(true)}><MoreHorizontal color={theme.text} size={22} /></IconButton></View> : <IconButton label="Conversation details" onPress={() => setDetailsOpen(true)}><UsersRound color={theme.text} size={20} /></IconButton>} />}>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ gap: 20, paddingHorizontal: 16, paddingVertical: 4 }}><Pressable accessibilityRole="button" onPress={() => setToolMode({ kind: 'media' })} style={{ minHeight: 44, justifyContent: 'center' }}><Text style={{ color: theme.primary, fontWeight: '600' }}>Shared media</Text></Pressable><Pressable accessibilityRole="button" onPress={() => setToolMode({ kind: 'files' })} style={{ minHeight: 44, justifyContent: 'center' }}><Text style={{ color: theme.primary, fontWeight: '600' }}>Shared files</Text></Pressable>{unreadStartId ? <Pressable accessibilityRole="button" onPress={() => { void openContext(unreadStartId); }} style={{ minHeight: 44, justifyContent: 'center' }}><Text style={{ color: theme.primary, fontWeight: '600' }}>Jump to unread</Text></Pressable> : null}<Pressable accessibilityRole="button" onPress={() => setToolMode({ kind: 'pins' })} style={{ minHeight: 40, justifyContent: 'center' }}><Text style={{ color: theme.primary, fontWeight: '600' }}>Pinned messages</Text></Pressable><Pressable accessibilityRole="button" onPress={() => setToolMode({ kind: 'scheduled' })} style={{ minHeight: 40, justifyContent: 'center' }}><Text style={{ color: theme.primary, fontWeight: '600' }}>Scheduled messages</Text></Pressable></ScrollView>
+    <ChatToolsSheet mode={toolMode} conversationId={conversationId} onClose={() => setToolMode(null)} onReply={message => { setReplyTo(message); composerInput.current?.focus(); }} onOpen={openContext} onSchedule={scheduleCurrent} draftLabel={body || (attachments.length ? `${attachments.length} attachment(s)` : '')} canSchedule={!!(body.trim() || attachments.length) && !send.isPending} readOnly={!writable} />
     {searchOpen ? <View style={{ padding: 10, gap: 8 }}><TextInput accessibilityLabel="Search conversation" placeholder="Search all messages and filenames" placeholderTextColor={theme.textMuted} value={searchText} onChangeText={setSearchText} style={[styles.input, { flex: undefined, color: theme.text, backgroundColor: theme.surfaceMuted }]} /><Pressable accessibilityRole="button" onPress={() => { setSearchText(''); setSearchOpen(false); }}><Text style={{ color: theme.primary }}>Close search</Text></Pressable></View> : null}
     {searchMode && historySearch.isFetching ? <Text style={{ color: theme.textMuted }}>Searching…</Text> : null}
     {searchMode && historySearch.isError ? <ErrorState message="Search failed" onRetry={() => historySearch.refetch()} /> : null}
@@ -633,34 +672,35 @@ function ChatScreen({ conversationId }: { conversationId: number }) {
     {messages.isPending && !messages.data ? <LoadingState label="Loading conversation" /> : null}
     {replyTo ? <View style={{ flexDirection: 'row', alignItems: 'center', padding: 10, backgroundColor: theme.surfaceMuted }}><View style={{ flex: 1 }}><Text style={{ color: theme.primary, fontWeight: '600' }}>Reply to {replyTo.user_name}</Text><Text numberOfLines={2} style={{ color: theme.text }}>{replyTo.body || 'Attachment'}</Text></View><IconButton label="Cancel reply" onPress={() => setReplyTo(null)}><X color={theme.text} size={20} /></IconButton></View> : null}
     {messages.isError && !messages.data ? <ErrorState message={apiErrorMessage(messages.error)} onRetry={() => messages.refetch()} /> : null}
-    {messages.data ? <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0} style={styles.flex}><FlatList contentContainerStyle={styles.messageList} data={displayRows} initialNumToRender={50} keyExtractor={messageKey} ListEmptyComponent={<EmptyState title={searchMode ? "No messages found" : "Start the conversation"} message={searchMode ? "Try another keyword." : "Messages and attachments are delivered in real time."} />} ListHeaderComponent={viewingHistory ? null : <HistoryState hasMessages={rows.length > 0} hasNextPage={Boolean(messages.hasNextPage)} isError={messages.isFetchNextPageError} isLoading={messages.isFetchingNextPage} onRetry={() => { olderPageGateRef.current.markUserGesture(); void loadOlder(); }} />} maintainVisibleContentPosition={positionedRef.current ? { minIndexForVisible: 0 } : undefined} maxToRenderPerBatch={12} onContentSizeChange={onContentSizeChange} onScroll={onScroll} onScrollBeginDrag={() => olderPageGateRef.current.markUserGesture()} onLayout={() => { if (!positionedRef.current) requestAnimationFrame(positionInitial); else if (atLatestRef.current && !viewingHistoryRef.current) requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: false })); if (contextId && contextRows) { const index = contextRows.findIndex((message) => message.id === contextId); if (index >= 0) requestAnimationFrame(() => listRef.current?.scrollToIndex({ index, viewPosition: 0.5, animated: false })); } }} onScrollToIndexFailed={({ averageItemLength, index }) => {
+    {messages.data ? <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0} style={styles.flex}><FlatList keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} contentContainerStyle={styles.messageList} data={displayRows} initialNumToRender={50} keyExtractor={messageKey} ListEmptyComponent={<EmptyState title={searchMode ? "No messages found" : "Start the conversation"} message={searchMode ? "Try another keyword." : "Messages and attachments are delivered in real time."} />} ListHeaderComponent={viewingHistory ? null : <HistoryState hasMessages={rows.length > 0} hasNextPage={Boolean(messages.hasNextPage)} isError={messages.isFetchNextPageError} isLoading={messages.isFetchingNextPage} onRetry={() => { olderPageGateRef.current.markUserGesture(); void loadOlder(); }} />} maintainVisibleContentPosition={positionedRef.current ? { minIndexForVisible: 0 } : undefined} maxToRenderPerBatch={12} onContentSizeChange={onContentSizeChange} onScroll={onScroll} onScrollBeginDrag={() => olderPageGateRef.current.markUserGesture()} onLayout={() => { if (!positionedRef.current) requestAnimationFrame(positionInitial); else if (atLatestRef.current && !viewingHistoryRef.current) requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: false })); if (contextId && contextRows) { const index = contextRows.findIndex((message) => message.id === contextId); if (index >= 0) requestAnimationFrame(() => listRef.current?.scrollToIndex({ index, viewPosition: 0.5, animated: false })); } }} onScrollToIndexFailed={({ averageItemLength, index }) => {
       listRef.current?.scrollToOffset({ offset: averageItemLength * index, animated: false });
       if (scrollRetryRef.current) clearTimeout(scrollRetryRef.current);
       scrollRetryRef.current = setTimeout(() => listRef.current?.scrollToIndex({ index, viewPosition: initialTargetRef.current === 'latest' ? 0.5 : 0, animated: false }), 150);
-    }} ref={listRef} removeClippedSubviews={false} renderItem={renderMessage} scrollEventThrottle={80} updateCellsBatchingPeriod={40} windowSize={7} />{hasUnreadBelow ? <Pressable accessibilityLabel="Jump to new messages" accessibilityRole="button" onPress={jumpToLatest} style={[styles.newMessages, { backgroundColor: theme.primary }]}><Text style={styles.newMessagesText}>New messages</Text></Pressable> : null}{writable && attachment ? <View style={[styles.attachment, { backgroundColor: theme.surfaceMuted }]}><Text numberOfLines={1} style={[styles.attachmentName, { color: theme.text }]}>{attachment.name}</Text><Pressable accessibilityLabel="Remove attachment" onPress={() => { setAttachment(null); setClientId(undefined); }}><Text style={{ color: theme.danger, fontWeight: '700' }}>Remove</Text></Pressable></View> : null}{writable && suggestions.length ? <View style={{ padding: 8, backgroundColor: theme.surface }}>{suggestions.map(suggestion => <Pressable key={suggestion.key} accessibilityRole="button" accessibilityLabel={`Insert ${suggestion.value}`} onPress={() => chooseSuggestion(suggestion.value)} style={{ padding: 10 }}><Text style={{ color: theme.primary }}>{suggestion.label}</Text></Pressable>)}</View> : null}{writable ? <View style={[styles.composer, { backgroundColor: theme.surface, borderTopColor: theme.border, paddingBottom: keyboardVisible ? 10 : Math.max(10, insets.bottom) }]}><IconButton label="Attach file" onPress={pickAttachment}><FilePlus2 color={theme.textMuted} size={21} /></IconButton><TextInput ref={composerInput} selection={composerSelection} onSelectionChange={event => { setComposerCaret(event.nativeEvent.selection.start); setComposerSelection(undefined); }} accessibilityLabel="Message" multiline onBlur={stopTyping} onChangeText={changeBody} placeholder="Message" placeholderTextColor={theme.textMuted} style={[styles.input, { backgroundColor: theme.surfaceMuted, color: theme.text }]} value={body} /><Pressable accessibilityLabel={send.isPending ? "Sending message" : "Send message"} accessibilityRole="button" disabled={send.isPending || (!body.trim() && !attachment)} onPress={sendCurrent} style={[styles.send, { backgroundColor: theme.primary, opacity: (!body.trim() && !attachment) ? 0.45 : 1 }]}><Send color="#ffffff" size={19} /></Pressable></View> : null}</KeyboardAvoidingView> : null}
-    <ReactionPicker canEdit={Boolean(reactionMessage && canChangeMessage(reactionMessage, user?.id))} onEdit={() => { setEditMessage(reactionMessage); setEditBody(reactionMessage?.body || ''); setReactionMessage(null); }} onDelete={deleteSelected} message={reactionMessage} onClose={() => setReactionMessage(null)} onReply={() => { setReplyTo(reactionMessage); setReactionMessage(null); }} onSelect={(emoji) => reactionMessage && react.mutate({ message: reactionMessage, emoji })} pending={react.isPending} />
+    }} ref={listRef} removeClippedSubviews={false} renderItem={renderMessage} scrollEventThrottle={80} updateCellsBatchingPeriod={40} windowSize={7} />{hasUnreadBelow ? <Pressable accessibilityLabel="Jump to new messages" accessibilityRole="button" onPress={jumpToLatest} style={[styles.newMessages, { backgroundColor: theme.primary }]}><Text style={styles.newMessagesText}>New messages</Text></Pressable> : null}{writable && attachments.length ? <View style={{ maxHeight: 160, backgroundColor: theme.surfaceMuted }}><ScrollView keyboardShouldPersistTaps="handled">{attachments.map((file, index) => <View key={`${file.uri}:${index}`} style={styles.attachment}><Text numberOfLines={1} style={[styles.attachmentName, { color: theme.text }]}>{file.name}</Text><Pressable accessibilityRole="button" accessibilityLabel={`Remove attachment ${file.name}`} onPress={() => { setAttachments(current => current.filter((_, position) => position !== index)); setClientId(undefined); }} style={{ minHeight: 44, justifyContent: 'center' }}><Text style={{ color: theme.danger, fontWeight: '700' }}>Remove</Text></Pressable></View>)}</ScrollView></View> : null}{writable && suggestions.length ? <View style={{ padding: 8, backgroundColor: theme.surface }}>{suggestions.map(suggestion => <Pressable key={suggestion.key} accessibilityRole="button" accessibilityLabel={`Insert ${suggestion.value}`} onPress={() => chooseSuggestion(suggestion.value)} style={{ padding: 10 }}><Text style={{ color: theme.primary }}>{suggestion.label}</Text></Pressable>)}</View> : null}{writable ? <View style={[styles.composer, { backgroundColor: theme.surface, borderTopColor: theme.border, paddingBottom: keyboardVisible ? 10 : Math.max(10, insets.bottom) }]}><IconButton label="Attach file" onPress={pickAttachment}><FilePlus2 color={theme.textMuted} size={21} /></IconButton><TextInput ref={composerInput} selection={composerSelection} onSelectionChange={event => { setComposerCaret(event.nativeEvent.selection.start); setComposerSelection(undefined); }} accessibilityLabel="Message" multiline onBlur={stopTyping} onChangeText={changeBody} placeholder="Message" placeholderTextColor={theme.textMuted} style={[styles.input, { backgroundColor: theme.surfaceMuted, color: theme.text }]} value={body} /><Pressable accessibilityLabel={send.isPending ? "Sending message" : "Send message"} accessibilityRole="button" disabled={send.isPending || (!body.trim() && !attachments.length)} onPress={sendCurrent} style={[styles.send, { backgroundColor: theme.primary, opacity: (!body.trim() && !attachments.length) ? 0.45 : 1 }]}><Send color="#ffffff" size={19} /></Pressable></View> : null}</KeyboardAvoidingView> : null}
+    <MessageActionsSheet onThread={() => { if (reactionMessage) setToolMode({ kind: 'thread', id: reactionMessage.reply_to_id || reactionMessage.id }); setReactionMessage(null); }} onPin={writable ? () => { void pinSelected(); } : undefined} canEdit={Boolean(reactionMessage && canChangeMessage(reactionMessage, user?.id))} onEdit={() => { setEditMessage(reactionMessage); setEditBody(reactionMessage?.body || ''); setReactionMessage(null); }} onDelete={deleteSelected} message={reactionMessage} onClose={() => setReactionMessage(null)} onReply={() => { if (reactionMessage) replyMessage(reactionMessage); setReactionMessage(null); }} onSelect={(emoji) => reactionMessage && react.mutate({ message: reactionMessage, emoji })} pending={react.isPending || changeMessage.isPending} />
     <HeaderMenu activeCall={conversation.data?.active_call?.id} onAudio={() => startCall('audio')} onClose={() => setMenuOpen(false)} onDetails={() => { setMenuOpen(false); setDetailsOpen(true); }} onJoin={(callId) => { setMenuOpen(false); router.push(`/call/${callId}?type=${conversation.data?.active_call?.call_type || 'audio'}` as never); }} onVideo={() => startCall('video')} visible={menuOpen} />
     <ConversationDetailsSheet conversationId={conversationId} onClose={() => setDetailsOpen(false)} onConversationRemoved={() => { setDetailsOpen(false); router.replace('/inbox' as never); }} readOnly={!writable} visible={detailsOpen} />
   </Screen>;
 }
 
-const MessageBubble = memo(function MessageBubble({ conversationId, mentionLookups, message, mine, onLongPress, onRetry, receiptLabel, receiptRead, receiptSymbol }: { conversationId: number; mentionLookups: MentionLookups; message: Message; mine: boolean; onLongPress: (message: Message) => void; onRetry: (messageId: number) => void; receiptLabel?: string; receiptRead?: boolean; receiptSymbol?: string }) {
+const MessageBubble = memo(function MessageBubble({ conversationId, mentionLookups, message, mine, onReply, onLongPress, onRetry, onReaction, receiptLabel, receiptRead, receiptSymbol }: { conversationId: number; mentionLookups: MentionLookups; message: Message; mine: boolean; onReply?: (message: Message) => void; onLongPress: (message: Message) => void; onRetry: (messageId: number) => void; onReaction?: (emoji: string) => void; receiptLabel?: string; receiptRead?: boolean; receiptSymbol?: string }) {
   const theme = useAppTheme();
   const reactions = reactionEntries(message.reactions);
   const react = () => onLongPress(message);
-  if (message.message_type === 'system') return <Text accessibilityRole="text" style={{ color: theme.textMuted, fontSize: 12, paddingVertical: 8, textAlign: 'center' }}>{message.body} · {message.edited_at ? 'Edited · ' : ''}{formatTime(message.created_at)}</Text>;
-  return <View style={[styles.bubbleRow, mine && styles.mineRow]}>
-    <Pressable accessibilityHint={message.id > 0 ? 'Long press for message actions' : undefined} accessibilityLabel={message.send_state === 'failed' ? 'Message failed to send' : receiptLabel ? `Message. ${receiptLabel}` : 'Message'} delayLongPress={350} onLongPress={react} style={[styles.bubble, { backgroundColor: mine ? theme.primary : theme.surface, borderColor: message.send_state === 'failed' ? theme.danger : mine ? theme.primary : theme.border }]}>
+  if (message.message_type === 'system') return <Text accessibilityRole="text" style={{ color: theme.textMuted, fontSize: 12, paddingVertical: 8, textAlign: 'center' }}>{message.body} · {message.edited_at && !message.deleted_at ? 'Edited · ' : ''}{formatTime(message.created_at)}</Text>;
+  return <SwipeToReply enabled={Boolean(onReply && message.id > 0 && !message.deleted_at)} onReply={() => onReply?.(message)}><View style={[styles.bubbleRow, mine && styles.mineRow]}>
+    <Pressable accessibilityHint={message.id > 0 ? 'Long press for actions or swipe right to reply' : undefined} accessibilityActions={onReply && message.id > 0 && !message.deleted_at ? [{ name: 'reply', label: 'Reply to message' }] : undefined} onAccessibilityAction={event => { if (event.nativeEvent.actionName === 'reply') onReply?.(message); }} accessibilityLabel={message.deleted_at ? 'Message deleted' : message.send_state === 'failed' ? 'Message failed to send' : receiptLabel ? `Message. ${receiptLabel}` : 'Message'} delayLongPress={350} onLongPress={react} style={[styles.bubble, { backgroundColor: mine ? theme.primary : theme.surface, borderColor: message.send_state === 'failed' ? theme.danger : mine ? theme.primary : theme.border }]}>
       {!mine ? <Text style={[styles.sender, { color: theme.primary }]}>{message.user_name || 'Teammate'}</Text> : null}
       {message.reply_to ? <View style={{ borderLeftWidth: 2, borderLeftColor: mine ? '#ffffff' : theme.primary, paddingLeft: 8, marginBottom: 6 }}><Text style={{ color: mine ? '#ffffff' : theme.primary, fontSize: 12, fontWeight: '600' }}>{message.reply_to.user_name}</Text><Text numberOfLines={2} style={{ color: mine ? '#ffffff' : theme.textMuted, fontSize: 12 }}>{message.reply_to.body || 'Attachment'}</Text></View> : null}
-      {message.body ? <Text style={[styles.body, { color: mine ? '#ffffff' : theme.text }]}><RichMessageText text={message.body} lookups={mentionLookups} color={mine ? "#bae6fd" : "#2563eb"} />{'  '}{!message.attachments?.length ? <Text style={[styles.inlineMeta, { color: mine ? '#dbeafe' : theme.textMuted }]}>{message.edited_at ? 'Edited · ' : ''}{formatTime(message.created_at)}{message.send_state === 'sending' ? ' …' : receiptSymbol ? <Text style={{ color: receiptRead ? '#86efac' : '#dbeafe' }}> {receiptSymbol}</Text> : null}</Text> : null}</Text> : null}
+      {message.pinned_at ? <Text style={{ color: mine ? '#dbeafe' : theme.primary, fontSize: 11, fontWeight: '700', marginBottom: 4 }}>Pinned</Text> : null}
+      {message.body ? <Text style={[styles.body, { color: mine ? '#ffffff' : theme.text }]}><RichMessageText text={message.deleted_at ? "Message deleted" : message.body} lookups={mentionLookups} color={mine ? "#bae6fd" : "#2563eb"} />{'  '}{!message.attachments?.length ? <Text style={[styles.inlineMeta, { color: mine ? '#dbeafe' : theme.textMuted }]}>{message.edited_at && !message.deleted_at ? 'Edited · ' : ''}{formatTime(message.created_at)}{message.send_state === 'sending' ? ' …' : receiptSymbol ? <Text style={{ color: receiptRead ? '#86efac' : '#dbeafe' }}> {receiptSymbol}</Text> : null}</Text> : null}</Text> : null}
       {!message.deleted_at ? <MessageLinkPreview message={message} conversationId={conversationId} /> : null}
       {message.attachments?.map((file, index) => <Attachment key={`${message.id}:${String(file.id || file.url || index)}`} file={file} mine={mine} />)}
-      {!message.body || message.attachments?.length ? <Text style={[styles.inlineMeta, { color: mine ? '#dbeafe' : theme.textMuted, textAlign: 'right' }]}>{message.edited_at ? 'Edited · ' : ''}{formatTime(message.created_at)}{receiptSymbol ? ` ${receiptSymbol}` : ''}</Text> : null}
+      {!message.body || message.attachments?.length ? <Text style={[styles.inlineMeta, { color: mine ? '#dbeafe' : theme.textMuted, textAlign: 'right' }]}>{message.edited_at && !message.deleted_at ? 'Edited · ' : ''}{formatTime(message.created_at)}{receiptSymbol ? <Text style={{ color: receiptRead ? '#86efac' : '#dbeafe' }}> {receiptSymbol}</Text> : ''}</Text> : null}
       {message.send_state === 'failed' ? <Pressable accessibilityRole="button" onPress={() => onRetry(message.id)} style={styles.retryMessage}><Text style={styles.retryMessageText}>Not sent · Tap to retry</Text></Pressable> : null}
     </Pressable>
-    {reactions.length ? <View style={[styles.reactionChips, mine && styles.mineReactionChips]}>{reactions.map(([emoji, count]) => <Pressable key={emoji} accessibilityLabel={`${emoji}, ${count} reactions`} onPress={react} style={[styles.reactionChip, { backgroundColor: theme.surface, borderColor: theme.border }]}><Text>{emoji} {count}</Text></Pressable>)}</View> : null}
-  </View>;
+    {reactions.length ? <View style={[styles.reactionChips, mine && styles.mineReactionChips]}>{reactions.map(([emoji, count]) => <Pressable key={emoji} accessibilityLabel={`${message.reacted_emojis?.includes(emoji) ? 'Remove' : 'Add'} ${emoji} reaction, ${count} reactions`} accessibilityState={{ selected: !!message.reacted_emojis?.includes(emoji) }} disabled={!onReaction || !!message.deleted_at} onPress={() => onReaction?.(emoji)} style={[styles.reactionChip, { backgroundColor: theme.surface, borderColor: theme.border }]}><Text>{emoji} {count}</Text></Pressable>)}</View> : null}
+  </View></SwipeToReply>;
 });
 
 function Attachment({ file, mine }: { file: Record<string, unknown> & { id: number }; mine: boolean }) {
@@ -669,13 +709,12 @@ function Attachment({ file, mine }: { file: Record<string, unknown> & { id: numb
 
 function HeaderMenu({ activeCall, onAudio, onClose, onDetails, onJoin, onVideo, visible }: { activeCall?: number; onAudio: () => void; onClose: () => void; onDetails: () => void; onJoin: (id: number) => void; onVideo: () => void; visible: boolean }) {
   const theme = useAppTheme();
-  return <Modal animationType="fade" onRequestClose={onClose} transparent visible={visible}><Pressable accessibilityLabel="Close conversation menu" onPress={onClose} style={styles.menuBackdrop}><View style={[styles.menu, { backgroundColor: theme.surface }]}>{activeCall ? <MenuAction icon={Phone} label="Join active call" onPress={() => onJoin(activeCall)} /> : <><MenuAction icon={Video} label="Start video call" onPress={onVideo} /><MenuAction icon={Phone} label="Start audio call" onPress={onAudio} /></>}<MenuAction icon={UsersRound} label="Conversation details" onPress={onDetails} /></View></Pressable></Modal>;
+  return <ChatActionSheet title="Conversation actions" visible={visible} onClose={onClose}>{activeCall ? <ChatSheetAction label="Join active call" onPress={() => onJoin(activeCall)}><Phone color={theme.text} size={20} /></ChatSheetAction> : <><ChatSheetAction label="Start video call" onPress={onVideo}><Video color={theme.text} size={20} /></ChatSheetAction><ChatSheetAction label="Start audio call" onPress={onAudio}><Phone color={theme.text} size={20} /></ChatSheetAction></>}<ChatSheetAction label="Conversation details" onPress={onDetails}><UsersRound color={theme.text} size={20} /></ChatSheetAction></ChatActionSheet>;
 }
 function MenuAction({ icon: Icon, label, onPress }: { icon: typeof Phone; label: string; onPress: () => void }) { const theme = useAppTheme(); return <Pressable accessibilityRole="menuitem" onPress={onPress} style={styles.menuAction}><Icon color={theme.text} size={19} /><Text style={[styles.menuLabel, { color: theme.text }]}>{label}</Text></Pressable>; }
 function HistoryState({ hasMessages, hasNextPage, isError, isLoading, onRetry }: { hasMessages: boolean; hasNextPage: boolean; isError: boolean; isLoading: boolean; onRetry: () => void }) { const theme = useAppTheme(); if (!hasMessages) return null; if (isError) return <Pressable accessibilityRole="button" onPress={onRetry} style={styles.loadOlder}><Text style={{ color: theme.danger, fontWeight: '700' }}>Could not load earlier messages · Retry</Text></Pressable>; if (isLoading) return <View style={styles.loadOlder}><Text style={{ color: theme.textMuted }}>Loading earlier messages…</Text></View>; if (!hasNextPage) return <View style={styles.loadOlder}><Text style={{ color: theme.textMuted }}>Beginning of conversation</Text></View>; return <View style={styles.loadOlder}><Text style={{ color: theme.textMuted }}>Scroll up for earlier messages</Text></View>; }
 
-const REACTION_EMOJIS = ['👍', '❤️', '😂', '🎉', '🙌', '🔥', '👏', '🙏', '😊', '😍', '😮', '😢', '😡', '✅', '💯', '🚀', '👀', '🤔', '😎', '🥳', '💪', '✨', '😅', '🤝', '🏆'];
-function ReactionPicker({ message, canEdit, onEdit, onDelete, onClose, onSelect, onReply, pending }: { canEdit: boolean; onEdit: () => void; onDelete: () => void; message: Message | null; onClose: () => void; onReply: () => void; onSelect: (emoji: string) => void; pending: boolean }) { const theme = useAppTheme(); return <Modal animationType="fade" onRequestClose={onClose} transparent visible={Boolean(message)}><Pressable accessibilityLabel="Close reaction picker" onPress={onClose} style={styles.modalBackdrop}><View style={[styles.reactionPicker, { backgroundColor: theme.surface }]}><Pressable accessibilityLabel="Reply to message" accessibilityRole="button" onPress={onReply} style={{ flexDirection: 'row', gap: 8, paddingVertical: 12 }}><CornerUpLeft color={theme.primary} size={20} /><Text style={{ color: theme.text }}>Reply</Text></Pressable>{canEdit ? <View style={{ flexDirection: 'row', gap: 24, paddingVertical: 12 }}><Pressable accessibilityRole="button" accessibilityLabel="Edit message" onPress={onEdit}><Text style={{ color: theme.primary }}>Edit</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Delete message" onPress={onDelete}><Text style={{ color: theme.danger }}>Delete</Text></Pressable></View> : null}{message?.body ? <Pressable accessibilityRole="button" accessibilityLabel="Copy message" onPress={async () => { try { await Clipboard.setStringAsync(message.body || ''); onClose(); } catch { Alert.alert('Unable to copy message'); } }} style={{ paddingVertical: 12 }}><Text style={{ color: theme.primary }}>Copy message</Text></Pressable> : null}<Text style={[styles.reactionTitle, { color: theme.text }]}>React to message</Text><View style={styles.reactionOptions}>{REACTION_EMOJIS.map((emoji) => <Pressable accessibilityLabel={`React ${emoji}`} accessibilityRole="button" disabled={pending} key={emoji} onPress={() => onSelect(emoji)} style={[styles.reactionOption, message?.reacted_emojis?.includes(emoji) && { backgroundColor: theme.surfaceMuted }]}><Text style={styles.reactionEmoji}>{emoji}</Text></Pressable>)}</View></View></Pressable></Modal>; }
+
 function reactionEntries(reactions: Message['reactions']): Array<[string, number]> { if (!reactions || Array.isArray(reactions)) return []; return Object.entries(reactions).filter((entry): entry is [string, number] => typeof entry[1] === 'number' && entry[1] > 0); }
 function formatTime(value: string) { const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
 function IconButton({ label, onPress, children }: { label: string; onPress: () => void; children: React.ReactNode }) { return <Pressable accessibilityLabel={label} accessibilityRole="button" hitSlop={8} onPress={onPress} style={styles.iconButton}>{children}</Pressable>; }

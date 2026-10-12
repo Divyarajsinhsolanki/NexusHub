@@ -1,0 +1,19 @@
+# Prompts
+
+Generated with the built-in image_gen tool. All four are new images with opaque backgrounds.
+
+## ds-clay-interlock
+
+Use case: stylized-concept. Asset type: square mobile application icon concept, a single icon, not a presentation board. Create a distinctive premium 3D clay DS monogram for a modern personal SaaS/productivity application. Text exactly "DS", uppercase D and S, both clearly legible, thick soft sculpted letterforms cleverly interlocking with one shared central contour. Pale porcelain-clay D and lavender-clay S on a full-bleed deep indigo square background. Front-facing, very slight depth visible at right; monogram fills about 65 percent of the square, generous safe padding. Smooth matte polymer clay, beautifully rounded bevels, subtle material grain, soft studio light from upper left, refined contact shadows. A balanced memorable silhouette readable at 48px. No other lettering, no labels, no watermark, no phone mockup, no shiny plastic, no extra decorative objects. Opaque background. Output one high resolution square image.
+
+## ds-clay-emboss
+
+Use case: stylized-concept. Asset type: square mobile app icon concept, one icon only. Create a premium minimal 3D clay icon with exactly the uppercase letters "DS". A boldly legible custom geometric DS monogram carved and embossed into a warm ivory clay surface: the D in raised petrol-teal clay, the S in raised muted terracotta clay, their curved contours fit together like a carefully designed sculptural joint. Both letters clearly recognizable; no extra lettering. Full bleed warm ivory square background with extremely subtle clay texture, soft bevels and broad gentle ambient shadows, front-on orthographic studio render. The emblem is centered and occupies 65 percent of the image, generous safe padding for a mobile icon mask. Elegant classic SaaS brand feeling, original simple silhouette, tactile matte finish, no glossy plastic, no miniature props, no border, no watermarks or mockup. One high resolution square image.
+
+## clay-connected-hub
+
+Use case: stylized-concept. Asset type: square mobile application icon concept, a single icon. Design an original premium 3D clay logo for an application that connects chat, projects and personal work. A compact sculptural mark of three chunky rounded clay links interlocking into one abstract hub, circular negative space at the center, unmistakable bold silhouette, no text. Main link soft white clay, secondary link periwinkle clay, small accent link muted coral clay. Full bleed midnight-navy square background. Front-facing near-orthographic view with restrained thickness and deeply rounded edges, centered emblem occupying 65 percent of the canvas with generous mask-safe padding. Very soft studio light, matte tactile clay, delicate grain, realistic gentle contact shadows, sophisticated rather than toy-like. No other objects, no labels, no brand names, no watermark, no phone frame, no shiny plastic. One high resolution square image.
+
+## clay-chat-bubble
+
+Use case: stylized-concept. Asset type: square mobile app icon concept, one icon only. Create a modern classic 3D clay chat icon for a premium SaaS application. A single chunky sculpted chat bubble in soft periwinkle clay, its rounded tail integrated elegantly into a pillowy square silhouette, with three small inset warm-white clay dots. Distinctive strong shape, polished original design, no text. Full bleed muted pale lavender square background; subtle tonal gradient permitted, no border. Near-front orthographic camera, slight depth at right, centered emblem occupies 65 percent with mask-safe padding. Matte ceramic-like polymer clay, soft bevels, delicate grain, gentle upper-left studio lighting and natural soft contact shadow. Excellent legibility at small size. No phone mockup, no tiny decorative props, no watermark or labels, no glossy plastic. One high resolution square image.

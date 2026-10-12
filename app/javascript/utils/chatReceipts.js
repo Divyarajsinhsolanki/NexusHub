@@ -4,7 +4,7 @@ export const getOutgoingReceiptStatus = (message, participants = []) => {
     (!participant.joined_at || new Date(participant.joined_at) <= new Date(message.created_at))
   ));
   const deliveredBy = recipients.filter((participant) => (
-    Number(participant.last_delivered_message_id || 0) >= Number(message.id)
+    Math.max(Number(participant.last_delivered_message_id || 0), Number(participant.last_read_message_id || 0)) >= Number(message.id)
   ));
   const readBy = recipients.filter((participant) => (
     Number(participant.last_read_message_id || 0) >= Number(message.id)

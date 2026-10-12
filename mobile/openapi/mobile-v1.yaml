@@ -757,6 +757,18 @@ paths:
           in: query
           description: Literal case-insensitive text or attachment filename search; excludes deleted messages.
           schema: { type: string, maxLength: 200 }
+        - name: attachments
+          in: query
+          description: Only visible messages containing shared attachments of the selected type.
+          schema: { type: string, enum: [all, media, files] }
+        - name: pinned
+          in: query
+          description: Return only pinned, visible messages in this conversation.
+          schema: { type: boolean }
+        - name: thread_id
+          in: query
+          description: Return the root message and its direct replies, with thread_root in metadata.
+          schema: { type: integer }
         - name: around_id
           in: query
           description: Return messages surrounding this message in the current conversation.
@@ -813,6 +825,69 @@ paths:
                     reply_to_id: { type: [integer, 'null'], description: A regular message in the same conversation. }
       responses:
         "201": { $ref: "#/components/responses/GenericSuccess" }
+  /conversations/{id}/messages/{message_id}/pin:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+      - name: message_id
+        in: path
+        required: true
+        schema: { type: integer }
+    patch:
+      operationId: pinConversationMessage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pinned]
+              properties:
+                pinned: { type: boolean }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /conversations/{id}/scheduled_messages:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      operationId: listScheduledChatMessages
+      description: Pending sends owned by the current member; other members cannot access drafts.
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+    post:
+      operationId: scheduleChatMessage
+      description: Persist a send for a future instant, within one year. A client_id makes retries idempotent. Supports attachments through multipart/form-data.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message:
+                  type: object
+                  required: [client_id, send_at]
+                  properties:
+                    body: { type: string }
+                    client_id: { type: string }
+                    send_at: { type: string, format: date-time }
+                    reply_to_id: { type: [integer, 'null'] }
+      responses:
+        "201": { $ref: "#/components/responses/GenericSuccess" }
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+  /conversations/{id}/scheduled_messages/{schedule_id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+      - name: schedule_id
+        in: path
+        required: true
+        schema: { type: integer }
+    delete:
+      operationId: cancelScheduledChatMessage
+      description: Cancel your own pending send. A delivered send returns a conflict.
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "409": { description: Message already sent. }
   /conversations/{id}/messages/{message_id}/link_preview:
     parameters:
       - $ref: "#/components/parameters/Id"
@@ -1035,6 +1110,30 @@ paths:
       operationId: readNotification
       responses:
         "200": { $ref: "#/components/responses/GenericSuccess" }
+  /notifications/{id}/reply:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      operationId: replyToNotification
+      description: Send an idempotent reply to an owned chat notification and acknowledge only its message.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message:
+                  type: object
+                  required: [body, client_id]
+                  properties:
+                    body: { type: string, minLength: 1, maxLength: 4000 }
+                    client_id: { type: string, minLength: 1, maxLength: 100 }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "404": { description: Notification or conversation unavailable. }
+        "422": { description: Invalid reply or notification type. }
   /mobile_sessions:
     get:
       operationId: listMobileSessions
@@ -1315,6 +1414,8 @@ components:
         updated_at: { type: string, format: date-time }
         edited_at: { type: [string, 'null'], format: date-time }
         deleted_at: { type: [string, 'null'], format: date-time }
+        pinned_at: { type: [string, 'null'], format: date-time }
+        pinned_by_id: { type: [integer, 'null'] }
         editable_until: { type: [string, 'null'], format: date-time }
         reply_to_id: { type: [integer, 'null'] }
         reply_to:

@@ -52,7 +52,7 @@ function InlineVideo({ url, onError }: { url: string; onError: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  attachment: { gap: 6, marginTop: 6, maxWidth: '100%', width: 240 },
+  attachment: { gap: 6, marginTop: 6, maxWidth: '100%', width: 320 },
   media: { aspectRatio: 4 / 3, backgroundColor: '#101416', borderRadius: 6, maxWidth: '100%', overflow: 'hidden', width: '100%' },
   play: { alignItems: 'center', justifyContent: 'center', gap: 10 },
   file: { alignItems: 'center', borderRadius: 6, flexDirection: 'row', gap: 10, minHeight: 56, padding: 10 },

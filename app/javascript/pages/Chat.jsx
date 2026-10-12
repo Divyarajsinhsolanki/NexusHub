@@ -1,4 +1,7 @@
+import ChatTools from "../components/chat/ChatTools";
+import { pinChatMessage } from "../components/api";
 import toast from "react-hot-toast";
+import { prepareChatUpload } from "../utils/chatUploads";
 import { splitMessageLinks } from "../utils/messageLinks";
 import MessageLinkPreview from "../components/chat/MessageLinkPreview";
 import React, { Suspense, useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
@@ -724,13 +727,13 @@ const MessageAttachmentCard = ({ attachment, isMe, searchQuery }) => {
 
   if (isImage || isVideo) {
     return (
-      <div className={`nx-chat-attachment group/attachment relative min-w-0 overflow-hidden rounded-xl border ${containerClass}`}>
+      <div className={`nx-chat-attachment nx-chat-media-preview group/attachment relative min-w-0 overflow-hidden rounded-xl border ${containerClass}`}>
         {isImage ? (
           <a href={attachment.url} target="_blank" rel="noreferrer" className="block" title={`Open ${attachment.filename}`}>
-            <img src={attachment.url} alt={attachment.filename} className="max-h-64 min-h-36 w-full object-cover" loading="lazy" />
+            <img src={attachment.url} alt={attachment.filename} className="max-h-96 min-h-48 w-full bg-slate-100 object-contain dark:bg-zinc-950" loading="lazy" decoding="async" />
           </a>
         ) : (
-          <video src={attachment.url} aria-label={attachment.filename} className="max-h-64 min-h-36 w-full bg-slate-900 object-contain" controls preload="metadata" />
+          <video src={attachment.url} aria-label={attachment.filename} className="max-h-96 min-h-48 w-full bg-slate-900 object-contain" controls preload="metadata" />
         )}
 
         <div className="px-3 py-2.5 pr-12">
@@ -782,13 +785,25 @@ const MessageAttachmentCard = ({ attachment, isMe, searchQuery }) => {
   );
 };
 
-const MessageBubble = React.memo(({ message, conversationId, isMe, showAvatar, onToggleReaction, onReply, onEdit, onDelete, onContext, participants, conversationType, searchQuery, mentionLookups }) => {
+const MessageBubble = React.memo(({ message, conversationId, isMe, showAvatar, onToggleReaction, onReply, onEdit, onDelete, onContext, onThread, onPin, participants, conversationType, searchQuery, mentionLookups }) => {
   const [isReactionPickerOpen, setIsReactionPickerOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [isReactionPickerExpanded, setIsReactionPickerExpanded] = useState(false);
   const [customReactionEmoji, setCustomReactionEmoji] = useState("");
+  const messageToolsRef = useRef(null);
+  const messageToolsTriggerRef = useRef(null);
   const reactionPickerRef = useRef(null);
   const reactionTriggerRef = useRef(null);
+  useEffect(() => {
+    if (!toolsOpen) return;
+    const closeOutside = event => {
+      if (!messageToolsRef.current?.contains(event.target) && !messageToolsTriggerRef.current?.contains(event.target)) setToolsOpen(false);
+    };
+    const closeOnEscape = event => { if (event.key === 'Escape') { setToolsOpen(false); messageToolsTriggerRef.current?.focus(); } };
+    document.addEventListener('pointerdown', closeOutside);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => { document.removeEventListener('pointerdown', closeOutside); document.removeEventListener('keydown', closeOnEscape); };
+  }, [toolsOpen]);
   const timeString = format(new Date(message.created_at), "h:mm a");
   const reactions = message.reactions || {};
   const reactedEmojis = message.reacted_emojis || [];
@@ -839,7 +854,7 @@ const MessageBubble = React.memo(({ message, conversationId, isMe, showAvatar, o
   };
 
   if (message.message_type === "system") return <div className="py-2 text-center text-xs text-slate-500" role="note">{message.body} · {timeString}</div>;
-  const metadata = <span className="nx-chat-inline-meta">{message.edited_at && <span>Edited · </span>}<time dateTime={message.created_at}>{timeString}</time>{isMe && <span title={receiptTitle} aria-label={receiptTitle} className={`inline-flex ${allRead ? "text-indigo-600" : "text-slate-400"}`}><FiCheck className="h-3 w-3" />{allDelivered && <FiCheck className="-ml-1 h-3 w-3" />}</span>}</span>;
+  const metadata = <span className="nx-chat-inline-meta">{message.edited_at && !message.deleted_at && <span title={`Edited ${new Date(message.edited_at).toLocaleString()}`}>Edited · </span>}<time dateTime={message.created_at}>{timeString}</time>{isMe && <span title={receiptTitle} aria-label={receiptTitle} className={`inline-flex ${allRead ? "text-indigo-600" : "text-slate-400"}`}><FiCheck className="h-3 w-3" />{(allDelivered || allRead) && <FiCheck className="-ml-1 h-3 w-3" />}</span>}</span>;
 
   return (
     <div data-outgoing={isMe} data-group-start={showAvatar} className={`nx-chat-message group/bubble flex w-full ${showAvatar ? "pt-3" : "pt-0.5"} ${isMe ? "justify-end" : "justify-start"}`}>
@@ -865,7 +880,8 @@ const MessageBubble = React.memo(({ message, conversationId, isMe, showAvatar, o
             } ${searchQuery.trim() ? "ring-2 ring-amber-300/60" : ""}`}
           >
             {message.reply_to && <blockquote className="mb-2 border-l-2 border-sky-500 pl-2 text-xs"><strong>{message.reply_to.user_name}</strong><p className="line-clamp-2">{message.reply_to.body || "Attachment"}</p></blockquote>}
-            {message.body && <RichMessageText text={message.body} isMe={isMe} searchQuery={searchQuery} mentionLookups={mentionLookups}>{!message.attachments?.length && metadata}</RichMessageText>}
+            {message.pinned_at && <p className="text-xs font-semibold opacity-75">Pinned</p>}
+            {message.body && <RichMessageText text={message.deleted_at ? "Message deleted" : message.body} isMe={isMe} searchQuery={searchQuery} mentionLookups={mentionLookups}>{!message.attachments?.length && metadata}</RichMessageText>}
 
             {!message.deleted_at && <MessageLinkPreview message={message} conversationId={conversationId} />}
 
@@ -885,29 +901,31 @@ const MessageBubble = React.memo(({ message, conversationId, isMe, showAvatar, o
             {(!message.body || message.attachments?.length > 0) && <div className="text-right">{metadata}</div>}
           </div>
 
-          {!message.deleted_at && <button type="button" className="chat-mobile-message-menu" aria-label="Message actions" aria-expanded={toolsOpen} onClick={() => setToolsOpen((open) => !open)}><FiMoreVertical /></button>}
-          <div className="nx-chat-message-tools" data-open={toolsOpen} onKeyDown={(event) => { if (event.key === "Escape") setToolsOpen(false); }}>
+          {!message.deleted_at && <button ref={messageToolsTriggerRef} type="button" className="chat-mobile-message-menu" title="Message actions" aria-label="Message actions" aria-expanded={toolsOpen} onClick={() => setToolsOpen((open) => !open)}><FiMoreVertical /></button>}
+          <div ref={messageToolsRef} role="group" aria-label="Message actions menu" className="nx-chat-message-tools" data-open={toolsOpen} onKeyDown={(event) => { if (event.key === "Escape") setToolsOpen(false); }}>
             {onContext && <button type="button" onClick={() => onContext(message.id)} className="chat-icon-button" aria-label="Open message in conversation"><FiSearch /></button>}
             {canChangeMessage(message, isMe ? message.user_id : null) && <>
-              <button type="button" onClick={() => onEdit(message)} aria-label="Edit message" className="chat-icon-button"><FiEdit /></button>
-              <button type="button" onClick={() => onDelete(message)} aria-label="Delete message" className="chat-icon-button"><FiTrash2 /></button>
+              <button type="button" onClick={() => { setToolsOpen(false); onEdit(message); }} aria-label="Edit message" className="chat-icon-button"><FiEdit /><span>Edit message</span></button>
+              <button type="button" onClick={() => { setToolsOpen(false); onDelete(message); }} aria-label="Delete message" className="chat-icon-button"><FiTrash2 /><span>Delete for everyone</span></button>
             </>}
             {!message.deleted_at && <>
+            <button type="button" className="chat-icon-button" onClick={() => { setToolsOpen(false); onThread(message); }}>View reply thread</button>
+            {onPin && <button type="button" className="chat-icon-button" onClick={() => { setToolsOpen(false); onPin(message); }}>{message.pinned_at ? 'Unpin message' : 'Pin message'}</button>}
             {message.body && <button type="button" aria-label="Copy message" title="Copy message" className="chat-icon-button" onClick={async () => {
               try { await navigator.clipboard.writeText(message.body); setToolsOpen(false); toast.success("Message copied"); }
               catch { toast.error("Could not copy message"); }
-            }}><FiCopy /></button>}
-            <button type="button" onClick={() => onReply(message)} aria-label={`Reply to ${message.user_name}`} title="Reply" className="chat-icon-button"><FiCornerUpLeft /></button>
+            }}><FiCopy /><span>Copy message</span></button>}
+            <button type="button" onClick={() => { setToolsOpen(false); onReply(message); }} aria-label={`Reply to ${message.user_name}`} title="Reply" className="chat-icon-button"><FiCornerUpLeft /><span>Reply</span></button>
             <button
               ref={reactionTriggerRef}
               type="button"
-              onClick={() => setIsReactionPickerOpen((previous) => !previous)}
+              onClick={() => { setToolsOpen(false); setIsReactionPickerOpen((previous) => !previous); }}
               className={`flex h-6 w-6 items-center justify-center rounded-md text-slate-400 transition hover:bg-white hover:text-indigo-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 md:opacity-0 md:group-hover/bubble:opacity-100 md:group-focus-within/bubble:opacity-100 dark:hover:bg-zinc-800 dark:hover:text-indigo-300 ${isReactionPickerOpen ? "bg-white text-indigo-600 md:opacity-100 dark:bg-zinc-800 dark:text-indigo-300" : ""}`}
               aria-label="Add reaction"
               aria-expanded={isReactionPickerOpen}
               aria-controls={isReactionPickerOpen ? `message-reactions-${message.id}` : undefined}
             >
-              <FiSmile className="h-3.5 w-3.5" />
+              <FiSmile className="h-3.5 w-3.5" /><span>Add reaction</span>
             </button>
             </>}
           </div>
@@ -1129,6 +1147,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   const [olderMessagesError, setOlderMessagesError] = useState("");
   const [historyAnchor, setHistoryAnchor] = useState(null);
   const [hasUnreadBelow, setHasUnreadBelow] = useState(false);
+  const [unreadAnchor, setUnreadAnchor] = useState(null);
   const [users, setUsers] = useState([]);
   const [muteTarget, setMuteTarget] = useState(null);
   const [isUsersLoading, setIsUsersLoading] = useState(false);
@@ -1138,6 +1157,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   const [replyTo, setReplyTo] = useState(null);
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [attachments, setAttachments] = useState([]);
+  const [threadTarget, setThreadTarget] = useState(null);
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState("");
@@ -1560,16 +1580,18 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       const existingIds = new Set(existingMessages.map((message) => Number(message.id)));
       const missingMessages = nextIncomingMessages.filter((message) => !existingIds.has(Number(message.id)));
 
-
+      const updatedMessages = existingMessages.map((message) => {
+        const incoming = incomingById.get(Number(message.id));
+        const merged = incoming ? mergeMessage(message, incoming) : message;
+        const target = incomingById.get(Number(message.reply_to?.id));
+        return target ? patchMessageRows([merged], target)[0] : merged;
+      });
+      if (!missingMessages.length && updatedMessages.every((message, index) => message === existingMessages[index])) return previous;
       const nextConversation = {
         ...previous,
-        messages: [...existingMessages.map((message) => {
-          const merged = mergeMessage(message, incomingById.get(Number(message.id)) || message);
-          const target = incomingById.get(Number(message.reply_to?.id));
-          return target ? patchMessageRows([merged], target)[0] : merged;
-        }), ...missingMessages].sort((left, right) => (
+        messages: missingMessages.length ? [...updatedMessages, ...missingMessages].sort((left, right) => (
           new Date(left.created_at) - new Date(right.created_at)
-        ))
+        )) : updatedMessages
       };
 
       conversationCacheRef.current = {
@@ -1717,6 +1739,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     cacheKeys.slice(0, Math.max(0, cacheKeys.length - 9)).forEach((key) => delete conversationCacheRef.current[key]);
     const cachedConversation = conversationCacheRef.current[String(id)];
     if (cachedConversation) {
+      setUnreadAnchor(previous => Number(previous?.conversationId) === Number(id) && previous?.id ? previous : { conversationId: id, id: cachedConversation.first_unread_message_id });
       setActiveConversation(cachedConversation);
       setMessagePageMeta(cachedConversation.messages_meta || null);
     } else {
@@ -1734,6 +1757,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
         (previous.messages || []).forEach((message) => messages.set(Number(message.id), mergeMessage(message, messages.get(Number(message.id)) || message)));
         return { ...data, messages: [...messages.values()].sort((left, right) => Number(left.id) - Number(right.id)) };
       });
+      setUnreadAnchor(previous => Number(previous?.conversationId) === Number(id) && previous?.id ? previous : { conversationId: id, id: data.first_unread_message_id });
       setMessagePageMeta(data.messages_meta || null);
       if (isLiveCall(data.active_call)) {
         setActiveCall(data.active_call);
@@ -2535,7 +2559,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     }));
   }, []);
 
-  const changeMessage = async (message, deleting = false) => {
+  const changeMessage = useCallback(async (message, deleting = false) => {
     if (messageActionPending) return;
     if (deleting && !window.confirm("Delete this message for everyone?")) return;
     setMessageActionPending(true);
@@ -2547,7 +2571,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     } catch (error) {
       setMessageActionError(error.response?.data?.errors?.join(", ") || "Message could not be changed. Please try again.");
     } finally { setMessageActionPending(false); }
-  };
+  }, [conversationId, editBody, applyMessageChange, messageActionPending]);
 
   const searchHistory = useCallback(async (query, beforeId, token) => {
     setSearchResults((previous) => ({ ...previous, loading: true, error: "" }));
@@ -3089,6 +3113,29 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     ];
   }, [activeConversation, activeConversationOtherParticipant?.name]);
 
+  const handlePin = useCallback(async (message) => {
+    try { const { data } = await pinChatMessage(conversationId, message.id, !message.pinned_at); applyMessageChange(conversationId, data); }
+    catch { toast.error('Could not update pinned message'); }
+  }, [conversationId, applyMessageChange]);
+  const handleScheduled = useCallback((snapshot) => {
+    const current = composerSnapshotRef.current;
+    if (current.body === snapshot.body && current.attachments === snapshot.attachments && current.replyTo?.id === snapshot.replyTo?.id) {
+      setMessageBody(''); setAttachments([]); setReplyTo(null);
+    }
+    toast.success('Message scheduled');
+  }, []);
+
+  const handleReply = useCallback((message) => {
+    setReplyTo(message);
+    composerTextareaRef.current?.focus();
+  }, []);
+  const handleEdit = useCallback((message) => {
+    setEditingMessage(message);
+    setEditBody(message.body || "");
+    setMessageActionError("");
+  }, []);
+  const handleDelete = useCallback((message) => changeMessage(message, true), [changeMessage]);
+
   const handleToggleReaction = useCallback(async (messageId, emoji, isActive) => {
     if (!conversationId) return;
 
@@ -3201,7 +3248,10 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       formData.append("message[body]", draft.body);
       formData.append("message[client_id]", clientId);
       if (draft.replyTo) formData.append("message[reply_to_id]", draft.replyTo.id);
-      draft.attachments.forEach((file) => formData.append("message[attachments][]", file));
+      // Process sequentially to avoid decoding several full-size photos at once.
+      for (const file of draft.attachments) {
+        formData.append("message[attachments][]", await prepareChatUpload(file));
+      }
       const { data: newMessage } = await sendMessage(targetId, formData);
       mergeMessagesIntoActiveConversation(targetId, [newMessage]);
       const cached = conversationCacheRef.current[String(targetId)];
@@ -3846,6 +3896,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                     <button type="button" onClick={() => setEditingMessage(null)}>Cancel</button></div>
                   </form>}
                   {contextMessages && <button className="chat-context-return" onClick={() => { setContextMessages(null); setContextTarget(null); isAtLatestMessagesRef.current = true; scrollMessagesToBottom(80); }}>Viewing message context · Back to latest</button>}
+                  <ChatTools unreadId={Number(unreadAnchor?.conversationId) === Number(conversationId) ? unreadAnchor?.id : null} onJumpUnread={() => openMessageContext(unreadAnchor.id)} key={conversationId} conversationId={conversationId} thread={threadTarget} onCloseThread={() => setThreadTarget(null)} onReply={handleReply} onOpen={openMessageContext} readOnly={user?.demo_account} draft={{ body: messageBody, attachments, replyTo, clientId: pendingSendRef.current?.clientId }} onScheduled={handleScheduled} />
                   <div
                     ref={messageListRef}
                     onScroll={handleMessageListScroll}
@@ -3918,13 +3969,15 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                             const previous = filteredMessages[index - 1];
                             const dayStart = !previous || !isSameDay(new Date(previous.created_at), new Date(message.created_at));
                             return <>
+                              {Number(unreadAnchor?.conversationId) === Number(conversationId) && Number(message.id) === Number(unreadAnchor?.id) && <div className="chat-day-divider" role="separator" aria-label="Unread messages"><span>Unread messages</span></div>}
                               {dayStart && <div className="chat-day-divider"><span>{formatDayLabel(message.created_at)}</span></div>}
                               <MessageBubble conversationId={conversationId} message={message} isMe={Number(message.user_id) === Number(user?.id)}
                                 showAvatar={dayStart || Number(previous?.user_id) !== Number(message.user_id)}
+                                onThread={setThreadTarget} onPin={user?.demo_account ? null : handlePin}
                                 onToggleReaction={handleToggleReaction}
-                                onReply={(message) => { setReplyTo(message); composerTextareaRef.current?.focus(); }}
-                                onEdit={(message) => { setEditingMessage(message); setEditBody(message.body || ""); setMessageActionError(""); }}
-                                onDelete={(message) => changeMessage(message, true)}
+                                onReply={handleReply}
+                                onEdit={handleEdit}
+                                onDelete={handleDelete}
                                 onContext={threadSearchQuery.trim() ? openMessageContext : null}
                                 participants={conversationParticipants} conversationType={activeConversation.conversation_type}
                                 searchQuery={deferredThreadSearchQuery} mentionLookups={mentionLookups} />
@@ -3988,7 +4041,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                               >
                                 {isImage && previewUrl ? (
                                   <div className="overflow-hidden rounded-2xl">
-                                    <img src={previewUrl} alt={file.name} className="h-24 w-full object-cover" loading="lazy" />
+                                    <img src={previewUrl} alt={file.name} className="h-24 w-full object-cover" loading="lazy" decoding="async" />
                                   </div>
                                 ) : isVideo && previewUrl ? (
                                   <div className="overflow-hidden rounded-2xl">
