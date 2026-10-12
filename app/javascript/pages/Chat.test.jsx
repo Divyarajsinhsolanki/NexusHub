@@ -329,7 +329,7 @@ describe("chat composer and keyboard controls", () => {
     expect(screen.getByRole("group", { name: "Choose a reaction" })).toBeTruthy();
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("group", { name: "Choose a reaction" })).toBeNull();
-    expect(document.activeElement).toBe(trigger);
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Message actions" }));
   });
 
   it("inserts mention and task triggers from the composer toolbar", async () => {

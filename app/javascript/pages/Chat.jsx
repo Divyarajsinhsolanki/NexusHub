@@ -1,3 +1,4 @@
+import MessageActionsPopover from "../components/chat/MessageActionsPopover";
 import ChatTools from "../components/chat/ChatTools";
 import { pinChatMessage } from "../components/api";
 import toast from "react-hot-toast";
@@ -829,7 +830,7 @@ const MessageBubble = React.memo(({ message, conversationId, isMe, showAvatar, o
     const handleKeyDown = (event) => {
       if (event.key !== "Escape") return;
       setIsReactionPickerOpen(false);
-      reactionTriggerRef.current?.focus();
+      messageToolsTriggerRef.current?.focus();
     };
 
     document.addEventListener("pointerdown", handlePointerDown);
@@ -872,6 +873,7 @@ const MessageBubble = React.memo(({ message, conversationId, isMe, showAvatar, o
             </span>
           )}
 
+          <div className={`nx-chat-bubble-row ${isMe ? "nx-chat-bubble-row-outgoing" : ""}`}>
           <div
             className={`nx-chat-message-bubble relative min-w-0 max-w-full rounded-2xl border px-4 py-2.5 [overflow-wrap:anywhere] ${
               isMe
@@ -902,7 +904,8 @@ const MessageBubble = React.memo(({ message, conversationId, isMe, showAvatar, o
           </div>
 
           {!message.deleted_at && <button ref={messageToolsTriggerRef} type="button" className="chat-mobile-message-menu" title="Message actions" aria-label="Message actions" aria-expanded={toolsOpen} onClick={() => setToolsOpen((open) => !open)}><FiMoreVertical /></button>}
-          <div ref={messageToolsRef} role="group" aria-label="Message actions menu" className="nx-chat-message-tools" data-open={toolsOpen} onKeyDown={(event) => { if (event.key === "Escape") setToolsOpen(false); }}>
+          </div>
+          <MessageActionsPopover open={toolsOpen} outgoing={isMe} triggerRef={messageToolsTriggerRef} menuRef={messageToolsRef}>
             {onContext && <button type="button" onClick={() => onContext(message.id)} className="chat-icon-button" aria-label="Open message in conversation"><FiSearch /></button>}
             {canChangeMessage(message, isMe ? message.user_id : null) && <>
               <button type="button" onClick={() => { setToolsOpen(false); onEdit(message); }} aria-label="Edit message" className="chat-icon-button"><FiEdit /><span>Edit message</span></button>
@@ -928,7 +931,7 @@ const MessageBubble = React.memo(({ message, conversationId, isMe, showAvatar, o
               <FiSmile className="h-3.5 w-3.5" /><span>Add reaction</span>
             </button>
             </>}
-          </div>
+          </MessageActionsPopover>
 
           {reactionEntries.length > 0 && (
             <div className={`nx-chat-message-reactions mb-1 flex max-w-full flex-wrap items-center gap-1 px-1 ${isMe ? "justify-end" : "justify-start"}`}>

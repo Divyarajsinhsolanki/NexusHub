@@ -316,3 +316,16 @@
 
 .chat-tools-toolbar { flex-wrap: wrap; }
 .chat-tools-toolbar button { min-height: 40px; }
+
+/* Keep actions next to the bubble without adding a separate message row. */
+.nx-chat-bubble-row { display: flex; align-items: flex-start; gap: 6px; min-width: 0; max-width: 100%; }
+.nx-chat-bubble-row-outgoing { flex-direction: row-reverse; }
+.nexus-chat-page .nx-chat-bubble-row .nx-chat-message-bubble { min-width: 0; }
+.nexus-chat-page .nx-chat-bubble-row .chat-mobile-message-menu { flex: 0 0 32px; width: 32px; min-height: 32px; margin-top: 3px; }
+.nexus-chat-page .nx-chat-message-tools { overflow-y: auto; overscroll-behavior: contain; border-radius: 12px; z-index: 100; }
+@media (hover: hover) and (pointer: fine) {
+  .nexus-chat-page .chat-mobile-message-menu { opacity: 0; transition: opacity 120ms ease; }
+  .nexus-chat-page .nx-chat-message:hover .chat-mobile-message-menu,
+  .nexus-chat-page .nx-chat-message:focus-within .chat-mobile-message-menu,
+  .nexus-chat-page .chat-mobile-message-menu[aria-expanded="true"] { opacity: 1; }
+}
