@@ -101,3 +101,25 @@ test('admin resources follow server action permissions and retain authorized pas
   expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull();
   await screen.unmount(); client.clear();
 });
+
+test('appends older rows once and retains existing records', async () => {
+ jest.mocked(endpoints.resource).mockResolvedValueOnce({data:[{id:1,name:'First'}],meta:{next_page:2}} as never).mockResolvedValueOnce({data:[{id:1,name:'First'},{id:2,name:'Older'}],meta:{next_page:null}} as never);
+ const {screen,client}=await setup();
+ await waitFor(()=>expect(screen.getByText('First')).toBeTruthy());
+ await fireEvent.press(screen.getByText('Load more'));
+ await waitFor(()=>expect(screen.getByText('Older')).toBeTruthy());
+ expect(screen.getAllByText('First')).toHaveLength(1);
+ expect(endpoints.resource).toHaveBeenLastCalledWith('/users',{page:2});
+ await screen.unmount();client.clear();
+});
+test('role selectors preserve arrays and honor edit restrictions', async () => {
+ const client=new QueryClient({defaultOptions:{queries:{retry:false,gcTime:Infinity}}});
+ const screen=await render(<QueryClientProvider client={client}><EntityCollectionScreen title="People" subtitle="Directory" path="/users" wrapper="user" primary="name" fields={[{key:'first_name',label:'First name',required:true},{key:'role_names',recordKey:'roles',label:'Roles',multiple:true,options:['member','admin']}]} /></QueryClientProvider>);
+ await fireEvent.press(screen.getByLabelText('Create People'));
+ await waitFor(()=>expect(screen.getByLabelText('First name').props.editable).toBe(true));
+ await fireEvent.changeText(screen.getByLabelText('First name'),'Member');
+ await fireEvent.press(screen.getByRole('checkbox',{name:'member'}));
+ await fireEvent.press(screen.getByText('Save'));
+ await waitFor(()=>expect(endpoints.createResource).toHaveBeenCalledWith('/users','user',{first_name:'Member',role_names:['member']}));
+ await screen.unmount();client.clear();
+});

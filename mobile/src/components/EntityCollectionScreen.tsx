@@ -1,4 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Picker } from '@react-native-picker/picker';
+import type { CollectionResult } from '../api/types';
 import { FlashList } from '@shopify/flash-list';
 import { ArrowLeft, Pencil, Plus, Search, Trash2, X } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
@@ -18,7 +20,7 @@ import { PrimaryButton } from './PrimaryButton';
 import { Screen } from './Screen';
 import { EmptyState, ErrorState, LoadingState } from './StateView';
 
-export type EntityField = { key: string; label: string; multiline?: boolean; placeholder?: string; required?: boolean; createOnly?: boolean; secure?: boolean; keyboardType?: 'default' | 'email-address' | 'numeric' };
+export type EntityField = { key: string; label: string; multiple?: boolean; recordKey?: string; multiline?: boolean; placeholder?: string; required?: boolean; createOnly?: boolean; secure?: boolean; maskWhen?: (form: Record<string, string>) => boolean; options?: Array<string | {label: string; value: string}>; keyboardType?: 'default' | 'email-address' | 'numeric' | 'phone-pad' };
 type Props = {
   title: string;
   subtitle: string;
@@ -31,10 +33,13 @@ type Props = {
   canCreate?: boolean;
   params?: Record<string, unknown>;
   defaults?: Record<string, unknown>;
+  toolbar?: ReactNode;
+  renderRecord?: (record: EntityRecord) => ReactNode;
+  onRecordPress?: (record: EntityRecord) => void;
   renderEditFooter?: (record: EntityRecord) => ReactNode;
 };
 
-export function EntityCollectionScreen({ title, subtitle, path, wrapper, fields, primary, secondary = [], canWrite = true, canCreate = canWrite, params = {}, defaults = {}, renderEditFooter }: Props) {
+export function EntityCollectionScreen({ title, subtitle, path, wrapper, fields, primary, secondary = [], canWrite = true, canCreate = canWrite, params = {}, defaults = {}, toolbar, renderRecord, onRecordPress, renderEditFooter }: Props) {
   const theme = useAppTheme();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -46,6 +51,12 @@ export function EntityCollectionScreen({ title, subtitle, path, wrapper, fields,
   const [form, setForm] = useState<Record<string, string>>({});
   const [restoringDraft, setRestoringDraft] = useState(false);
   const query = useQuery({ queryKey: ['resource', path, params], queryFn: () => endpoints.resource(path, params) });
+  const more = useMutation({ mutationFn: (page: number) => endpoints.resource(path, { ...params, page }),
+    onSuccess: page => queryClient.setQueryData<CollectionResult<EntityRecord>>(['resource', path, params], previous => {
+      if (!previous) return page;
+      const ids = new Set(previous.data.map(row => row.id));
+      return { ...previous, meta: page.meta, data: [...previous.data, ...page.data.filter(row => !ids.has(row.id))] };
+    }), onError: error => Alert.alert('Unable to load more', apiErrorMessage(error)) });
   const administrative = path.startsWith('/admin/');
   const adminPermissions = (record: EntityRecord) => record.admin_permissions as { update?: boolean; destroy?: boolean; password_reset?: boolean } | undefined;
   const canEdit = (record: EntityRecord) => writable && (!administrative || adminPermissions(record)?.update === true);
@@ -66,7 +77,7 @@ export function EntityCollectionScreen({ title, subtitle, path, wrapper, fields,
   useEffect(() => {
     if (editing === undefined) return;
     let cancelled = false;
-    const fromRecord = Object.fromEntries(fields.map((field) => [field.key, String(editing?.[field.key] ?? '')]));
+    const fromRecord = Object.fromEntries(fields.map((field) => [field.key, field.multiple ? JSON.stringify(editing?.[field.recordKey || field.key] || []) : String(editing?.[field.key] ?? '')]));
     setForm(fromRecord);
     if (editing || !draftIdentity) { setRestoringDraft(false); return; }
     setRestoringDraft(true);
@@ -81,8 +92,8 @@ export function EntityCollectionScreen({ title, subtitle, path, wrapper, fields,
 
   const save = useMutation({
     mutationFn: () => editing?.id
-      ? endpoints.updateResource(path, editing.id, wrapper, { ...defaults, ...Object.fromEntries(visibleFields.map((field) => [field.key, form[field.key]])) })
-      : endpoints.createResource(path, wrapper, { ...defaults, ...form }),
+      ? endpoints.updateResource(path, editing.id, wrapper, { ...defaults, ...Object.fromEntries(visibleFields.map((field) => [field.key, field.multiple ? selectedValues(form[field.key]) : form[field.key]])) })
+      : endpoints.createResource(path, wrapper, { ...defaults, ...Object.fromEntries(fields.map(field => [field.key, field.multiple ? selectedValues(form[field.key]) : form[field.key]])) }),
     onSuccess: async () => {
       if (!editing && draftIdentity) await draftStore.remove(draftIdentity).catch(() => undefined);
       setEditing(undefined);
@@ -108,9 +119,10 @@ export function EntityCollectionScreen({ title, subtitle, path, wrapper, fields,
 
   return <Screen header={<PageHeader leading={<Pressable accessibilityLabel="Back" onPress={() => router.back()} style={styles.iconButton}><ArrowLeft color={theme.text} size={22} /></Pressable>} title={title} subtitle={subtitle} action={creatable ? <Pressable accessibilityLabel={`Create ${title}`} onPress={() => setEditing(null)} style={[styles.createButton, { backgroundColor: theme.primary }]}><Plus color="#ffffff" size={21} /></Pressable> : undefined} />}>
     <View style={[styles.search, { backgroundColor: theme.surface, borderColor: theme.border }]}><Search color={theme.textMuted} size={18} /><TextInput accessibilityLabel={`Search ${title}`} onChangeText={setSearch} placeholder={`Search ${title.toLowerCase()}`} placeholderTextColor={theme.textMuted} style={[styles.searchInput, { color: theme.text }]} value={search} />{search ? <Pressable accessibilityLabel="Clear search" onPress={() => setSearch('')}><X color={theme.textMuted} size={18} /></Pressable> : null}</View>
+    {toolbar}
     {query.isLoading && !query.data ? <LoadingState /> : null}
-    {query.isError && !query.data ? <ErrorState message={apiErrorMessage(query.error)} onRetry={() => query.refetch()} /> : null}
-    {query.data ? <FlashList contentContainerStyle={styles.list} data={rows} keyExtractor={(item) => String(item.id)} onRefresh={() => query.refetch()} refreshing={query.isRefetching} ListEmptyComponent={<EmptyState title={`No ${title.toLowerCase()}`} message={search ? 'Try another search.' : `Workspace ${title.toLowerCase()} will appear here.`} />} renderItem={({ item }) => <Pressable accessibilityRole={canOpen(item) ? 'button' : undefined} onPress={canOpen(item) ? () => setEditing(item) : undefined} style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}>{path === '/users' ? <Avatar name={String(item.full_name || item.name || [item.first_name, item.last_name].filter(Boolean).join(' ') || item.email || 'Workspace member')} uri={typeof item.profile_picture === 'string' ? item.profile_picture : undefined} color={typeof item.avatar_color === 'string' ? item.avatar_color : theme.primary} size={40} /> : <View style={[styles.monogram, { backgroundColor: theme.surfaceMuted }]}><Text style={{ color: theme.primary, fontWeight: '800' }}>{String(item[primary] || title).charAt(0).toUpperCase()}</Text></View>}<View style={styles.copy}><Text numberOfLines={1} style={[styles.name, { color: theme.text }]}>{recordLabel(item)}</Text><Text numberOfLines={2} style={[styles.meta, { color: theme.textMuted }]}>{secondary.map((key) => readableValue(item[key])).filter(Boolean).join(' · ') || (path === '/users' ? 'Workspace member' : title)}</Text></View>{canEdit(item) ? <Pencil color={theme.textMuted} size={17} /> : null}</Pressable>} /> : null}
+    {query.isError ? <ErrorState message={apiErrorMessage(query.error)} onRetry={() => query.refetch()} /> : null}
+    {query.data ? <FlashList contentContainerStyle={styles.list} data={rows} keyExtractor={(item) => String(item.id)} onRefresh={() => { if (!more.isPending) void query.refetch(); }} refreshing={query.isRefetching} ListFooterComponent={query.data.meta?.next_page ? <PrimaryButton label="Load more" loading={more.isPending} disabled={query.isRefetching} onPress={() => { if (!more.isPending && query.data?.meta?.next_page) more.mutate(query.data.meta.next_page); }} /> : null} ListEmptyComponent={<EmptyState title={`No ${title.toLowerCase()}`} message={search ? 'Try another search.' : `Workspace ${title.toLowerCase()} will appear here.`} />} renderItem={({ item }) => <Pressable accessibilityRole={onRecordPress || canOpen(item) ? 'button' : undefined} onPress={onRecordPress ? () => onRecordPress(item) : canOpen(item) ? () => setEditing(item) : undefined} style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}>{path === '/users' ? <Avatar name={String(item.full_name || item.name || [item.first_name, item.last_name].filter(Boolean).join(' ') || item.email || 'Workspace member')} uri={typeof item.profile_picture === 'string' ? item.profile_picture : undefined} color={typeof item.avatar_color === 'string' ? item.avatar_color : theme.primary} size={40} /> : <View style={[styles.monogram, { backgroundColor: theme.surfaceMuted }]}><Text style={{ color: theme.primary, fontWeight: '800' }}>{String(item[primary] || title).charAt(0).toUpperCase()}</Text></View>}<View style={styles.copy}><Text numberOfLines={1} style={[styles.name, { color: theme.text }]}>{recordLabel(item)}</Text><Text numberOfLines={2} style={[styles.meta, { color: theme.textMuted }]}>{secondary.map((key) => readableValue(item[key])).filter(Boolean).join(' · ') || (path === '/users' ? 'Workspace member' : title)}</Text>{renderRecord?.(item)}</View>{canEdit(item) ? <Pressable accessibilityLabel={`Edit ${recordLabel(item)}`} onPress={event => { event.stopPropagation(); setEditing(item); }} style={styles.iconButton}><Pencil color={theme.textMuted} size={17} /></Pressable> : null}</Pressable>} /> : null}
     <Modal animationType="slide" onRequestClose={closeEditor} presentationStyle="pageSheet" visible={editing !== undefined}>
       <SafeAreaView style={[styles.modal, { backgroundColor: theme.background }]}>
         <KeyboardAvoidingView style={styles.modal} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -122,7 +134,7 @@ export function EntityCollectionScreen({ title, subtitle, path, wrapper, fields,
           <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
             {visibleFields.map((field) => <View key={field.key}>
               <Text style={[styles.label, { color: theme.text }]}>{field.label}{field.required ? ' *' : ''}</Text>
-              <TextInput accessibilityLabel={field.label} editable={editingWritable && !busy && !restoringDraft} multiline={field.multiline} secureTextEntry={field.secure} keyboardType={field.keyboardType} autoCapitalize={field.secure || field.keyboardType === 'email-address' ? 'none' : 'sentences'} autoCorrect={!field.secure && field.keyboardType !== 'email-address'} onChangeText={(value) => updateField(field.key, value)} placeholder={field.placeholder} placeholderTextColor={theme.textMuted} style={[styles.field, field.multiline && styles.multiline, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }]} value={form[field.key] || ''} />
+              {field.multiple ? <View style={{gap:8}}>{field.options?.map(option => { const value = typeof option === 'string' ? option : option.value; const selected = selectedValues(form[field.key]); const checked = selected.includes(value); return <Pressable key={value} accessibilityRole="checkbox" accessibilityLabel={typeof option === 'string' ? option : option.label} accessibilityState={{checked,disabled:!editingWritable || busy}} disabled={!editingWritable || busy || restoringDraft} onPress={() => updateField(field.key,JSON.stringify(checked ? selected.filter(item=>item!==value) : [...selected,value]))} style={{padding:12,borderWidth:1,borderColor:theme.border,borderRadius:8}}><Text style={{color:theme.text}}>{checked ? '✓ ' : '○ '}{typeof option === 'string' ? option : option.label}</Text></Pressable>; })}</View> : field.options ? <Picker accessibilityLabel={field.label} enabled={editingWritable && !busy && !restoringDraft} selectedValue={form[field.key] || ''} onValueChange={value => updateField(field.key, String(value))} style={{color: theme.text}}><Picker.Item label={`Select ${field.label.toLowerCase()}`} value="" />{field.options.map(option => { const value = typeof option === 'string' ? option : option.value; return <Picker.Item key={value} label={typeof option === 'string' ? option : option.label} value={value} />; })}</Picker> : <TextInput accessibilityLabel={field.label} editable={editingWritable && !busy && !restoringDraft} multiline={field.multiline} secureTextEntry={field.maskWhen ? field.maskWhen(form) : field.secure} keyboardType={field.keyboardType} autoCapitalize={field.secure || field.keyboardType === 'email-address' ? 'none' : 'sentences'} autoCorrect={!field.secure && field.keyboardType !== 'email-address'} onChangeText={(value) => updateField(field.key, value)} placeholder={field.placeholder} placeholderTextColor={theme.textMuted} style={[styles.field, field.multiline && styles.multiline, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }]} value={form[field.key] || ''} />}
             </View>)}
             {editing && renderEditFooter && (!administrative || canResetPassword(editing)) ? renderEditFooter(editing) : null}
             {editing && canDelete(editing) ? <Pressable accessibilityRole="button" disabled={busy} onPress={() => Alert.alert(`Delete ${recordLabel(editing)}?`, 'This cannot be undone.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => remove.mutate(editing.id) }])} style={styles.delete}><Trash2 color={theme.danger} size={18} /><Text style={{ color: theme.danger, fontWeight: '700' }}>Delete</Text></Pressable> : null}
@@ -161,3 +173,5 @@ const styles = StyleSheet.create({
   multiline: { minHeight: 112, textAlignVertical: 'top' },
   delete: { alignItems: 'center', flexDirection: 'row', gap: 8, justifyContent: 'center', minHeight: 48 },
 });
+
+function selectedValues(value?: string): string[] { try { const parsed = JSON.parse(value || "[]"); return Array.isArray(parsed) ? parsed.map(String) : []; } catch { return []; } }
