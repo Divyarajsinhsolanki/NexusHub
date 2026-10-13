@@ -1,0 +1,32 @@
+# EAS archives the Git repository root; the mobile app is self-contained.
+/*
+!/mobile
+
+# Dependencies, generated native projects, local configuration and credentials.
+mobile/node_modules/
+mobile/.expo/
+mobile/dist/
+mobile/web-build/
+mobile/android/
+mobile/ios/
+mobile/.kotlin/
+mobile/.firebase/
+mobile/.env*
+mobile/google-services.json
+mobile/GoogleService-Info.plist
+**/*.jks
+**/*.p8
+**/*.p12
+**/*.key
+**/*.pem
+**/*.mobileprovision
+**/*.tsbuildinfo
+**/.DS_Store
+
+# Keep design drafts in Git while uploading only the configured icon/splash assets.
+mobile/assets/images/icon-options/*
+!mobile/assets/images/icon-options/sparkle.png
+mobile/assets/images/icon-concepts/*
+!mobile/assets/images/icon-concepts/ds-design-studio-3d-2026-10
+mobile/assets/images/icon-concepts/ds-design-studio-3d-2026-10/*
+!mobile/assets/images/icon-concepts/ds-design-studio-3d-2026-10/ds-design-studio-3d.png

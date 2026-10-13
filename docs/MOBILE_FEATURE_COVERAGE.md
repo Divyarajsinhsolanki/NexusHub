@@ -107,6 +107,7 @@ Updated: 2026-10-13. This is an action-level release checklist, not a declaratio
 - Mobile Jest checks: 75 suites / 273 tests passed, plus 2 calendar/work-log endpoint tests; focused new filters, feed deletion, comment profiles, Vault, Planning, calendar and shared selector/pagination tests.
 - Rails request suites: mobile_api_v1 and calendar_access (35 tests, 225 assertions passed).
 - No new backend endpoints, deployment, or code push in this change.
+- Android JavaScript export passed (5,096 modules). EAS archive inspection retained all configured icon, splash and notification assets while excluding backend files and unused design drafts (137 MB directory reduced to 16 MB).
 - Android preview APK is requested through EAS after automated checks; build outcome and artifact are recorded in the delivery message.
 - Physical Android acceptance still required: navigation/back/filter retention, keyboard, long lists, attachments, background push/reply, offline retry, expired sessions, restricted roles, cross-workspace links, demo restrictions, secret reveal cleanup and small screens. No adb-connected device was available during implementation.
 - iOS compile/device testing remains pending.
