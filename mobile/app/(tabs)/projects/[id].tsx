@@ -1,13 +1,15 @@
-import { canOpenProject, canManageProject } from "@/src/utils/projectAccess";
-import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, BarChart3, Bug, Columns3, FolderLock, ListTree, Plus, Server, Settings2, TimerReset, Users } from 'lucide-react-native';
+import { canOpenProject, canManageProject, canEditProject } from "@/src/utils/projectAccess";
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { ArrowLeft, BarChart3, Bug, Columns3, FolderLock, ListTree, Plus, Server, Settings2, TimerReset, Users, ExternalLink } from 'lucide-react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
+import { Alert, FlatList, StyleSheet, Text, View } from 'react-native';
 import { useState } from 'react';
 
 import { apiErrorMessage } from '@/src/api/client';
 import { endpoints } from '@/src/api/endpoints';
 import type { Task, TaskStatus } from '@/src/api/types';
+import { PrimaryButton } from '@/src/components/PrimaryButton';
 import { PageHeader } from '@/src/components/PageHeader';
 import { Screen } from '@/src/components/Screen';
 import { EmptyState, ErrorState, LoadingState } from '@/src/components/StateView';
@@ -28,10 +30,14 @@ export default function ProjectDetailScreen() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const project = useQuery({ queryKey: ['project', projectId], queryFn: () => endpoints.project(projectId), enabled: Number.isFinite(projectId) });
   const sprints = useQuery({ queryKey: ['project-sprints', projectId], queryFn: () => endpoints.sprints(projectId), enabled: canOpenProject(project.data, user) });
-  const tasks = useQuery({ queryKey: ['project-tasks', projectId], queryFn: () => endpoints.tasks({ project_id: projectId, per_page: 100 }), enabled: canOpenProject(project.data, user) });
+  const tasks = useInfiniteQuery({queryKey:['project-tasks',projectId,'overview'],initialPageParam:1,queryFn:({pageParam})=>endpoints.tasks({project_id:projectId,page:pageParam,per_page:30}),getNextPageParam:page=>page.meta?.next_page ?? undefined,enabled:canOpenProject(project.data,user)});
+  const config = useQuery({queryKey:['mobile-config'],queryFn:endpoints.config});
+  const selectedTask = useQuery({queryKey:['linked-task',selectedTaskId],queryFn:()=>endpoints.rawResource<Task>(`/tasks/${selectedTaskId}`),enabled:selectedTaskId > 0 && canOpenProject(project.data,user)});
+  const openWeb = (path:string) => { if(config.data?.web_url) void WebBrowser.openBrowserAsync(`${config.data.web_url}${path}`).catch(error=>Alert.alert('Unable to open browser',apiErrorMessage(error))); };
   const taskStatus = useTaskStatus();
   const refreshing = project.isRefetching || sprints.isRefetching || tasks.isRefetching;
-  const taskData = [...(tasks.data?.data || [])].sort((a, b) => (a.id === selectedTaskId ? -1 : b.id === selectedTaskId ? 1 : 0));
+  const loadedTasks = tasks.data?.pages.flatMap(page=>page.data) || [];
+  const taskData = [...(selectedTask.data?.project_id === projectId && !loadedTasks.some(task=>task.id===selectedTaskId) ? [selectedTask.data,...loadedTasks] : loadedTasks)].sort((a, b) => (a.id === selectedTaskId ? -1 : b.id === selectedTaskId ? 1 : 0));
   const refresh = () => Promise.all([project.refetch(), sprints.refetch(), tasks.refetch()]);
   const changeStatus = (id: number, status: TaskStatus) => taskStatus.mutate({ id, status });
 
@@ -39,11 +45,11 @@ export default function ProjectDetailScreen() {
 
   return (
     <Screen
-      header={<PageHeader leading={<TouchableScale accessibilityLabel="Back to projects" accessibilityRole="button" hitSlop={10} onPress={() => router.back()} style={styles.back}><ArrowLeft color={theme.text} size={23} /></TouchableScale>} title={project.data?.name || 'Project'} subtitle={project.data?.status} action={!user?.demo_account ? <TouchableScale accessibilityLabel="Create project task" accessibilityRole="button" haptic="light" onPress={() => router.push(`/create?type=task&projectId=${projectId}` as never)} style={[styles.add, { backgroundColor: theme.primary, shadowColor: theme.shadow }]}><Plus color="#ffffff" size={21} /></TouchableScale> : undefined} />}>
+      header={<PageHeader leading={<TouchableScale accessibilityLabel="Back to projects" accessibilityRole="button" hitSlop={10} onPress={() => router.back()} style={styles.back}><ArrowLeft color={theme.text} size={23} /></TouchableScale>} title={project.data?.name || 'Project'} subtitle={project.data?.status} action={!user?.demo_account && canEditProject(project.data, user) ? <TouchableScale accessibilityLabel="Create project task" accessibilityRole="button" haptic="light" onPress={() => router.push(`/create?type=task&projectId=${projectId}` as never)} style={[styles.add, { backgroundColor: theme.primary, shadowColor: theme.shadow }]}><Plus color="#ffffff" size={21} /></TouchableScale> : undefined} />}>
       {project.isLoading ? <LoadingState label="Loading project" /> : null}
       {project.isError ? <ErrorState message={apiErrorMessage(project.error)} onRetry={() => refresh()} /> : null}
       {project.data ? (
-        <ScrollView contentContainerStyle={styles.scroll} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.primary} />}>
+        <><FlatList contentContainerStyle={styles.scroll} data={taskData} keyExtractor={task=>String(task.id)} refreshing={refreshing && !tasks.isFetchingNextPage} onRefresh={refresh} onEndReached={()=>{if(tasks.hasNextPage && !tasks.isFetchingNextPage) void tasks.fetchNextPage();}} onEndReachedThreshold={0.4} ListHeaderComponent={<>
           {project.data.description ? <Text style={[styles.description, { color: theme.textMuted }]}>{project.data.description}</Text> : null}
           <View style={[styles.tools, { flexWrap: 'wrap' }]}>
             <ProjectTool icon={Columns3} label="Todo" onPress={() => router.push(`/projects/${projectId}/board` as never)} />
@@ -54,6 +60,7 @@ export default function ProjectDetailScreen() {
             <ProjectTool icon={TimerReset} label="Logs" onPress={() => router.push(`/projects/${projectId}/logs` as never)} />
             <ProjectTool icon={Server} label="Environments" onPress={() => router.push(`/projects/${projectId}/environments` as never)} />
             <ProjectTool icon={FolderLock} label="Vault" onPress={() => router.push(`/projects/${projectId}/vault` as never)} />
+            {config.data?.web_url ? <><ProjectTool icon={ExternalLink} label="Dashboard (browser)" onPress={()=>openWeb(`/projects/${projectId}/dashboard`)} /><ProjectTool icon={ExternalLink} label="3D room (browser)" onPress={()=>openWeb(`/projects/${projectId}/metaverse`)} /></> : null}
             {canManageProject(project.data, user) ? <ProjectTool icon={Settings2} label="Settings" onPress={() => router.push(`/projects/${projectId}/settings` as never)} /> : null}
           </View>
           <Text style={[styles.heading, { color: theme.text }]}>Sprints</Text>
@@ -67,15 +74,10 @@ export default function ProjectDetailScreen() {
           </View>
 
           <Text style={[styles.heading, { color: theme.text }]}>Tasks</Text>
-          <View style={styles.tasks}>
-            {taskData.length ? taskData.map((task) => (
-              <View key={task.id} style={task.id === selectedTaskId ? [styles.selected, { borderColor: theme.primary }] : undefined}>
-                <TaskCard onEdit={!user?.demo_account ? () => setEditingTask(task) : undefined} onStatusChange={(status) => changeStatus(task.id, status)} readOnly={Boolean(user?.demo_account)} task={task} updating={taskStatus.isPending && taskStatus.variables?.id === task.id} />
-              </View>
-            )) : <EmptyState title="No tasks" message="This project's tasks will appear here." />}
-          </View>
+          {tasks.isError ? <ErrorState message={apiErrorMessage(tasks.error)} onRetry={()=>tasks.refetch()} /> : null}{selectedTask.isError ? <ErrorState message={apiErrorMessage(selectedTask.error)} onRetry={()=>selectedTask.refetch()} /> : null}
+          </>} ListEmptyComponent={tasks.isPending ? <LoadingState /> : !tasks.isError ? <EmptyState title="No tasks" message="This project's tasks will appear here." /> : null} ListFooterComponent={tasks.isFetchingNextPage ? <LoadingState label="Loading more tasks" /> : tasks.hasNextPage ? <PrimaryButton label="Load more tasks" onPress={()=>{if(!tasks.isFetchingNextPage) void tasks.fetchNextPage();}} /> : null} renderItem={({item:task})=><View style={task.id===selectedTaskId ? [styles.selected,{borderColor:theme.primary}] : undefined}><TaskCard onEdit={()=>setEditingTask(task)} onStatusChange={status=>changeStatus(task.id,status)} readOnly={Boolean(user?.demo_account) || !canEditProject(project.data,user)} task={task} updating={taskStatus.isPending && taskStatus.variables?.id===task.id} /></View>} />
           <TaskEditor members={project.data.users || []} onClose={() => setEditingTask(null)} onSaved={async () => { setEditingTask(null); await tasks.refetch(); }} projectId={projectId} sprints={sprints.data || []} task={editingTask} />
-        </ScrollView>
+        </>
       ) : null}
     </Screen>
   );

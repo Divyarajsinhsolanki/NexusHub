@@ -1,3 +1,6 @@
+import { PeoplePhotoActions } from '@/src/components/PeoplePhotoActions';
+import { PlanningScreen } from '@/src/screens/PlanningScreen';
+import { VaultScreen } from '@/src/screens/VaultScreen';
 import { SettingsScreen } from '@/src/screens/SettingsScreen';
 import { KnowledgeScreen } from '@/src/screens/KnowledgeScreen';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -30,7 +33,7 @@ import { TeamsScreen } from '@/src/screens/TeamsScreen';
 import { LearningGoalsScreen } from '@/src/screens/LearningGoalsScreen';
 
 const configs: Record<string, { title: string; subtitle: string; path: string; wrapper: string; primary: string; secondary: string[]; fields: EntityField[]; permission?: string }> = {
-  skills: { title: 'Skills', subtitle: 'Your capabilities and proficiency', path: '/user_skills', wrapper: 'user_skill', primary: 'name', secondary: ['proficiency_label', 'endorsements_count'], fields: [{ key: 'name', label: 'Skill name' }, { key: 'proficiency', label: 'Proficiency', placeholder: 'beginner, intermediate, advanced, expert' }] },
+  skills: { title: 'Skills', subtitle: 'Your capabilities and proficiency', path: '/user_skills', wrapper: 'user_skill', primary: 'name', secondary: ['proficiency_label', 'endorsements_count'], fields: [{ key: 'name', label: 'Skill name' }, { key: 'proficiency', label: 'Proficiency', options: ['beginner', 'intermediate', 'advanced', 'expert'], required: true }] },
   people: { title: 'People', subtitle: 'Workspace directory and availability', path: '/users', wrapper: 'user', primary: 'full_name', secondary: ['job_title', 'email'], fields: [{ key: 'first_name', label: 'First name', required: true }, { key: 'last_name', label: 'Last name' }, { key: 'email', label: 'Email', keyboardType: 'email-address', required: true }, { key: 'job_title', label: 'Job title' }, { key: 'password', label: 'Temporary password', required: true, secure: true, createOnly: true }, { key: 'password_confirmation', label: 'Confirm password', required: true, secure: true, createOnly: true }], permission: 'users.manage' },
   vault: { title: 'Vault', subtitle: 'Private notes and references', path: '/items', wrapper: 'item', primary: 'title', secondary: ['category', 'content'], fields: [{ key: 'title', label: 'Title' }, { key: 'category', label: 'Category' }, { key: 'content', label: 'Content', multiline: true }] },
 };
@@ -38,11 +41,18 @@ const configs: Record<string, { title: string; subtitle: string; path: string; w
 export default function MoreFeatureScreen() {
   const { feature } = useLocalSearchParams<{ feature: string }>();
   const { user } = useAuth();
-  const config = configs[feature];
-  if (config) return <EntityCollectionScreen {...config} canCreate={feature === "people" ? Boolean(user?.permissions?.includes("users.create")) : !config.permission || Boolean(user?.permissions?.includes(config.permission))} canWrite={!config.permission || Boolean(user?.permissions?.includes(config.permission))} />;
+  const departments = useQuery({ queryKey: ['departments', 'people-picker'], queryFn: endpoints.departments, enabled: feature === 'people' });
+  const roles = useQuery({ queryKey: ['people-roles'], queryFn: () => endpoints.rawResource<string[]>('/roles'), enabled: feature === 'people' && Boolean(user?.roles?.some(role => role === 'admin' || role === 'owner')) });
+  const peopleProjects = useQuery({ queryKey: ['projects', 'people-picker'], queryFn: endpoints.projects, enabled: feature === 'people' && Boolean(user?.permissions?.includes('users.create')) });
+  const baseConfig = configs[feature];
+  const config = feature === 'people' ? { ...baseConfig, fields: [...baseConfig.fields, ...(roles.data ? [{key:'role_names',recordKey:'roles',label:'Roles',multiple:true,options:roles.data}] : []), {key:'project_ids',label:'Projects',multiple:true,createOnly:true,options:(peopleProjects.data || []).map(item=>({label:item.name,value:String(item.id)}))}, {key:'department_id',label:'Department',options:[{label:'No department',value:''},...(departments.data?.data || []).map(item => ({label:item.name,value:String(item.id)}))]}, {key:'phone_number',label:'Phone',keyboardType:'phone-pad' as const}, {key:'bio',label:'Bio',multiline:true}, {key:'date_of_birth',label:'Date of birth (YYYY-MM-DD)'}] } : baseConfig;
+  const router = useRouter();
+  if (feature === 'vault') return <VaultScreen />;
+  if (config) return <EntityCollectionScreen {...config} renderEditFooter={feature === "people" ? record => <PeoplePhotoActions userId={record.id} /> : undefined} onRecordPress={feature === 'people' ? record => router.push(`/profile/${record.id}` as never) : undefined} canCreate={feature === "people" ? Boolean(user?.permissions?.includes("users.create")) : !config.permission || Boolean(user?.permissions?.includes(config.permission))} canWrite={!config.permission || Boolean(user?.permissions?.includes(config.permission))} />;
   if (feature === 'teams') return <TeamsScreen />;
   if (feature === 'departments') return <DepartmentsScreen />;
   if (feature === 'goals') return <LearningGoalsScreen />;
+  if (feature === 'planning') return <PlanningScreen />;
   if (feature === 'calendar') return <FullCalendarScreen />;
   if (feature === 'momentum') return <MomentumScreen />;
   if (feature === 'knowledge') return <KnowledgeScreen />;
@@ -77,6 +87,10 @@ function CalendarRow({ event }: { event: CalendarEvent }) {
 
 function MomentumScreen() {
   const theme = useAppTheme();
+  const router = useRouter();
+  const {user} = useAuth();
+  const queryClient = useQueryClient();
+  const review = useMutation({mutationFn:(id:number)=>endpoints.markKnowledgeBookmarkReviewed(id),onSuccess:()=>Promise.all([queryClient.invalidateQueries({queryKey:['momentum']}),queryClient.invalidateQueries({queryKey:['knowledge-bookmarks']})]),onError:error=>Alert.alert('Unable to mark reviewed',apiErrorMessage(error))});
   const query = useQuery({ queryKey: ['momentum'], queryFn: endpoints.momentum });
   const data = query.data as Record<string, any> | undefined;
   const briefing = data?.morning_briefing || {};
@@ -90,14 +104,15 @@ function MomentumScreen() {
   return <Screen header={<BackHeader title="Momentum Hub" subtitle="Your daily focus and reflection" />}>
     {query.isLoading ? <LoadingState label="Building your briefing" /> : null}
     {query.isError ? <ErrorState message={apiErrorMessage(query.error)} onRetry={() => query.refetch()} /> : null}
-    {data ? <ScrollView contentContainerStyle={styles.scroll}><Text style={[styles.eyebrow, { color: theme.textMuted }]}>{format(new Date(), 'EEEE, MMMM d').toUpperCase()}</Text><Text style={[styles.heroTitle, { color: theme.text }]}>Keep the important work moving.</Text><View style={styles.metricGrid}>{cards.map((card) => <View key={card.label} style={[styles.metric, { backgroundColor: theme.surface, borderColor: theme.border }]}><Text style={[styles.metricLabel, { color: theme.textMuted }]}>{card.label}</Text><Text style={[styles.metricValue, { color: theme.text }]}>{card.value}</Text><Text style={[styles.metricDetail, { color: theme.textMuted }]}>{card.detail}</Text></View>)}</View><TaskSection title="Focus now" rows={briefing.focus_tasks || []} /><TaskSection title="Needs triage" rows={briefing.needs_triage || []} /></ScrollView> : null}
+    {data ? <ScrollView contentContainerStyle={styles.scroll}><Text style={[styles.eyebrow, { color: theme.textMuted }]}>{format(new Date(), 'EEEE, MMMM d').toUpperCase()}</Text><Text style={[styles.heroTitle, { color: theme.text }]}>Keep the important work moving.</Text><View style={styles.metricGrid}>{cards.map((card) => <View key={card.label} style={[styles.metric, { backgroundColor: theme.surface, borderColor: theme.border }]}><Text style={[styles.metricLabel, { color: theme.textMuted }]}>{card.label}</Text><Text style={[styles.metricValue, { color: theme.text }]}>{card.value}</Text><Text style={[styles.metricDetail, { color: theme.textMuted }]}>{card.detail}</Text></View>)}</View><TaskSection title="Focus now" rows={briefing.focus_tasks || []} /><TaskSection title="Overdue" rows={briefing.overdue_tasks || []} /><TaskSection title="Needs triage" rows={briefing.needs_triage || []} /><PrimaryButton label="Plan your day" onPress={()=>router.push('/more/planning' as never)} />{data.learning_nudge?.due_card ? <View style={styles.section}><Text style={[styles.rowTitle,{color:theme.text}]}>{String(data.learning_nudge.due_card.title || 'Learning review')}</Text><Text style={{color:theme.textMuted}}>{String(data.learning_nudge.due_card.answer || '')}</Text><PrimaryButton label="Open learning review" onPress={()=>router.push(`/more/knowledge?bookmark_id=${data.learning_nudge.due_card.id}` as never)} />{!user?.demo_account ? <PrimaryButton label="Mark reviewed" loading={review.isPending} onPress={()=>{if(!review.isPending) review.mutate(data.learning_nudge.due_card.id);}} /> : null}</View> : null}</ScrollView> : null}
   </Screen>;
 }
 
 function TaskSection({ title, rows }: { title: string; rows: EntityRecord[] }) {
   const theme = useAppTheme();
+  const router = useRouter();
   if (!rows.length) return null;
-  return <View style={styles.section}><Text style={[styles.sectionTitle, { color: theme.text }]}>{title}</Text>{rows.map((row) => <View key={row.id} style={[styles.simpleRow, { borderBottomColor: theme.border }]}><View style={styles.flex}><Text style={[styles.rowTitle, { color: theme.text }]}>{String(row.title)}</Text><Text style={[styles.rowMeta, { color: theme.textMuted }]}>{String(row.project_name || row.status || '')}</Text></View></View>)}</View>;
+  return <View style={styles.section}><Text style={[styles.sectionTitle, { color: theme.text }]}>{title}</Text>{rows.map((row) => <Pressable accessibilityRole="button" onPress={()=>router.push(`/work?taskId=${row.id}` as never)} key={row.id} style={[styles.simpleRow, { borderBottomColor: theme.border }]}><View style={styles.flex}><Text style={[styles.rowTitle, { color: theme.text }]}>{String(row.title)}</Text><Text style={[styles.rowMeta, { color: theme.textMuted }]}>{String(row.project_name || row.status || '')}</Text></View></Pressable>)}</View>;
 }
 
 

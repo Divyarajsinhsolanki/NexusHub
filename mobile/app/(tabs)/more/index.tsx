@@ -16,6 +16,7 @@ import { useAppTheme } from '@/src/theme';
 type MenuItem = { slug: string; label: string; detail: string; icon: ComponentType<{ color: string; size: number }>; feature?: string; permission?: string };
 const groups: Array<{ title: string; items: MenuItem[] }> = [
   { title: 'Plan and learn', items: [
+    { slug: 'planning', label: 'Planning', detail: 'Events and work in one daily timeline', icon: CalendarDays },
     { slug: 'calendar', label: 'Calendar', detail: 'Events, reminders, and schedules', icon: CalendarDays },
     { slug: 'momentum', label: 'Momentum Hub', detail: 'Daily focus and reflection', icon: Sparkles },
     { slug: 'knowledge', label: 'Knowledge', detail: 'Briefings, bookmarks, and prompts', icon: BookOpen },

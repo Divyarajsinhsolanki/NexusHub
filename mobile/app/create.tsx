@@ -27,7 +27,7 @@ const options: Array<{ type: CreateType; label: string; icon: ComponentType<{ co
 ];
 
 export default function CreateScreen() {
-  const params = useLocalSearchParams<{ type?: CreateType; projectId?: string }>();
+  const params = useLocalSearchParams<{ type?: CreateType; projectId?: string; date?: string }>();
   const router = useRouter();
   const theme = useAppTheme();
   const queryClient = useQueryClient();
@@ -35,7 +35,7 @@ export default function CreateScreen() {
   const [type, setType] = useState<CreateType>(options.some((option) => option.type === params.type) ? params.type! : 'task');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [date, setDate] = useState(new Date());
+  const [date, setDate] = useState(() => params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date) && !Number.isNaN(new Date(`${params.date}T12:00:00`).getTime()) ? new Date(`${params.date}T12:00:00`) : new Date());
   const [image, setImage] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [document, setDocument] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [restoringDraft, setRestoringDraft] = useState(true);

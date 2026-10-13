@@ -1,3 +1,5 @@
+import { VaultScreen } from '@/src/screens/VaultScreen';
+import { ProjectTaskLogsScreen } from '@/src/screens/ProjectTaskLogsScreen';
 import { ProjectOperationsScreen } from '@/src/screens/ProjectOperationsScreen';
 import { canOpenProject, canEditProject, canManageProject } from "@/src/utils/projectAccess";
 import { MemberPreview } from "@/src/components/MemberPreview";
@@ -39,8 +41,8 @@ export default function ProjectFeatureScreen() {
   if (feature === 'statistics') return <ProjectStatisticsScreen />;
   if (feature === 'issues') return <IssuesScreen />;
   if (feature === 'environments') return <ProjectOperationsScreen projectId={projectId} />;
-  if (feature === 'vault') return <EntityCollectionScreen canWrite={canEditProject(project.data, user)} title="Project vault" subtitle="Credentials, references, and environment notes" path={`/projects/${projectId}/vault_items`} wrapper="project_vault_item" primary="title" secondary={['category', 'username']} fields={[{ key: 'title', label: 'Title' }, { key: 'category', label: 'Category' }, { key: 'username', label: 'Username' }, { key: 'content', label: 'Content', multiline: true }]} />;
-  if (feature === 'logs') return <EntityCollectionScreen canWrite={canEditProject(project.data, user)} title="Task logs" subtitle="Delivery effort and status records" path="/task_logs" params={{ project_id: projectId }} wrapper="task_log" primary="type" secondary={['log_date', 'hours_logged', 'status']} fields={[{ key: 'task_id', label: 'Task ID' }, { key: 'developer_id', label: 'Developer ID' }, { key: 'type', label: 'Log type' }, { key: 'log_date', label: 'Log date', placeholder: 'YYYY-MM-DD' }, { key: 'hours_logged', label: 'Hours' }, { key: 'status', label: 'Status' }]} />;
+  if (feature === 'vault') return <VaultScreen projectId={projectId} canWrite={canEditProject(project.data, user)} />;
+  if (feature === 'logs') return <ProjectTaskLogsScreen projectId={projectId} canWrite={canEditProject(project.data, user)} />;
   if (feature === 'settings') return <ProjectSettingsScreen projectId={projectId} />;
   return <Screen><EmptyState title="Project feature unavailable" message="This project module is not enabled." /></Screen>;
 }

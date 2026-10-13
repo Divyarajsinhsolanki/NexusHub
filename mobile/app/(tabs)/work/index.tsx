@@ -1,7 +1,7 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search } from 'lucide-react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { api, apiErrorMessage } from '@/src/api/client';
@@ -25,7 +25,7 @@ type TaskFilter = 'all' | TaskStatus;
 export default function WorkScreen() {
   const theme = useAppTheme();
   const router = useRouter();
-  const { taskId, mode: requestedMode } = useLocalSearchParams<{ taskId?: string; mode?: string }>();
+  const { taskId, logId, date, mode: requestedMode } = useLocalSearchParams<{ taskId?: string; logId?: string; date?: string; mode?: string }>();
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const writable = !user?.demo_account;
@@ -43,12 +43,19 @@ export default function WorkScreen() {
     enabled: mode === 'tasks',
   });
   const workLogs = useInfiniteQuery({
-    queryKey: ['work-logs'],
+    queryKey: date ? ['work-logs', date] : ['work-logs'],
     initialPageParam: 1,
-    queryFn: ({ pageParam }) => endpoints.workLogs(pageParam),
+    queryFn: ({ pageParam }) => endpoints.workLogs(pageParam, date),
     getNextPageParam: (page) => page.meta?.next_page ?? undefined,
     enabled: mode === 'logs',
   });
+  const openedLog = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (!logId || openedLog.current === logId || !writable) return;
+    const row = workLogs.data?.pages.flatMap(page => page.data).find(log => log.id === Number(logId));
+    if (row) { openedLog.current = logId; setEditing(row); }
+    else if (mode === "logs" && workLogs.hasNextPage && !workLogs.isFetching && !workLogs.isError) void workLogs.fetchNextPage();
+  }, [logId, workLogs.data, workLogs.hasNextPage, workLogs.isFetching, workLogs.isError, workLogs.fetchNextPage, mode, writable]);
   const options = useQuery({ queryKey: ['work-options'], queryFn: endpoints.workOptions, enabled: editing !== undefined });
   const selectedTask = useQuery({ queryKey: ['linked-task', taskId], queryFn: async () => unwrapData<Task>((await api.get(`/tasks/${Number(taskId)}`)).data), enabled: Number.isSafeInteger(Number(taskId)) && Number(taskId) > 0 });
   useEffect(() => { if (taskId) { setMode('tasks'); setTaskFilter('all'); setSearch(''); } }, [taskId]);
@@ -128,7 +135,7 @@ export default function WorkScreen() {
           initialNumToRender={10}
           keyExtractor={(item) => String(item.id)}
           maxToRenderPerBatch={12}
-          onEndReached={() => tasks.hasNextPage && tasks.fetchNextPage()}
+          onEndReached={() => !tasks.isFetchingNextPage && tasks.hasNextPage && tasks.fetchNextPage()}
           onEndReachedThreshold={0.4}
           onRefresh={() => tasks.refetch()}
           removeClippedSubviews
