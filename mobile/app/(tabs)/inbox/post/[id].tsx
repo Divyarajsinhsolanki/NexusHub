@@ -122,7 +122,7 @@ export function PostCommentsScreen() {
         </View>}
         ListEmptyComponent={comments.isPending ? <LoadingState label="Loading comments" /> : !comments.isError ? <EmptyState title="Start the conversation" message="Share a thought or ask a question about this update." /> : null}
         renderItem={({ item }) => <View style={[styles.comment, { borderBottomColor: theme.border }]}>
-          <Avatar color={theme.primary} name={commentName(item)} size={38} uri={item.user.profile_picture} />
+          <Pressable accessibilityLabel={`Open profile of ${commentName(item)}`} onPress={() => router.push(`/profile/${item.user.id}` as never)}><Avatar color={theme.primary} name={commentName(item)} size={38} uri={item.user.profile_picture} /></Pressable>
           <View style={styles.copy}><View style={styles.commentHeading}><Text style={[styles.name, { color: theme.text }]}>{commentName(item)}{item.user.id === user?.id ? ' · You' : ''}</Text><Text style={[styles.time, { color: theme.textMuted }]}>{item.id < 0 ? 'Sending…' : formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}</Text></View><Text selectable style={[styles.body, { color: theme.text }]}>{item.body}</Text></View>
           {writable && item.can_delete ? <Pressable accessibilityRole="button" accessibilityLabel={`Delete comment by ${commentName(item)}`} disabled={remove.isPending || send.isPending} onPress={() => confirmDelete(item)} style={styles.iconButton}><Trash2 color={theme.danger} size={17} /></Pressable> : null}
         </View>} />
@@ -137,9 +137,10 @@ export function PostCommentsScreen() {
 
 function commentName(comment: Comment) { return [comment.user.first_name, comment.user.last_name].filter(Boolean).join(' ') || 'Workspace member'; }
 function PostContext({ post }: { post: Post }) {
+  const router = useRouter();
   const theme = useAppTheme();
   const name = [post.user.first_name, post.user.last_name].filter(Boolean).join(' ') || 'Workspace member';
-  return <View style={[styles.postContext, { backgroundColor: theme.surface, borderColor: theme.border }]}><View style={styles.postAuthor}><Avatar name={name} uri={post.user.profile_picture} size={42} /><View style={styles.copy}><Text style={[styles.name, { color: theme.text }]}>{name}</Text><Text style={[styles.time, { color: theme.textMuted }]}>{formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}</Text></View></View><Text selectable style={[styles.postMessage, { color: theme.text }]}>{post.message}</Text><PostAttachment uri={post.image_url} /><Text style={[styles.time, { color: theme.textMuted }]}>{post.likes_count} likes</Text></View>;
+  return <View style={[styles.postContext, { backgroundColor: theme.surface, borderColor: theme.border }]}><Pressable accessibilityRole="button" accessibilityLabel={`Open profile of ${name}`} onPress={() => router.push(`/profile/${post.user.id}` as never)} style={styles.postAuthor}><Avatar name={name} uri={post.user.profile_picture} size={42} /><View style={styles.copy}><Text style={[styles.name, { color: theme.text }]}>{name}</Text><Text style={[styles.time, { color: theme.textMuted }]}>{formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}</Text></View></Pressable><Text selectable style={[styles.postMessage, { color: theme.text }]}>{post.message}</Text><PostAttachment uri={post.image_url} /><Text style={[styles.time, { color: theme.textMuted }]}>{post.likes_count} likes</Text></View>;
 }
 export default PostCommentsScreen;
 

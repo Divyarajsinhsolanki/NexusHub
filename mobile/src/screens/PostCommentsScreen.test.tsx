@@ -6,8 +6,9 @@ import PostCommentsScreen from '../../app/(tabs)/inbox/post/[id]';
 import { endpoints } from '../api/endpoints';
 
 const mockBack = jest.fn();
+const mockPush = jest.fn();
 let mockDemo = false;
-jest.mock('expo-router', () => ({ useLocalSearchParams: () => ({ id: '12' }), useRouter: () => ({ back: mockBack }) }));
+jest.mock('expo-router', () => ({ useLocalSearchParams: () => ({ id: '12' }), useRouter: () => ({ back: mockBack, push: mockPush }) }));
 jest.mock('../components/Screen', () => ({ Screen: ({ children, header }: any) => <>{header}{children}</> }));
 jest.mock('../auth/AuthProvider', () => ({ useAuth: () => ({ user: { id: 1, first_name: 'Alex', last_name: 'Morgan', full_name: 'Alex Morgan', demo_account: mockDemo } }) }));
 jest.mock('../api/endpoints', () => ({ endpoints: { post: jest.fn(), postComments: jest.fn(), createComment: jest.fn(), deleteComment: jest.fn() } }));
@@ -79,3 +80,5 @@ test('demo discussions remain readable without mutation controls', async () => {
   expect(screen.getByText('Comments are read only in the demo.')).toBeTruthy();
   await close();
 });
+
+test("opens a comment author profile", async () => { const {screen,close}=await setup(); await fireEvent.press(screen.getAllByLabelText("Open profile of Alex Morgan")[1]); expect(mockPush).toHaveBeenCalledWith("/profile/1"); await close(); });
