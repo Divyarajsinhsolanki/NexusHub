@@ -60,3 +60,23 @@ Production's `nexus-daily-knowledge` role policy adds only `bedrock-mantle:Creat
 Applied the policy and requested those two production environment settings. An isolated production-server test loaded the new adapter and used the actual daily prompt/parser: four valid items, 242 input tokens and 789 output tokens, authenticated by EC2 role. That check did not insert cards or send notifications. Eleven focused tests passed (41 assertions), including HTTP/incomplete/empty failures, signed request construction, atomic publishing, and the real cron enqueue path.
 
 Deployment must include both the Responses adapter and the preceding cron queue fix. The user pushes the code; no application release was deployed by this change. Once deployed, the startup daily sweep publishes today's batch if it is after 09:00 IST and no batch exists, and subsequent runs continue at 09:00 IST. Do not replay the duplicate queue backlog.
+
+## Switching models without a code change
+
+Set these under Elastic Beanstalk → Configuration → Updates, monitoring, and logging → Environment properties, then apply. Applying environment changes restarts the app and Sidekiq; the new settings are read for each publishing attempt. Locally, set them in `.env` and restart the worker. A batch already published today is not regenerated when settings change.
+
+| Variable | Values / default |
+| --- | --- |
+| `DAILY_KNOWLEDGE_ENABLED` | `true` enables publishing; anything else disables it |
+| `DAILY_KNOWLEDGE_API` | `responses` (default) or `converse` |
+| `DAILY_KNOWLEDGE_ENDPOINT` | `mantle` (default) or `runtime`; ignored for Converse |
+| `DAILY_KNOWLEDGE_MODEL_ID` | Exact model/inference-profile ID supported by the selected API and endpoint |
+| `DAILY_KNOWLEDGE_REGION` | `ap-south-1` by default |
+| `DAILY_KNOWLEDGE_MAX_TOKENS` | 256–8000; default 4000 for Responses, 2000 for Converse; includes reasoning on Responses |
+| `DAILY_KNOWLEDGE_REASONING_EFFORT` | `low` (default), `medium`, `high`, or `omit`; ignored for Converse |
+
+For the tested GPT OSS setup: `responses`, `mantle`, `openai.gpt-oss-120b`, `ap-south-1`, `4000`, `low`. To try GPT OSS 20B, change the model to `openai.gpt-oss-20b` and test access first. For a model without reasoning support, choose `omit`. Runtime Responses uses the fixed AWS `/openai/v1/responses` endpoint and the `bedrock` signing service. GPT OSS Responses requires Mantle; invalid combinations are rejected before generation. Arbitrary endpoint URLs are not accepted.
+
+To return to Nova after AWS resolves access: set API `converse`, model `amazon.nova-micro-v1:0`, region `us-east-1`, and token limit `2000`. Changing only the model does not switch the API. The Nova access blocker remains unresolved.
+
+Model switching also needs compatible AWS access: the current Mantle role permission is restricted to Mumbai. Other regions require updating that IAM condition; Runtime/Converse require the appropriate `bedrock:InvokeModel` permissions. The app never silently falls back to another model. Each daily run records its model, region, API, endpoint, and token usage. No admin UI was added; environment settings provide server-side control without exposing credentials.

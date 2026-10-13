@@ -14,18 +14,21 @@ module Knowledge
     Usage = Struct.new(:input_tokens, :output_tokens)
     Result = Struct.new(:output, :usage)
 
-    def initialize(region:, credentials_provider: Aws::CredentialProviderChain.new.resolve, http: Net::HTTP)
+    def initialize(region:, endpoint: "mantle", reasoning_effort: "low", credentials_provider: Aws::CredentialProviderChain.new.resolve, http: Net::HTTP)
       raise ArgumentError, "Invalid AWS region" unless region.match?(/\A[a-z]{2}(?:-[a-z]+)+-\d\z/)
-      @uri = URI("https://bedrock-mantle.#{region}.api.aws/v1/responses")
-      @signer = Aws::Sigv4::Signer.new(service: "bedrock-mantle", region: region, credentials_provider: credentials_provider)
+      raise ArgumentError, "Invalid Bedrock endpoint" unless %w[mantle runtime].include?(endpoint)
+      @reasoning_effort = reasoning_effort
+      @uri = URI(endpoint == "mantle" ? "https://bedrock-mantle.#{region}.api.aws/v1/responses" : "https://bedrock-runtime.#{region}.amazonaws.com/openai/v1/responses")
+      @signer = Aws::Sigv4::Signer.new(service: endpoint == "mantle" ? "bedrock-mantle" : "bedrock", region: region, credentials_provider: credentials_provider)
       @http = http
     end
 
     def converse(model_id:, messages:, inference_config:)
-      body = JSON.generate(model: model_id,
+      payload = { model: model_id,
         input: messages.map { |message| { role: message.fetch(:role), content: message.fetch(:content).map { |part| part.fetch(:text) }.join } },
-        max_output_tokens: [inference_config.fetch(:max_tokens) * 2, 8000].min,
-        reasoning: { effort: "low" }, store: false)
+        max_output_tokens: inference_config.fetch(:max_tokens), store: false }
+      payload[:reasoning] = { effort: @reasoning_effort } unless @reasoning_effort == "omit"
+      body = JSON.generate(payload)
       headers = { "Content-Type" => "application/json" }
       signature = @signer.sign_request(http_method: "POST", url: @uri.to_s, headers: headers, body: body)
       request = Net::HTTP::Post.new(@uri, headers.merge(signature.headers))

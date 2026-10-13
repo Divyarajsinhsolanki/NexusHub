@@ -33,7 +33,7 @@ class DailyKnowledgePublisherTest < ActiveSupport::TestCase
     assert_equal 1, items.where(item_type: "article").count
     assert items.all? { |item| item.payload["workspace_shared"] }
     assert_equal 1, @client.api_requests.count
-    assert_equal 2000, @client.api_requests.first[:params][:inference_config][:max_tokens]
+    assert_equal 4000, @client.api_requests.first[:params][:inference_config][:max_tokens]
   end
 
   test "new day archives only older daily content" do

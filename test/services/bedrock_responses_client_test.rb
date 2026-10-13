@@ -41,6 +41,17 @@ class BedrockResponsesClientTest < ActiveSupport::TestCase
     assert_raises(Knowledge::BedrockResponsesClient::Error) { generate }
   end
 
+  test "runtime endpoint signs with bedrock and omits unsupported reasoning parameter" do
+    @client = Knowledge::BedrockResponsesClient.new(region: "us-east-1", endpoint: "runtime", reasoning_effort: "omit", http: @http,
+      credentials_provider: Aws::Credentials.new("test-access", "test-secret"))
+    generate
+    request = @requests.first
+    assert_equal "/openai/v1/responses", request.uri.path
+    assert_equal "bedrock-runtime.us-east-1.amazonaws.com", request.uri.host
+    assert_includes request["Authorization"], "/bedrock/aws4_request"
+    assert_not JSON.parse(request.body).key?("reasoning")
+  end
+
   test "HTTP failures exclude raw bodies from exception" do
     @response.stub(:is_a?, false) do
       @response.stub(:code, "403") do
@@ -55,7 +66,7 @@ class BedrockResponsesClientTest < ActiveSupport::TestCase
   def generate
     @response.stub(:body, @document.to_json) do
       @client.converse(model_id: "openai.gpt-oss-120b", messages: [{ role: "user", content: [{ text: "Generate tips" }] }],
-        inference_config: { max_tokens: 2000 })
+        inference_config: { max_tokens: 4000 })
     end
   end
 end

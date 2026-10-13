@@ -15,9 +15,10 @@ module Knowledge
       Workspace.find_by!(slug: ENV.fetch("DAILY_KNOWLEDGE_WORKSPACE_SLUG"), kind: "private")
     end
 
-    def initialize(workspace:, client: nil)
+    def initialize(workspace:, client: nil, settings: GenerationSettings.new)
       @workspace = workspace
       @client = client
+      @settings = settings
     end
 
     def publish(date: Time.current.in_time_zone("Asia/Kolkata").to_date)
@@ -34,13 +35,13 @@ module Knowledge
           response = client.converse(
             model_id: model_id,
             messages: [{ role: "user", content: [{ text: prompt }] }],
-            inference_config: { max_tokens: 2000, temperature: 0.4 }
+            inference_config: { max_tokens: @settings.max_tokens, temperature: 0.4 }
           )
           text = response.output.message.content.map(&:text).compact.join
           items = parse_items(text, fields, recent_titles)
           run = owner.knowledge_prompt_runs.create!(
             prompt: prompt, source: SOURCE, generation_mode: "history", status: "completed",
-            metadata: { daily_date: date.iso8601, workspace_shared: true, model_id: model_id, region: region,
+            metadata: { daily_date: date.iso8601, workspace_shared: true, model_id: model_id, region: region, api: @settings.api, endpoint: @settings.api == "converse" ? "runtime" : @settings.endpoint,
                         input_tokens: response.usage.input_tokens, output_tokens: response.usage.output_tokens }
           )
           items.each_with_index do |item, index|
@@ -69,15 +70,15 @@ module Knowledge
     private
 
     def model_id
-      ENV.fetch("DAILY_KNOWLEDGE_MODEL_ID", "openai.gpt-oss-120b")
+      @settings.model_id
     end
 
     def region
-      ENV.fetch("DAILY_KNOWLEDGE_REGION", "ap-south-1")
+      @settings.region
     end
 
     def client
-      @client ||= BedrockResponsesClient.new(region: region)
+      @client ||= @settings.client
     end
 
     def build_prompt(fields, recent_titles)
