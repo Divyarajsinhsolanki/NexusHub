@@ -71,10 +71,9 @@ class AuthFlowsTest < ActionDispatch::IntegrationTest
     assert_equal "web-google@example.test", response.parsed_body.dig("user", "email")
     google_user = User.find_by!(email: "web-google@example.test")
     assert google_user.confirmed?
-    assert_equal regular_workspace, google_user.workspace
-    assert google_user.member?
-    assert_not google_user.owner?
-    assert_equal workspace_count, Workspace.count
+    assert_not_equal regular_workspace, google_user.workspace
+    assert google_user.owner?
+    assert_equal workspace_count + 1, Workspace.count
   end
 
   test "signup still creates account when confirmation email delivery fails" do

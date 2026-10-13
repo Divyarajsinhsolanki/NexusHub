@@ -143,6 +143,17 @@ const connect = () => {
       return;
     }
 
+    if (data.type === "disconnect") {
+      if (data.reconnect === false) {
+        intentionallyClosed = true;
+        clearReconnectTimer();
+        outboundQueue.length = 0;
+        window.dispatchEvent(new Event("nexus-session-check"));
+      }
+      socket?.close();
+      return;
+    }
+
     if (data.type === "welcome") {
       emitStatus("connected");
       return;
@@ -265,3 +276,5 @@ export const sendToConversation = (conversationId, action, data = {}) => {
     data: JSON.stringify({ action, conversation_id: conversationId, ...data })
   });
 };
+
+export const subscribeToSession = () => subscribe({ channel: "SessionChannel" }, () => {});

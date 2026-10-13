@@ -2379,6 +2379,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       applyCallSessionUpdate(data.call_session);
     } catch (error) {
       console.error("Failed to end call", error);
+      setCallError(error?.response?.data?.message || "Unable to end the call. You are still connected; try again.");
     }
   }, [activeCall, applyCallSessionUpdate]);
 

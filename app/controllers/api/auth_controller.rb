@@ -10,8 +10,7 @@ class Api::AuthController < Api::BaseController
 
   def signup
     user = User.new(user_params)
-    workspace = Workspace.regular!
-    user.workspace = workspace
+    user.workspace = WorkspaceRegistration.build_workspace(user, company_name: params.dig(:auth, :company_name))
     if params.dig(:auth, :profile_picture).present? && params.dig(:auth, :profile_picture) != "null"
       user.profile_picture = params[:auth][:profile_picture]
     end
@@ -49,7 +48,7 @@ class Api::AuthController < Api::BaseController
         user.last_name = last_name.presence || first_name
         user.password = SecureRandom.hex(10)
         user.landing_page ||= User::LANDING_PAGES.first
-        user.workspace = Workspace.regular!
+        user.workspace = WorkspaceRegistration.build_workspace(user)
         user.skip_confirmation! if user.respond_to?(:skip_confirmation!)
       end
 
@@ -214,10 +213,7 @@ class Api::AuthController < Api::BaseController
   def save_signup_user(user)
     user.skip_confirmation_notification! if user.respond_to?(:skip_confirmation_notification!)
 
-    User.transaction do
-      Role.find_or_create_by!(name: "member")
-      user.save!
-    end
+    WorkspaceRegistration.save!(user)
     true
   rescue ActiveRecord::RecordInvalid
     false
@@ -249,8 +245,9 @@ class Api::AuthController < Api::BaseController
   def save_google_user!(user)
     was_new_record = user.new_record?
 
-    User.transaction do
-      Role.find_or_create_by!(name: "member") if was_new_record
+    if was_new_record
+      WorkspaceRegistration.save!(user)
+    else
       user.save!
     end
   end

@@ -3,6 +3,13 @@ require 'sidekiq/cron/job'
 require 'minitest/mock'
 
 class BackgroundSchedulesTest < ActiveJob::TestCase
+  test 'call presence reconciliation runs every minute through ActiveJob' do
+    definition = BackgroundSchedules.definitions(environment: 'production').fetch('production:call-presence')
+    assert_equal '* * * * * UTC', definition.fetch('cron')
+    assert_equal 'CallPresenceSweepJob', definition.fetch('class')
+    assert_equal true, definition.fetch('active_job')
+  end
+
   test 'cron daily publishing adds the production queue prefix exactly once' do
     previous = DailyKnowledgePublishJob.queue_name_prefix
     DailyKnowledgePublishJob.queue_name_prefix = 'nexus_hub_production'

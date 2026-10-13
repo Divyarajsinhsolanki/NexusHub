@@ -1,4 +1,5 @@
 class Project < ApplicationRecord
+  include SaasQuota
   include WorkspaceScoped
   class Forbidden < StandardError; end
 

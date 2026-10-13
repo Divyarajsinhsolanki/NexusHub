@@ -1,14 +1,16 @@
 import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 import { endpoints } from '../api/endpoints';
-import { setSessionExpiredHandler, storeSession } from '../api/client';
+import { invalidateSession, setSessionExpiredHandler, storeSession } from '../api/client';
 import type { User } from '../api/types';
 import { clearOfflineData } from '../storage/database';
 import { queryPersister } from '../storage/queryPersister';
 import { clearChatDrafts } from '../chat/drafts';
+import { useQueryClient } from '@tanstack/react-query';
 import { tokenStore } from './tokenStore';
 
 type SignupInput = {
+  company_name?: string;
   first_name: string;
   last_name: string;
   email: string;
@@ -34,16 +36,20 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: PropsWithChildren) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const expireSession = useCallback(async () => {
+    invalidateSession();
+    setUser(null);
+    await queryClient.cancelQueries();
+    queryClient.clear();
     await clearChatDrafts();
     await tokenStore.clear();
     await queryPersister.removeClient();
     await clearOfflineData();
-    setUser(null);
-  }, []);
+  }, [queryClient]);
 
   useEffect(() => {
     setSessionExpiredHandler(() => void expireSession());

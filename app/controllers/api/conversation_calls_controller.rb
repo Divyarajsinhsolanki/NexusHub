@@ -12,7 +12,8 @@ class Api::ConversationCallsController < Api::BaseController
 
     call_session = Chat::CallManager.new(user: current_user).create_call(
       conversation: conversation,
-      call_type: params[:call_type] || params.dig(:call, :call_type) || "audio"
+      call_type: params[:call_type] || params.dig(:call, :call_type) || "audio",
+      media_confirmation_required: ActiveModel::Type::Boolean.new.cast(params[:media_confirmation_required]) == true
     )
 
     render json: { call_session: Chat::CallSerializer.call(call_session, current_user: current_user) }, status: :created

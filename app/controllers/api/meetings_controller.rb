@@ -20,8 +20,12 @@ class Api::MeetingsController < Api::BaseController
   end
 
   def join
-    call_session = Chat::CallManager.new(user: current_user).join_by_link(@call_session)
-    credentials = Chat::LivekitTokenGenerator.new(call_session: call_session, user: current_user).call
+    credentials = Chat::LivekitTokenGenerator.new(call_session: @call_session, user: current_user).call
+    call_session = if ActiveModel::Type::Boolean.new.cast(params[:media_confirmation_required])
+      Chat::CallManager.new(user: current_user).prepare_media_join(@call_session, by_link: true)
+    else
+      Chat::CallManager.new(user: current_user).join_by_link(@call_session)
+    end
 
     render json: credentials.merge(call_session: Chat::CallSerializer.call(call_session, current_user: current_user))
   rescue Chat::LivekitTokenGenerator::ConfigurationError => error

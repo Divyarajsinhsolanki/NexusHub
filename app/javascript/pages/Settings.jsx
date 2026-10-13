@@ -1,3 +1,4 @@
+import BillingSettings from "../components/settings/BillingSettings";
 import AccountLifecycle from "../components/settings/AccountLifecycle";
 import React, { useContext, useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
@@ -128,6 +129,8 @@ const Settings = () => {
   const [color, setColor] = useState(initialColor);
   const [darkMode, setDarkMode] = useState(user?.dark_mode || false);
   const [landingPage, setLandingPage] = useState(user?.landing_page || "home");
+  const [billingState, setBillingState] = useState(null);
+  const canManageBilling = user?.roles?.some(role => (role.name || role) === "owner") && !user?.demo_account && !user?.impersonation?.active;
   const [saving, setSaving] = useState(false);
   const [savingNotifications, setSavingNotifications] = useState(false);
   const [notificationPrefs, setNotificationPrefs] = useState(defaultNotificationPrefs);
@@ -138,7 +141,7 @@ const Settings = () => {
     password: "",
     password_confirmation: ""
   });
-  const workspaceSaas = user?.workspace?.saas || {};
+  const workspaceSaas = billingState?.saas || user?.workspace?.saas || {};
   const currentPlan = workspaceSaas.plan || {};
   const billing = workspaceSaas.billing || {};
   const limits = workspaceSaas.limits || {};
@@ -348,16 +351,8 @@ const Settings = () => {
                         <span className="app-badge">Trial ends {new Date(billing.trial_ends_at).toLocaleDateString()}</span>
                       ) : null}
                     </div>
-                    {nextPlan ? (
-                      <button type="button" className="app-primary-button mt-6">
-                        <ArrowUpRight className="h-4 w-4" />
-                        Plan upgrade: {nextPlan.name}
-                      </button>
-                    ) : (
-                      <button type="button" className="app-secondary-button mt-6">
-                        Contact enterprise support
-                      </button>
-                    )}
+                    {canManageBilling ? <BillingSettings key={user?.workspace?.id} returned={new URLSearchParams(location.search).has('billing')} onUpdated={saas => { setBillingState({saas}); setUser(previous => ({...previous,workspace:{...previous.workspace,saas}})); }} /> : <p className="mt-6 text-sm text-muted">Ask your workspace owner to manage the subscription.</p>}
+
                   </section>
 
                   <section className="app-card p-5">
@@ -392,7 +387,7 @@ const Settings = () => {
                   <div className="mb-4 flex items-center justify-between gap-4">
                     <div>
                       <h4 className="text-sm font-semibold text-primary">Packaged modules</h4>
-                      <p className="mt-1 text-sm text-muted">Modules are centralized in the SaaS plan catalog for future billing enforcement.</p>
+                      <p className="mt-1 text-sm text-muted">Available modules follow your workspace subscription and plan limits.</p>
                     </div>
                     <span className="app-badge">{modules.filter((item) => item.enabled).length}/{modules.length} enabled</span>
                   </div>

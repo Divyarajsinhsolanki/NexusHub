@@ -1,3 +1,4 @@
+import { BillingSettings } from "../components/BillingSettings";
 import { AccountLifecycle } from "../components/AccountLifecycle";
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as Notifications from 'expo-notifications';
@@ -5,7 +6,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, Bell, ChevronRight, Home, Moon, Palette, Settings2, Shield, Smartphone } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Alert, AppState, Linking, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
-import { apiErrorMessage } from '../api/client';
+import { API_URL, apiErrorMessage } from '../api/client';
 import { endpoints } from '../api/endpoints';
 import type { PushNotificationSettings } from '../api/types';
 import { useAuth } from '../auth/AuthProvider';
@@ -21,6 +22,7 @@ const settingsSections = [
   { key: 'alerts', group: 'Notifications', title: 'Activity alerts', detail: 'Comments, assignments, and mentions', icon: Bell },
   { key: 'push', group: 'Notifications', title: 'Push notifications', detail: 'Phone alerts, previews, and categories', icon: Smartphone },
   { key: 'quiet', group: 'Notifications', title: 'Quiet hours', detail: 'Schedule breaks from notifications', icon: Moon },
+  { key: 'billing', group: 'Workspace', title: 'Subscription', detail: 'Plan, payments, and billing status', icon: Settings2 },
   { key: 'security', group: 'Account', title: 'Security', detail: 'Password and signed-in devices', icon: Shield },
 ];
 
@@ -115,7 +117,7 @@ export function SettingsScreen() {
     mutationFn: (input: Parameters<typeof endpoints.changePassword>[0]) => endpoints.changePassword(input),
     onSuccess: () => {
       setPasswordForm({ current_password: '', password: '', password_confirmation: '' });
-      Alert.alert('Password updated', 'Your password was changed and other mobile sessions were revoked.');
+      Alert.alert('Password updated', 'Your password was changed and other web and mobile sessions were revoked.');
     },
     onError: (error) => Alert.alert('Unable to change password', apiErrorMessage(error)),
   });
@@ -260,7 +262,9 @@ export function SettingsScreen() {
       </View>
       </> : null}
 
+      {section === 'billing' ? <BillingSettings /> : null}
       {section === 'security' ? <>
+      <PrimaryButton label="Privacy and terms" onPress={() => { void Linking.openURL(`${API_URL.replace(/\/api\/v1$/, '')}/legal`).catch(() => Alert.alert('Unable to open legal information', 'Please try again or open the website in your browser.')); }} />
       <Text style={[styles.sectionTitle, { color: theme.text }]}>Account security</Text>
       <Pressable accessibilityRole="button" accessibilityLabel="Device sessions" onPress={() => router.push('/more/profile')} style={[styles.settingsLink, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <Settings2 color={theme.primary} size={20} />
@@ -271,7 +275,7 @@ export function SettingsScreen() {
       </Pressable>
       {!readOnly ? <View style={[styles.passwordPanel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <Text style={[styles.rowTitle, { color: theme.text }]}>Change password</Text>
-        <Text style={[styles.rowMeta, { color: theme.textMuted }]}>Other mobile sessions are revoked after a successful change.</Text>
+        <Text style={[styles.rowMeta, { color: theme.textMuted }]}>Other web and mobile sessions are revoked after a successful change.</Text>
         <SettingsField label="Current password" secureTextEntry value={passwordForm.current_password} onChangeText={(value) => setPasswordForm((current) => ({ ...current, current_password: value }))} />
         <SettingsField label="New password" secureTextEntry value={passwordForm.password} onChangeText={(value) => setPasswordForm((current) => ({ ...current, password: value }))} />
         <SettingsField label="Confirm new password" secureTextEntry value={passwordForm.password_confirmation} onChangeText={(value) => setPasswordForm((current) => ({ ...current, password_confirmation: value }))} />

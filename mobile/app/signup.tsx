@@ -11,6 +11,7 @@ import { PrimaryButton } from '@/src/components/PrimaryButton';
 import { useAppTheme } from '@/src/theme';
 
 const schema = z.object({
+  company_name: z.string().trim().min(1, "Enter your company name.").max(120),
   first_name: z.string().trim().min(1, 'Enter your first name.'),
   last_name: z.string().trim().min(1, 'Enter your last name.'),
   email: z.string().trim().email('Enter a valid email address.'),
@@ -27,7 +28,7 @@ export default function SignupScreen() {
   const { signUp } = useAuth();
   const { control, handleSubmit, setError, formState: { errors, isSubmitting, isSubmitSuccessful } } = useForm<Fields>({
     resolver: zodResolver(schema),
-    defaultValues: { first_name: '', last_name: '', email: '', password: '', password_confirmation: '' },
+    defaultValues: { company_name: '', first_name: '', last_name: '', email: '', password: '', password_confirmation: '' },
   });
   const submit = handleSubmit(async (values) => {
     try { await signUp(values); } catch (error) { setError('root', { message: apiErrorMessage(error) }); }
@@ -40,7 +41,7 @@ export default function SignupScreen() {
         <Text accessibilityRole="alert" style={[styles.success, { backgroundColor: theme.surfaceMuted, color: theme.success }]}>Account created. Check your email to confirm it, then return to sign in.</Text>
       ) : (
         <>
-          {(['first_name', 'last_name', 'email', 'password', 'password_confirmation'] as const).map((name) => (
+          {(['company_name', 'first_name', 'last_name', 'email', 'password', 'password_confirmation'] as const).map((name) => (
             <Controller key={name} control={control} name={name} render={({ field: { onBlur, onChange, value } }) => (
               <>
                 <Text style={[styles.label, { color: theme.text }]}>{labels[name]}</Text>
@@ -57,7 +58,7 @@ export default function SignupScreen() {
   );
 }
 
-const labels = { first_name: 'First name', last_name: 'Last name', email: 'Email', password: 'Password', password_confirmation: 'Confirm password' };
+const labels = { company_name: 'Company name', first_name: 'First name', last_name: 'Last name', email: 'Email', password: 'Password', password_confirmation: 'Confirm password' };
 const styles = StyleSheet.create({
   label: { fontSize: 14, fontWeight: '700', marginBottom: 7, marginTop: 12 },
   input: { borderRadius: 8, borderWidth: 1, fontSize: 16, minHeight: 50, paddingHorizontal: 14 },

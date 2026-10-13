@@ -66,9 +66,9 @@ export default function MeetingScreen() {
   return <PreJoin call={call} camera={camera} joining={join.isPending} microphone={microphone} onCamera={() => setCamera((value) => !value)} onJoin={() => join.mutate()} onMicrophone={() => setMicrophone((value) => !value)} />;
 }
 
-function PreJoin({ call, camera, joining, microphone, onCamera, onJoin, onMicrophone }: { call: CallSession; camera: boolean; joining: boolean; microphone: boolean; onCamera: () => void; onJoin: () => void; onMicrophone: () => void }) {
+export function PreJoin({ call, camera, joining, microphone, onCamera, onJoin, onMicrophone }: { call: CallSession; camera: boolean; joining: boolean; microphone: boolean; onCamera: () => void; onJoin: () => void; onMicrophone: () => void }) {
   const theme = useAppTheme();
-  const live = !['ended', 'failed'].includes(call.status);
+  const live = ['ringing', 'active'].includes(call.status);
   const share = () => Share.share({ message: `Join my Nexus Hub call: ${call.share_url}`, url: call.share_url, title: 'Join call' });
   return <View style={[styles.prejoin, { backgroundColor: theme.background }]}>
     <View style={[styles.preview, { backgroundColor: '#171a20' }]}>{call.call_type === 'video' && camera ? <Video color="#ffffff" size={54} /> : call.call_type === 'audio' ? <Phone color="#ffffff" size={54} /> : <CameraOff color="#ffffff" size={54} />}<Text style={styles.previewLabel}>{camera && call.call_type === 'video' ? 'Camera preview starts after joining' : 'Camera is off'}</Text></View>

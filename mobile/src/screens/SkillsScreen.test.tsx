@@ -1,0 +1,20 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { expect, jest, test } from '@jest/globals';
+import { SkillsScreen } from './SkillsScreen';
+jest.mock('expo-router', () => ({ useRouter: () => ({ back: jest.fn() }) }));
+jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: require('react-native').View }));
+jest.mock('../components/Screen', () => ({ Screen: ({ children, header }: any) => <>{header}{children}</> }));
+jest.mock('../auth/AuthProvider', () => ({ useAuth: () => ({ user: { id: 5, workspace: { id: 1 }, demo_account: true } }) }));
+jest.mock('../api/endpoints', () => ({ endpoints: { resource: jest.fn(async () => ({data:[{id:1,name:'Ruby',proficiency_label:'Expert',endorsements_count:3}]})) } }));
+jest.mock('../storage/draftStore', () => ({ draftStore: { get: jest.fn(), set: jest.fn(), remove: jest.fn() } }));
+test('shows readable proficiency and endorsement badges while retaining skill search and demo restrictions', async () => {
+ const client=new QueryClient({defaultOptions:{queries:{retry:false,gcTime:Infinity},mutations:{gcTime:Infinity}}});
+ const screen=await render(<QueryClientProvider client={client}><SkillsScreen/></QueryClientProvider>);
+ await waitFor(()=>expect(screen.getByText('Ruby')).toBeTruthy());
+ expect(screen.getByText('Expert')).toBeTruthy();expect(screen.getByText('3 endorsements')).toBeTruthy();
+ expect(screen.queryByLabelText('Create My skills')).toBeNull();expect(screen.queryByLabelText('Edit Ruby')).toBeNull();
+ await fireEvent.changeText(screen.getByLabelText('Search My skills'),'unmatched');
+ expect(screen.queryByText('Ruby')).toBeNull();
+ await screen.unmount();client.clear();
+});

@@ -1,3 +1,4 @@
+import axios from 'axios';
 import NetInfo from '@react-native-community/netinfo';
 import * as Sentry from '@sentry/react-native';
 import { type Consumer, type Subscription } from '@rails/actioncable';
@@ -47,6 +48,7 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
     const client = new SharedRealtimeClient(setState);
     clientRef.current = client;
     setClient(client);
+    client.subscribe({ channel: 'SessionChannel' }, () => undefined);
     client.start();
 
     const appState = AppState.addEventListener('change', (next) => client.setActive(next === 'active'));
@@ -217,7 +219,11 @@ export class SharedRealtimeClient {
         url.searchParams.set('token', credentials.token);
         this.consumer = createMobileConsumer(url.toString());
         this.channels.forEach((record) => this.createSubscription(record));
-      } catch {
+      } catch (error) {
+        if (axios.isAxiosError(error) && [401, 403].includes(error.response?.status || 0)) {
+          this.destroy();
+          return;
+        }
         if (!this.destroyed) {
           this.teardownConsumer();
           this.onState('disconnected');
@@ -309,6 +315,7 @@ export class SharedRealtimeClient {
 }
 
 function identifierKey(identifier: ChannelIdentifier) {
+  if (identifier.channel === 'SessionChannel') return 'SessionChannel';
   if (identifier.channel === 'PresenceChannel') return 'PresenceChannel';
   if (identifier.channel === 'CallChannel') return `call:${identifier.public_id}`;
   return `chat:${identifier.conversation_id || 'user'}`;

@@ -1,6 +1,8 @@
 class MobileSession < ApplicationRecord
   REFRESH_TOKEN_TTL = 30.days
 
+  after_update_commit :disconnect_realtime, if: -> { saved_change_to_revoked_at? && revoked_at? }
+
   belongs_to :user
   belongs_to :workspace
   belongs_to :impersonated_user, class_name: "User", optional: true
@@ -41,6 +43,15 @@ class MobileSession < ApplicationRecord
       )
       next_token
     end
+  end
+
+  def disconnect_realtime
+    effective = effective_user
+    ActionCable.server.remote_connections.where(
+      current_user: effective,
+      current_workspace: effective.workspace,
+      session_key: "mobile:#{id}"
+    ).disconnect(reconnect: false)
   end
 
   def revoke!

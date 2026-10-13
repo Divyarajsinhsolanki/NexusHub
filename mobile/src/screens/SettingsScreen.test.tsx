@@ -1,3 +1,5 @@
+import { Linking } from 'react-native';
+import { API_URL } from '../api/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { beforeEach, expect, jest, test } from '@jest/globals';
@@ -99,4 +101,13 @@ test('activity alerts and push categories retain their save behavior', async () 
   await fireEvent(push.screen.getByLabelText('Chat push notifications'), 'valueChange', false);
   await waitFor(() => expect(endpoints.updateMe).toHaveBeenCalledWith({ push_notification_settings: expect.objectContaining({ categories: expect.objectContaining({ chat: false, audio_calls: true }) }) }));
   await push.close();
+});
+
+test('security opens the shared public privacy and terms page', async () => {
+  const open = jest.spyOn(Linking, 'openURL').mockResolvedValueOnce(true);
+  const { screen, close } = await setup('security');
+  await fireEvent.press(screen.getByRole('button', { name: 'Privacy and terms' }));
+  expect(open).toHaveBeenCalledWith(`${API_URL.replace(/\/api\/v1$/, '')}/legal`);
+  await close();
+  open.mockRestore();
 });

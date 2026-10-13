@@ -38,7 +38,7 @@ function UserPasswordReset({ record }: { record: EntityRecord }) {
     onSuccess: () => {
       setPassword('');
       setConfirmation('');
-      Alert.alert('Password updated', 'The new password is active and mobile sessions were revoked.');
+      Alert.alert('Password updated', 'The new password is active and web and mobile sessions were revoked.');
     },
     onError: (error) => Alert.alert('Unable to update password', apiErrorMessage(error)),
   });

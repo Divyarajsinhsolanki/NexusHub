@@ -1,0 +1,5 @@
+export type DepartmentEntryKind = 'goal' | 'announcement' | 'resource';
+export type DepartmentEntry = { id:number; kind:DepartmentEntryKind; title:string; body:string|null; url:string|null; status:'active'|'completed'|'archived'; progress:number; due_date:string|null; pinned:boolean; lock_version:number; author_name:string; created_at:string };
+export type DepartmentComment = { id:number; body:string; author_id:number|null; author_name:string; created_at:string };
+export type DepartmentRequest = { id:number; user_id:number; department_id:number; source_department_id:number|null; reason:string|null; status:string; source_approved:boolean; target_approved:boolean; user_name:string; department_name:string; source_department_name:string|null };
+export type DepartmentReport = { dashboard?: import('./types').Department['dashboard']; from:string; to:string; completed_tasks_in_period:number; your_logged_hours:number; scope:string; csv:string; projects:{id:number;name:string;status:string;tasks:number;completed:number}[] };

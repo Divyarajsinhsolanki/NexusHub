@@ -29,6 +29,7 @@ import { PortfolioScreen } from '@/src/screens/PortfolioScreen';
 import { OwnerAccessScreen } from '@/src/screens/OwnerAccessScreen';
 import { FullCalendarScreen } from '@/src/screens/CalendarScreen';
 import { DepartmentsScreen } from '@/src/screens/DepartmentsScreen';
+import { SkillsScreen } from '@/src/screens/SkillsScreen';
 import { TeamsScreen } from '@/src/screens/TeamsScreen';
 import { LearningGoalsScreen } from '@/src/screens/LearningGoalsScreen';
 
@@ -47,6 +48,7 @@ export default function MoreFeatureScreen() {
   const baseConfig = configs[feature];
   const config = feature === 'people' ? { ...baseConfig, fields: [...baseConfig.fields, ...(roles.data ? [{key:'role_names',recordKey:'roles',label:'Roles',multiple:true,options:roles.data}] : []), {key:'project_ids',label:'Projects',multiple:true,createOnly:true,options:(peopleProjects.data || []).map(item=>({label:item.name,value:String(item.id)}))}, {key:'department_id',label:'Department',options:[{label:'No department',value:''},...(departments.data?.data || []).map(item => ({label:item.name,value:String(item.id)}))]}, {key:'phone_number',label:'Phone',keyboardType:'phone-pad' as const}, {key:'bio',label:'Bio',multiline:true}, {key:'date_of_birth',label:'Date of birth (YYYY-MM-DD)'}] } : baseConfig;
   const router = useRouter();
+  if (feature === 'skills') return <SkillsScreen />;
   if (feature === 'vault') return <VaultScreen />;
   if (config) return <EntityCollectionScreen {...config} renderEditFooter={feature === "people" ? record => <PeoplePhotoActions userId={record.id} /> : undefined} onRecordPress={feature === 'people' ? record => router.push(`/profile/${record.id}` as never) : undefined} canCreate={feature === "people" ? Boolean(user?.permissions?.includes("users.create")) : !config.permission || Boolean(user?.permissions?.includes(config.permission))} canWrite={!config.permission || Boolean(user?.permissions?.includes(config.permission))} />;
   if (feature === 'teams') return <TeamsScreen />;

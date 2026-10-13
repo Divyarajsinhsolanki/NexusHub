@@ -1,3 +1,5 @@
+import DepartmentWorkflows from '../components/departments/DepartmentWorkflows';
+import DepartmentDashboard from '../components/departments/DepartmentDashboard';
 import MemberProfileCard from "../components/ui/MemberProfileCard";
 import React, { useEffect, useState, useMemo, useContext } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
@@ -65,8 +67,10 @@ const DepartmentDetails = () => {
 
   // Permissions
   const canManage = useMemo(() => {
-    return user?.roles?.some(r => ['admin', 'owner'].includes(r.name));
+    return !user?.demo_account && user?.roles?.some(r => ['admin', 'owner'].includes(r.name || r));
   }, [user]);
+
+  const canManageMembers = !user?.demo_account && (canManage || department?.capabilities?.manage_members);
 
   // Edit states
   const [isEditingName, setIsEditingName] = useState(false);
@@ -111,7 +115,7 @@ const DepartmentDetails = () => {
   }, [id]);
 
   const handleUpdate = async (field) => {
-    if (!canManage) return;
+    if (!canManage || saving) return;
     setSaving(true);
     let payload = {};
     if (field === 'name') {
@@ -154,7 +158,7 @@ const DepartmentDetails = () => {
   };
 
   const openMemberModal = () => {
-    if (!canManage) return;
+    if (!canManageMembers) return;
     const currentMemberIds = department.members ? department.members.map(m => m.id) : [];
     setSelectedUserIds(currentMemberIds);
     setMemberModalOpen(true);
@@ -167,7 +171,7 @@ const DepartmentDetails = () => {
   };
 
   const handleSaveMembers = async () => {
-    if (!canManage) return;
+    if (!canManageMembers || savingMembers) return;
     setSavingMembers(true);
     try {
       await updateDepartmentMembers(id, selectedUserIds);
@@ -248,6 +252,9 @@ const DepartmentDetails = () => {
         {/* Left Column: Description & Members */}
         <div className="space-y-8">
 
+          <DepartmentDashboard department={department} onUpdated={setDepartment} readOnly={Boolean(user?.demo_account)} />
+          <DepartmentWorkflows key={department.id} department={department} user={user} onMembershipChanged={async()=>{const response=await fetchDepartment(id);setDepartment(response.data);}} />
+
           {/* Description Section */}
           <div className="group relative bg-white dark:bg-zinc-900 rounded-2xl border border-slate-200 dark:border-zinc-700 p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
@@ -288,7 +295,7 @@ const DepartmentDetails = () => {
               <h3 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
                 <FiUsers className="text-[var(--theme-color)]" /> Team Members <span className="bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-slate-400 text-xs px-2 py-0.5 rounded-full">{department.members?.length || 0}</span>
               </h3>
-              {canManage && (
+              {canManageMembers && (
                 <button onClick={openMemberModal} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm font-medium hover:opacity-90 transition shadow-sm">
                   <FiPlus /> Add Member
                 </button>
@@ -302,7 +309,7 @@ const DepartmentDetails = () => {
                 </div>
                 <h3 className="text-base font-medium text-slate-900 dark:text-white">No members yet</h3>
                 <p className="text-xs text-slate-500 mt-1">Departments need people to bring them to life.</p>
-                {canManage && (
+                {canManageMembers && (
                   <button onClick={openMemberModal} className="mt-3 text-sm font-medium text-[var(--theme-color)] hover:underline">Add First Member</button>
                 )}
               </div>
@@ -322,7 +329,7 @@ const DepartmentDetails = () => {
                       </div>
                     </div>
 
-                    {canManage && (
+                    {canManageMembers && (
                       <button
                         onClick={() => {
                           if (window.confirm(`Remove ${member.full_name} from this department?`)) {
@@ -330,7 +337,7 @@ const DepartmentDetails = () => {
                             updateDepartmentMembers(id, newIds).then(() => {
                               toast.success("Member removed");
                               loadData();
-                            });
+                            }).catch(() => toast.error('Unable to remove member. Please try again.'));
                           }
                         }}
                         className="absolute right-3 top-3 hidden p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 group-hover:block transition"
@@ -421,7 +428,7 @@ const DepartmentDetails = () => {
       </div>
 
       {/* Member Management Modal */}
-      {memberModalOpen && canManage && (
+      {memberModalOpen && canManageMembers && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setMemberModalOpen(false)} />
           <div className="relative flex flex-col w-full max-w-2xl max-h-[85vh] bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl overflow-hidden">

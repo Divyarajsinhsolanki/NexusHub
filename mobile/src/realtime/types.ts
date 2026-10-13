@@ -19,4 +19,4 @@ export type RealtimeEvent = {
 };
 
 export type RealtimeState = 'idle' | 'connecting' | 'connected' | 'disconnected';
-export type ChannelIdentifier = { channel: 'ChatChannel'; conversation_id?: number } | { channel: 'CallChannel'; public_id: string } | { channel: 'PresenceChannel' };
+export type ChannelIdentifier = { channel: 'SessionChannel' } | { channel: 'ChatChannel'; conversation_id?: number } | { channel: 'CallChannel'; public_id: string } | { channel: 'PresenceChannel' };

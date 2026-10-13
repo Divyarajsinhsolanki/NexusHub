@@ -99,3 +99,23 @@ describe("chat cable subscription confirmation", () => {
     subscription.unsubscribe();
   });
 });
+
+it("stops reconnection and discards queued actions after session revocation", async () => {
+  vi.useFakeTimers();
+  const check = vi.fn();
+  window.addEventListener("nexus-session-check", check);
+  const { subscribeToSession, subscribeToConversationChat, sendToConversation } = await import("./chatCable");
+  const auth = subscribeToSession();
+  const chat = subscribeToConversationChat(12, vi.fn());
+  const socket = FakeWebSocket.instances[0];
+  socket.open();
+  sendToConversation(12, "typing", { is_typing: true });
+  socket.receive({ type: "disconnect", reason: "remote", reconnect: false });
+  expect(check).toHaveBeenCalledTimes(1);
+  await vi.advanceTimersByTimeAsync(10_000);
+  expect(FakeWebSocket.instances).toHaveLength(1);
+  auth.unsubscribe();
+  chat.unsubscribe();
+  window.removeEventListener("nexus-session-check", check);
+  vi.useRealTimers();
+});

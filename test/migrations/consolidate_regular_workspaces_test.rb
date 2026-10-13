@@ -2,7 +2,7 @@ require "test_helper"
 require Rails.root.join("db/migrate/20270729000000_consolidate_regular_workspaces")
 
 class ConsolidateRegularWorkspacesTest < ActiveSupport::TestCase
-  test "moves private workspace data into the regular workspace without granting owner access" do
+  test "preserves independent workspaces records and owner roles" do
     regular = Workspace.regular!
     demo = Workspace.create!(name: "Demo", slug: "migration-demo", kind: "demo")
     source = Workspace.create!(name: "Personal", slug: "migration-personal", kind: "private")
@@ -22,12 +22,11 @@ class ConsolidateRegularWorkspacesTest < ActiveSupport::TestCase
 
     ConsolidateRegularWorkspaces.new.migrate(:up)
 
-    assert_equal regular, source_user.reload.workspace
-    assert source_user.member?
-    assert_not source_user.owner?
-    assert_equal regular, source_project.reload.workspace
-    assert_equal "Shared project (workspace #{source.id})", source_project.name
-    assert_not Workspace.exists?(source.id)
+    assert_equal source, source_user.reload.workspace
+    assert source_user.owner?
+    assert_equal source, source_project.reload.workspace
+    assert_equal "Shared project", source_project.name
+    assert Workspace.exists?(source.id)
     assert Workspace.exists?(demo.id)
   end
 end

@@ -65,7 +65,10 @@ class Api::BaseController < ApplicationController
   end
 
   def authentication_user
-    bearer_token_user || jwt_cookie_user || devise_session_user
+    return bearer_token_user if request.authorization.present?
+    return jwt_cookie_user if cookies[:access_token].present? || cookies[:refresh_token].present?
+
+    devise_session_user
   end
 
   def enforce_demo_read_only!
@@ -100,11 +103,6 @@ class Api::BaseController < ApplicationController
       @authenticated_mobile_user = session.user
       return effective_user
     end
-
-    # Access tokens issued before session-bound tokens were introduced remain
-    # usable for their original 15-minute lifetime.
-    user = User.find_by(id: payload[:user_id])
-    user unless user&.locked?
   end
 
   def devise_session_user

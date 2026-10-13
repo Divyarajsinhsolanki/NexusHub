@@ -47,16 +47,12 @@ class Api::V1::AuthController < Api::V1::BaseController
   end
 
   def signup
-    attributes = params.require(:auth).permit(:first_name, :last_name, :email, :password, :password_confirmation, :device_name)
-    user = User.new(attributes.except(:device_name))
-    workspace = Workspace.regular!
-    user.workspace = workspace
+    attributes = params.require(:auth).permit(:first_name, :last_name, :email, :password, :password_confirmation, :device_name, :company_name)
+    user = User.new(attributes.except(:device_name, :company_name))
+    user.workspace = WorkspaceRegistration.build_workspace(user, company_name: attributes[:company_name])
     user.skip_confirmation_notification! if user.respond_to?(:skip_confirmation_notification!)
 
-    User.transaction do
-      Role.find_or_create_by!(name: "member")
-      user.save!
-    end
+    WorkspaceRegistration.save!(user)
     confirmation_email_sent = send_confirmation_instructions(user)
 
     render_data(
@@ -106,7 +102,8 @@ class Api::V1::AuthController < Api::V1::BaseController
   end
 
   def logout
-    MobileSession.find_by_token(params[:refresh_token].to_s)&.revoke!
+    bearer_token_user
+    (current_mobile_session || MobileSession.find_by_token(params[:refresh_token].to_s))&.revoke!
     render_data({ logged_out: true })
   end
 
@@ -137,10 +134,10 @@ class Api::V1::AuthController < Api::V1::BaseController
     full_name = payload[:name].to_s.strip
     first_name = payload[:given_name].presence || full_name.split.first || email.split("@").first
     last_name = payload[:family_name].presence || full_name.split.drop(1).join(" ").presence || first_name
-    workspace = Workspace.regular!
+    user.first_name = first_name
+    workspace = WorkspaceRegistration.build_workspace(user)
 
     User.transaction do
-      Role.find_or_create_by!(name: "member")
       user.assign_attributes(
         first_name: first_name,
         last_name: last_name,
@@ -149,7 +146,7 @@ class Api::V1::AuthController < Api::V1::BaseController
       )
       user.skip_confirmation!
       user.status = "active"
-      user.save!
+      WorkspaceRegistration.save!(user)
     end
     user
   end

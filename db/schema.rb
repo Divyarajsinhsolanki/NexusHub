@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2027_08_25_000000) do
+ActiveRecord::Schema[8.1].define(version: 2027_08_29_000000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -59,6 +59,36 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_25_000000) do
     t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
   end
 
+  create_table "billing_subscriptions", force: :cascade do |t|
+    t.string "attempt_key"
+    t.boolean "cancel_at_period_end", default: false, null: false
+    t.datetime "checkout_expires_at"
+    t.string "checkout_id"
+    t.text "checkout_url"
+    t.datetime "created_at", null: false
+    t.datetime "current_period_end"
+    t.string "customer_id"
+    t.string "external_id"
+    t.datetime "last_synced_at"
+    t.string "plan_key", null: false
+    t.string "provider", null: false
+    t.string "status", default: "pending", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "workspace_id", null: false
+    t.index ["provider", "external_id"], name: "index_billing_subscriptions_on_provider_and_external_id", unique: true
+    t.index ["workspace_id"], name: "index_billing_subscriptions_on_workspace_id", unique: true
+  end
+
+  create_table "billing_webhook_events", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "event_id", null: false
+    t.string "event_type", null: false
+    t.datetime "processed_at"
+    t.string "provider", null: false
+    t.datetime "updated_at", null: false
+    t.index ["provider", "event_id"], name: "index_billing_webhook_events_on_provider_and_event_id", unique: true
+  end
+
   create_table "calendar_events", force: :cascade do |t|
     t.boolean "all_day", default: false, null: false
     t.datetime "created_at", null: false
@@ -101,6 +131,8 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_25_000000) do
     t.datetime "created_at", null: false
     t.datetime "joined_at"
     t.datetime "left_at"
+    t.boolean "media_confirmation_required", default: false, null: false
+    t.datetime "media_last_seen_at"
     t.datetime "ring_acknowledged_at"
     t.string "status", default: "ringing", null: false
     t.datetime "updated_at", null: false
@@ -127,7 +159,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_25_000000) do
     t.string "status", default: "ringing", null: false
     t.datetime "updated_at", null: false
     t.bigint "workspace_id", null: false
-    t.index ["conversation_id"], name: "idx_one_live_call_per_conversation", unique: true, where: "((status)::text = ANY (ARRAY[('ringing'::character varying)::text, ('active'::character varying)::text]))"
+    t.index ["conversation_id"], name: "idx_one_live_call_per_conversation", unique: true, where: "((status)::text = ANY ((ARRAY['ringing'::character varying, 'active'::character varying])::text[]))"
     t.index ["conversation_id"], name: "index_call_sessions_on_conversation_id"
     t.index ["initiator_id"], name: "index_call_sessions_on_initiator_id"
     t.index ["livekit_room_name"], name: "index_call_sessions_on_livekit_room_name", unique: true
@@ -197,6 +229,64 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_25_000000) do
     t.index ["workspace_id", "last_message_at"], name: "index_conversations_on_workspace_id_and_last_message_at"
     t.index ["workspace_id", "updated_at"], name: "index_conversations_on_workspace_id_and_updated_at"
     t.index ["workspace_id"], name: "index_conversations_on_workspace_id"
+  end
+
+  create_table "department_comments", force: :cascade do |t|
+    t.bigint "author_id"
+    t.text "body", null: false
+    t.datetime "created_at", null: false
+    t.bigint "department_entry_id", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "workspace_id", null: false
+    t.index ["author_id"], name: "index_department_comments_on_author_id"
+    t.index ["department_entry_id"], name: "index_department_comments_on_department_entry_id"
+    t.index ["workspace_id"], name: "index_department_comments_on_workspace_id"
+  end
+
+  create_table "department_entries", force: :cascade do |t|
+    t.bigint "author_id"
+    t.text "body"
+    t.datetime "created_at", null: false
+    t.bigint "department_id", null: false
+    t.date "due_date"
+    t.string "kind", null: false
+    t.integer "lock_version", default: 0, null: false
+    t.boolean "pinned", default: false, null: false
+    t.integer "progress", default: 0, null: false
+    t.string "status", default: "active", null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.string "url"
+    t.bigint "workspace_id", null: false
+    t.index ["author_id"], name: "index_department_entries_on_author_id"
+    t.index ["department_id", "kind", "created_at"], name: "idx_on_department_id_kind_created_at_0e24b148f5"
+    t.index ["department_id"], name: "index_department_entries_on_department_id"
+    t.index ["workspace_id"], name: "index_department_entries_on_workspace_id"
+    t.check_constraint "progress >= 0 AND progress <= 100", name: "department_goal_progress_valid"
+  end
+
+  create_table "department_join_requests", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "department_id", null: false
+    t.text "reason"
+    t.datetime "resolved_at"
+    t.boolean "source_approved", default: false, null: false
+    t.bigint "source_approver_id"
+    t.bigint "source_department_id"
+    t.string "status", default: "pending", null: false
+    t.boolean "target_approved", default: false, null: false
+    t.bigint "target_approver_id"
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.bigint "workspace_id", null: false
+    t.index ["department_id", "status", "created_at"], name: "department_requests_by_status"
+    t.index ["department_id"], name: "index_department_join_requests_on_department_id"
+    t.index ["source_approver_id"], name: "index_department_join_requests_on_source_approver_id"
+    t.index ["source_department_id"], name: "index_department_join_requests_on_source_department_id"
+    t.index ["target_approver_id"], name: "index_department_join_requests_on_target_approver_id"
+    t.index ["user_id"], name: "index_department_join_requests_on_user_id"
+    t.index ["user_id"], name: "one_pending_department_request_per_user", unique: true, where: "((status)::text = 'pending'::text)"
+    t.index ["workspace_id"], name: "index_department_join_requests_on_workspace_id"
   end
 
   create_table "departments", force: :cascade do |t|
@@ -1180,6 +1270,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_25_000000) do
     t.datetime "deleted_at"
     t.boolean "demo_account", default: false, null: false
     t.bigint "department_id"
+    t.string "department_role", default: "member", null: false
     t.string "email", default: "", null: false
     t.string "encrypted_keka_api_key"
     t.string "encrypted_keka_api_key_iv"
@@ -1215,6 +1306,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_25_000000) do
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
     t.index ["workspace_id", "created_at"], name: "index_users_on_workspace_id_and_created_at"
     t.index ["workspace_id"], name: "index_users_on_workspace_id"
+    t.check_constraint "department_role::text = ANY (ARRAY['member'::character varying, 'manager'::character varying]::text[])", name: "users_department_role_valid"
   end
 
   create_table "web_sessions", force: :cascade do |t|
@@ -1332,6 +1424,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_25_000000) do
   add_foreign_key "account_deletion_requests", "users"
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "billing_subscriptions", "workspaces"
   add_foreign_key "calendar_events", "projects"
   add_foreign_key "calendar_events", "sprints"
   add_foreign_key "calendar_events", "tasks"
@@ -1352,6 +1445,18 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_25_000000) do
   add_foreign_key "conversations", "messages", column: "last_message_id"
   add_foreign_key "conversations", "users", column: "creator_id"
   add_foreign_key "conversations", "workspaces"
+  add_foreign_key "department_comments", "department_entries"
+  add_foreign_key "department_comments", "users", column: "author_id"
+  add_foreign_key "department_comments", "workspaces"
+  add_foreign_key "department_entries", "departments"
+  add_foreign_key "department_entries", "users", column: "author_id"
+  add_foreign_key "department_entries", "workspaces"
+  add_foreign_key "department_join_requests", "departments"
+  add_foreign_key "department_join_requests", "departments", column: "source_department_id"
+  add_foreign_key "department_join_requests", "users"
+  add_foreign_key "department_join_requests", "users", column: "source_approver_id"
+  add_foreign_key "department_join_requests", "users", column: "target_approver_id"
+  add_foreign_key "department_join_requests", "workspaces"
   add_foreign_key "departments", "users", column: "manager_id"
   add_foreign_key "departments", "workspaces"
   add_foreign_key "event_reminders", "calendar_events"

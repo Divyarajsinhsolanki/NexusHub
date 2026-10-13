@@ -31,6 +31,8 @@ module Accounts
         'PdfDocumentOperation' => user.pdf_document_operations.pluck(:id) }
       attachments = records.flat_map { |type, ids| ActiveStorage::Attachment.where(record_type: type, record_id: ids).includes(:blob).to_a }
       options = Rails.application.routes.default_url_options.merge(host: ENV.fetch('BASE_URL', 'http://localhost:3000'))
+      payload[:department_comments] = DepartmentComment.where(author_id:user.id).map { |record| record.attributes.slice('id','department_entry_id','body','created_at') }
+      payload[:department_requests] = DepartmentJoinRequest.where(user_id:user.id).map { |record| record.attributes.slice('id','department_id','source_department_id','reason','status','created_at') }
       payload[:uploads] = attachments.map do |attachment|
         blob = attachment.blob
         { filename: blob.filename.to_s, content_type: blob.content_type, byte_size: blob.byte_size,

@@ -12,6 +12,8 @@ Rails.application.routes.draw do
   get "robots.txt" => "pages#robots", defaults: { format: :text }
   get "portfolio-seed-images/:key" => "portfolio_seed_images#show", as: :portfolio_seed_image
 
+  post "billing/webhooks/:provider", to: "billing_webhooks#create", constraints: { provider: /stripe|razorpay/ }
+
   root "pages#index"
 
   get "/mcp", to: "mcp#show"
@@ -27,12 +29,22 @@ Rails.application.routes.draw do
   # React now handles the /sheet route. Data is provided via the API below.
 
   namespace :api do
+    get "billing", to: "/api/billing#show"
+    post "billing/checkout", to: "/api/billing#checkout"
+    post "billing/refresh", to: "/api/billing#refresh"
+    post "billing/portal", to: "/api/billing#portal"
+    post "billing/cancel", to: "/api/billing#cancel"
     get 'account', to: '/api/account#show'
     get 'account/export', to: '/api/account#export'
     post 'account/deletion/code', to: '/api/account#code'
     post 'account/deletion', to: '/api/account#schedule'
     delete 'account/deletion', to: '/api/account#cancel'
     namespace :v1 do
+    get "billing", to: "/api/billing#show"
+    post "billing/checkout", to: "/api/billing#checkout"
+    post "billing/refresh", to: "/api/billing#refresh"
+    post "billing/portal", to: "/api/billing#portal"
+    post "billing/cancel", to: "/api/billing#cancel"
       get 'account', to: '/api/account#show'
       get 'account/export', to: '/api/account#export'
       post 'account/deletion/code', to: '/api/account#code'
@@ -166,10 +178,24 @@ Rails.application.routes.draw do
       resources :users, controller: "/api/users", only: [:index, :show, :create, :update, :destroy] do
         post :presence, on: :collection
       end
+        scope 'departments/:department_id', controller: '/api/department_workflows' do
+          get 'entries', action: :entries
+          post 'entries', action: :create_entry
+          patch 'entries/:entry_id', action: :update_entry
+          delete 'entries/:entry_id', action: :destroy_entry
+          get 'entries/:entry_id/comments', action: :comments
+          post 'entries/:entry_id/comments', action: :create_comment
+          delete 'entries/:entry_id/comments/:comment_id', action: :destroy_comment
+          get 'requests', action: :requests
+          post 'requests', action: :create_request
+          patch 'requests/:request_id', action: :resolve_request
+          get 'report', action: :report
+        end
       resources :departments, controller: "/api/departments" do
         member do
           get :members
           patch :update_members
+          patch :update_role
         end
       end
       resources :roles, controller: "/api/roles", only: [:index]
@@ -219,6 +245,7 @@ Rails.application.routes.draw do
       end
       resources :calls, controller: "/api/calls", only: [] do
         member do
+          post :media_heartbeat
           post :ack_ring
           post :join
           post :decline
@@ -392,10 +419,24 @@ Rails.application.routes.draw do
         post :import_from_sheet
       end
     end
+        scope 'departments/:department_id', controller: '/api/department_workflows' do
+          get 'entries', action: :entries
+          post 'entries', action: :create_entry
+          patch 'entries/:entry_id', action: :update_entry
+          delete 'entries/:entry_id', action: :destroy_entry
+          get 'entries/:entry_id/comments', action: :comments
+          post 'entries/:entry_id/comments', action: :create_comment
+          delete 'entries/:entry_id/comments/:comment_id', action: :destroy_comment
+          get 'requests', action: :requests
+          post 'requests', action: :create_request
+          patch 'requests/:request_id', action: :resolve_request
+          get 'report', action: :report
+        end
     resources :departments do
       member do
         get :members
         patch :update_members
+        patch :update_role
       end
     end
 
@@ -451,6 +492,7 @@ Rails.application.routes.draw do
 
     resources :calls, only: [] do
       member do
+        post :media_heartbeat
         post :ack_ring
         post :join
         post :decline

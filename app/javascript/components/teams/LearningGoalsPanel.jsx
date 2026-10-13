@@ -71,12 +71,12 @@ const LearningGoalsPanel = ({
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-gray-800">Your Learning Goals</h2>
-          <p className="text-gray-500 text-sm">Track progress toward the skills you want to level up.</p>
+          <h2 className="text-xl font-bold text-zinc-800 dark:text-zinc-100">Your Learning Goals</h2>
+          <p className="text-zinc-500 dark:text-zinc-400 text-sm">Track progress toward the skills you want to level up.</p>
         </div>
         <button
           onClick={() => setShowModal(true)}
-          className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors flex items-center"
+          className="bg-[var(--theme-color)] text-white px-4 py-2 rounded-lg hover:brightness-110 transition-colors flex items-center"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
@@ -86,18 +86,18 @@ const LearningGoalsPanel = ({
       </div>
 
       {sortedGoals.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-md p-8 text-center text-gray-500 border border-dashed border-gray-300">
+        <div className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded-2xl p-8 text-center text-zinc-500 dark:text-zinc-400 border border-dashed border-zinc-300 dark:border-zinc-700">
           <p className="font-medium">You haven&apos;t created any learning goals yet.</p>
           <p className="text-sm">Add a goal to stay accountable and celebrate progress.</p>
         </div>
       ) : (
         <div className="space-y-6">
           {sortedGoals.map((goal) => (
-            <div key={goal.id} className="bg-white rounded-xl shadow-md p-5 border border-gray-200">
+            <div key={goal.id} className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded-2xl p-5 border border-zinc-200 dark:border-zinc-800">
               <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-3">
                 <div>
-                  <h3 className="font-semibold text-lg text-gray-800">{goal.title}</h3>
-                  {goal.description && <p className="text-gray-600 text-sm mt-1 max-w-2xl">{goal.description}</p>}
+                  <h3 className="font-semibold text-lg text-zinc-800 dark:text-zinc-100">{goal.title}</h3>
+                  {goal.description && <p className="text-zinc-600 dark:text-zinc-400 text-sm mt-1 max-w-2xl">{goal.description}</p>}
                 </div>
                 <div className="flex items-center gap-3">
                   {goal.due_date && (
@@ -117,7 +117,7 @@ const LearningGoalsPanel = ({
               </div>
 
               <div className="mb-4">
-                <div className="flex justify-between text-sm text-gray-600 mb-1">
+                <div className="flex justify-between text-sm text-zinc-600 dark:text-zinc-400 mb-1">
                   <span>Progress</span>
                   <span>{goal.progress}%</span>
                 </div>
@@ -130,7 +130,7 @@ const LearningGoalsPanel = ({
               </div>
 
               <div>
-                <h4 className="font-medium text-gray-700 mb-2">Checkpoints</h4>
+                <h4 className="font-medium text-zinc-700 dark:text-zinc-300 mb-2">Checkpoints</h4>
                 <ul className="space-y-2">
                   {goal.checkpoints.map((checkpoint) => (
                     <li key={checkpoint.id} className="flex items-start">
@@ -142,7 +142,7 @@ const LearningGoalsPanel = ({
                         className="mt-1 h-5 w-5 text-indigo-600 rounded focus:ring-indigo-500"
                       />
                       <div className="ml-3 text-sm">
-                        <span className={checkpoint.completed ? "line-through text-gray-500" : "text-gray-800"}>
+                        <span className={checkpoint.completed ? "line-through text-zinc-500 dark:text-zinc-400" : "text-zinc-800 dark:text-zinc-100"}>
                           {checkpoint.title}
                         </span>
                         {checkpoint.resource_url && (
@@ -166,12 +166,12 @@ const LearningGoalsPanel = ({
                       value={checkpointDrafts[goal.id] || ""}
                       onChange={(event) => setCheckpointDrafts((prev) => ({ ...prev, [goal.id]: event.target.value }))}
                       placeholder="Add new checkpoint"
-                      className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className="flex-1 border border-zinc-300 dark:border-zinc-700 rounded-lg px-3 py-2 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-[var(--theme-color)] focus:border-[var(--theme-color)]"
                     />
                     <button
                       onClick={() => handleAddCheckpoint(goal.id)}
                       disabled={pendingCheckpointId === `add-${goal.id}`}
-                      className="px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm"
+                      className="px-3 py-2 bg-[var(--theme-color)] text-white rounded-lg hover:brightness-110 text-sm"
                     >
                       {pendingCheckpointId === `add-${goal.id}` ? "Saving..." : "Add"}
                     </button>
@@ -185,57 +185,57 @@ const LearningGoalsPanel = ({
 
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-xl p-6">
+          <div className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded-2xl shadow-xl w-full max-w-xl max-h-[90dvh] overflow-y-auto p-4 sm:p-6">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-gray-800">Create a learning goal</h3>
-              <button onClick={() => setShowModal(false)} className="text-gray-500 hover:text-gray-700">✕</button>
+              <h3 className="text-lg font-semibold text-zinc-800 dark:text-zinc-100">Create a learning goal</h3>
+              <button onClick={() => setShowModal(false)} className="text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:text-zinc-300">✕</button>
             </div>
             <form className="space-y-4" onSubmit={handleCreateGoal}>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Goal title</label>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Goal title</label>
                 <input
                   type="text"
                   name="title"
                   value={form.title}
                   onChange={handleFormChange}
                   placeholder="e.g. Master Docker"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  className="w-full border border-zinc-300 dark:border-zinc-700 rounded-lg px-3 py-2 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-[var(--theme-color)] focus:border-[var(--theme-color)]"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Target completion date</label>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Target completion date</label>
                 <input
                   type="date"
                   name="dueDate"
                   value={form.dueDate}
                   onChange={handleFormChange}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  className="w-full border border-zinc-300 dark:border-zinc-700 rounded-lg px-3 py-2 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-[var(--theme-color)] focus:border-[var(--theme-color)]"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Description</label>
                 <textarea
                   name="description"
                   value={form.description}
                   onChange={handleFormChange}
                   rows={3}
                   placeholder="Add a note about why this goal matters"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  className="w-full border border-zinc-300 dark:border-zinc-700 rounded-lg px-3 py-2 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-[var(--theme-color)] focus:border-[var(--theme-color)]"
                 />
               </div>
               <div className="flex justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="px-4 py-2 rounded-lg bg-gray-200 text-gray-700 hover:bg-gray-300"
+                  className="px-4 py-2 rounded-lg bg-gray-200 text-zinc-700 dark:text-zinc-300 hover:bg-gray-300"
                   disabled={isSubmitting}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+                  className="px-4 py-2 rounded-lg bg-[var(--theme-color)] text-white hover:brightness-110"
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? "Saving..." : "Save Goal"}
@@ -256,11 +256,11 @@ const progressColor = (progress) => {
 };
 
 const dueBadgeClass = (daysRemaining) => {
-  if (daysRemaining == null) return "bg-gray-100 text-gray-700";
-  if (daysRemaining < 0) return "bg-red-100 text-red-800";
-  if (daysRemaining <= 7) return "bg-red-100 text-red-800";
-  if (daysRemaining <= 14) return "bg-amber-100 text-amber-800";
-  return "bg-green-100 text-green-800";
+  if (daysRemaining == null) return "bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300";
+  if (daysRemaining < 0) return "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200";
+  if (daysRemaining <= 7) return "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200";
+  if (daysRemaining <= 14) return "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200";
+  return "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200";
 };
 
 const formatDays = (days) => {

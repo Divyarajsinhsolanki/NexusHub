@@ -1,16 +1,19 @@
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
 import { expect, jest, test, beforeEach } from '@jest/globals';
-import { Alert, Platform } from 'react-native';
+import { Alert, Platform, View } from 'react-native';
 import { Track } from 'livekit-client';
 import { MobileCallRoom } from './MobileCallRoom';
 import type { LiveKitCredentials } from '../../api/types';
+
+import { endpoints } from '../../api/endpoints';
+jest.mock('../../api/endpoints', () => ({endpoints:{callAction:jest.fn(async () => ({}))}}));
 
 let mockSharing = false;
 let mockTracks: any[] = [];
 const mockSetScreenShare = jest.fn<(enabled: boolean) => Promise<void>>();
 jest.mock('@livekit/react-native', () => ({
   AudioSession: { startAudioSession: jest.fn(async () => undefined), stopAudioSession: jest.fn(async () => undefined) },
-  LiveKitRoom: ({ children }: any) => children,
+  LiveKitRoom: ({ children, onConnected }: any) => { const {View} = require("react-native"); return <View accessibilityLabel="Media room" onTouchStart={onConnected}>{children}</View>; },
   VideoTrack: ({ trackRef, objectFit }: any) => {
     const { Text } = require('react-native');
     return <Text>{trackRef.participant.name} {objectFit}</Text>;
@@ -60,4 +63,12 @@ test('reports rejected capture and lets the user retry', async () => {
   await fireEvent.press(screen.getByRole('button', { name: 'Share screen' }));
   await waitFor(() => expect(mockSetScreenShare).toHaveBeenCalledTimes(2));
   alert.mockRestore();
+});
+
+test('confirms attendance only after the media connection succeeds', async () => {
+ const screen=await render(<MobileCallRoom credentials={credentials} onEnd={()=>{}} onLeave={()=>{}} />);
+ expect(endpoints.callAction).not.toHaveBeenCalled();
+ await fireEvent(screen.getByLabelText('Media room'), 'touchStart');
+ expect(endpoints.callAction).toHaveBeenCalledWith(1, 'media_heartbeat');
+ await screen.unmount();
 });

@@ -1,0 +1,21 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { expect, jest, test } from '@jest/globals';
+import { DepartmentDetailScreen } from './DepartmentDetailScreen';
+import { endpoints } from '../api/endpoints';
+const mockDepartment = {id:1,name:'Engineering',users_count:1,capabilities:{manage_roles:true,manage_members:true},members:[{id:3,full_name:'Alex',email:'alex@example.test',department_role:'member'}],dashboard:{members_count:1,active_projects:2,open_tasks:3,overdue_tasks:1,due_this_week:2,scope:'Visible projects',workload:[{user_id:3,name:'Alex',role:'member',open_tasks:3,overdue_tasks:1,estimated_hours:5,allocation_percentage:60,availability:'partially allocated'}]}};
+jest.mock('expo-router',()=>({useLocalSearchParams:()=>({id:'1'}),useRouter:()=>({back:jest.fn()})}));
+jest.mock('../auth/AuthProvider',()=>({useAuth:()=>({user:{id:2,permissions:[],demo_account:false}})}));
+jest.mock('../api/endpoints',()=>({endpoints:{department:jest.fn(async()=>mockDepartment),users:jest.fn(async()=>({data:[],meta:{}})),updateDepartmentRole:jest.fn(async()=>({...mockDepartment,members:[{...mockDepartment.members[0],department_role:'manager'}]}))}}));
+jest.mock('../components/Screen',()=>({Screen:({children,header}:any)=><>{header}{children}</>}));
+jest.mock('../components/MemberPreview',()=>({MemberPreview:({children}:any)=><>{children}</>}));
+test('department head sees workload and can assign a manager without workspace administration',async()=>{
+ const client=new QueryClient({defaultOptions:{queries:{retry:false,gcTime:Infinity},mutations:{gcTime:Infinity}}});
+ const screen=await render(<QueryClientProvider client={client}><DepartmentDetailScreen/></QueryClientProvider>);
+ await waitFor(()=>expect(screen.getByLabelText('Role for Alex')).toBeTruthy());
+ expect(screen.getByText(/3 open · 1 overdue/)).toBeTruthy();
+ expect(screen.getByLabelText('Manage department members')).toBeTruthy();
+ await fireEvent(screen.getByLabelText('Role for Alex'),'valueChange','manager');
+ await waitFor(()=>expect(endpoints.updateDepartmentRole).toHaveBeenCalledWith(1,3,'manager'));
+ await screen.unmount();client.clear();
+});

@@ -1,4 +1,5 @@
 class PdfDocument < ApplicationRecord
+  include SaasQuota
   include WorkspaceScoped
 
   DEFAULT_DOCUMENT_LIMIT = 25

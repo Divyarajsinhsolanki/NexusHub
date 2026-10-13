@@ -111,7 +111,7 @@ module Saas
       end
 
       def snapshot(workspace)
-        plan = find(workspace.plan_key)
+        plan = find(effective_plan_key(workspace))
         enabled_keys = enabled_module_keys(workspace, plan)
 
         {
@@ -125,8 +125,15 @@ module Saas
       end
 
       def module_enabled?(workspace, module_key)
-        plan = find(workspace.plan_key)
+        plan = find(effective_plan_key(workspace))
         enabled_module_keys(workspace, plan).include?(module_key.to_s)
+      end
+
+      def effective_plan_key(workspace)
+        subscription = workspace.billing_subscription
+        return workspace.plan_key unless subscription
+
+        subscription.entitled? ? subscription.plan_key : "starter"
       end
 
       private
@@ -150,8 +157,8 @@ module Saas
         {
           status: workspace.billing_status,
           trial_ends_at: workspace.trial_ends_at,
-          trialing: workspace.billing_status == "trialing",
-          active: %w[trialing active].include?(workspace.billing_status)
+          trialing: workspace.billing_status == "trialing" && workspace.trial_ends_at&.future? == true,
+          active: effective_plan_key(workspace) == "starter" || (workspace.billing_subscription ? workspace.billing_subscription.entitled? : workspace.billing_status == "active")
         }
       end
 

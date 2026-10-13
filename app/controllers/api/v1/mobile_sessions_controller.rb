@@ -2,7 +2,7 @@ class Api::V1::MobileSessionsController < Api::V1::BaseController
   before_action :require_mobile_session!
 
   def index
-    sessions = session_owner.mobile_sessions.order(created_at: :desc)
+    sessions = session_owner.mobile_sessions.active.order(created_at: :desc)
     render_data(sessions.map { |session| serialize_session(session) })
   end
 

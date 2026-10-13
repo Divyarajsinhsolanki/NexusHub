@@ -4,6 +4,91 @@
  */
 
 export interface paths {
+    "/billing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Workspace owner only; demo and impersonated sessions are denied. */
+        get: operations["billingStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/billing/checkout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Workspace owner only; demo and impersonated sessions are denied. */
+        post: operations["billingCheckout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/billing/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Workspace owner only; demo and impersonated sessions are denied. */
+        post: operations["billingRefresh"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/billing/portal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Workspace owner only; demo and impersonated sessions are denied. */
+        post: operations["billingPortal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/billing/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Workspace owner only; demo and impersonated sessions are denied. */
+        post: operations["billingCancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/account": {
         parameters: {
             query?: never;
@@ -1135,6 +1220,138 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/departments/{department_id}/entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                department_id: number;
+            };
+            cookie?: never;
+        };
+        get: operations["listDepartmentEntries"];
+        put?: never;
+        post: operations["createDepartmentEntry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/departments/{department_id}/entries/{entry_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                department_id: number;
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteDepartmentEntry"];
+        options?: never;
+        head?: never;
+        patch: operations["updateDepartmentEntry"];
+        trace?: never;
+    };
+    "/departments/{department_id}/entries/{entry_id}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                department_id: number;
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        get: operations["listDepartmentComments"];
+        put?: never;
+        post: operations["createDepartmentComment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/departments/{department_id}/entries/{entry_id}/comments/{comment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                department_id: number;
+                entry_id: number;
+                comment_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteDepartmentComment"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/departments/{department_id}/requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                department_id: number;
+            };
+            cookie?: never;
+        };
+        get: operations["listDepartmentRequests"];
+        put?: never;
+        post: operations["createDepartmentRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/departments/{department_id}/requests/{request_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                department_id: number;
+                request_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["resolveDepartmentRequest"];
+        trace?: never;
+    };
+    "/departments/{department_id}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                department_id: number;
+            };
+            cookie?: never;
+        };
+        /** @description Visible project progress and personal work-log hours only; department roles do not expose other users' work logs. */
+        get: operations["departmentReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/departments": {
         parameters: {
             query?: never;
@@ -1185,6 +1402,25 @@ export interface paths {
         options?: never;
         head?: never;
         patch: operations["updateDepartmentMembers"];
+        trace?: never;
+    };
+    "/departments/{id}/update_role": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** @description Department head or workspace administrator assigns a member or manager role; this does not grant project access. */
+        patch: operations["updateDepartmentRole"];
         trace?: never;
     };
     "/items": {
@@ -1800,6 +2036,25 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["joinCall"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/calls/{id}/media_heartbeat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Confirm the authenticated participant's successful media connection. Does not issue credentials or grant access to new participants. */
+        post: operations["confirmCallMedia"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2684,6 +2939,95 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    billingStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+        };
+    };
+    billingCheckout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    provider: "stripe" | "razorpay";
+                    /** @enum {string} */
+                    plan_key: "growth" | "enterprise";
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+        };
+    };
+    billingRefresh: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+        };
+    };
+    billingPortal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+        };
+    };
+    billingCancel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+        };
+    };
     accountStatus: {
         parameters: {
             query?: never;
@@ -2840,7 +3184,24 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": {
+                    auth: {
+                        /** @description Name for a newly isolated company workspace */
+                        company_name?: string;
+                        first_name: string;
+                        last_name: string;
+                        /** Format: email */
+                        email: string;
+                        /** Format: password */
+                        password: string;
+                        /** Format: password */
+                        password_confirmation: string;
+                    };
+                };
+            };
+        };
         responses: {
             201: components["responses"]["GenericSuccess"];
             422: components["responses"]["Error"];
@@ -4294,6 +4655,298 @@ export interface operations {
             201: components["responses"]["GenericSuccess"];
         };
     };
+    listDepartmentEntries: {
+        parameters: {
+            query?: {
+                page?: number;
+                per_page?: number;
+                kind?: "goal" | "announcement" | "resource";
+                q?: string;
+                status?: "active" | "completed" | "archived";
+            };
+            header?: never;
+            path: {
+                department_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+        };
+    };
+    createDepartmentEntry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                department_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    entry?: {
+                        /** @enum {string} */
+                        kind?: "goal" | "announcement" | "resource";
+                        title?: string;
+                        body?: string | null;
+                        /** @description HTTPS link without credentials */
+                        url?: string | null;
+                        /** @enum {string} */
+                        status?: "active" | "completed" | "archived";
+                        progress?: number;
+                        /** Format: date */
+                        due_date?: string | null;
+                        pinned?: boolean;
+                        /** @description Required on update; send the last fetched version */
+                        lock_version?: number;
+                    };
+                };
+            };
+        };
+        responses: {
+            201: components["responses"]["GenericSuccess"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+        };
+    };
+    deleteDepartmentEntry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                department_id: number;
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+        };
+    };
+    updateDepartmentEntry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                department_id: number;
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    entry?: {
+                        /** @enum {string} */
+                        kind?: "goal" | "announcement" | "resource";
+                        title?: string;
+                        body?: string | null;
+                        /** @description HTTPS link without credentials */
+                        url?: string | null;
+                        /** @enum {string} */
+                        status?: "active" | "completed" | "archived";
+                        progress?: number;
+                        /** Format: date */
+                        due_date?: string | null;
+                        pinned?: boolean;
+                        /** @description Required on update; send the last fetched version */
+                        lock_version?: number;
+                    };
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+        };
+    };
+    listDepartmentComments: {
+        parameters: {
+            query?: {
+                page?: number;
+                per_page?: number;
+            };
+            header?: never;
+            path: {
+                department_id: number;
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+        };
+    };
+    createDepartmentComment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                department_id: number;
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    body?: string;
+                };
+            };
+        };
+        responses: {
+            201: components["responses"]["GenericSuccess"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+        };
+    };
+    deleteDepartmentComment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                department_id: number;
+                entry_id: number;
+                comment_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+        };
+    };
+    listDepartmentRequests: {
+        parameters: {
+            query?: {
+                page?: number;
+                per_page?: number;
+            };
+            header?: never;
+            path: {
+                department_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+        };
+    };
+    createDepartmentRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                department_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason?: string;
+                };
+            };
+        };
+        responses: {
+            201: components["responses"]["GenericSuccess"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+        };
+    };
+    resolveDepartmentRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                department_id: number;
+                request_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    decision?: "approve" | "reject" | "cancel";
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+        };
+    };
+    departmentReport: {
+        parameters: {
+            query?: {
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path: {
+                department_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+        };
+    };
     listDepartments: {
         parameters: {
             query?: never;
@@ -4372,6 +5025,31 @@ export interface operations {
         requestBody?: never;
         responses: {
             200: components["responses"]["GenericSuccess"];
+        };
+    };
+    updateDepartmentRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    user_id: number;
+                    /** @enum {string} */
+                    role: "member" | "manager";
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
         };
     };
     listVaultItems: {
@@ -5117,7 +5795,17 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /**
+                     * @description Defer joined attendance until the media connection is confirmed. Updated clients send true; omission preserves older client behavior.
+                     * @default false
+                     */
+                    media_confirmation_required?: boolean;
+                };
+            };
+        };
         responses: {
             201: components["responses"]["GenericSuccess"];
         };
@@ -5131,9 +5819,35 @@ export interface operations {
             };
             cookie?: never;
         };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /**
+                     * @description Defer joined attendance until the media connection is confirmed. Updated clients send true; omission preserves older client behavior.
+                     * @default false
+                     */
+                    media_confirmation_required?: boolean;
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+        };
+    };
+    confirmCallMedia: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
         requestBody?: never;
         responses: {
             200: components["responses"]["GenericSuccess"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
         };
     };
     acknowledgeCallRing: {
@@ -5227,7 +5941,17 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /**
+                     * @description Defer joined attendance until the media connection is confirmed. Updated clients send true; omission preserves older client behavior.
+                     * @default false
+                     */
+                    media_confirmation_required?: boolean;
+                };
+            };
+        };
         responses: {
             /** @description LiveKit credentials and personalized call metadata */
             200: {

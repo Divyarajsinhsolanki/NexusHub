@@ -1,4 +1,6 @@
 class WebSession < ApplicationRecord
+  after_update_commit :disconnect_realtime, if: -> { saved_change_to_revoked_at? && revoked_at? }
+
   belongs_to :user
 
   scope :active, -> { where(revoked_at: nil).where("expires_at > ?", Time.current) }
@@ -24,6 +26,15 @@ class WebSession < ApplicationRecord
 
   def token(type:, expires_at:)
     JwtService.encode({ user_id: user_id, web_session_id: id, type: type }, exp: expires_at)
+  end
+
+  def disconnect_realtime
+    effective = user
+    ActionCable.server.remote_connections.where(
+      current_user: effective,
+      current_workspace: effective.workspace,
+      session_key: "web:#{id}"
+    ).disconnect(reconnect: false)
   end
 
   def revoke!

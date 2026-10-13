@@ -391,7 +391,10 @@ export type LearningGoal = EntityRecord & {
   checkpoints: LearningCheckpoint[];
 };
 
+export type DepartmentWorkload = { user_id: number; name: string; role: 'head' | 'manager' | 'member'; open_tasks: number; overdue_tasks: number; estimated_hours: number; projects_count: number; allocation_percentage: number; availability: string };
+
 export type DepartmentMember = EntityRecord & {
+  department_role?: 'member' | 'manager';
   full_name: string;
   first_name?: string;
   last_name?: string;
@@ -401,6 +404,8 @@ export type DepartmentMember = EntityRecord & {
 };
 
 export type Department = EntityRecord & {
+  capabilities?: { manage_members: boolean; manage_roles: boolean; view_content?:boolean; manage_content?:boolean; approve_requests?:boolean };
+  dashboard?: { members_count: number; active_projects: number; open_tasks: number; overdue_tasks: number; due_this_week: number; scope: string; workload: DepartmentWorkload[] };
   name: string;
   description?: string | null;
   users_count: number;

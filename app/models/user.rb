@@ -1,6 +1,13 @@
 require 'digest'
 
 class User < ApplicationRecord
+  has_many :department_entries, foreign_key: :author_id, dependent: :nullify
+  has_many :department_comments, foreign_key: :author_id, dependent: :destroy
+  has_many :department_join_requests, dependent: :destroy
+  has_many :department_source_approvals, class_name: 'DepartmentJoinRequest', foreign_key: :source_approver_id, dependent: :nullify
+  has_many :department_target_approvals, class_name: 'DepartmentJoinRequest', foreign_key: :target_approver_id, dependent: :nullify
+  before_validation { self.department_role = 'member' if will_save_change_to_department_id? }
+  include SaasQuota
   include UserStampable
 
   devise :database_authenticatable, :registerable,
@@ -11,6 +18,10 @@ class User < ApplicationRecord
   def active_for_authentication?
     super && !locked?
   end
+
+  # Password changes made by a signed-in client preserve only that session.
+  attr_accessor :preserved_authentication_session
+  after_update :revoke_authentication_sessions, if: -> { saved_change_to_encrypted_password? || (saved_change_to_status? && locked?) }
 
   LANDING_PAGES = %w[demo calendar posts profile vault knowledge worklog projects teams pdf users departments chat notifications].freeze
   AVAILABILITY_LABELS = {
@@ -279,6 +290,18 @@ class User < ApplicationRecord
 
   def calls_allowed_during_quiet_hours?
     push_notification_settings_with_defaults.dig("quiet_hours", "allow_calls")
+  end
+
+  def revoke_authentication_sessions
+    [web_sessions.active, MobileSession.active.where("user_id = :id OR impersonated_user_id = :id", id: id)].each do |scope|
+      scope.find_each do |session|
+        next if !locked? && preserved_authentication_session && session.class == preserved_authentication_session.class && session.id == preserved_authentication_session.id
+
+        session.revoke!
+      end
+    end
+  ensure
+    self.preserved_authentication_session = nil
   end
 
   private

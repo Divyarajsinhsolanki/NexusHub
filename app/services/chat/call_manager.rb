@@ -11,7 +11,7 @@ module Chat
       @user = user
     end
 
-    def create_call(conversation:, call_type:, meeting: false)
+    def create_call(conversation:, call_type:, meeting: false, media_confirmation_required: false)
       normalized_call_type = call_type.to_s
       unless CallSession.call_types.key?(normalized_call_type)
         raise InvalidTransition, "Unsupported call type"
@@ -34,11 +34,12 @@ module Chat
         )
 
         conversation.conversation_participants.includes(:user).find_each do |membership|
-          status = membership.user_id == user.id && !meeting ? "joined" : "ringing"
+          status = membership.user_id == user.id && !meeting && !media_confirmation_required ? "joined" : "ringing"
           call_session.call_participants.create!(
             workspace: conversation.workspace,
             user: membership.user,
             status: status,
+            media_confirmation_required: media_confirmation_required,
             joined_at: (Time.current if status == "joined")
           )
         end
@@ -110,6 +111,56 @@ module Chat
       join(call_session)
     rescue ActiveRecord::RecordNotUnique
       join(call_session.tap { |session| session.call_participants.reset })
+    end
+
+    # Token issuance is not evidence that the media connection succeeded.
+    def prepare_media_join(call_session, by_link: false)
+      call_session.with_lock do
+        raise InvalidTransition, "This call has ended" unless call_session.live?
+        participant = by_link ? call_session.call_participants.find_or_initialize_by(user_id: user.id) : participant_for!(call_session)
+        if !by_link && participant.call_declined?
+          raise InvalidTransition, "This call was declined"
+        end
+        if !by_link && participant.call_left? && !call_session.conversation.conversation_participants.exists?(user_id: user.id)
+          raise InvalidTransition, "You no longer have access to this group call"
+        end
+        participant.workspace ||= call_session.workspace
+        participant.status = "ringing" unless participant.call_joined?
+        participant.left_at = nil
+        participant.media_confirmation_required = true
+        participant.save!
+        call_session.call_participants.reset
+      end
+      call_session
+    end
+
+    def confirm_media(call_session)
+      call_session.with_lock do
+        participant = participant_for!(call_session)
+        raise InvalidTransition, "This call has ended" unless call_session.live?
+        participant.update!(media_confirmation_required: true, media_last_seen_at: Time.current)
+        join(call_session) unless participant.call_joined?
+      end
+      call_session
+    end
+
+    def expire_media_presence(call_session)
+      changed = false
+      call_session.with_lock do
+        return call_session unless call_session.live?
+        stale = call_session.call_participants.where(status: "joined")
+          .where("COALESCE(media_last_seen_at, joined_at, created_at) < ?", 2.minutes.ago)
+        changed = stale.exists?
+        stale.update_all(status: "left", left_at: Time.current, updated_at: Time.current)
+        if changed && (call_session.conversation.direct? || !joined_participants(call_session).exists?)
+          call_session.call_participants.where(status: %w[joined ringing]).update_all(status: "left", left_at: Time.current, updated_at: Time.current)
+          end_call!(call_session, "ended", "connection_lost")
+        end
+      end
+      if changed
+        Chat::Broadcaster.broadcast_call_event(call_session.reload, call_session.live? ? "call_participant_left" : "call_ended")
+      end
+      call_session
     end
 
     def decline(call_session)

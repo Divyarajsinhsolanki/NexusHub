@@ -1,4 +1,5 @@
 class PdfDocumentVersion < ApplicationRecord
+  include SaasQuota
   include WorkspaceScoped
 
   belongs_to :pdf_document, inverse_of: :versions

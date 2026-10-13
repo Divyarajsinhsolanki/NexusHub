@@ -10,6 +10,7 @@ import PageLoader from "../components/ui/PageLoader";
 import { logoutDestination } from "../config/features";
 import { safeReturnPath } from "../utils/safeReturnPath";
 
+import { subscribeToSession, ensureCableConnection } from "../lib/chatCable";
 import { clearChatDrafts } from "../utils/chatState";
 
 export const AuthContext = createContext();
@@ -62,6 +63,45 @@ export function AuthProvider({ children }) {
       document.removeEventListener('visibilitychange', refreshHomePreferences);
     };
   }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const subscription = subscribeToSession();
+    let active = true;
+    const checkSession = async () => {
+      if (document.visibilityState === "hidden") return;
+      try {
+        await api.get("/session");
+        if (active) ensureCableConnection();
+      } catch (error) {
+        if (active && error.response?.status === 401) {
+          clearTimeout(refreshTimer.current);
+          clearChatDrafts();
+          setUser(null);
+          navigate("/login", { replace: true });
+        }
+      }
+    };
+    const expireSession = () => {
+      if (!active) return;
+      clearTimeout(refreshTimer.current);
+      clearChatDrafts();
+      setUser(null);
+      navigate("/login", { replace: true });
+    };
+    window.addEventListener("nexus-session-expired", expireSession);
+    window.addEventListener("nexus-session-check", checkSession);
+    window.addEventListener("focus", checkSession);
+    document.addEventListener("visibilitychange", checkSession);
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+      window.removeEventListener("nexus-session-expired", expireSession);
+      window.removeEventListener("nexus-session-check", checkSession);
+      window.removeEventListener("focus", checkSession);
+      document.removeEventListener("visibilitychange", checkSession);
+    };
+  }, [user?.id, navigate]);
 
   // Clear timer on unmount
   useEffect(() => () => clearTimeout(refreshTimer.current), []);

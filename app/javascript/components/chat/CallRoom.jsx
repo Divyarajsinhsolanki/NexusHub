@@ -27,6 +27,8 @@ import {
   Volume2
 } from "lucide-react";
 
+import { confirmCallMedia } from "../api";
+
 const CALL_MEDIA_CONNECTION_MESSAGE = "Could not connect to the call media server. Verify LIVEKIT_URL points to a reachable wss:// LiveKit Cloud or self-hosted endpoint.";
 const FRAME_MARGIN = 12;
 const callControlButtonBaseClass = "inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-2xl border px-3.5 py-2 text-xs font-semibold shadow-sm transition focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:focus:ring-sky-400 dark:focus:ring-offset-zinc-950";
@@ -738,6 +740,11 @@ const CallRoom = ({ callSession, credentials, onLeave, onEnd, onRetry, onConnect
         video={!isAudioOnly && initialVideo}
         className={`${isMinimized ? "invisible" : "flex"} min-h-0 flex-1 flex-col ${isAudioOnly ? "bg-white dark:bg-zinc-950" : "bg-slate-900"}`}
         onConnected={() => {
+          confirmCallMedia(callSession.id).catch((error) => {
+            const message = "Unable to confirm your connection. Please retry if attendance does not update.";
+            setConnectionError(message);
+            onConnectionError?.(message, error);
+          });
           setIsConnected(true);
           setConnectionError("");
           onConnected?.();

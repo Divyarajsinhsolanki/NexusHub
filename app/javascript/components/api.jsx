@@ -46,7 +46,9 @@ api.interceptors.response.use(
         await api.post("/refresh");
         return api(config);
       } catch (refreshError) {
-        console.warn("Token refresh failed:", refreshError?.message || refreshError);
+        if (refreshError.response?.status === 401) {
+          window.dispatchEvent(new Event("nexus-session-expired"));
+        }
       }
     }
 
@@ -382,15 +384,16 @@ export const addMessageReaction = (conversationId, messageId, emoji) =>
 export const removeMessageReaction = (conversationId, messageId, emoji) =>
   api.delete(`/conversations/${conversationId}/messages/${messageId}/reactions`, { params: { emoji } });
 export const createCall = (conversationId, callType) =>
-  api.post(`/conversations/${conversationId}/calls`, { call_type: callType });
+  api.post(`/conversations/${conversationId}/calls`, { call_type: callType, media_confirmation_required: true });
 export const acknowledgeCallRing = (callId) => api.post(`/calls/${callId}/ack_ring`);
-export const joinCall = (callId) => api.post(`/calls/${callId}/join`);
+export const joinCall = (callId) => api.post(`/calls/${callId}/join`, { media_confirmation_required: true });
+export const confirmCallMedia = (callId) => api.post(`/calls/${callId}/media_heartbeat`);
 export const declineCall = (callId) => api.post(`/calls/${callId}/decline`);
 export const leaveCall = (callId) => api.post(`/calls/${callId}/leave`);
 export const endCall = (callId, reason = "ended") => api.post(`/calls/${callId}/end`, { reason });
 export const fetchMeeting = (publicId) => api.get(`/meet/${publicId}`);
 export const createMeeting = (callType = 'video') => api.post('/meet', { call_type: callType });
-export const joinMeeting = (publicId) => api.post(`/meet/${publicId}/join`);
+export const joinMeeting = (publicId) => api.post(`/meet/${publicId}/join`, { media_confirmation_required: true });
 
 // NOTIFICATION ENDPOINTS
 export const fetchNotifications = (params = {}) => api.get('/notifications.json', { params });

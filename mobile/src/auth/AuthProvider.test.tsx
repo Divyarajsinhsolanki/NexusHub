@@ -4,6 +4,7 @@ import { Text } from 'react-native';
 import { expect, jest, test } from '@jest/globals';
 
 import { AuthProvider, useAuth } from './AuthProvider';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { endpoints } from '../api/endpoints';
 
 jest.mock('../api/endpoints', () => ({
@@ -30,8 +31,11 @@ test('clears an expired stored session when profile hydration fails', async () =
   }));
   (endpoints.me as jest.MockedFunction<typeof endpoints.me>).mockRejectedValue(new Error('expired'));
 
-  const screen = await render(<AuthProvider><Probe /></AuthProvider>);
+  const queryClient = new QueryClient();
+  queryClient.setQueryData(['private-messages'], ['Sensitive']);
+  const screen = await render(<QueryClientProvider client={queryClient}><AuthProvider><Probe /></AuthProvider></QueryClientProvider>);
 
   await waitFor(() => expect(screen.getByText('Signed out')).toBeTruthy());
   expect(deleteItem).toHaveBeenCalled();
+  expect(queryClient.getQueryData(["private-messages"])).toBeUndefined();
 });

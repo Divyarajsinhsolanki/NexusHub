@@ -12,6 +12,7 @@ const Signup = ({ switchToLogin, embedded = false }) => {
   const Layout = embedded ? React.Fragment : AuthLayout;
   const { handleGoogleLogin } = useContext(AuthContext);
   const [formData, setFormData] = useState({
+    company_name: "",
     first_name: "",
     last_name: "",
     email: "",
@@ -40,6 +41,7 @@ const Signup = ({ switchToLogin, embedded = false }) => {
     setLoading(true);
 
     const submissionData = new FormData();
+    submissionData.append("auth[company_name]", formData.company_name);
     submissionData.append("auth[first_name]", formData.first_name);
     submissionData.append("auth[last_name]", formData.last_name);
     submissionData.append("auth[email]", formData.email);
@@ -70,6 +72,10 @@ const Signup = ({ switchToLogin, embedded = false }) => {
             <p className="mb-6 text-sm text-shell-muted">A fresh start for you and your team.</p>
 
             <form onSubmit={handleSubmit} className="space-y-4" encType="multipart/form-data" aria-busy={loading}>
+              <div>
+                <label className="mb-1 block text-sm font-semibold text-shell-muted-strong required-label" htmlFor="company_name">Company name</label>
+                <input id="company_name" name="company_name" required maxLength={120} value={formData.company_name} onChange={handleChange} className="w-full rounded-xl border-2 border-shell-border bg-surface-card px-4 py-2.5 text-shell-text shadow-sm transition focus:border-theme" />
+              </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-sm font-semibold text-shell-muted-strong required-label" htmlFor="first_name">

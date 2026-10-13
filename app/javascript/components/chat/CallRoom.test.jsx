@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import React from "react";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("../api", () => ({confirmCallMedia: vi.fn(async () => ({}))}));
 vi.mock("@livekit/components-react", () => ({
-  LiveKitRoom: ({ children }) => <div data-testid="livekit-room">{children}</div>,
+  LiveKitRoom: ({ children, onConnected }) => <div data-testid="livekit-room"><button onClick={onConnected}>Simulate media connected</button>{children}</div>,
   ParticipantTile: () => <div />,
   RoomAudioRenderer: () => null,
   StartMediaButton: (props) => <button type="button" {...props}>Allow media</button>,
@@ -18,8 +19,10 @@ vi.mock("livekit-client", () => ({
 }));
 
 import CallRoom from "./CallRoom";
+import { confirmCallMedia } from "../api";
 
 beforeEach(() => {
+  vi.clearAllMocks();
   window.matchMedia = vi.fn(() => ({
     matches: true,
     addEventListener: vi.fn(),
@@ -47,6 +50,9 @@ describe("CallRoom responsive layout", () => {
     expect(screen.queryByRole("button", { name: /copy meeting link/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /full screen/i })).toBeNull();
     expect(screen.getByTestId("livekit-room")).toBeTruthy();
+    expect(confirmCallMedia).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", {name:"Simulate media connected"}));
+    expect(confirmCallMedia).toHaveBeenCalledWith(4);
     expect(screen.getAllByRole("button", { name: /leave call/i })).toHaveLength(1);
   });
 });

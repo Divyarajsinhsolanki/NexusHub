@@ -25,7 +25,6 @@ class Api::V1::PasswordsController < Api::V1::BaseController
 
     return render_validation_error(user) if user.errors.any?
 
-    MobileSession.where(user: user).active.find_each(&:revoke!)
     render_data({ password_reset: true })
   end
 
@@ -40,6 +39,7 @@ class Api::V1::PasswordsController < Api::V1::BaseController
       )
     end
 
+    current_user.preserved_authentication_session = current_mobile_session
     unless current_user.update(
       password: password_params[:password],
       password_confirmation: password_params[:password_confirmation]
@@ -47,7 +47,6 @@ class Api::V1::PasswordsController < Api::V1::BaseController
       return render_validation_error(current_user)
     end
 
-    MobileSession.where(user: current_user).active.where.not(id: current_mobile_session&.id).find_each(&:revoke!)
     render_data({ password_changed: true })
   end
 

@@ -1,4 +1,5 @@
 require "test_helper"
+require "minitest/mock"
 
 class CallsTest < ActionDispatch::IntegrationTest
   include ActiveJob::TestHelper
@@ -30,6 +31,87 @@ class CallsTest < ActionDispatch::IntegrationTest
     ENV["LIVEKIT_API_SECRET"] = @previous_livekit_secret
     clear_enqueued_jobs
     clear_performed_jobs
+  end
+
+  test "media credentials do not mark attendance until connection confirmation" do
+    login(@caller)
+    post "/api/conversations/#{@conversation.id}/calls", params: { call_type: "audio", media_confirmation_required: true }
+    assert_response :created
+    call = CallSession.unscoped.find(JSON.parse(response.body).fetch("call_session").fetch("id"))
+    assert_empty call.call_participants.where(status: "joined")
+    post "/api/calls/#{call.id}/join", params: { media_confirmation_required: true }
+    assert_response :success
+    assert_empty call.call_participants.where(status: "joined")
+    post "/api/calls/#{call.id}/media_heartbeat"
+    assert_response :success
+    assert_equal "joined", call.participant_for(@caller).reload.status
+    assert_not_nil call.participant_for(@caller).media_last_seen_at
+    assert_equal "active", call.reload.status
+    session, = MobileSession.issue_for!(user: @caller)
+    token = MobileAccessToken.issue(session)[:token]
+    post "/api/v1/calls/#{call.id}/media_heartbeat", headers: { "Authorization" => "Bearer #{token}" }
+    assert_response :success
+    assert_equal call.id, JSON.parse(response.body).dig("data", "call_session", "id")
+    login(@outsider)
+    post "/api/calls/#{call.id}/media_heartbeat"
+    assert_response :not_found
+  end
+
+  test "configuration failure does not leave a link holder falsely joined" do
+    login(@caller)
+    post "/api/meet", params: { call_type: "audio" }
+    call = CallSession.unscoped.find(JSON.parse(response.body).fetch("call_session").fetch("id"))
+    ENV["LIVEKIT_URL"] = "invalid"
+    login(@outsider)
+    post "/api/meet/#{call.public_id}/join", params: { media_confirmation_required: true }
+    assert_response :service_unavailable
+    assert_not call.call_participants.exists?(user_id: @outsider.id)
+  end
+
+  test "media reconciliation clears abandoned calls but retains background participants" do
+    login(@caller)
+    post "/api/conversations/#{@conversation.id}/calls", params: { call_type: "audio" }
+    call = CallSession.unscoped.find(JSON.parse(response.body).fetch("call_session").fetch("id"))
+    participant = call.call_participants.find_by!(user_id: @caller.id)
+    participant.update!(joined_at: 3.minutes.ago, media_last_seen_at: 3.minutes.ago)
+    Chat::LivekitRoomPresence.stub(:identities, ["workspace-#{call.workspace_id}:user-#{@caller.id}"]) do
+      CallPresenceSweepJob.perform_now
+    end
+    assert call.reload.live?
+    assert_operator participant.reload.media_last_seen_at, :>, 1.minute.ago
+    participant.update!(media_last_seen_at: 3.minutes.ago)
+    Chat::LivekitRoomPresence.stub(:identities, ->(*) { raise Chat::LivekitRoomPresence::Unavailable }) do
+      CallPresenceSweepJob.perform_now
+    end
+    assert call.reload.live?, "An unavailable media server must not terminate a call"
+    Chat::LivekitRoomPresence.stub(:identities, []) { CallPresenceSweepJob.perform_now }
+    assert_equal "ended", call.reload.status
+    assert_equal "connection_lost", call.ended_reason
+    assert_empty call.call_participants.where(status: "joined")
+    post "/api/conversations/#{@conversation.id}/calls", params: { call_type: "audio" }
+    assert_response :created
+  end
+
+  test "group cleanup keeps connected guests and allows a reconnect grace period" do
+    login(@caller)
+    post "/api/meet", params: { call_type: "audio" }
+    call = CallSession.unscoped.find(JSON.parse(response.body).fetch("call_session").fetch("id"))
+    post "/api/meet/#{call.public_id}/join", params: { media_confirmation_required: true }
+    post "/api/calls/#{call.id}/media_heartbeat"
+    login(@recipient)
+    post "/api/meet/#{call.public_id}/join", params: { media_confirmation_required: true }
+    post "/api/calls/#{call.id}/media_heartbeat"
+    identity = "workspace-#{call.workspace_id}:user-#{@recipient.id}"
+    Chat::LivekitRoomPresence.stub(:identities, [identity]) { CallPresenceSweepJob.perform_now }
+    assert_equal "joined", call.call_participants.find_by!(user_id: @caller.id).status
+    call.call_participants.find_by!(user_id: @caller.id).update!(media_last_seen_at: 3.minutes.ago)
+    Chat::LivekitRoomPresence.stub(:identities, [identity]) { CallPresenceSweepJob.perform_now }
+    assert call.reload.live?
+    assert_equal "left", call.call_participants.find_by!(user_id: @caller.id).status
+    assert_equal "joined", call.call_participants.find_by!(user_id: @recipient.id).status
+    call.call_participants.find_by!(user_id: @recipient.id).update!(media_last_seen_at: 3.minutes.ago)
+    Chat::LivekitRoomPresence.stub(:identities, []) { CallPresenceSweepJob.perform_now }
+    assert_equal "ended", call.reload.status
   end
 
   test "quick meetings wait for external guests without a ringing timeout" do

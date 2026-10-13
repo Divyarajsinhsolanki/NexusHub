@@ -154,7 +154,7 @@ export const endpoints = {
     });
     return unwrapData(response.data);
   },
-  async signup(input: { first_name: string; last_name: string; email: string; password: string; password_confirmation: string }) {
+  async signup(input: { company_name?: string; first_name: string; last_name: string; email: string; password: string; password_confirmation: string }) {
     return create<{ user: User; confirmation_required: boolean }>('/auth/signup', { auth: input });
   },
   async forgotPassword(email: string) {
@@ -381,13 +381,27 @@ export const endpoints = {
   updateLearningCheckpoint(id: number, input: { title?: string; resource_url?: string; completed?: boolean }) { return update<LearningCheckpoint>(`/learning_checkpoints/${id}`, { learning_checkpoint: input }); },
   async deleteLearningCheckpoint(id: number) { await api.delete(`/learning_checkpoints/${id}`); },
   users(params: Record<string, unknown> = {}) { return collection<EntityRecord>('/users', { per_page: 100, ...params }); },
+  departmentEntries(id:number, kind:import('./departmentTypes').DepartmentEntryKind, page=1) { return collection<import('./departmentTypes').DepartmentEntry>(`/departments/${id}/entries`,{kind,page}); },
+  saveDepartmentEntry(id:number, input:Partial<import('./departmentTypes').DepartmentEntry>, entryId?:number) { return entryId ? update<import('./departmentTypes').DepartmentEntry>(`/departments/${id}/entries/${entryId}`,{entry:input}) : create<import('./departmentTypes').DepartmentEntry>(`/departments/${id}/entries`,{entry:input}); },
+  async deleteDepartmentEntry(id:number, entryId:number) { await api.delete(`/departments/${id}/entries/${entryId}`); },
+  departmentComments(id:number, entryId:number, page=1) { return collection<import('./departmentTypes').DepartmentComment>(`/departments/${id}/entries/${entryId}/comments`,{page}); },
+  createDepartmentComment(id:number, entryId:number, body:string) { return create<import('./departmentTypes').DepartmentComment>(`/departments/${id}/entries/${entryId}/comments`,{body}); },
+  async deleteDepartmentComment(id:number,entryId:number,commentId:number) { await api.delete(`/departments/${id}/entries/${entryId}/comments/${commentId}`); },
+  departmentRequests(id:number,page=1) { return collection<import('./departmentTypes').DepartmentRequest>(`/departments/${id}/requests`,{page}); },
+  createDepartmentRequest(id:number,reason:string) { return create<import('./departmentTypes').DepartmentRequest>(`/departments/${id}/requests`,{reason}); },
+  resolveDepartmentRequest(id:number,requestId:number,decision:'approve'|'reject'|'cancel') { return update<import('./departmentTypes').DepartmentRequest>(`/departments/${id}/requests/${requestId}`,{decision}); },
+  async departmentReport(id:number,from:string,to:string) { return unwrapData<import('./departmentTypes').DepartmentReport>((await api.get(`/departments/${id}/report`,{params:{from,to}})).data); },
   departments() { return collection<Department>('/departments'); },
   async department(id: number) {
     const response = await api.get<ApiEnvelope<Department> | Department>(`/departments/${id}`);
     return unwrapData(response.data);
   },
   createDepartment(input: { name: string; description?: string; manager_id?: number | null }) { return create<Department>('/departments', { department: input }); },
-  updateDepartment(id: number, input: { name: string; description?: string; manager_id?: number | null }) { return update<Department>(`/departments/${id}`, { department: input }); },
+  updateDepartment(id: number, input: { name?: string; description?: string; manager_id?: number | null }) { return update<Department>(`/departments/${id}`, { department: input }); },
+  async updateDepartmentRole(id: number, userId: number, role: 'member' | 'manager') {
+    const response = await api.patch<ApiEnvelope<Department> | Department>(`/departments/${id}/update_role`, { user_id: userId, role });
+    return unwrapData(response.data);
+  },
   async deleteDepartment(id: number) { await api.delete(`/departments/${id}`); },
   async updateDepartmentMembers(id: number, userIds: number[]) {
     const response = await api.patch<ApiEnvelope<{ department: Department; users: EntityRecord[] }> | { department: Department; users: EntityRecord[] }>(`/departments/${id}/update_members`, { user_ids: userIds });
@@ -533,10 +547,10 @@ export const endpoints = {
     });
   },
   startCall(conversationId: number, callType: 'audio' | 'video') {
-    return create<{ call_session: CallSession }>(`/conversations/${conversationId}/calls`, { call_type: callType });
+    return create<{ call_session: CallSession }>(`/conversations/${conversationId}/calls`, { call_type: callType, media_confirmation_required: true });
   },
   async joinCall(id: number) {
-    const response = await api.post<ApiEnvelope<import('./types').LiveKitCredentials>>(`/calls/${id}/join`);
+    const response = await api.post<ApiEnvelope<import('./types').LiveKitCredentials>>(`/calls/${id}/join`, { media_confirmation_required: true });
     return unwrapData(response.data);
   },
   async meeting(publicId: string) {
@@ -544,10 +558,10 @@ export const endpoints = {
     return unwrapData(response.data);
   },
   async joinMeeting(publicId: string) {
-    const response = await api.post<ApiEnvelope<import('./types').LiveKitCredentials> | import('./types').LiveKitCredentials>(`/meet/${encodeURIComponent(publicId)}/join`);
+    const response = await api.post<ApiEnvelope<import('./types').LiveKitCredentials> | import('./types').LiveKitCredentials>(`/meet/${encodeURIComponent(publicId)}/join`, { media_confirmation_required: true });
     return unwrapData(response.data);
   },
-  async callAction(id: number, action: 'ack_ring' | 'decline' | 'leave' | 'end') {
+  async callAction(id: number, action: 'ack_ring' | 'decline' | 'leave' | 'end' | 'media_heartbeat') {
     const response = await api.post<ApiEnvelope<{ call_session: CallSession }>>(`/calls/${id}/${action}`);
     return unwrapData(response.data);
   },
@@ -590,6 +604,8 @@ export const endpoints = {
   async readAllNotifications() {
     await api.patch('/notifications/read_all');
   },
+  async billing() { return (await api.get<{ data: import('./billingTypes').WorkspaceBilling }>('/billing')).data.data; },
+  async billingAction(action: 'checkout' | 'refresh' | 'portal' | 'cancel', payload: Record<string, unknown> = {}) { return (await api.post<{ data: import('./billingTypes').BillingActionResult }>(`/billing/${action}`, payload)).data.data; },
   sessions() { return collection<MobileSession>('/mobile_sessions'); },
   async revokeSession(id: number) { await api.delete(`/mobile_sessions/${id}`); },
   async registerDevice(device: Record<string, unknown>) {

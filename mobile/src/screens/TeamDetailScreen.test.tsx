@@ -1,0 +1,26 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { expect, jest, test } from '@jest/globals';
+import { TeamDetailScreen } from './TeamDetailScreen';
+const members = [{id:1,name:'Ada',role:'member',job_title:'Engineer',skills:[{id:10,name:'Ruby',proficiency:'expert',proficiency_label:'Expert',endorsements_count:3}]},{id:2,name:'Grace',role:'member',job_title:'Designer',skills:[]}];
+jest.mock('expo-router',()=>({useLocalSearchParams:()=>({id:'1'}),useRouter:()=>({back:jest.fn()})}));
+jest.mock('../auth/AuthProvider',()=>({useAuth:()=>({user:{id:9,roles:[],demo_account:true}})}));
+jest.mock('../api/endpoints',()=>({endpoints:{teamInsights:jest.fn(async()=>({team:{name:'Studio',description:'Design and engineering'},members,skills:[{name:'Ruby'}],roles:['Engineer','Designer']})),users:jest.fn()}}));
+jest.mock('../components/Screen',()=>({Screen:({children,header}:any)=><>{header}{children}</>}));
+jest.mock('../components/MemberPreview',()=>({MemberPreview:({children}:any)=><>{children}</>}));
+test('searches team members and skills without exposing writes to demo users',async()=>{
+ const client=new QueryClient({defaultOptions:{queries:{retry:false,gcTime:Infinity},mutations:{gcTime:Infinity}}});
+ const screen=await render(<QueryClientProvider client={client}><TeamDetailScreen/></QueryClientProvider>);
+ await waitFor(()=>expect(screen.getByText('A shared space for 2 members to collaborate and grow.')).toBeTruthy());
+ await fireEvent.press(screen.getByRole('tab',{name:'Members'}));
+ await fireEvent.changeText(screen.getByLabelText('Search members'),' Designer ');
+ expect(screen.getByText('Grace')).toBeTruthy();expect(screen.queryByText('Ada')).toBeNull();
+ await fireEvent.press(screen.getByRole('tab',{name:'Skills'}));
+ await fireEvent.changeText(screen.getByLabelText('Search skills or people'),'Ada');
+ expect(screen.getByText('Ruby')).toBeTruthy();expect(screen.queryByLabelText('Endorse Ada in Ruby')).toBeNull();
+ await fireEvent.changeText(screen.getByLabelText('Search skills or people'),'missing');
+ expect(screen.getByText('No matching skills')).toBeTruthy();
+ await fireEvent.press(screen.getByLabelText('Clear search skills or people'));
+ expect(screen.getByText('Ruby')).toBeTruthy();
+ await screen.unmount();client.clear();
+});

@@ -21,6 +21,12 @@ export const api = axios.create({
   timeout: 15000,
 });
 
+let sessionGeneration = 0;
+
+export function invalidateSession() {
+  sessionGeneration += 1;
+}
+
 let refreshRequest: Promise<AuthSession> | null = null;
 let sessionExpiredHandler: (() => void) | null = null;
 
@@ -47,6 +53,7 @@ api.interceptors.response.use(
       throw error;
     }
 
+    const generation = sessionGeneration;
     original._retry = true;
     try {
       if (!refreshRequest) {
@@ -58,8 +65,10 @@ api.interceptors.response.use(
       original.headers.Authorization = `Bearer ${session.access_token}`;
       return api(original);
     } catch (refreshError) {
-      await tokenStore.clear();
-      sessionExpiredHandler?.();
+      if (generation === sessionGeneration) {
+        await tokenStore.clear();
+        sessionExpiredHandler?.();
+      }
       throw refreshError;
     }
   },
@@ -69,12 +78,14 @@ async function refreshSession() {
   const tokens = await tokenStore.get();
   if (!tokens?.refreshToken) throw new Error('No refresh token is available.');
 
+  const generation = sessionGeneration;
   const response = await axios.post<ApiEnvelope<AuthSession>>(
     `${API_URL}/auth/refresh`,
     { refresh_token: tokens.refreshToken },
     { timeout: 15000 },
   );
   const session = response.data.data;
+  if (generation !== sessionGeneration) throw new Error("Session ended during refresh.");
   await storeSession(session);
   return session;
 }

@@ -9,12 +9,21 @@ class Api::CallsController < Api::BaseController
   end
 
   def join
-    call_session = call_manager.join(@call_session)
-    credentials = Chat::LivekitTokenGenerator.new(call_session: call_session, user: current_user).call
+    credentials = Chat::LivekitTokenGenerator.new(call_session: @call_session, user: current_user).call
+    call_session = if ActiveModel::Type::Boolean.new.cast(params[:media_confirmation_required])
+      call_manager.prepare_media_join(@call_session)
+    else
+      call_manager.join(@call_session)
+    end
 
     render json: credentials.merge(call_session: Chat::CallSerializer.call(call_session, current_user: current_user))
   rescue Chat::LivekitTokenGenerator::ConfigurationError => error
     render json: { error: "livekit_not_configured", message: error.message }, status: :service_unavailable
+  end
+
+  def media_heartbeat
+    call_session = call_manager.confirm_media(@call_session)
+    render json: { call_session: Chat::CallSerializer.call(call_session, current_user: current_user) }
   end
 
   def decline

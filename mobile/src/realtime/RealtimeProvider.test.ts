@@ -1,3 +1,4 @@
+import { AxiosError } from 'axios';
 import { createMobileConsumer as createConsumer } from './nativeConsumer';
 import { afterEach, describe, expect, jest, test } from '@jest/globals';
 
@@ -18,6 +19,20 @@ jest.mock('@sentry/react-native', () => ({ captureException: jest.fn(), captureM
 afterEach(() => { jest.clearAllMocks(); jest.useRealTimers(); });
 
 describe('SharedRealtimeClient', () => {
+  test('stops reconnecting when session credentials are rejected', async () => {
+    jest.useFakeTimers();
+    const error = new AxiosError('Session revoked');
+    error.response = { status: 401 } as never;
+    jest.mocked(endpoints.realtimeToken).mockRejectedValue(error);
+    const client = new SharedRealtimeClient(jest.fn());
+    client.setActive(true);
+    await flushPromises();
+    await jest.advanceTimersByTimeAsync(30_000);
+    expect(endpoints.realtimeToken).toHaveBeenCalledTimes(1);
+    expect(createConsumer).not.toHaveBeenCalled();
+    client.destroy();
+  });
+
   test('does not replace a healthy socket for repeated foreground or network events', async () => {
     const disconnect = jest.fn();
     jest.mocked(endpoints.realtimeToken).mockResolvedValue({ token: 'token', expires_at: 60, url: 'wss://example.test/cable' });

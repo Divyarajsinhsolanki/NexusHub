@@ -8,6 +8,91 @@ servers:
 security:
   - bearerAuth: []
 paths:
+  /billing:
+    get:
+      operationId: billingStatus
+      description: Workspace owner only; demo and impersonated sessions are denied.
+      responses:
+        "200":
+          $ref: "#/components/responses/GenericSuccess"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
+  /billing/checkout:
+    post:
+      operationId: billingCheckout
+      description: Workspace owner only; demo and impersonated sessions are denied.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider, plan_key]
+              properties:
+                provider: { type: string, enum: [stripe, razorpay] }
+                plan_key: { type: string, enum: [growth, enterprise] }
+      responses:
+        "200":
+          $ref: "#/components/responses/GenericSuccess"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
+  /billing/refresh:
+    post:
+      operationId: billingRefresh
+      description: Workspace owner only; demo and impersonated sessions are denied.
+      responses:
+        "200":
+          $ref: "#/components/responses/GenericSuccess"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
+  /billing/portal:
+    post:
+      operationId: billingPortal
+      description: Workspace owner only; demo and impersonated sessions are denied.
+      responses:
+        "200":
+          $ref: "#/components/responses/GenericSuccess"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
+  /billing/cancel:
+    post:
+      operationId: billingCancel
+      description: Workspace owner only; demo and impersonated sessions are denied.
+      responses:
+        "200":
+          $ref: "#/components/responses/GenericSuccess"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
   /account:
     get:
       operationId: accountStatus
@@ -131,6 +216,24 @@ paths:
     post:
       security: []
       operationId: signup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [auth]
+              properties:
+                auth:
+                  type: object
+                  required: [first_name, last_name, email, password, password_confirmation]
+                  properties:
+                    company_name: { type: string, description: Name for a newly isolated company workspace }
+                    first_name: { type: string }
+                    last_name: { type: string }
+                    email: { type: string, format: email }
+                    password: { type: string, format: password, minLength: 8 }
+                    password_confirmation: { type: string, format: password }
       responses:
         "201":
           $ref: "#/components/responses/GenericSuccess"
@@ -1043,6 +1146,267 @@ paths:
       operationId: createWorkspaceUser
       responses:
         "201": { $ref: "#/components/responses/GenericSuccess" }
+  /departments/{department_id}/entries:
+    parameters:
+      - name: department_id
+        in: path
+        required: true
+        schema: { type: integer }
+    get:
+      operationId: listDepartmentEntries
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1 }
+        - name: per_page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 50 }
+        - name: kind
+          in: query
+          schema: { type: string, enum: [goal, announcement, resource], default: goal }
+        - name: q
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          schema: { type: string, enum: [active, completed, archived] }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createDepartmentEntry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                entry:
+                  type: object
+                  properties:
+                    kind: { type: string, enum: [goal, announcement, resource] }
+                    title: { type: string, minLength: 1, maxLength: 200 }
+                    body: { type: [string, 'null'], maxLength: 20000 }
+                    url: { type: [string, 'null'], maxLength: 2000, description: HTTPS link without credentials }
+                    status: { type: string, enum: [active, completed, archived] }
+                    progress: { type: integer, minimum: 0, maximum: 100 }
+                    due_date: { type: [string, 'null'], format: date }
+                    pinned: { type: boolean }
+                    lock_version: { type: integer, description: Required on update; send the last fetched version }
+      responses:
+        "201": { $ref: "#/components/responses/GenericSuccess" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /departments/{department_id}/entries/{entry_id}:
+    parameters:
+      - name: department_id
+        in: path
+        required: true
+        schema: { type: integer }
+      - name: entry_id
+        in: path
+        required: true
+        schema: { type: integer }
+    patch:
+      operationId: updateDepartmentEntry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                entry:
+                  type: object
+                  properties:
+                    kind: { type: string, enum: [goal, announcement, resource] }
+                    title: { type: string, minLength: 1, maxLength: 200 }
+                    body: { type: [string, 'null'], maxLength: 20000 }
+                    url: { type: [string, 'null'], maxLength: 2000, description: HTTPS link without credentials }
+                    status: { type: string, enum: [active, completed, archived] }
+                    progress: { type: integer, minimum: 0, maximum: 100 }
+                    due_date: { type: [string, 'null'], format: date }
+                    pinned: { type: boolean }
+                    lock_version: { type: integer, description: Required on update; send the last fetched version }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: deleteDepartmentEntry
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /departments/{department_id}/entries/{entry_id}/comments:
+    parameters:
+      - name: department_id
+        in: path
+        required: true
+        schema: { type: integer }
+      - name: entry_id
+        in: path
+        required: true
+        schema: { type: integer }
+    get:
+      operationId: listDepartmentComments
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1 }
+        - name: per_page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 50 }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createDepartmentComment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                body: { type: string, minLength: 1, maxLength: 5000 }
+      responses:
+        "201": { $ref: "#/components/responses/GenericSuccess" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /departments/{department_id}/entries/{entry_id}/comments/{comment_id}:
+    parameters:
+      - name: department_id
+        in: path
+        required: true
+        schema: { type: integer }
+      - name: entry_id
+        in: path
+        required: true
+        schema: { type: integer }
+      - name: comment_id
+        in: path
+        required: true
+        schema: { type: integer }
+    delete:
+      operationId: deleteDepartmentComment
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /departments/{department_id}/requests:
+    parameters:
+      - name: department_id
+        in: path
+        required: true
+        schema: { type: integer }
+    get:
+      operationId: listDepartmentRequests
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1 }
+        - name: per_page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 50 }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createDepartmentRequest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string, maxLength: 2000 }
+      responses:
+        "201": { $ref: "#/components/responses/GenericSuccess" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /departments/{department_id}/requests/{request_id}:
+    parameters:
+      - name: department_id
+        in: path
+        required: true
+        schema: { type: integer }
+      - name: request_id
+        in: path
+        required: true
+        schema: { type: integer }
+    patch:
+      operationId: resolveDepartmentRequest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                decision: { type: string, enum: [approve, reject, cancel] }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /departments/{department_id}/report:
+    parameters:
+      - name: department_id
+        in: path
+        required: true
+        schema: { type: integer }
+    get:
+      operationId: departmentReport
+      description: Visible project progress and personal work-log hours only; department roles do not expose other users' work logs.
+      parameters:
+        - name: from
+          in: query
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
   /departments:
     get:
       operationId: listDepartments
@@ -1074,6 +1438,27 @@ paths:
       operationId: updateDepartmentMembers
       responses:
         "200": { $ref: "#/components/responses/GenericSuccess" }
+  /departments/{id}/update_role:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    patch:
+      operationId: updateDepartmentRole
+      description: Department head or workspace administrator assigns a member or manager role; this does not grant project access.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id, role]
+              properties:
+                user_id: { type: integer }
+                role: { type: string, enum: [member, manager] }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
   /items:
     get:
       operationId: listVaultItems
@@ -1539,6 +1924,16 @@ paths:
       - $ref: "#/components/parameters/Id"
     post:
       operationId: createConversationCall
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                media_confirmation_required:
+                  type: boolean
+                  default: false
+                  description: Defer joined attendance until the media connection is confirmed. Updated clients send true; omission preserves older client behavior.
       responses:
         "201": { $ref: "#/components/responses/GenericSuccess" }
   /calls/{id}/join:
@@ -1546,8 +1941,28 @@ paths:
       - $ref: "#/components/parameters/Id"
     post:
       operationId: joinCall
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                media_confirmation_required:
+                  type: boolean
+                  default: false
+                  description: Defer joined attendance until the media connection is confirmed. Updated clients send true; omission preserves older client behavior.
       responses:
         "200": { $ref: "#/components/responses/GenericSuccess" }
+  /calls/{id}/media_heartbeat:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      operationId: confirmCallMedia
+      description: Confirm the authenticated participant's successful media connection. Does not issue credentials or grant access to new participants.
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
   /calls/{id}/ack_ring:
     parameters:
       - $ref: "#/components/parameters/Id"
@@ -1607,6 +2022,16 @@ paths:
         schema: { type: string, format: uuid }
     post:
       operationId: joinMeeting
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                media_confirmation_required:
+                  type: boolean
+                  default: false
+                  description: Defer joined attendance until the media connection is confirmed. Updated clients send true; omission preserves older client behavior.
       description: Idempotently joins an authenticated link holder without granting conversation access.
       responses:
         "200":

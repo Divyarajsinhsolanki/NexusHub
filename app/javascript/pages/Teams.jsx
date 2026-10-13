@@ -224,18 +224,18 @@ const ProfileStyleStatCard = ({ icon: Icon, label, value, detail, tone = "blue" 
     const selectedTone = tones[tone] || tones.blue;
 
     return (
-        <div className="min-w-0 border-l border-zinc-200 px-3 py-2 dark:border-zinc-700">
+        <div className="min-w-0 rounded-xl border border-zinc-200 bg-zinc-50/70 px-4 py-3 dark:border-zinc-700 dark:bg-zinc-900/40">
             <div className="flex items-center justify-between">
                 <div>
-                    <p className={`break-words text-xs font-medium ${selectedTone.label}`}>{label}</p>
-                    <h3 className={`mt-1 text-xl font-bold ${selectedTone.value}`}>{value}</h3>
+                    <p className={`break-words text-xs font-medium ${selectedTone.label} dark:text-zinc-300`}>{label}</p>
+                    <h3 className={`mt-1 text-xl font-bold ${selectedTone.value} dark:text-white`}>{value}</h3>
                 </div>
                 <div className={`hidden rounded-md p-2 sm:block ${selectedTone.iconBg}`}>
                     <Icon className={`h-4 w-4 ${selectedTone.icon}`} />
                 </div>
             </div>
             {detail && (
-                <p className={`mt-2 text-xs ${selectedTone.detail}`}>{detail}</p>
+                <p className={`mt-2 text-xs ${selectedTone.detail} dark:text-zinc-400`}>{detail}</p>
             )}
         </div>
     );
@@ -250,7 +250,7 @@ const TeamCard = ({ team, isSelected, onClick }) => {
             onClick={onClick}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            className={`w-full min-w-0 text-left p-3 rounded-lg border transition-colors ${isSelected
+            className={`w-full min-w-0 text-left p-4 rounded-2xl border transition-colors ${isSelected
                     ? 'bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-blue-200 dark:border-blue-800 shadow-md'
                     : 'bg-white dark:bg-zinc-800/50 border-zinc-100 dark:border-zinc-700/50 hover:border-zinc-200 dark:hover:border-zinc-600 hover:shadow-md'
                 }`}
@@ -284,7 +284,7 @@ const MemberRow = ({ member, canManage, isEditing, onEdit, onSave, onCancel, onR
         layout
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between p-4 bg-white dark:bg-zinc-800/50 rounded-xl border border-zinc-100 dark:border-zinc-700/50 hover:shadow-md transition-all"
+        className="flex flex-wrap items-center justify-between gap-3 p-4 bg-white dark:bg-zinc-800/50 rounded-xl border border-zinc-100 dark:border-zinc-700/50 hover:shadow-md transition-all"
     >
         <div className="flex items-center gap-3">
             <MemberProfileCard member={member} compact><Avatar name={member.name} src={member.profile_picture} size="lg" /></MemberProfileCard>
@@ -776,7 +776,7 @@ const Teams = () => {
         };
 
         return (
-            <section id="skill-gap-analysis" className="bg-white dark:bg-zinc-800/50 rounded-2xl shadow-sm border border-zinc-100 dark:border-zinc-700/50 p-6 xl:col-span-2">
+            <section id="skill-gap-analysis" className="bg-white dark:bg-zinc-800/50 rounded-2xl shadow-sm border border-zinc-100 dark:border-zinc-700/50 p-4 sm:p-6 2xl:col-span-2">
                 <h2 className="text-lg font-semibold text-zinc-800 dark:text-white mb-4 flex items-center gap-2">
                     <FiTrendingUp className="w-5 h-5 text-blue-500" />
                     Skill Gap Analysis
@@ -801,8 +801,8 @@ const Teams = () => {
     return (
         <div className="flex min-h-screen flex-col bg-zinc-50 text-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 lg:h-screen lg:flex-row">
             {/* Sidebar */}
-            <aside className="flex max-h-[36dvh] w-full flex-shrink-0 flex-col border-b border-zinc-100 bg-white dark:border-zinc-700 dark:bg-zinc-800 lg:max-h-none lg:w-64 lg:border-b-0 lg:border-r">
-                <div className="p-3 border-b border-zinc-100 dark:border-zinc-700 bg-emerald-700">
+            <aside className="flex max-h-[36dvh] w-full flex-shrink-0 flex-col border-b border-zinc-100 bg-white dark:border-zinc-700 dark:bg-zinc-800 lg:max-h-none lg:w-80 lg:border-b-0 lg:border-r">
+                <div className="p-5 border-b border-zinc-100 dark:border-zinc-700 bg-[var(--theme-color)]">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="p-2 bg-white/20 rounded-lg">
@@ -819,6 +819,7 @@ const Teams = () => {
                         <FiSearch className="absolute top-1/2 left-3 -translate-y-1/2 w-4 h-4 text-zinc-400" />
                         <input
                             type="text"
+                            aria-label="Search teams"
                             placeholder="Search teams..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
@@ -957,7 +958,7 @@ const Teams = () => {
                             className="space-y-5"
                         >
                             {/* Header */}
-                            <div className="border-b border-zinc-200 pb-4 dark:border-zinc-700">
+                            <div className="rounded-2xl border border-zinc-200 bg-white p-4 sm:p-6 dark:border-zinc-700 dark:bg-zinc-800/50">
                                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                                     <div className="min-w-0">
                                         <h1 className="break-words text-2xl font-bold text-zinc-900 dark:text-white">{selectedTeam.name}</h1>
@@ -986,7 +987,7 @@ const Teams = () => {
                                 </div>
 
                                 {/* Quick Stats */}
-                                <div className="grid grid-cols-3 gap-2 mt-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-5">
                                     <ProfileStyleStatCard
                                         icon={FiUsers}
                                         label="Active Members"
@@ -1011,8 +1012,11 @@ const Teams = () => {
                                 </div>
                             </div>
 
+                            <nav aria-label="Team sections" className="flex gap-2 overflow-x-auto pb-1">
+                                {[["team-members-section", "Members"], ["team-skill-matrix", "Skill matrix"], ["endorsements-panel", "My skills"], ["learning-goals-panel", "Learning goals"], ["skills-directory-panel", "Find experts"]].filter(([target]) => target === "team-members-section" || hasInsights).map(([target, label]) => <a key={target} href={`#${target}`} className="shrink-0 rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-600 hover:text-[var(--theme-color)] dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">{label}</a>)}
+                            </nav>
                             {/* Members Section */}
-                            <section id="team-members-section" className="border-b border-zinc-200 pb-4 dark:border-zinc-700">
+                            <section id="team-members-section" className="rounded-2xl border border-zinc-200 bg-white p-4 sm:p-6 dark:border-zinc-700 dark:bg-zinc-800/50">
                                 <h2 className="text-lg font-semibold text-zinc-800 dark:text-white mb-4 flex items-center gap-2">
                                     <FiUsers className="w-5 h-5 text-blue-500" />
                                     Team Members
@@ -1115,7 +1119,7 @@ const Teams = () => {
                                         />
                                     </section>
 
-                                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                                    <div className="grid grid-cols-1 2xl:grid-cols-2 gap-6">
                                         {renderSkillGapAnalysis()}
                                         <section id="endorsements-panel">
                                             <SkillEndorsementsPanel
@@ -1137,7 +1141,7 @@ const Teams = () => {
                                                 onToggleCheckpoint={handleToggleCheckpoint}
                                             />
                                         </section>
-                                        <section id="skills-directory-panel" className="xl:col-span-2">
+                                        <section id="skills-directory-panel" className="2xl:col-span-2">
                                             <SkillDirectory
                                                 members={teamInsights.members}
                                                 skills={teamInsights.skills}

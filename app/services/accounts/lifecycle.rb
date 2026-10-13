@@ -171,6 +171,9 @@ module Accounts
       upload_records.each do |type, ids|
         ActiveStorage::Attachment.where(record_type: type, record_id: ids).find_each(&:purge)
       end
+      DepartmentComment.where(author_id:user.id).destroy_all
+      DepartmentJoinRequest.where(user_id:user.id).destroy_all
+      DepartmentEntry.where(author_id:user.id).update_all(author_id:nil)
       user.scheduled_chat_messages.destroy_all
       user.messages.find_each do |message|
         message.attachments.purge
@@ -197,7 +200,7 @@ module Accounts
         encrypted_password: Devise::Encryptor.digest(User, SecureRandom.hex(64)), status: 'locked',
         bio: nil, phone_number: nil, date_of_birth: nil, social_links: {}, home_preferences: {},
         notification_preferences: {}, push_notification_settings: {}, site_admin: false,
-        job_title: 'Former member', department_id: nil, last_seen_at: nil,
+        job_title: 'Former member', department_id: nil, department_role: 'member', last_seen_at: nil,
         confirmation_token: nil, confirmation_sent_at: nil, unconfirmed_email: nil,
         reset_password_token: nil, reset_password_sent_at: nil, remember_created_at: nil, jti: nil,
         keka_base_url: nil, keka_employee_id: nil, keka_last_synced_at: nil, keka_profile_data: {},

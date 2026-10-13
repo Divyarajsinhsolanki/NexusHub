@@ -1,8 +1,14 @@
 module BackgroundSchedules
   def self.definitions(environment: Rails.env)
     {
+      "#{environment}:call-presence" => {
+        'cron' => '* * * * * UTC', 'class' => 'CallPresenceSweepJob', 'active_job' => true
+      },
       "#{environment}:account-deletion" => {
         'cron' => '0 * * * * UTC', 'class' => 'AccountDeletionSweepJob', 'active_job' => true
+      },
+      "#{environment}:billing-reconciliation" => {
+        'cron' => '*/15 * * * * UTC', 'class' => 'BillingReconciliationJob', 'active_job' => true
       },
       "#{environment}:scheduled-chat" => {
         'cron' => '* * * * * UTC', 'class' => 'ScheduledChatSweepJob', 'active_job' => true

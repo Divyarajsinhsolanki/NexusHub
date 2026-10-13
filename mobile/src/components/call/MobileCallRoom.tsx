@@ -15,6 +15,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, FlatList, Modal, Platform, Pressable, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { endpoints } from "../../api/endpoints";
 import type { LiveKitCredentials } from '../../api/types';
 import { captureCallError, recordCallBreadcrumb } from '../../observability/callDiagnostics';
 import { useAppTheme } from '../../theme';
@@ -52,6 +53,9 @@ export function MobileCallRoom({ credentials, initialAudio = true, initialVideo 
       connect
       onConnected={() => {
         clearDisconnectTimer();
+        void endpoints.callAction(credentials.call_session.id, "media_heartbeat").catch((error) => {
+          captureCallError(error, "connect", { call_id: credentials.call_session.id, confirmation: true });
+        });
         setConnectionIssue(null);
         recordCallBreadcrumb('connect', { call_id: credentials.call_session.id, connected: true });
       }}

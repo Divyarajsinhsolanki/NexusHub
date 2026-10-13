@@ -15,6 +15,7 @@ const Meeting = () => {
   const [credentials, setCredentials] = useState(location.state?.credentials || null);
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
+  const [ending, setEnding] = useState(false);
   const [error, setError] = useState("");
   const [microphoneEnabled, setMicrophoneEnabled] = useState(true);
   const [cameraEnabled, setCameraEnabled] = useState(location.state?.callSession?.call_type !== 'audio');
@@ -80,12 +81,17 @@ const Meeting = () => {
   };
 
   const endForEveryone = async () => {
-    if (!callSession?.can_end) return;
+    if (!callSession?.can_end || ending) return;
+    setEnding(true);
+    setError("");
     try {
       const { data } = await endCall(callSession.id, "ended");
       setCallSession(data.call_session);
-    } finally {
       setCredentials(null);
+    } catch (requestError) {
+      setError(requestError?.response?.data?.message || "Unable to end the meeting. You are still connected; try again.");
+    } finally {
+      setEnding(false);
     }
   };
 
@@ -102,6 +108,7 @@ const Meeting = () => {
   if (credentials) {
     return (
       <div className="min-h-[calc(100dvh-5rem)] bg-slate-950">
+        {error && <p role="alert" className="bg-red-950 px-4 py-3 text-sm text-red-100">{error}</p>}
         <CallRoom
           callSession={callSession}
           credentials={credentials}

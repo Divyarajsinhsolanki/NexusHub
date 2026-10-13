@@ -4,6 +4,7 @@ class Workspace < ApplicationRecord
   BILLING_STATUSES = %w[trialing active past_due canceled].freeze
 
   # Remove project-owned operations before their owners during workspace removal.
+  has_one :billing_subscription, dependent: :restrict_with_error
   has_many :projects, dependent: :destroy
   has_many :users, dependent: :destroy
   has_many :teams, dependent: :destroy
@@ -25,6 +26,7 @@ class Workspace < ApplicationRecord
   before_validation :assign_saas_defaults
   before_validation :normalize_slug
 
+  # Legacy shared workspace only. Never use for public registration.
   def self.regular!
     find_or_create_by!(slug: REGULAR_SLUG) do |workspace|
       workspace.name = "Nexus Hub Workspace"
