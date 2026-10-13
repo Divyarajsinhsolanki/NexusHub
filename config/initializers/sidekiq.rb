@@ -3,27 +3,7 @@ Sidekiq.configure_server do |config|
   config.on(:startup) do
     # Persist schedules in Redis and recover database-backed reminders on every
     # worker restart. Active Job supplies the environment-specific queue prefix.
-    Sidekiq::Cron::Job.load_from_hash({
-      "#{Rails.env}:account-deletion" => {
-        'cron' => '0 * * * * UTC', 'class' => 'AccountDeletionSweepJob', 'active_job' => true,
-        'queue' => 'default'
-      },
-      "#{Rails.env}:scheduled-chat" => {
-        'cron' => '* * * * * UTC', 'class' => 'ScheduledChatSweepJob', 'active_job' => true
-      },
-      "#{Rails.env}:daily-knowledge" => {
-        'cron' => '30 3 * * * UTC', 'class' => 'DailyKnowledgePublishJob', 'active_job' => true
-      },
-      "#{Rails.env}:project-statuses" => {
-        'cron' => '0 * * * * UTC', 'class' => 'ProjectStatusRefreshJob', 'active_job' => true
-      },
-      "#{Rails.env}:operations-materialize" => {
-        'cron' => '0 0 * * * UTC', 'class' => 'OperationScheduleMaterializeJob', 'active_job' => true
-      },
-      "#{Rails.env}:operations-reminders" => {
-        'cron' => '* * * * * UTC', 'class' => 'OperationReminderSweepJob', 'active_job' => true
-      }
-    })
+    Sidekiq::Cron::Job.load_from_hash(BackgroundSchedules.definitions)
     AccountDeletionSweepJob.perform_later
     ScheduledChatSweepJob.perform_later
     OperationScheduleMaterializeJob.perform_later

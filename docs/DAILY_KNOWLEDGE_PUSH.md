@@ -31,3 +31,20 @@ Focused checks cover daily recipient scoping and idempotence, failure rollback, 
 ## Generation blocker
 
 Nova Micro currently rejects invocation with `Operation not allowed`; there are no generated daily batches yet. The schedule and notification implementation do not resolve this account restriction. Verify Nova Micro in the Bedrock Playground and resolve account access before expecting daily posts or their alerts. No test content or fabricated daily notifications were inserted into production.
+
+## Bedrock and scheduler check — 2026-10-13
+
+AWS now documents default model access and API-key authentication. The existing Ruby integration uses the supported Converse API with EC2 role credentials and does not require a console-generated key:
+
+- https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html
+- https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html
+
+A minimal four-output-token Converse request to `amazon.nova-micro-v1:0` in `us-east-1` still returns `ValidationException: Operation not allowed`, both locally and on the production EC2 instance. Model metadata reports ACTIVE and supports ON_DEMAND. IAM simulation of the production role allows `bedrock:InvokeModel` for that model ARN, but simulation does not establish account/service access or exclude every other restriction. The exact AWS-side cause remains unconfirmed. No replacement models were enabled or subscribed to, and no API keys were created.
+
+Production daily generation is enabled, one Sidekiq process is registered, and there are zero `bedrock_daily` runs. A separate scheduler defect put 7,971 jobs in `nexus_hub_production_nexus_hub_production_default`, which the worker does not consume. Cron inferred an already-prefixed Active Job queue and passed it through Active Job's prefixing again. `BackgroundSchedules.definitions` now supplies the logical `default` queue for every schedule. A test exercises the real cron enqueue path and verifies the production prefix occurs once. Deploy and allow the worker hook to restart Sidekiq to refresh those definitions. Existing backlog records were not moved or deleted; review them separately rather than replaying thousands of duplicates. Startup sweep jobs recover current scheduled state.
+
+Suggested support follow-up (not sent):
+
+> Nova Micro (`amazon.nova-micro-v1:0`) in `us-east-1` still returns `ValidationException: Operation not allowed` for a minimal Converse request. The model is ACTIVE and IAM simulation allows InvokeModel on the production EC2 role. The same failure occurs from a local IAM principal and the EC2 application. Please identify the account/service restriction and the required resolution. We need it for a daily engineering knowledge batch: three tips and one technical article, once daily.
+
+The installed local AWS CLI is 1.38.38 and does not expose the newer foundation-model-availability operation. This limitation did not prevent testing the actual Converse request. Use a current CLI/SDK for those new model-access management commands. Do not replace role credentials with a short-lived pasted console key in a scheduled production worker.
