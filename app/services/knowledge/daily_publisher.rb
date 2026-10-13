@@ -69,15 +69,15 @@ module Knowledge
     private
 
     def model_id
-      ENV.fetch("DAILY_KNOWLEDGE_MODEL_ID", "amazon.nova-micro-v1:0")
+      ENV.fetch("DAILY_KNOWLEDGE_MODEL_ID", "openai.gpt-oss-120b")
     end
 
     def region
-      ENV.fetch("DAILY_KNOWLEDGE_REGION", "us-east-1")
+      ENV.fetch("DAILY_KNOWLEDGE_REGION", "ap-south-1")
     end
 
     def client
-      @client ||= Aws::BedrockRuntime::Client.new(region: region, http_open_timeout: 10, http_read_timeout: 90, retry_limit: 1)
+      @client ||= BedrockResponsesClient.new(region: region)
     end
 
     def build_prompt(fields, recent_titles)

@@ -30,6 +30,8 @@ Focused checks cover daily recipient scoping and idempotence, failure rollback, 
 
 ## Generation blocker
 
+Historical Nova blocker; superseded by the GPT OSS Responses integration below.
+
 Nova Micro currently rejects invocation with `Operation not allowed`; there are no generated daily batches yet. The schedule and notification implementation do not resolve this account restriction. Verify Nova Micro in the Bedrock Playground and resolve account access before expecting daily posts or their alerts. No test content or fabricated daily notifications were inserted into production.
 
 ## Bedrock and scheduler check — 2026-10-13
@@ -48,3 +50,13 @@ Suggested support follow-up (not sent):
 > Nova Micro (`amazon.nova-micro-v1:0`) in `us-east-1` still returns `ValidationException: Operation not allowed` for a minimal Converse request. The model is ACTIVE and IAM simulation allows InvokeModel on the production EC2 role. The same failure occurs from a local IAM principal and the EC2 application. Please identify the account/service restriction and the required resolution. We need it for a daily engineering knowledge batch: three tips and one technical article, once daily.
 
 The installed local AWS CLI is 1.38.38 and does not expose the newer foundation-model-availability operation. This limitation did not prevent testing the actual Converse request. Use a current CLI/SDK for those new model-access management commands. Do not replace role credentials with a short-lived pasted console key in a scheduled production worker.
+
+## GPT OSS Responses integration — 2026-10-13
+
+Daily publishing now uses `openai.gpt-oss-120b` through `https://bedrock-mantle.ap-south-1.api.aws/v1/responses`. The Ruby adapter signs requests with SigV4 and the normal AWS credential provider chain, so EC2 role credentials refresh automatically. No console API key is required. Responses use `store: false`, low reasoning effort, and a 4,000-token output budget (including reasoning). Incomplete/empty/error responses fail before any cards or notifications are written. Existing atomic publishing, duplicate prevention, and Sidekiq retries remain in place.
+
+Production's `nexus-daily-knowledge` role policy adds only `bedrock-mantle:CreateInference`, restricted to Mumbai. Its reviewed policy is in `config/aws/daily_knowledge_policy.json`. The original Nova permission is retained. The two deployment environment settings must be `DAILY_KNOWLEDGE_MODEL_ID=openai.gpt-oss-120b` and `DAILY_KNOWLEDGE_REGION=ap-south-1`; the repository's Elastic Beanstalk defaults match these values. Existing console settings take precedence, so update them when switching an existing environment.
+
+Applied the policy and requested those two production environment settings. An isolated production-server test loaded the new adapter and used the actual daily prompt/parser: four valid items, 242 input tokens and 789 output tokens, authenticated by EC2 role. That check did not insert cards or send notifications. Eleven focused tests passed (41 assertions), including HTTP/incomplete/empty failures, signed request construction, atomic publishing, and the real cron enqueue path.
+
+Deployment must include both the Responses adapter and the preceding cron queue fix. The user pushes the code; no application release was deployed by this change. Once deployed, the startup daily sweep publishes today's batch if it is after 09:00 IST and no batch exists, and subsequent runs continue at 09:00 IST. Do not replay the duplicate queue backlog.
