@@ -108,7 +108,7 @@ Updated: 2026-10-13. This is an action-level release checklist, not a declaratio
 - Rails request suites: mobile_api_v1 and calendar_access (35 tests, 225 assertions passed).
 - No new backend endpoints, deployment, or code push in this change.
 - Android JavaScript export passed (5,096 modules). EAS archive inspection retained all configured icon, splash and notification assets while excluding backend files and unused design drafts (137 MB directory reduced to 16 MB).
-- Android preview APK is requested through EAS after automated checks; build outcome and artifact are recorded in the delivery message.
+- Android preview APK submitted from `ff8d14b`: [EAS build 23f3708e](https://expo.dev/accounts/divyarajsinhs/projects/nexushub/builds/23f3708e-b3be-4fee-884e-68066931bbcc). Submission succeeded; EAS status at handoff: IN_QUEUE. Download becomes available on that page after successful completion.
 - Physical Android acceptance still required: navigation/back/filter retention, keyboard, long lists, attachments, background push/reply, offline retry, expired sessions, restricted roles, cross-workspace links, demo restrictions, secret reveal cleanup and small screens. No adb-connected device was available during implementation.
 - iOS compile/device testing remains pending.
 
