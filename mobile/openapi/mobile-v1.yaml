@@ -8,6 +8,66 @@ servers:
 security:
   - bearerAuth: []
 paths:
+  /account:
+    get:
+      operationId: accountStatus
+      responses:
+        "200":
+          $ref: "#/components/responses/GenericSuccess"
+        "401":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+  /account/export:
+    get:
+      operationId: accountExport
+      responses:
+        "200":
+          $ref: "#/components/responses/GenericSuccess"
+        "401":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+  /account/deletion/code:
+    post:
+      operationId: requestDeletionCode
+      responses:
+        "200":
+          $ref: "#/components/responses/GenericSuccess"
+        "401":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+  /account/deletion:
+    post:
+      operationId: scheduleAccountDeletion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [verification_code, confirmation]
+              properties:
+                verification_code: { type: string, pattern: '^[0-9]{6}$' }
+                confirmation: { type: string, enum: [DELETE] }
+                successor_id: { type: [integer, 'null'] }
+      responses:
+        "200":
+          $ref: "#/components/responses/GenericSuccess"
+        "401":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: cancelAccountDeletion
+      responses:
+        "200":
+          $ref: "#/components/responses/GenericSuccess"
+        "401":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
   /mobile_config:
     get:
       security: []

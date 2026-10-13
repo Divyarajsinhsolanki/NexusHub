@@ -10,9 +10,26 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2027_08_24_001000) do
+ActiveRecord::Schema[8.1].define(version: 2027_08_25_000000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
+
+  create_table "account_deletion_requests", force: :cascade do |t|
+    t.datetime "code_sent_at"
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.datetime "delete_after"
+    t.text "failure_reason"
+    t.string "receipt_id", null: false
+    t.string "status", default: "verification_pending", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.integer "verification_attempts", default: 0, null: false
+    t.string "verification_digest"
+    t.datetime "verification_expires_at"
+    t.index ["status", "delete_after"], name: "index_account_deletion_requests_on_status_and_delete_after"
+    t.index ["user_id"], name: "index_account_deletion_requests_on_user_id", unique: true
+  end
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -110,7 +127,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_24_001000) do
     t.string "status", default: "ringing", null: false
     t.datetime "updated_at", null: false
     t.bigint "workspace_id", null: false
-    t.index ["conversation_id"], name: "idx_one_live_call_per_conversation", unique: true, where: "((status)::text = ANY ((ARRAY['ringing'::character varying, 'active'::character varying])::text[]))"
+    t.index ["conversation_id"], name: "idx_one_live_call_per_conversation", unique: true, where: "((status)::text = ANY (ARRAY[('ringing'::character varying)::text, ('active'::character varying)::text]))"
     t.index ["conversation_id"], name: "index_call_sessions_on_conversation_id"
     t.index ["initiator_id"], name: "index_call_sessions_on_initiator_id"
     t.index ["livekit_room_name"], name: "index_call_sessions_on_livekit_room_name", unique: true
@@ -1160,6 +1177,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_24_001000) do
     t.integer "current_projects_count", default: 0, null: false
     t.boolean "dark_mode", default: false, null: false
     t.date "date_of_birth"
+    t.datetime "deleted_at"
     t.boolean "demo_account", default: false, null: false
     t.bigint "department_id"
     t.string "email", default: "", null: false
@@ -1311,6 +1329,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_24_001000) do
     t.index ["slug"], name: "index_workspaces_on_slug", unique: true
   end
 
+  add_foreign_key "account_deletion_requests", "users"
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "calendar_events", "projects"

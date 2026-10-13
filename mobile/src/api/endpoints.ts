@@ -1,3 +1,4 @@
+import type { AccountStatus } from "./accountTypes";
 import type { OperationsSnapshot } from '../operations/model';
 import { api } from './client';
 import type {
@@ -110,6 +111,21 @@ export const endpoints = {
   },
   async operationsHistory(projectId: number, beforeId?: number) {
     return unwrapData<{ history: import('../operations/model').OperationRecord[] }>((await api.get(`/projects/${projectId}/operations/history`, { params: { before_id: beforeId } })).data);
+  },
+  async accountStatus() {
+    return unwrapData<AccountStatus>((await api.get('/account')).data);
+  },
+  async accountExport() {
+    return unwrapData<Record<string, unknown>>((await api.get('/account/export', { timeout: 60000 })).data);
+  },
+  async requestDeletionCode() {
+    return unwrapData<AccountStatus>((await api.post('/account/deletion/code')).data);
+  },
+  async scheduleAccountDeletion(input: { verification_code: string; confirmation: string; successor_id: number | null }) {
+    return unwrapData<AccountStatus>((await api.post('/account/deletion', input)).data);
+  },
+  async cancelAccountDeletion() {
+    return unwrapData<AccountStatus>((await api.delete('/account/deletion')).data);
   },
   async presence() {
     const response = await api.post('/users/presence');

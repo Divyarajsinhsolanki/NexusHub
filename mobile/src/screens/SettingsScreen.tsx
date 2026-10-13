@@ -1,3 +1,4 @@
+import { AccountLifecycle } from "../components/AccountLifecycle";
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as Notifications from 'expo-notifications';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -276,6 +277,7 @@ export function SettingsScreen() {
         <SettingsField label="Confirm new password" secureTextEntry value={passwordForm.password_confirmation} onChangeText={(value) => setPasswordForm((current) => ({ ...current, password_confirmation: value }))} />
         <PrimaryButton disabled={passwordMutation.isPending || !passwordForm.current_password || !passwordForm.password || !passwordForm.password_confirmation} label={passwordMutation.isPending ? 'Updating...' : 'Update password'} loading={passwordMutation.isPending} onPress={submitPassword} />
       </View> : null}
+      {!readOnly ? <AccountLifecycle /> : null}
       </> : null}
     </ScrollView>
   </Screen>;

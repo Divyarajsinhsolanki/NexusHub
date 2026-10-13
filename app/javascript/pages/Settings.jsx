@@ -1,3 +1,4 @@
+import AccountLifecycle from "../components/settings/AccountLifecycle";
 import React, { useContext, useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import HomeShortcutSettings from "../components/settings/HomeShortcutSettings";
@@ -635,17 +636,7 @@ const Settings = () => {
                   </div>
                 </div>
 
-                <div className="border-t border-default pt-6">
-                  <h4 className="text-sm font-semibold text-danger">Danger Zone</h4>
-                  <div className="mt-4 max-w-xl text-sm text-muted">
-                    <p>Once you delete your account, there is no going back. Please be certain.</p>
-                  </div>
-                  <div className="mt-4">
-                    <button type="button" className="app-secondary-button app-danger-button">
-                      Delete Account
-                    </button>
-                  </div>
-                </div>
+                <AccountLifecycle />
               </Tab.Panel>
               <Tab.Panel className="p-6 focus:outline-none"><HomeShortcutSettings /></Tab.Panel>
             </Tab.Panels>

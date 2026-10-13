@@ -27,7 +27,17 @@ Rails.application.routes.draw do
   # React now handles the /sheet route. Data is provided via the API below.
 
   namespace :api do
+    get 'account', to: '/api/account#show'
+    get 'account/export', to: '/api/account#export'
+    post 'account/deletion/code', to: '/api/account#code'
+    post 'account/deletion', to: '/api/account#schedule'
+    delete 'account/deletion', to: '/api/account#cancel'
     namespace :v1 do
+      get 'account', to: '/api/account#show'
+      get 'account/export', to: '/api/account#export'
+      post 'account/deletion/code', to: '/api/account#code'
+      post 'account/deletion', to: '/api/account#schedule'
+      delete 'account/deletion', to: '/api/account#cancel'
       post "auth/login", to: "auth#login"
       post "auth/google", to: "auth#google"
       post "auth/demo", to: "auth#demo"

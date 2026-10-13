@@ -14,7 +14,7 @@ jest.mock('expo-router', () => ({ useLocalSearchParams: jest.fn(() => ({})), use
 jest.mock('expo-notifications', () => ({ getPermissionsAsync: jest.fn(async () => ({ status: 'granted' })), requestPermissionsAsync: jest.fn() }));
 jest.mock('../notifications/PushRegistrar', () => ({ registerCurrentPushDevice: jest.fn() }));
 jest.mock('../auth/AuthProvider', () => ({ useAuth: () => ({ user: { id: 1, demo_account: mockDemo, preferences: { dark_mode: false, landing_page: 'projects' } }, refreshUser: mockRefresh }) }));
-jest.mock('../api/endpoints', () => ({ endpoints: { updateMe: jest.fn(async () => undefined), changePassword: jest.fn(async () => undefined) } }));
+jest.mock('../api/endpoints', () => ({ endpoints: { accountStatus: jest.fn(async () => ({ status: 'none', retention: '', can_delete: true, needs_transfer: false, successors: [] })), updateMe: jest.fn(async () => undefined), changePassword: jest.fn(async () => undefined) } }));
 jest.mock('../components/Screen', () => ({ Screen: ({ children, header }: any) => <>{header}{children}</> }));
 
 beforeEach(() => {
@@ -26,7 +26,7 @@ beforeEach(() => {
 
 async function setup(section?: string) {
   jest.mocked(useLocalSearchParams).mockReturnValue(section ? { section } : {});
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { gcTime: Infinity } } });
   const screen = await render(<QueryClientProvider client={client}><SettingsScreen /></QueryClientProvider>);
   return { screen, close: async () => { await screen.unmount(); client.clear(); } };
 }

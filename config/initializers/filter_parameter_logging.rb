@@ -17,6 +17,7 @@ Rails.application.config.filter_parameters += [
   :salt,
   :certificate,
   :otp,
+  :verification_code,
   :ssn,
   :recaptcha,
   :firebase,
