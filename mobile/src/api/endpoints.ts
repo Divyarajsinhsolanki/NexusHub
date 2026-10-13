@@ -292,8 +292,8 @@ export const endpoints = {
   async deleteTask(id: number) {
     await api.delete(`/tasks/${id}`);
   },
-  async workLogs(page = 1) {
-    const response = await api.get<ApiEnvelope<WorkLog[]>>('/work_logs', { params: { page, per_page: 30 } });
+  async workLogs(page = 1, date?: string) {
+    const response = await api.get<ApiEnvelope<WorkLog[]>>('/work_logs', { params: { page, per_page: 30, ...(date ? { date } : {}) } });
     return response.data;
   },
   async createWorkLog(input: WorkLogInput) {
@@ -311,6 +311,14 @@ export const endpoints = {
   },
   calendarEvents(params: Record<string, unknown> = {}) {
     return collection<CalendarEvent>('/calendar_events', params);
+  },
+  async exportCalendarIcs() {
+    const response = await api.get<string>('/calendar_events/export_ics', { responseType: 'text' });
+    return response.data;
+  },
+  async importCalendarIcs(ics: string) {
+    const response = await api.post<{ imported_count: number }>('/calendar_events/import_ics', { ics });
+    return response.data;
   },
   createCalendarEvent(input: Record<string, unknown>) {
     return create<unknown>('/calendar_events', { calendar_event: input });

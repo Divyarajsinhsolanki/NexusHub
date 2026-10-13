@@ -775,6 +775,16 @@ paths:
   /work_logs:
     get:
       operationId: listWorkLogs
+      parameters:
+        - name: date
+          in: query
+          schema: { type: string, format: date }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1 }
+        - name: per_page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100 }
       responses:
         "200":
           $ref: "#/components/responses/GenericSuccess"
@@ -792,6 +802,40 @@ paths:
       operationId: createCalendarEvent
       responses:
         "201": { $ref: "#/components/responses/GenericSuccess" }
+  /calendar_events/export_ics:
+    get:
+      operationId: exportCalendarIcs
+      responses:
+        "200":
+          description: Calendar events accessible in the current workspace
+          content:
+            text/calendar:
+              schema: { type: string }
+  /calendar_events/import_ics:
+    post:
+      operationId: importCalendarIcs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ics]
+              properties:
+                ics: { type: string }
+      responses:
+        "201":
+          description: Imported personal events
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [imported_count, events]
+                properties:
+                  imported_count: { type: integer }
+                  events: { type: array, items: { type: object, additionalProperties: true } }
+        "422":
+          description: Invalid calendar contents
   /calendar_events/{id}:
     parameters:
       - $ref: "#/components/parameters/Id"
