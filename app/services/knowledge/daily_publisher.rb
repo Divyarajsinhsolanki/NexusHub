@@ -26,11 +26,19 @@ module Knowledge
       owner = @workspace.users.find_by!(email: ENV.fetch("DAILY_KNOWLEDGE_OWNER_EMAIL"))
       Current.set(workspace: @workspace, user: owner) do
         @workspace.with_lock do
-          existing = KnowledgePromptRun.where(source: SOURCE).where("metadata ->> 'daily_date' = ?", date.iso8601).first
-          return existing if existing
+          # Match the partial-index predicate even with generic prepared plans.
+          daily_runs = KnowledgePromptRun.where("source = 'bedrock_daily' AND metadata ->> 'daily_date' IS NOT NULL")
+          existing = daily_runs.where("metadata ->> 'daily_date' = ?", date.iso8601).take
+          if existing
+            ensure_feed_post(existing, owner)
+            return existing
+          end
 
           fields = FIELDS.rotate(date.jd % FIELDS.length).first(4)
-          recent_titles = KnowledgeItem.joins(:knowledge_prompt_run).where(knowledge_prompt_runs: { source: SOURCE }).latest_first.limit(80).pluck(:title)
+          # The date index supplies the newest 20 runs; each run has four cards.
+          # Never scan or sort the full item history to build the model context.
+          recent_run_ids = daily_runs.order(Arel.sql("(metadata ->> 'daily_date') DESC")).limit(20).pluck(:id)
+          recent_titles = KnowledgeItem.where(knowledge_prompt_run_id: recent_run_ids).latest_first.limit(80).pluck(:title)
           prompt = build_prompt(fields, recent_titles)
           response = client.converse(
             model_id: model_id,
@@ -56,10 +64,11 @@ module Knowledge
           # Archive only older automatic cards; personal notes and bookmarks stay intact.
           KnowledgeItem.active.joins(:knowledge_prompt_run).where(knowledge_prompt_runs: { source: SOURCE }).where.not(knowledge_prompt_run_id: run.id).find_each(&:archive!)
           post = run.knowledge_items.find_by!(item_type: "article")
+          feed_post = ensure_feed_post(run, owner)
           @workspace.users.where(status: "active", demo_account: false).find_each do |recipient|
             next if recipient.locked?
             Notification.create!(recipient: recipient, actor: owner, notifiable: post, action: "daily_knowledge_published",
-              metadata: { knowledge_item_id: post.id, post_title: post.title, daily_date: date.iso8601 })
+              metadata: { knowledge_item_id: post.id, post_id: feed_post.id, post_title: post.title, daily_date: date.iso8601 })
           end
           Rails.logger.info("daily_knowledge_published workspace=#{@workspace.id} date=#{date} run=#{run.id} input_tokens=#{response.usage.input_tokens} output_tokens=#{response.usage.output_tokens}")
           run
@@ -68,6 +77,17 @@ module Knowledge
     end
 
     private
+
+    # The workspace lock makes publication and repair of older daily runs atomic.
+    # Keep the ID after deliberate deletion so recovery never recreates a deleted post.
+    def ensure_feed_post(run, owner)
+      return Post.find_by(id: run.metadata["post_id"]) if run.metadata["post_id"].present?
+
+      article = run.knowledge_items.find_by!(item_type: "article")
+      post = owner.posts.create!(message: "#{article.title}\n\n#{article.body}\n\nAI-generated · Amazon Bedrock · #{run.metadata.fetch('daily_date')}")
+      run.update!(metadata: run.metadata.merge("post_id" => post.id))
+      post
+    end
 
     def model_id
       @settings.model_id

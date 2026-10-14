@@ -1,5 +1,6 @@
 class CallParticipant < ApplicationRecord
   enum :status, {
+    waiting: "waiting",
     ringing: "ringing",
     joined: "joined",
     declined: "declined",

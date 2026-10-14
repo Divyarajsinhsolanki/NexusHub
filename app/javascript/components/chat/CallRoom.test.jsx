@@ -4,6 +4,8 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../api", () => ({confirmCallMedia: vi.fn(async () => ({}))}));
+vi.mock("./MeetingHostControls", () => ({default:()=>null}));
+vi.mock("./MeetingInteractions", () => ({default:()=>null}));
 vi.mock("@livekit/components-react", () => ({
   LiveKitRoom: ({ children, onConnected }) => <div data-testid="livekit-room"><button onClick={onConnected}>Simulate media connected</button>{children}</div>,
   ParticipantTile: () => <div />,

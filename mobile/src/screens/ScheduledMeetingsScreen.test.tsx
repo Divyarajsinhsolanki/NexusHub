@@ -1,0 +1,22 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import { expect, jest, test } from '@jest/globals';
+import { ScheduledMeetingsScreen } from './ScheduledMeetingsScreen';
+import { endpoints } from '../api/endpoints';
+const mockPush=jest.fn();
+const mockMeeting={id:1,title:'Design review',starts_at:'2026-10-14T10:00:00Z',ends_at:'2026-10-14T11:00:00Z',status:'scheduled',call_type:'video',organizer_name:'Ada',organizer_id:1,response:'invited',can_manage:false,can_join:true,invitations:[]};
+jest.mock('expo-router',()=>({useLocalSearchParams:()=>({}),useRouter:()=>({push:mockPush,back:jest.fn()})}));
+jest.mock('../auth/AuthProvider',()=>({useAuth:()=>({user:{id:2,workspace:{id:1}}})}));
+jest.mock('../components/Screen',()=>({Screen:({children,header}:any)=><>{header}{children}</>}));
+jest.mock('react-native-safe-area-context',()=>({SafeAreaView:require('react-native').View}));
+jest.mock('../api/endpoints',()=>({endpoints:{scheduledMeetings:jest.fn(async()=>({data:[mockMeeting],meta:{}})),scheduledMeetingAction:jest.fn(async(_id,_action)=>_action==='join'?{public_id:'room'}:mockMeeting),users:jest.fn(async()=>({data:[],meta:{}}))}}));
+test('invitees can RSVP and open the meeting room without organizer controls',async()=>{
+ const client=new QueryClient({defaultOptions:{queries:{retry:false,gcTime:Infinity},mutations:{gcTime:Infinity}}});
+ const screen=await render(<QueryClientProvider client={client}><ScheduledMeetingsScreen/></QueryClientProvider>);
+ await screen.findByText('Design review');expect(screen.queryByText('Cancel meeting')).toBeNull();
+ await fireEvent.press(screen.getByRole('button',{name:'Accept'}));
+ await waitFor(()=>expect(endpoints.scheduledMeetingAction).toHaveBeenCalledWith(1,'respond',{response:'accepted'}));
+ await fireEvent.press(screen.getByRole('button',{name:'Join'}));
+ await waitFor(()=>expect(mockPush).toHaveBeenCalledWith('/meet/room'));
+ await screen.unmount();client.clear();
+});

@@ -71,4 +71,17 @@ class EventReminderJobTest < ActiveSupport::TestCase
     assert @reminder.reload.sent?
     assert_equal old_time, @reminder.send_at
   end
+  test 'failed delivery can retry without producing duplicate notifications' do
+    @reminder.update!(send_at: 1.minute.ago)
+    EventReminderChannels::Deliverer.stub(:call, ->(*) { raise 'Delivery unavailable' }) do
+      assert_raises(RuntimeError) { EventReminderJob.perform_now(@reminder.id) }
+    end
+    assert @reminder.reload.failed?
+    assert_difference 'Notification.unscoped.count', 1 do
+      EventReminderJob.perform_now(@reminder.id)
+      EventReminderJob.perform_now(@reminder.id)
+    end
+    assert @reminder.reload.sent?
+  end
+
 end

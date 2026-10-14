@@ -94,7 +94,7 @@ class CallsTest < ActionDispatch::IntegrationTest
 
   test "group cleanup keeps connected guests and allows a reconnect grace period" do
     login(@caller)
-    post "/api/meet", params: { call_type: "audio" }
+    post "/api/meet", params: { call_type: "audio", host_approval_required: false }
     call = CallSession.unscoped.find(JSON.parse(response.body).fetch("call_session").fetch("id"))
     post "/api/meet/#{call.public_id}/join", params: { media_confirmation_required: true }
     post "/api/calls/#{call.id}/media_heartbeat"
@@ -191,6 +191,7 @@ class CallsTest < ActionDispatch::IntegrationTest
     decoded_token = JWT.decode(join_payload.fetch("participant_token"), "testsecret", true, algorithm: "HS256").first
     assert_equal "testkey", decoded_token.fetch("iss")
     assert_equal true, decoded_token.dig("video", "roomJoin")
+    assert_equal true, decoded_token.dig("video", "canUpdateOwnMetadata")
   end
 
   test "authenticated external link holder joins idempotently without chat access" do

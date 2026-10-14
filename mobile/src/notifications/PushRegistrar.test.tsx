@@ -133,11 +133,13 @@ test('daily knowledge push refreshes the board and opens the exact post', async 
   (Notifications.getLastNotificationResponseAsync as jest.MockedFunction<typeof Notifications.getLastNotificationResponseAsync>).mockResolvedValue(null);
   const queryClient = new QueryClient({ defaultOptions: { queries: { gcTime: Infinity, retry: false } } });
   queryClient.setQueryData(['knowledge-items', 'active'], { data: [] });
+  queryClient.setQueryData(mobileQueryKeys.posts, { data: [] });
   await render(<QueryClientProvider client={queryClient}><PushRegistrar /></QueryClientProvider>);
   await waitFor(() => expect(Notifications.addNotificationReceivedListener).toHaveBeenCalled());
-  const data = { event_type: 'daily_knowledge_published', deep_link: '/more/knowledge?itemId=91' };
+  const data = { event_type: 'daily_knowledge_published', deep_link: '/more/knowledge?itemId=91', post_id: 92 };
   await act(async () => { receivedCallback?.({ request: { content: { data } } }); });
   expect(queryClient.getQueryState(['knowledge-items', 'active'])?.isInvalidated).toBe(true);
+  expect(queryClient.getQueryState(mobileQueryKeys.posts)?.isInvalidated).toBe(true);
   await act(async () => { responseCallback?.({ notification: { request: { content: { data } } } }); });
   expect(mockPush).toHaveBeenCalledWith('/more/knowledge?itemId=91');
   cleanup(); queryClient.clear();

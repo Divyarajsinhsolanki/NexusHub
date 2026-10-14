@@ -1,0 +1,23 @@
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { expect, jest, test, beforeEach } from '@jest/globals';
+import { MeetingInteractions } from './MeetingInteractions';
+const mockPublish=jest.fn<(data:Uint8Array,options:unknown)=>Promise<void>>();
+const mockRoom={state:'connected',localParticipant:{identity:'local',name:'Ada',attributes:{} as Record<string,string>,publishData:mockPublish,setAttributes:jest.fn(async(attrs:Record<string,string>)=>{Object.assign(mockRoom.localParticipant.attributes,attrs);})},remoteParticipants:new Map([['remote',{identity:'remote',name:'Grace',attributes:{'nexushub.hand':'true'}}]]),on:jest.fn(),off:jest.fn()};
+jest.mock('@livekit/react-native',()=>({useRoomContext:()=>mockRoom}));
+jest.mock('react-native-safe-area-context',()=>({SafeAreaView:require('react-native').View}));
+beforeEach(()=>{jest.clearAllMocks();mockRoom.localParticipant.attributes={};mockPublish.mockResolvedValue(undefined);});
+test('shows late-join hands, raises a hand and retains a failed message draft for retry',async()=>{
+ const screen=await render(<MeetingInteractions/>);
+ expect(screen.getByText('✋ Grace')).toBeTruthy();
+ await fireEvent.press(screen.getByLabelText('Raise hand'));
+ await waitFor(()=>expect(screen.getByLabelText('Lower hand')).toBeTruthy());
+ await fireEvent.press(screen.getByLabelText('Open meeting chat'));
+ await fireEvent.changeText(screen.getByLabelText('Meeting message'),'Hello meeting');
+ mockPublish.mockRejectedValueOnce(new Error('Disconnected'));
+ await fireEvent.press(screen.getByLabelText('Send meeting message'));
+ await screen.findByText('Disconnected');expect(screen.getByLabelText('Meeting message').props.value).toBe('Hello meeting');
+ await fireEvent.press(screen.getByLabelText('Send meeting message'));
+ await waitFor(()=>expect(screen.getByLabelText('Meeting message').props.value).toBe(''));
+ expect(screen.getByText('Hello meeting')).toBeTruthy();
+ await screen.unmount();expect(mockRoom.off).toHaveBeenCalled();
+});

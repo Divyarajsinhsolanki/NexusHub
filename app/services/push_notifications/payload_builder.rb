@@ -16,7 +16,7 @@ module PushNotifications
         body: catalog.message(previews: notification.recipient.push_notification_previews?, aggregate_count: aggregate_count),
         sound: knowledge_channel_supported? ? catalog.sound : "nexus_work.wav",
         priority: priority,
-        channelId: knowledge_channel_supported? ? catalog.channel_id : "nexus_work_v1",
+        channelId: channel_id,
         badge: notification.recipient.notifications.visible_in_feed.unread.count,
         collapseId: notification.group_key,
         tag: notification.group_key,
@@ -40,10 +40,19 @@ module PushNotifications
       catalog.category != "knowledge" || device.push_schema_version.to_i >= 3
     end
 
+    def channel_id
+      return "nexus_work_v1" unless knowledge_channel_supported?
+      return "nexus_knowledge_v2" if catalog.category == "knowledge" && device.push_schema_version.to_i >= 4
+
+      catalog.channel_id
+    end
+
     def legacy_payload
       {
         to: device.expo_push_token,
         sound: "default",
+        priority: priority,
+        ttl: ttl,
         title: "Nexus Hub",
         body: catalog.message(previews: notification.recipient.push_notification_previews?, aggregate_count: aggregate_count),
         channelId: "general",
@@ -68,14 +77,14 @@ module PushNotifications
 
     def interaction_data
       values = (notification.metadata || {}).with_indifferent_access
-      allowed = %i[knowledge_item_id daily_date conversation_id message_id call_session_id call_type project_id task_id issue_id post_id calendar_event_id team_id]
+      allowed = %i[knowledge_item_id daily_date conversation_id conversation_type message_id call_session_id call_type project_id task_id issue_id post_id calendar_event_id team_id]
       values.slice(*allowed).compact.to_h.symbolize_keys.transform_keys do |key|
         key == :call_session_id ? :call_id : key
       end
     end
 
     def priority
-      %w[chat reminders].include?(catalog.category) ? "high" : "default"
+      %w[chat reminders knowledge].include?(catalog.category) ? "high" : "default"
     end
 
     def ttl

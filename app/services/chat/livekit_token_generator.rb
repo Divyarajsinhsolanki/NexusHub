@@ -78,6 +78,7 @@ module Chat
           roomJoin: true,
           canPublish: true,
           canPublishData: true,
+          canUpdateOwnMetadata: true,
           canSubscribe: true
         }
       }

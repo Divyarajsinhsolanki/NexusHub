@@ -10,7 +10,9 @@ class Api::MeetingsController < Api::BaseController
     call_session = Conversation.transaction do
       conversation = Conversation.create!(workspace: current_user.workspace, creator: current_user, conversation_type: "group", title: "Quick meeting")
       conversation.conversation_participants.create!(workspace: current_user.workspace, user: current_user)
-      Chat::CallManager.new(user: current_user).create_call(conversation: conversation, call_type: params[:call_type].presence || "video", meeting: true)
+      session = Chat::CallManager.new(user: current_user).create_call(conversation: conversation, call_type: params[:call_type].presence || "video", meeting: true)
+      session.update!(host_approval_required: params[:host_approval_required].nil? ? true : ActiveModel::Type::Boolean.new.cast(params[:host_approval_required]))
+      session
     end
     render json: { call_session: Chat::CallSerializer.call(call_session, current_user: current_user) }, status: :created
   end
@@ -20,6 +22,10 @@ class Api::MeetingsController < Api::BaseController
   end
 
   def join
+    raise Chat::LivekitTokenGenerator::ConfigurationError, Chat::LivekitTokenGenerator.configuration_error unless Chat::LivekitTokenGenerator.configured?
+    unless Chat::CallManager.new(user: current_user).request_admission(@call_session)
+      return render json: {admission_pending: true, call_session: Chat::CallSerializer.call(@call_session, current_user: current_user)}, status: :accepted
+    end
     credentials = Chat::LivekitTokenGenerator.new(call_session: @call_session, user: current_user).call
     call_session = if ActiveModel::Type::Boolean.new.cast(params[:media_confirmation_required])
       Chat::CallManager.new(user: current_user).prepare_media_join(@call_session, by_link: true)

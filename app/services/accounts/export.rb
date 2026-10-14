@@ -10,6 +10,8 @@ module Accounts
       knowledge_items: %w[id title body summary category source_url tags created_at updated_at],
       knowledge_bookmarks: %w[id card_type collection_name source_id payload created_at],
       pdf_documents: %w[id title original_filename created_at updated_at],
+      scheduled_meetings: %w[id title description starts_at ends_at status call_type created_at updated_at],
+      meeting_invitations: %w[id scheduled_meeting_id response created_at updated_at],
       calendar_events: %w[id title description start_at end_at location_or_meet_link recurrence_rule created_at updated_at]
     }.freeze
 

@@ -63,9 +63,31 @@ module Chat
       call_session
     end
 
+    def request_admission(call_session)
+      admitted = false
+      call_session.with_lock do
+        raise InvalidTransition, "This call has ended" unless call_session.live?
+        participant = call_session.call_participants.find_or_initialize_by(user_id: user.id)
+        raise InvalidTransition, "You were removed from this call" if participant.removed_at?
+        admitted = !call_session.host_approval_required? || call_session.host_user_id == user.id || participant.approved_at.present?
+        if admitted && call_session.host_approval_required? && call_session.host_user_id == user.id && participant.persisted? && !participant.approved_at?
+          participant.update!(approved_at: Time.current)
+        end
+        unless admitted
+          participant.workspace ||= call_session.workspace
+          participant.status = "waiting"
+          participant.save!
+        end
+      end
+      Chat::Broadcaster.broadcast_call_event(call_session.reload, "call_updated") unless admitted
+      admitted
+    end
+
     def join(call_session)
       participant = participant_for!(call_session)
+      ensure_admitted!(call_session, participant)
       raise InvalidTransition, "This call has ended" unless call_session.live?
+      raise InvalidTransition, "You were removed from this call" if participant.removed_at?
       raise InvalidTransition, "This call was declined" if participant.call_declined?
       if participant.call_left? && !call_session.conversation.conversation_participants.exists?(user_id: user.id)
         raise InvalidTransition, "You no longer have access to this group call"
@@ -76,6 +98,7 @@ module Chat
       call_session.with_lock do
         call_session.reload
         participant.reload
+        raise InvalidTransition, "You were removed from this call" if participant.removed_at?
         raise InvalidTransition, "This call has ended" unless call_session.live?
 
         participant.update!(
@@ -98,17 +121,19 @@ module Chat
     end
 
     def join_by_link(call_session)
-      raise InvalidTransition, "This call has ended" unless call_session.live?
-
-      participant = call_session.call_participants.find_or_initialize_by(user_id: user.id)
-      participant.workspace ||= call_session.workspace
-      participant.status = "joined"
-      participant.joined_at ||= Time.current
-      participant.left_at = nil
-      participant.ring_acknowledged_at ||= Time.current
-      participant.save!
-
-      join(call_session)
+      call_session.with_lock do
+        raise InvalidTransition, "This call has ended" unless call_session.live?
+        participant = call_session.call_participants.find_or_initialize_by(user_id: user.id)
+        raise InvalidTransition, "You were removed from this call" if participant.removed_at?
+        ensure_admitted!(call_session, participant)
+        participant.workspace ||= call_session.workspace
+        participant.status = "joined"
+        participant.joined_at ||= Time.current
+        participant.left_at = nil
+        participant.ring_acknowledged_at ||= Time.current
+        participant.save!
+        join(call_session)
+      end
     rescue ActiveRecord::RecordNotUnique
       join(call_session.tap { |session| session.call_participants.reset })
     end
@@ -118,12 +143,14 @@ module Chat
       call_session.with_lock do
         raise InvalidTransition, "This call has ended" unless call_session.live?
         participant = by_link ? call_session.call_participants.find_or_initialize_by(user_id: user.id) : participant_for!(call_session)
+        raise InvalidTransition, "You were removed from this call" if participant.removed_at?
         if !by_link && participant.call_declined?
           raise InvalidTransition, "This call was declined"
         end
         if !by_link && participant.call_left? && !call_session.conversation.conversation_participants.exists?(user_id: user.id)
           raise InvalidTransition, "You no longer have access to this group call"
         end
+        ensure_admitted!(call_session, participant)
         participant.workspace ||= call_session.workspace
         participant.status = "ringing" unless participant.call_joined?
         participant.left_at = nil
@@ -138,6 +165,8 @@ module Chat
       call_session.with_lock do
         participant = participant_for!(call_session)
         raise InvalidTransition, "This call has ended" unless call_session.live?
+        raise InvalidTransition, "You were removed from this call" if participant.removed_at?
+        ensure_admitted!(call_session, participant)
         participant.update!(media_confirmation_required: true, media_last_seen_at: Time.current)
         join(call_session) unless participant.call_joined?
       end
@@ -193,6 +222,7 @@ module Chat
         participant.reload
         return call_session unless call_session.live?
 
+        was_waiting = participant.call_waiting?
         participant.update!(status: "left", left_at: Time.current)
         if call_session.conversation.direct?
           # A direct phone/video call has only two parties. Hanging up must end
@@ -202,7 +232,7 @@ module Chat
           call_session.call_participants.where(status: "ringing").update_all(status: "missed", left_at: now, updated_at: now)
           call_session.call_participants.where(status: "joined").update_all(status: "left", left_at: now, updated_at: now)
           end_call!(call_session, "ended", "left")
-        else
+        elsif !was_waiting
           end_call!(call_session, "ended", "left") unless joined_participants(call_session).exists?
         end
       end
@@ -215,13 +245,15 @@ module Chat
     end
 
     def end_call(call_session, reason: "ended")
-      participant_for!(call_session)
-      raise HostRequired, "Only the call host can end the call for everyone" unless call_session.initiator_id == user.id
+      participant = participant_for!(call_session)
+      raise HostRequired, "You were removed from this call" if participant.removed_at?
+      raise HostRequired, "Only the call host can end the call for everyone" unless call_session.host_user_id == user.id
       return call_session unless call_session.live?
 
       call_session.with_lock do
         call_session.reload
         return call_session unless call_session.live?
+        raise HostRequired, "Only the call host can end the call for everyone" unless call_session.host_user_id == user.id
 
         call_session.call_participants.where(status: "ringing").update_all(status: "missed", left_at: Time.current, updated_at: Time.current)
         call_session.call_participants.where(status: "joined").where.not(user_id: user.id).update_all(status: "left", left_at: Time.current, updated_at: Time.current)
@@ -278,6 +310,12 @@ module Chat
     private
 
     attr_reader :user
+
+    def ensure_admitted!(call_session, participant)
+      if call_session.host_approval_required? && call_session.host_user_id != user.id && !participant.approved_at?
+        raise InvalidTransition, "Host approval is required"
+      end
+    end
 
     def participant_for!(call_session)
       participant = call_session.call_participants.find_by(user_id: user.id)

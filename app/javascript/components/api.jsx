@@ -383,10 +383,12 @@ export const addMessageReaction = (conversationId, messageId, emoji) =>
   api.post(`/conversations/${conversationId}/messages/${messageId}/reactions`, { message_reaction: { emoji } });
 export const removeMessageReaction = (conversationId, messageId, emoji) =>
   api.delete(`/conversations/${conversationId}/messages/${messageId}/reactions`, { params: { emoji } });
+export const fetchCallHistory = (page = 1) => api.get("/calls", { params: { page, per_page: 25 } });
 export const createCall = (conversationId, callType) =>
   api.post(`/conversations/${conversationId}/calls`, { call_type: callType, media_confirmation_required: true });
 export const acknowledgeCallRing = (callId) => api.post(`/calls/${callId}/ack_ring`);
 export const joinCall = (callId) => api.post(`/calls/${callId}/join`, { media_confirmation_required: true });
+export const hostCallAction = (callId, action, userId) => api.post(`/calls/${callId}/host_action`, { host_action: action, user_id: userId });
 export const confirmCallMedia = (callId) => api.post(`/calls/${callId}/media_heartbeat`);
 export const declineCall = (callId) => api.post(`/calls/${callId}/decline`);
 export const leaveCall = (callId) => api.post(`/calls/${callId}/leave`);

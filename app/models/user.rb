@@ -1,6 +1,8 @@
 require 'digest'
 
 class User < ApplicationRecord
+  has_many :scheduled_meetings, foreign_key: :organizer_id, dependent: :destroy
+  has_many :meeting_invitations, dependent: :destroy
   has_many :department_entries, foreign_key: :author_id, dependent: :nullify
   has_many :department_comments, foreign_key: :author_id, dependent: :destroy
   has_many :department_join_requests, dependent: :destroy

@@ -58,6 +58,10 @@ class PushNotifications::PayloadBuilderTest < ActiveSupport::TestCase
       assert_equal "nexus_knowledge_v1", payload[:channelId]
       assert_equal "nexus_knowledge.wav", payload[:sound]
       assert_equal "💡 Today's tech drop", payload[:title]
+      assert_equal "high", payload[:priority]
+      @device.update!(push_schema_version: 4)
+      payload = PushNotifications::PayloadBuilder.new(notification: @notification, device: @device).call
+      assert_equal "nexus_knowledge_v2", payload[:channelId]
     end
   end
 

@@ -29,6 +29,9 @@ module EventReminderChannels
     private
 
     def deliver_in_app
+      if @event.scheduled_meeting && (@event.scheduled_meeting.status != 'scheduled' || !@event.scheduled_meeting.organizer.active? || @event.scheduled_meeting.organizer.account_deletion_request&.status == 'scheduled')
+        return
+      end
       Notification.create(
         recipient: @recipient,
         actor: @recipient,
@@ -36,6 +39,7 @@ module EventReminderChannels
         notifiable: @event,
         metadata: {
           type: 'calendar_reminder',
+          scheduled_meeting_id: @event.scheduled_meeting_id,
           calendar_event_id: @event.id,
           event_title: @event.title,
           event_start_at: @event.start_at,

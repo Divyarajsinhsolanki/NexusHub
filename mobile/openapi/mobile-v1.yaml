@@ -1936,6 +1936,208 @@ paths:
                   description: Defer joined attendance until the media connection is confirmed. Updated clients send true; omission preserves older client behavior.
       responses:
         "201": { $ref: "#/components/responses/GenericSuccess" }
+  /scheduled_meetings:
+    get:
+      operationId: listScheduledMeetings
+      description: Workspace-scoped meetings organized by or inviting the authenticated
+        user. Paginated, newest start first.
+      parameters:
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+      responses:
+        '200':
+          description: Meetings and pagination
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      "$ref": "#/components/schemas/ScheduledMeeting"
+                  meta:
+                    "$ref": "#/components/schemas/PaginationMeta"
+    post:
+      operationId: scheduleMeeting
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  maxLength: 120
+                description:
+                  type: string
+                  maxLength: 5000
+                starts_at:
+                  type: string
+                  format: date-time
+                ends_at:
+                  type: string
+                  format: date-time
+                call_type:
+                  type: string
+                  enum:
+                  - audio
+                  - video
+                invitee_ids:
+                  type: array
+                  maxItems: 100
+                  items:
+                    type: integer
+                  uniqueItems: true
+                lock_version:
+                  type: integer
+      responses:
+        '201':
+          "$ref": "#/components/responses/GenericSuccess"
+        '422':
+          "$ref": "#/components/responses/Error"
+  /scheduled_meetings/{id}:
+    parameters:
+    - "$ref": "#/components/parameters/Id"
+    get:
+      operationId: getScheduledMeeting
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '404':
+          "$ref": "#/components/responses/Error"
+    patch:
+      operationId: rescheduleMeeting
+      description: Organizer only before a room starts. Pass the current lock_version.
+        Invitations and calendar reminders are replaced atomically.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  maxLength: 120
+                description:
+                  type: string
+                  maxLength: 5000
+                starts_at:
+                  type: string
+                  format: date-time
+                ends_at:
+                  type: string
+                  format: date-time
+                call_type:
+                  type: string
+                  enum:
+                  - audio
+                  - video
+                invitee_ids:
+                  type: array
+                  maxItems: 100
+                  items:
+                    type: integer
+                  uniqueItems: true
+                lock_version:
+                  type: integer
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '404':
+          "$ref": "#/components/responses/Error"
+        '403':
+          "$ref": "#/components/responses/Error"
+        '409':
+          "$ref": "#/components/responses/Error"
+        '422':
+          "$ref": "#/components/responses/Error"
+  /scheduled_meetings/{id}/cancel:
+    parameters:
+    - "$ref": "#/components/parameters/Id"
+    post:
+      operationId: cancelScheduledMeeting
+      description: Organizer cancellation disables reminders and ends a live room.
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '404':
+          "$ref": "#/components/responses/Error"
+        '403':
+          "$ref": "#/components/responses/Error"
+  /scheduled_meetings/{id}/respond:
+    parameters:
+    - "$ref": "#/components/parameters/Id"
+    post:
+      operationId: respondToMeetingInvitation
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - response
+              properties:
+                response:
+                  type: string
+                  enum:
+                  - accepted
+                  - declined
+      responses:
+        '200':
+          "$ref": "#/components/responses/GenericSuccess"
+        '404':
+          "$ref": "#/components/responses/Error"
+        '422':
+          "$ref": "#/components/responses/Error"
+  /scheduled_meetings/{id}/join:
+    parameters:
+    - "$ref": "#/components/parameters/Id"
+    post:
+      operationId: openScheduledMeetingRoom
+      description: Opens 15 minutes before start. Organizer starts one room; invitees
+        can then request host approval.
+      responses:
+        '200':
+          description: Meeting room identifier
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  public_id:
+                    type: string
+                    format: uuid
+        '422':
+          "$ref": "#/components/responses/Error"
+  /calls:
+    get:
+      operationId: listCallHistory
+      description: Paginated current-workspace calls in which the authenticated user participated, newest first. Callback availability respects current conversation membership and live calls. Duration is the user's connected time, zero for unanswered calls.
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: per_page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 50, default: 25 }
+      responses:
+        "200":
+          description: Call history with pagination
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/CallHistoryEntry" }
+                  meta: { $ref: "#/components/schemas/PaginationMeta" }
+        "401": { $ref: "#/components/responses/Error" }
   /calls/{id}/join:
     parameters:
       - $ref: "#/components/parameters/Id"
@@ -1952,7 +2154,30 @@ paths:
                   default: false
                   description: Defer joined attendance until the media connection is confirmed. Updated clients send true; omission preserves older client behavior.
       responses:
+        "202": {"description": "Waiting for host approval; no media credentials", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/MeetingAdmission"}}}}
         "200": { $ref: "#/components/responses/GenericSuccess" }
+  /calls/{id}/host_action:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      operationId: moderateCallParticipant
+      description: Current host only. Mute microphone tracks, remove a connected participant, or transfer host to a connected participant in the same workspace. Mute never remotely unmutes. Removed participants cannot obtain fresh call credentials.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [host_action, user_id]
+              properties:
+                host_action: { type: string, enum: [mute, remove, transfer_host, approve, reject] }
+                user_id: { type: integer }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
   /calls/{id}/media_heartbeat:
     parameters:
       - $ref: "#/components/parameters/Id"
@@ -2034,6 +2259,7 @@ paths:
                   description: Defer joined attendance until the media connection is confirmed. Updated clients send true; omission preserves older client behavior.
       description: Idempotently joins an authenticated link holder without granting conversation access.
       responses:
+        "202": {"description": "Waiting for host approval; no media credentials", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/MeetingAdmission"}}}}
         "200":
           description: LiveKit credentials and personalized call metadata
           content:
@@ -2447,6 +2673,86 @@ components:
         read_message_id: { type: [integer, "null"] }
         delivered_at: { type: [string, "null"], format: date-time }
         read_at: { type: [string, "null"], format: date-time }
+    ScheduledMeeting:
+      type: object
+      required:
+      - id
+      - title
+      - starts_at
+      - ends_at
+      - organizer_id
+      - can_manage
+      - can_join
+      - lock_version
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type:
+          - string
+          - 'null'
+        starts_at:
+          type: string
+          format: date-time
+        ends_at:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum:
+          - scheduled
+          - canceled
+          - completed
+        call_type:
+          type: string
+          enum:
+          - audio
+          - video
+        organizer_id:
+          type: integer
+        organizer_name:
+          type: string
+        can_manage:
+          type: boolean
+        can_join:
+          type: boolean
+        response:
+          type: string
+          enum:
+          - invited
+          - accepted
+          - declined
+        lock_version:
+          type: integer
+        public_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        invitations:
+          type: array
+          items:
+            type: object
+            properties:
+              user_id:
+                type: integer
+              name:
+                type: string
+              response:
+                type: string
+    MeetingAdmission:
+      type: object
+      required:
+      - admission_pending
+      - call_session
+      properties:
+        admission_pending:
+          type: boolean
+          const: true
+        call_session:
+          "$ref": "#/components/schemas/CallSession"
     CallParticipant:
       type: object
       required: [user_id, name, status]
@@ -2457,6 +2763,25 @@ components:
         ring_acknowledged_at: { type: [string, "null"], format: date-time }
         joined_at: { type: [string, "null"], format: date-time }
         left_at: { type: [string, "null"], format: date-time }
+        approved: { type: boolean }
+        removed: { type: boolean }
+    CallHistoryEntry:
+      type: object
+      required: [id, conversation_id, title, call_type, status, participant_status, direction, created_at, duration_seconds, can_callback, can_open_conversation]
+      properties:
+        id: { type: integer }
+        conversation_id: { type: integer }
+        title: { type: string }
+        call_type: { type: string, enum: [audio, video] }
+        status: { type: string, enum: [ringing, active, ended, missed, canceled, failed] }
+        participant_status: { type: string, enum: [ringing, joined, declined, missed, left] }
+        direction: { type: string, enum: [incoming, outgoing] }
+        created_at: { type: string, format: date-time }
+        started_at: { type: [string, "null"], format: date-time }
+        ended_at: { type: [string, "null"], format: date-time }
+        duration_seconds: { type: integer, minimum: 0 }
+        can_callback: { type: boolean }
+        can_open_conversation: { type: boolean }
     CallSession:
       type: object
       required: [id, public_id, share_url, conversation_id, call_type, status, initiator_id, initiator_name, can_end, participants]
@@ -2469,6 +2794,9 @@ components:
         status: { type: string }
         initiator_id: { type: integer }
         initiator_name: { type: string }
+        host_approval_required: { type: boolean }
+        host_id: { type: integer }
+        host_name: { type: string }
         can_end: { type: boolean }
         started_at: { type: [string, "null"], format: date-time }
         ended_at: { type: [string, "null"], format: date-time }

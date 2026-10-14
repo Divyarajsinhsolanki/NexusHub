@@ -6,7 +6,9 @@ import { prepareChatUpload } from "../utils/chatUploads";
 import { splitMessageLinks } from "../utils/messageLinks";
 import MessageLinkPreview from "../components/chat/MessageLinkPreview";
 import React, { Suspense, useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useLocation } from "react-router-dom";
+import ScheduledMeetings from "../components/chat/ScheduledMeetings";
+import CallHistory from "../components/chat/CallHistory";
 import QuickMeetingButton from "../components/chat/QuickMeetingButton";
 import { format, formatDistanceToNow, isSameDay, isThisYear, isToday, isYesterday } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
@@ -1098,6 +1100,10 @@ const useMobileChatLayout = () => {
 const Chat = ({ embedded = false, initialConversationId = null }) => {
   const { conversationId: routeConversationId } = useParams();
   const navigate = useNavigate();
+  const meetingLocation = useLocation();
+  const scheduledMeetingId = new URLSearchParams(meetingLocation.search).get("meeting");
+  const [showScheduledMeetings,setShowScheduledMeetings] = useState(false);
+  useEffect(()=>{if(scheduledMeetingId)setShowScheduledMeetings(true);},[scheduledMeetingId]);
   const { user } = useContext(AuthContext);
   const isMobileLayout = useMobileChatLayout();
   const [embeddedConversationId, setEmbeddedConversationId] = useState(initialConversationId);
@@ -2244,10 +2250,13 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
 
     const personalizedCallSession = {
       ...callSession,
-      can_end: Number(callSession.initiator_id) === Number(user?.id)
+      can_end: Number(callSession.host_id || callSession.initiator_id) === Number(user?.id)
     };
 
     mergeCallIntoConversationState(personalizedCallSession);
+    if (callSession.participants?.some(p => Number(p.user_id) === Number(user?.id) && p.removed)) {
+      setCallCredentials(null); setActiveCall(null); setIncomingCall(null); setCallError("The host removed you from this call."); return;
+    }
 
     if (isLiveCall(personalizedCallSession)) {
       setActiveCall(personalizedCallSession);
@@ -2290,6 +2299,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       setIsCallConnecting(true);
       setCallError("");
       const { data } = await joinCall(callSession.id);
+      if (data.admission_pending) { navigate(`/meet/${data.call_session.public_id}`); return false; }
       setCallCredentials({
         server_url: data.server_url,
         participant_token: data.participant_token
@@ -2297,9 +2307,11 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       setIncomingCall(null);
       applyCallSessionUpdate(data.call_session);
       if (data.call_session?.conversation_id) openConversation(data.call_session.conversation_id);
+      return true;
     } catch (error) {
       console.error("Failed to join call", error);
       setCallError(error?.response?.data?.error === "livekit_not_configured" ? CALL_MEDIA_CONFIGURATION_MESSAGE : error?.response?.data?.message || "Unable to join the call.");
+      return false;
     } finally {
       setIsCallConnecting(false);
     }
@@ -2318,6 +2330,14 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     if (!activeCall || isCallConnecting) return;
     handleJoinCall(activeCall);
   }, [activeCall, handleJoinCall, isCallConnecting]);
+
+  const [showCallHistory, setShowCallHistory] = useState(false);
+  const handleHistoryCallback = async (history) => {
+    if (isCallConnecting || callCredentials) throw new Error("Leave your current call before calling back.");
+    const { data } = await createCall(history.conversation_id, history.call_type);
+    applyCallSessionUpdate(data.call_session);
+    if (!await handleJoinCall(data.call_session)) throw new Error("Unable to connect. Close history and retry the active call.");
+  };
 
   const handleStartCall = useCallback(async (callType) => {
     if (!conversationId || isCallConnecting) return;
@@ -2664,7 +2684,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
         handleIncomingCall(payload.call_session);
       }
 
-      if (["call_started", "call_participants_invited", "call_participant_joined", "call_participant_left", "call_missed", "call_ended"].includes(payload?.type)) {
+      if (["call_updated", "call_started", "call_participants_invited", "call_participant_joined", "call_participant_left", "call_missed", "call_ended"].includes(payload?.type)) {
         applyCallSessionUpdate(payload.call_session);
         if (["call_started", "call_participant_joined"].includes(payload?.type)) {
           handleIncomingCall(payload.call_session);
@@ -2755,7 +2775,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
         applyReceiptUpdate(payload);
       }
 
-      if (["call_started", "call_participants_invited", "call_participant_joined", "call_participant_left", "call_missed", "call_ended"].includes(payload?.type) && Number(payload.conversation_id) === Number(conversationId)) {
+      if (["call_updated", "call_started", "call_participants_invited", "call_participant_joined", "call_participant_left", "call_missed", "call_ended"].includes(payload?.type) && Number(payload.conversation_id) === Number(conversationId)) {
         applyCallSessionUpdate(payload.call_session);
         if (["call_started", "call_participant_joined"].includes(payload?.type)) {
           handleIncomingCall(payload.call_session);
@@ -3429,6 +3449,10 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
             </div>
             <p className="chat-inbox-subtitle">A space for every conversation.</p>
             <QuickMeetingButton />
+            <button type="button" onClick={()=>setShowScheduledMeetings(true)} className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-semibold dark:border-zinc-700">Scheduled meetings</button>
+            {showScheduledMeetings && <ScheduledMeetings user={user} meetingId={scheduledMeetingId} onClose={()=>setShowScheduledMeetings(false)} />}
+            <button type="button" onClick={() => setShowCallHistory(true)} className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-600 dark:border-zinc-700 dark:text-zinc-300">Call history</button>
+            {showCallHistory && <CallHistory onClose={() => setShowCallHistory(false)} onCallback={handleHistoryCallback} />}
 
             <div className="chat-inbox-search">
               <FiSearch aria-hidden="true" />

@@ -13,6 +13,7 @@ export const notificationPath = (notification) => {
     if (link.pathname === '/more/calendar') return `/calendar${link.search}`;
     if (link.pathname.startsWith('/more/teams')) return '/teams';
     if (link.pathname === '/more/profile') return `/profile${link.search}`;
+    if (link.pathname === '/inbox/meetings') return `/chat${link.search}`;
     if (link.pathname === '/inbox/notifications') return '/notifications';
     if (link.pathname.startsWith('/inbox/post/')) return '/posts';
     if (link.pathname === '/inbox') return '/chat';

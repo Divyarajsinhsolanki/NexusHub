@@ -27,6 +27,8 @@ import {
   Volume2
 } from "lucide-react";
 
+import MeetingHostControls from "./MeetingHostControls";
+import MeetingInteractions from "./MeetingInteractions";
 import { confirmCallMedia } from "../api";
 
 const CALL_MEDIA_CONNECTION_MESSAGE = "Could not connect to the call media server. Verify LIVEKIT_URL points to a reachable wss:// LiveKit Cloud or self-hosted endpoint.";
@@ -733,6 +735,7 @@ const CallRoom = ({ callSession, credentials, onLeave, onEnd, onRetry, onConnect
       )}
 
       <LiveKitRoom
+        key={callSession.id}
         serverUrl={credentials.server_url}
         token={credentials.participant_token}
         connect
@@ -765,6 +768,8 @@ const CallRoom = ({ callSession, credentials, onLeave, onEnd, onRetry, onConnect
         ) : (
           <CallVideoStage />
         )}
+        <MeetingHostControls callSession={callSession} />
+        <MeetingInteractions />
         <CallControls
           isAudioOnly={isAudioOnly}
           onLeave={onLeave}

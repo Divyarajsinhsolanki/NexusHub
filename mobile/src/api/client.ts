@@ -65,7 +65,9 @@ api.interceptors.response.use(
       original.headers.Authorization = `Bearer ${session.access_token}`;
       return api(original);
     } catch (refreshError) {
-      if (generation === sessionGeneration) {
+      // Offline background replies must keep their session for a later retry.
+      const status = (refreshError as AxiosError)?.response?.status;
+      if (generation === sessionGeneration && (status === 401 || status === 403)) {
         await tokenStore.clear();
         sessionExpiredHandler?.();
       }

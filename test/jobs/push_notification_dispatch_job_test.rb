@@ -37,6 +37,36 @@ class PushNotificationDispatchJobTest < ActiveSupport::TestCase
     end
   end
 
+  test "a call alert cannot replace a pending group message" do
+    notification = make_notification("Group update")
+    Notification.create!(recipient: @recipient, actor: @actor, notifiable: @actor,
+      action: "missed_audio_call", metadata: { conversation_id: @conversation.id, call_session_id: 91 })
+    entries = []
+    dispatcher = Object.new
+    dispatcher.define_singleton_method(:call) { |batch| entries.concat(batch) }
+    PushNotifications::DeliveryDispatcher.stub(:new, -> { dispatcher }) do
+      PushNotificationDispatchJob.perform_now(notification.id)
+    end
+    assert_equal 1, entries.size
+    assert_equal "group", entries.first.last.dig(:data, :conversation_type)
+    assert_equal "chat_message_actions", entries.first.last[:categoryId]
+  end
+
+  test "a personal message remains actionable without a request workspace" do
+    @conversation.update!(conversation_type: "direct", title: nil)
+    notification = make_notification("Personal update")
+    Current.reset_all
+    entries = []
+    dispatcher = Object.new
+    dispatcher.define_singleton_method(:call) { |batch| entries.concat(batch) }
+    PushNotifications::DeliveryDispatcher.stub(:new, -> { dispatcher }) do
+      PushNotificationDispatchJob.perform_now(notification.id)
+    end
+    assert_equal "direct", entries.first.last.dig(:data, :conversation_type)
+    assert_equal "chat_message_actions", entries.first.last[:categoryId]
+    assert_equal "high", entries.first.last[:priority]
+  end
+
   test "deleting a message before the delayed job prevents delivery" do
     notification = make_notification("Hello")
     notification.notifiable.update!(deleted_at: Time.current, body: "")

@@ -23,21 +23,29 @@ export default function MeetingScreen() {
   const theme = useAppTheme();
   const [microphone, setMicrophone] = useState(true);
   const [camera, setCamera] = useState(true);
+  const [waiting,setWaiting] = useState(false);
   const [credentials, setCredentials] = useState<LiveKitCredentials | null>(null);
   const endingRef = useRef(false);
-  const meeting = useQuery({ queryKey: ['meeting', publicId], queryFn: () => endpoints.meeting(publicId), enabled: Boolean(publicId), retry: false });
+  const meeting = useQuery({ queryKey: ['meeting', publicId], queryFn: () => endpoints.meeting(publicId), enabled: Boolean(publicId), refetchInterval: waiting ? 3000 : false, retry: false });
   const join = useMutation({ mutationFn: async () => {
+    const result = await endpoints.joinMeeting(publicId);
+    if ('admission_pending' in result) return result;
     const permission = await requestCallMediaPermissions(Boolean(meeting.data?.call_session.call_type === 'video' && camera));
     if (!permission.microphone || !permission.camera) throw new Error('Allow the required microphone and camera permissions before joining.');
-    const result = await endpoints.joinMeeting(publicId);
     const issue = validateLiveKitEnvironment(result.server_url);
     if (issue) throw new Error(`${issue.title}. ${issue.detail}`);
     return result;
-  }, onSuccess: setCredentials, onError: (error) => Alert.alert('Unable to join', apiErrorMessage(error)) });
+  }, onSuccess: result => {if ('admission_pending' in result) {setWaiting(true);queryClient.setQueryData(['meeting',publicId],{call_session:result.call_session});} else {setWaiting(false);setCredentials(result);}}, onError: (error) => Alert.alert('Unable to join', apiErrorMessage(error)) });
   const call = credentials?.call_session || meeting.data?.call_session;
   const close = useCallback(() => router.replace('/(tabs)/inbox' as never), [router]);
 
   useCallRealtime(credentials?.call_session.public_id, (event) => {
+    const update = event.call_session as CallSession | undefined;
+    if (update) {
+      const ownId = credentials?.call_session.current_participant?.user_id;
+      if (update.participants?.some(p => p.user_id === ownId && p.removed)) { setCredentials(null); close(); return; }
+      setCredentials(previous => previous ? {...previous, call_session:{...previous.call_session,...update, current_participant:previous.call_session.current_participant, can_end:Number(update.host_id || update.initiator_id) === Number(ownId)}} : previous);
+    }
     if (event.type === 'call_ended') {
       setCredentials(null);
       void queryClient.invalidateQueries({ queryKey: ['meeting', publicId] });
@@ -63,19 +71,20 @@ export default function MeetingScreen() {
   if (meeting.isLoading) return <View style={[styles.state, { backgroundColor: theme.background }]}><LoadingState label="Checking meeting link" /></View>;
   if (meeting.isError || !call) return <View style={[styles.state, { backgroundColor: theme.background }]}><ErrorState message={apiErrorMessage(meeting.error)} onRetry={() => meeting.refetch()} /></View>;
 
-  return <PreJoin call={call} camera={camera} joining={join.isPending} microphone={microphone} onCamera={() => setCamera((value) => !value)} onJoin={() => join.mutate()} onMicrophone={() => setMicrophone((value) => !value)} />;
+  if (waiting && !call.current_participant?.approved && !call.current_participant?.removed && ['active','ringing'].includes(call.status)) return <View style={styles.state}><Text style={{color:theme.text}}>Waiting for host approval…</Text><PrimaryButton label="Cancel join request" onPress={()=>{void endpoints.callAction(call.id,'leave').then(()=>{setWaiting(false);}).catch(error=>Alert.alert('Unable to cancel',apiErrorMessage(error)));}}/></View>;
+  return <PreJoin call={call} camera={camera} joining={join.isPending || (waiting && !call.current_participant?.approved && !call.current_participant?.removed)} microphone={microphone} onCamera={() => setCamera((value) => !value)} onJoin={() => join.mutate()} onMicrophone={() => setMicrophone((value) => !value)} />;
 }
 
 export function PreJoin({ call, camera, joining, microphone, onCamera, onJoin, onMicrophone }: { call: CallSession; camera: boolean; joining: boolean; microphone: boolean; onCamera: () => void; onJoin: () => void; onMicrophone: () => void }) {
   const theme = useAppTheme();
-  const live = ['ringing', 'active'].includes(call.status);
+  const live = ['ringing', 'active'].includes(call.status) && !call.current_participant?.removed;
   const share = () => Share.share({ message: `Join my Nexus Hub call: ${call.share_url}`, url: call.share_url, title: 'Join call' });
   return <View style={[styles.prejoin, { backgroundColor: theme.background }]}>
     <View style={[styles.preview, { backgroundColor: '#171a20' }]}>{call.call_type === 'video' && camera ? <Video color="#ffffff" size={54} /> : call.call_type === 'audio' ? <Phone color="#ffffff" size={54} /> : <CameraOff color="#ffffff" size={54} />}<Text style={styles.previewLabel}>{camera && call.call_type === 'video' ? 'Camera preview starts after joining' : 'Camera is off'}</Text></View>
     <Text style={[styles.title, { color: theme.text }]}>{call.call_type === 'video' ? 'Video meeting' : 'Voice meeting'}</Text>
-    <Text style={[styles.host, { color: theme.textMuted }]}>Hosted by {call.initiator_name} · {call.participants.length} participants</Text>
+    <Text style={[styles.host, { color: theme.textMuted }]}>Hosted by {call.host_name || call.initiator_name} · {call.participants.length} participants</Text>
     <View style={styles.prejoinControls}><Choice active={microphone} label={microphone ? 'Mic on' : 'Mic off'} onPress={onMicrophone}>{microphone ? <Mic color="#ffffff" size={22} /> : <MicOff color="#ffffff" size={22} />}</Choice>{call.call_type === 'video' ? <Choice active={camera} label={camera ? 'Camera on' : 'Camera off'} onPress={onCamera}>{camera ? <Camera color="#ffffff" size={22} /> : <CameraOff color="#ffffff" size={22} />}</Choice> : null}<Choice active label="Share link" onPress={share}><Share2 color="#ffffff" size={22} /></Choice></View>
-    {live ? <PrimaryButton label="Join now" loading={joining} onPress={onJoin} /> : <Text accessibilityRole="alert" style={[styles.ended, { color: theme.danger }]}>This meeting has ended. The link is no longer joinable.</Text>}
+    {live ? <PrimaryButton label="Join now" loading={joining} onPress={onJoin} /> : <Text accessibilityRole="alert" style={[styles.ended, { color: theme.danger }]}>{call.current_participant?.removed ? "The host denied or removed you from this meeting." : "This meeting has ended. The link is no longer joinable."}</Text>}
     <Text style={[styles.privacy, { color: theme.textMuted }]}>Joining this call does not grant access to its conversation, files, or workspace.</Text>
   </View>;
 }

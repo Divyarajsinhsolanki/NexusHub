@@ -46,6 +46,8 @@ export default function CallScreen() {
         queryClient.invalidateQueries({ queryKey: mobileQueryKeys.home }),
       ]);
     }
+    void queryClient.invalidateQueries({queryKey:['scheduled-meetings']});
+    void queryClient.invalidateQueries({queryKey:['scheduled-meeting']});
     queryClient.removeQueries({ queryKey: ['call', callId] });
     close();
   }, [callId, close, credentials.data?.call_session, queryClient]);
@@ -59,9 +61,11 @@ export default function CallScreen() {
   }, [callId, credentials.error]);
 
   useCallRealtime(credentials.data?.call_session.public_id, (event) => {
-    if (event.call_session && Number(event.call_session.id) === callId) {
-      queryClient.setQueryData(['call', callId], (previous: typeof credentials.data) => previous ? { ...previous, call_session: { ...previous.call_session, ...event.call_session as CallSession, can_end: previous.call_session.can_end } } : previous);
+    const update = event.call_session as CallSession | undefined;
+    if (update && Number(update.id) === callId) {
+      queryClient.setQueryData(['call', callId], (previous: typeof credentials.data) => previous ? { ...previous, call_session: { ...previous.call_session, ...update, current_participant: previous.call_session.current_participant, can_end: Number(update.host_id || update.initiator_id) === Number(previous.call_session.current_participant?.user_id) } } : previous);
     }
+    if (update?.participants?.some(p => p.user_id === credentials.data?.call_session.current_participant?.user_id && p.removed)) { finishLocally(); return; }
     if (event.type === 'call_ended') {
       recordCallBreadcrumb('end', { call_id: callId, remote: true });
       const ended = event.call_session as CallSession | undefined;

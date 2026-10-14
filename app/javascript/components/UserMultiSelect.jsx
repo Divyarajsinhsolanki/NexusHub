@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { getUsers } from "./api";
 
 const userName = user => `${user.first_name || ""} ${user.last_name || ""}`.trim() || user.name || user.email;
-const UserMultiSelect = ({ selectedUsers, setSelectedUsers, excludedIds = [], placeholder = "Search users..." }) => {
+const UserMultiSelect = ({ selectedUsers, setSelectedUsers, excludedIds = [], placeholder = "Search users...", portalContainer = null }) => {
   const [allUsers, setAllUsers] = useState([]);
   const [query, setQuery] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
@@ -84,7 +84,7 @@ const UserMultiSelect = ({ selectedUsers, setSelectedUsers, excludedIds = [], pl
           <button type="button" role="option" aria-selected="false" onClick={() => addUser(user)} className="block w-full px-3 py-2.5 text-left hover:bg-muted-surface focus:bg-muted-surface focus:outline-none">
             <span className="block text-sm font-medium">{userName(user)}</span><span className="block break-all text-xs text-muted">{user.email}</span>
           </button></li>)}</ul>}
-    </div>, document.body)}
+    </div>, portalContainer || document.body)}
   </div>;
 };
 export default UserMultiSelect;

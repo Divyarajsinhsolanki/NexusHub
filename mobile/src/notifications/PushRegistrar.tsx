@@ -14,7 +14,7 @@ import { Alert, AppState, Modal, Platform, Pressable, StyleSheet, Text, View } f
 import { endpoints } from '../api/endpoints';
 import type { User } from '../api/types';
 import { useAuth } from '../auth/AuthProvider';
-import { refreshCachesForDeepLink } from '../cache/mobileCache';
+import { mobileQueryKeys, refreshCachesForDeepLink } from '../cache/mobileCache';
 import { normalizeMobileDeepLink } from '../navigation/deepLinks';
 import { useAppTheme } from '../theme';
 import { NotificationReplyError, processNotificationResponse, retryPendingNotificationActions } from './actions';
@@ -110,6 +110,7 @@ export function PushRegistrar() {
       handledResponse.current = responseKey;
       if (request.content.data?.event_type === 'daily_knowledge_published') {
         void queryClient.invalidateQueries({ queryKey: ['knowledge-items'] });
+        if (request.content.data?.post_id) void queryClient.invalidateQueries({ queryKey: mobileQueryKeys.posts });
       }
       const defaultTap = !response.actionIdentifier || response.actionIdentifier === Notifications.DEFAULT_ACTION_IDENTIFIER;
       const immediateLink = defaultTap ? normalizeMobileDeepLink(request.content.data?.deep_link) : null;
@@ -127,6 +128,7 @@ export function PushRegistrar() {
       void refreshCachesForDeepLink(queryClient, notification.request.content.data?.deep_link);
       if (notification.request.content.data?.event_type === 'daily_knowledge_published') {
         void queryClient.invalidateQueries({ queryKey: ['knowledge-items'] });
+        if (notification.request.content.data?.post_id) void queryClient.invalidateQueries({ queryKey: mobileQueryKeys.posts });
       }
     });
     const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {

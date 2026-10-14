@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2027_08_29_000000) do
+ActiveRecord::Schema[8.1].define(version: 2027_09_01_000000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -104,6 +104,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_29_000000) do
     t.bigint "recurrence_parent_id"
     t.string "recurrence_rule", default: "none", null: false
     t.datetime "recurrence_until"
+    t.bigint "scheduled_meeting_id"
     t.bigint "sprint_id"
     t.datetime "start_at", null: false
     t.string "status", default: "scheduled", null: false
@@ -118,6 +119,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_29_000000) do
     t.index ["operation_source_type", "operation_source_id"], name: "idx_calendar_operation_source", unique: true
     t.index ["project_id"], name: "index_calendar_events_on_project_id"
     t.index ["recurrence_parent_id"], name: "index_calendar_events_on_recurrence_parent_id"
+    t.index ["scheduled_meeting_id"], name: "index_calendar_events_on_scheduled_meeting_id"
     t.index ["sprint_id"], name: "index_calendar_events_on_sprint_id"
     t.index ["task_id"], name: "index_calendar_events_on_task_id"
     t.index ["user_id", "start_at"], name: "index_calendar_events_on_user_id_and_start_at"
@@ -127,12 +129,14 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_29_000000) do
   end
 
   create_table "call_participants", force: :cascade do |t|
+    t.datetime "approved_at"
     t.bigint "call_session_id", null: false
     t.datetime "created_at", null: false
     t.datetime "joined_at"
     t.datetime "left_at"
     t.boolean "media_confirmation_required", default: false, null: false
     t.datetime "media_last_seen_at"
+    t.datetime "removed_at"
     t.datetime "ring_acknowledged_at"
     t.string "status", default: "ringing", null: false
     t.datetime "updated_at", null: false
@@ -151,6 +155,8 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_29_000000) do
     t.datetime "created_at", null: false
     t.datetime "ended_at"
     t.string "ended_reason"
+    t.boolean "host_approval_required", default: false, null: false
+    t.bigint "host_id"
     t.bigint "initiator_id", null: false
     t.string "livekit_room_name", null: false
     t.jsonb "metadata", default: {}, null: false
@@ -161,6 +167,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_29_000000) do
     t.bigint "workspace_id", null: false
     t.index ["conversation_id"], name: "idx_one_live_call_per_conversation", unique: true, where: "((status)::text = ANY ((ARRAY['ringing'::character varying, 'active'::character varying])::text[]))"
     t.index ["conversation_id"], name: "index_call_sessions_on_conversation_id"
+    t.index ["host_id"], name: "index_call_sessions_on_host_id"
     t.index ["initiator_id"], name: "index_call_sessions_on_initiator_id"
     t.index ["livekit_room_name"], name: "index_call_sessions_on_livekit_room_name", unique: true
     t.index ["public_id"], name: "index_call_sessions_on_public_id", unique: true
@@ -458,6 +465,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_29_000000) do
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.bigint "workspace_id", null: false
+    t.index "workspace_id, ((metadata ->> 'daily_date'::text))", name: "idx_daily_knowledge_workspace_date", unique: true, where: "(((source)::text = 'bedrock_daily'::text) AND ((metadata ->> 'daily_date'::text) IS NOT NULL))"
     t.index ["mcp_access_token_id"], name: "index_knowledge_prompt_runs_on_mcp_access_token_id"
     t.index ["user_id"], name: "index_knowledge_prompt_runs_on_user_id"
     t.index ["workspace_id", "generation_mode", "status"], name: "idx_knowledge_prompt_runs_mode_status"
@@ -524,6 +532,21 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_29_000000) do
     t.index ["user_id"], name: "index_mcp_audit_logs_on_user_id"
     t.index ["workspace_id", "created_at"], name: "index_mcp_audit_logs_on_workspace_id_and_created_at"
     t.index ["workspace_id"], name: "index_mcp_audit_logs_on_workspace_id"
+  end
+
+  create_table "meeting_invitations", force: :cascade do |t|
+    t.bigint "calendar_event_id"
+    t.datetime "created_at", null: false
+    t.string "response", default: "invited", null: false
+    t.bigint "scheduled_meeting_id", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.bigint "workspace_id", null: false
+    t.index ["calendar_event_id"], name: "index_meeting_invitations_on_calendar_event_id"
+    t.index ["scheduled_meeting_id", "user_id"], name: "index_meeting_invitations_on_scheduled_meeting_id_and_user_id", unique: true
+    t.index ["scheduled_meeting_id"], name: "index_meeting_invitations_on_scheduled_meeting_id"
+    t.index ["user_id"], name: "index_meeting_invitations_on_user_id"
+    t.index ["workspace_id"], name: "index_meeting_invitations_on_workspace_id"
   end
 
   create_table "message_reactions", force: :cascade do |t|
@@ -1072,6 +1095,24 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_29_000000) do
     t.index ["workspace_id"], name: "index_scheduled_chat_messages_on_workspace_id"
   end
 
+  create_table "scheduled_meetings", force: :cascade do |t|
+    t.bigint "call_session_id"
+    t.string "call_type", default: "video", null: false
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.datetime "ends_at", null: false
+    t.integer "lock_version", default: 0, null: false
+    t.bigint "organizer_id", null: false
+    t.datetime "starts_at", null: false
+    t.string "status", default: "scheduled", null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "workspace_id", null: false
+    t.index ["call_session_id"], name: "index_scheduled_meetings_on_call_session_id", unique: true
+    t.index ["organizer_id"], name: "index_scheduled_meetings_on_organizer_id"
+    t.index ["workspace_id"], name: "index_scheduled_meetings_on_workspace_id"
+  end
+
   create_table "skill_endorsements", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.bigint "endorser_id", null: false
@@ -1426,6 +1467,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_29_000000) do
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "billing_subscriptions", "workspaces"
   add_foreign_key "calendar_events", "projects"
+  add_foreign_key "calendar_events", "scheduled_meetings", on_delete: :nullify
   add_foreign_key "calendar_events", "sprints"
   add_foreign_key "calendar_events", "tasks"
   add_foreign_key "calendar_events", "users"
@@ -1434,6 +1476,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_29_000000) do
   add_foreign_key "call_participants", "users"
   add_foreign_key "call_participants", "workspaces"
   add_foreign_key "call_sessions", "conversations"
+  add_foreign_key "call_sessions", "users", column: "host_id", on_delete: :nullify
   add_foreign_key "call_sessions", "users", column: "initiator_id"
   add_foreign_key "call_sessions", "workspaces"
   add_foreign_key "comments", "posts"
@@ -1489,6 +1532,10 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_29_000000) do
   add_foreign_key "mcp_audit_logs", "mcp_access_tokens"
   add_foreign_key "mcp_audit_logs", "users"
   add_foreign_key "mcp_audit_logs", "workspaces"
+  add_foreign_key "meeting_invitations", "calendar_events", on_delete: :nullify
+  add_foreign_key "meeting_invitations", "scheduled_meetings"
+  add_foreign_key "meeting_invitations", "users"
+  add_foreign_key "meeting_invitations", "workspaces"
   add_foreign_key "message_reactions", "messages"
   add_foreign_key "message_reactions", "users"
   add_foreign_key "message_reactions", "workspaces"
@@ -1573,6 +1620,9 @@ ActiveRecord::Schema[8.1].define(version: 2027_08_29_000000) do
   add_foreign_key "scheduled_chat_messages", "messages", column: "sent_message_id", on_delete: :nullify
   add_foreign_key "scheduled_chat_messages", "users"
   add_foreign_key "scheduled_chat_messages", "workspaces"
+  add_foreign_key "scheduled_meetings", "call_sessions"
+  add_foreign_key "scheduled_meetings", "users", column: "organizer_id"
+  add_foreign_key "scheduled_meetings", "workspaces"
   add_foreign_key "skill_endorsements", "teams"
   add_foreign_key "skill_endorsements", "user_skills"
   add_foreign_key "skill_endorsements", "users", column: "endorser_id"

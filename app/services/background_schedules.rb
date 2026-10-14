@@ -1,6 +1,9 @@
 module BackgroundSchedules
   def self.definitions(environment: Rails.env)
     {
+      "#{environment}:scheduled-meetings" => {
+        'cron' => '* * * * * UTC', 'class' => 'ScheduledMeetingSweepJob', 'active_job' => true
+      },
       "#{environment}:call-presence" => {
         'cron' => '* * * * * UTC', 'class' => 'CallPresenceSweepJob', 'active_job' => true
       },
@@ -14,7 +17,7 @@ module BackgroundSchedules
         'cron' => '* * * * * UTC', 'class' => 'ScheduledChatSweepJob', 'active_job' => true
       },
       "#{environment}:daily-knowledge" => {
-        'cron' => '30 3 * * * UTC', 'class' => 'DailyKnowledgePublishJob', 'active_job' => true
+        'cron' => '*/15 * * * * UTC', 'class' => 'DailyKnowledgePublishJob', 'active_job' => true
       },
       "#{environment}:project-statuses" => {
         'cron' => '0 * * * * UTC', 'class' => 'ProjectStatusRefreshJob', 'active_job' => true

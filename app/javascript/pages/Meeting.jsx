@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useContext, useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { Copy, LogIn, Mic, MicOff, PhoneOff, Video, VideoOff } from "lucide-react";
+import { AuthContext } from "../context/AuthContext";
 import CallRoom from "../components/chat/CallRoom";
 import { endCall, fetchMeeting, joinMeeting, leaveCall } from "../components/api";
 import { subscribeToCall } from "../lib/chatCable";
@@ -8,6 +9,7 @@ import { subscribeToCall } from "../lib/chatCable";
 const liveStatuses = new Set(["ringing", "active"]);
 
 const Meeting = () => {
+  const { user } = useContext(AuthContext);
   const { publicId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -15,6 +17,7 @@ const Meeting = () => {
   const [credentials, setCredentials] = useState(location.state?.credentials || null);
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
+  const [waiting, setWaiting] = useState(false);
   const [ending, setEnding] = useState(false);
   const [error, setError] = useState("");
   const [microphoneEnabled, setMicrophoneEnabled] = useState(true);
@@ -41,18 +44,34 @@ const Meeting = () => {
   }, [loadMeeting]);
 
   useEffect(() => {
+    if (!waiting) return;
+    let active=true, inFlight=false;
+    const timer = setInterval(async () => {
+      if(inFlight)return;inFlight=true;
+      try {
+        const {data} = await fetchMeeting(publicId);
+        if(!active)return;
+        setCallSession(data.call_session);
+        if (data.call_session.current_participant?.approved || data.call_session.current_participant?.removed || !liveStatuses.has(data.call_session.status)) setWaiting(false);
+      } catch { if(active)setError("Unable to check approval. Retry when connected."); } finally {inFlight=false;}
+    }, 3000);
+    return () => {active=false;clearInterval(timer);};
+  }, [waiting, publicId]);
+
+  useEffect(() => {
     if (!credentials || !publicId) return undefined;
 
     const subscription = subscribeToCall(publicId, (payload) => {
       if (!payload?.call_session) return;
       setCallSession((previous) => ({
         ...payload.call_session,
-        can_end: previous?.can_end || false
+        current_participant: payload.call_session.participants?.find(p => Number(p.user_id) === Number(user?.id)) || previous?.current_participant,
+        can_end: Number(payload.call_session.host_id || payload.call_session.initiator_id) === Number(user?.id)
       }));
-      if (!liveStatuses.has(payload.call_session.status)) setCredentials(null);
+      if (!liveStatuses.has(payload.call_session.status) || payload.call_session.participants?.some(p => Number(p.user_id) === Number(user?.id) && p.removed)) setCredentials(null);
     });
     return () => subscription.unsubscribe();
-  }, [credentials, publicId]);
+  }, [credentials, publicId, user?.id]);
 
   const join = async () => {
     try {
@@ -60,6 +79,8 @@ const Meeting = () => {
       setError("");
       const { data } = await joinMeeting(publicId);
       setCallSession(data.call_session);
+      if (data.admission_pending) { setWaiting(true); return; }
+      setWaiting(false);
       setCredentials({ server_url: data.server_url, participant_token: data.participant_token });
     } catch (requestError) {
       setError(requestError?.response?.status === 410
@@ -141,7 +162,7 @@ const Meeting = () => {
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-300">Nexus Hub meeting</p>
                 <h1 className="mt-2 text-3xl font-semibold">{callSession?.call_type === "audio" ? "Voice call" : "Video call"}</h1>
-                <p className="mt-2 text-sm text-slate-300">Hosted by {callSession?.initiator_name}</p>
+                <p className="mt-2 text-sm text-slate-300">Hosted by {callSession?.host_name || callSession?.initiator_name}</p>
               </div>
               <button type="button" onClick={copyLink} className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-slate-100 hover:bg-white/15" aria-label="Copy meeting link">
                 <Copy className="h-4 w-4" />
@@ -166,13 +187,14 @@ const Meeting = () => {
               </div>
             </div>
 
+            {waiting && <button type="button" onClick={async()=>{try{await leaveCall(callSession.id);setWaiting(false);}catch{setError("Unable to cancel your request.");}}} className="mt-3 w-full text-sm text-slate-300">Cancel join request</button>}
             {error && <p className="mt-4 rounded-xl bg-red-500/15 px-3 py-2 text-center text-sm text-red-200">{error}</p>}
-            {!liveStatuses.has(callSession?.status) ? (
-              <p className="mt-6 text-center text-sm font-semibold text-amber-200">This meeting has ended.</p>
+            {(!liveStatuses.has(callSession?.status) || callSession?.current_participant?.removed) ? (
+              <p className="mt-6 text-center text-sm font-semibold text-amber-200">{callSession?.current_participant?.removed ? "The host denied or removed you from this meeting." : "This meeting has ended."}</p>
             ) : (
-              <button type="button" onClick={join} disabled={joining} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-sky-500 px-5 py-3 font-semibold text-white hover:bg-sky-400 disabled:opacity-60">
+              <button type="button" onClick={join} disabled={joining || waiting} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-sky-500 px-5 py-3 font-semibold text-white hover:bg-sky-400 disabled:opacity-60">
                 <LogIn className="h-5 w-5" />
-                {joining ? "Joining…" : "Join meeting"}
+                {waiting ? "Waiting for host approval…" : joining ? "Joining…" : "Join meeting"}
               </button>
             )}
           </>

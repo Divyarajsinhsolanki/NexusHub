@@ -15,6 +15,8 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, FlatList, Modal, Platform, Pressable, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { MeetingHostControls } from "./MeetingHostControls";
+import { MeetingInteractions } from "./MeetingInteractions";
 import { endpoints } from "../../api/endpoints";
 import type { LiveKitCredentials } from '../../api/types';
 import { captureCallError, recordCallBreadcrumb } from '../../observability/callDiagnostics';
@@ -49,6 +51,7 @@ export function MobileCallRoom({ credentials, initialAudio = true, initialVideo 
 
   return (
     <LiveKitRoom
+      key={credentials.call_session.id}
       audio={initialAudio}
       connect
       onConnected={() => {
@@ -164,7 +167,7 @@ function RoomView({ connectionIssue, credentials, onEnd, onLeave }: Omit<Props, 
         <Pressable accessibilityLabel="Share meeting link" accessibilityRole="button" onPress={() => void share()} style={styles.headerButton}><Share2 color="#ffffff" size={20} /></Pressable>
       </View>
 
-      <View style={styles.secureRow}><ShieldCheck color="#86efac" size={14} /><Text style={styles.secureText}>Encrypted media · Link holders receive no chat access</Text></View>
+      <View style={styles.secureRow}><ShieldCheck color="#86efac" size={14} /><Text style={styles.secureText}>Encrypted media · Meeting chat is separate from conversation access</Text></View>
       {connectionIssue || connectionState === ConnectionState.Reconnecting ? <View accessibilityRole="alert" style={styles.reconnecting}><RefreshCw color="#fde68a" size={15} /><Text style={styles.reconnectingText}>{connectionIssue || 'Reconnecting media…'}</Text></View> : null}
 
       <View style={styles.stage}>
@@ -174,6 +177,8 @@ function RoomView({ connectionIssue, credentials, onEnd, onLeave }: Omit<Props, 
       </View>
 
       {isScreenShareEnabled ? <View accessibilityRole="alert" style={styles.secureRow}><Monitor color="#86efac" size={16} /><Text style={styles.secureText}>Your screen is being shared</Text></View> : null}
+      <MeetingHostControls callSession={call} />
+      <MeetingInteractions />
       <View style={styles.controls}>
         {Platform.OS !== 'ios' ? <Control disabled={screenSharePending || connectionState !== ConnectionState.Connected} label={isScreenShareEnabled ? 'Stop sharing' : 'Share screen'} onPress={toggleScreenShare}>{isScreenShareEnabled ? <MonitorOff color="#ffffff" size={22} /> : <Monitor color="#ffffff" size={22} />}</Control> : null}
         <Control label={isMicrophoneEnabled ? 'Mute' : 'Unmute'} onPress={() => localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled)}>{isMicrophoneEnabled ? <Mic color="#ffffff" size={22} /> : <MicOff color="#ffffff" size={22} />}</Control>

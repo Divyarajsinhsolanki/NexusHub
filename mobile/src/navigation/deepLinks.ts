@@ -36,6 +36,7 @@ export function normalizeMobileDeepLink(deepLink: unknown) {
     return `${destination.pathname}${destination.search}`;
   }
 
+  if (destination.pathname === '/chat' && /^\d+$/.test(destination.searchParams.get('meeting') || '')) return `/inbox/meetings?meeting=${destination.searchParams.get('meeting')}`;
   if (path === '/notifications') return '/inbox/notifications';
   if (path === '/chat') return '/inbox';
   if (path.startsWith('/chat/')) return path;

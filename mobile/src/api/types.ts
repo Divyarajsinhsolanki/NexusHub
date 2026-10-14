@@ -514,6 +514,9 @@ export type CallSession = {
   status: string;
   initiator_id: number;
   initiator_name: string;
+  host_approval_required?: boolean;
+  host_id?: number;
+  host_name?: string;
   can_end: boolean;
   started_at?: string | null;
   ended_at?: string | null;
@@ -524,6 +527,8 @@ export type CallSession = {
 };
 
 export type CallParticipant = {
+  approved?: boolean;
+  removed?: boolean;
   user_id: number;
   name: string;
   status: string;
@@ -578,3 +583,22 @@ export type PdfDocument = EntityRecord & {
 };
 
 export type CollectionResult<T> = { data: T[]; meta?: ApiMeta; raw?: unknown };
+
+export type CallHistoryEntry = {
+  id: number;
+  conversation_id: number;
+  title: string;
+  call_type: 'audio' | 'video';
+  status: CallSession['status'];
+  participant_status: 'waiting' | 'ringing' | 'joined' | 'declined' | 'missed' | 'left';
+  direction: 'incoming' | 'outgoing';
+  created_at: string;
+  started_at: string | null;
+  ended_at: string | null;
+  duration_seconds: number;
+  can_callback: boolean;
+  can_open_conversation: boolean;
+};
+
+export type MeetingAdmission = {admission_pending: true; call_session: CallSession};
+export type ScheduledMeeting = {id:number; title:string; description?:string; starts_at:string; ends_at:string; status:string; call_type:'audio'|'video'; organizer_name:string; organizer_id:number; response:'invited'|'accepted'|'declined'; lock_version:number; can_manage:boolean; can_join:boolean; public_id?:string|null; invitations:Array<{user_id:number;name:string;response:string}>};

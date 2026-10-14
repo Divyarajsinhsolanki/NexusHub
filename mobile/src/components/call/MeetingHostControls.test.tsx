@@ -1,0 +1,25 @@
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { Alert } from 'react-native';
+import { expect, jest, test } from '@jest/globals';
+import { MeetingHostControls } from './MeetingHostControls';
+import { endpoints } from '../../api/endpoints';
+import type { CallSession } from '../../api/types';
+const mockCamera=jest.fn(async()=>{}),mockSharing=jest.fn(async()=>{}),mockSubscription=jest.fn();
+const mockRoom={state:'connected',localParticipant:{connectionQuality:'poor',setCameraEnabled:mockCamera,setScreenShareEnabled:mockSharing},remoteParticipants:new Map([['remote',{videoTrackPublications:new Map([['video',{setSubscribed:mockSubscription}]])}]]),on:jest.fn(),off:jest.fn()};
+jest.mock('@livekit/react-native',()=>({useRoomContext:()=>mockRoom}));
+jest.mock('../../api/endpoints',()=>({endpoints:{hostCallAction:jest.fn(async()=>({call_session:{id:1,host_id:2,can_end:false,call_type:'video',participants:[]}}))}}));
+const call={id:1,initiator_id:1,host_id:1,can_end:true,call_type:'video',participants:[{user_id:1,name:'Ada',status:'joined'},{user_id:2,name:'Grace',status:'joined'}]} as CallSession;
+test('shows connection quality, reduces video bandwidth, and removes host controls after transfer',async()=>{
+ const alert=jest.spyOn(Alert,'alert');
+ const screen=await render(<MeetingHostControls callSession={call}/>);
+ expect(screen.getByText('Connection: Poor')).toBeTruthy();
+ await fireEvent.press(screen.getByLabelText('Use audio only'));
+ await waitFor(()=>expect(mockCamera).toHaveBeenCalledWith(false));
+ expect(mockSharing).toHaveBeenCalledWith(false);expect(mockSubscription).toHaveBeenCalledWith(false);
+ await fireEvent.press(screen.getByLabelText('Host controls'));
+ await fireEvent.press(screen.getByLabelText('Make host Grace'));
+ const buttons=alert.mock.calls.at(-1)?.[2];await act(async()=>{buttons?.[1].onPress?.();});
+ await waitFor(()=>expect(endpoints.hostCallAction).toHaveBeenCalledWith(1,'transfer_host',2));
+ await waitFor(()=>expect(screen.queryByLabelText('Host controls')).toBeNull());
+ await screen.unmount();alert.mockRestore();
+});

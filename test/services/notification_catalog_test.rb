@@ -45,5 +45,6 @@ class NotificationCatalogTest < ActiveSupport::TestCase
     assert_equal "video_calls", catalog.category
     assert_equal "nexus_video_calls_v1", catalog.channel_id
     assert_equal "/call/19", catalog.deep_link
+    assert_equal "call:19", catalog.group_key
   end
 end

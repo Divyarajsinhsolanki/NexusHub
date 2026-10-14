@@ -44,3 +44,8 @@ test('opens dashboard and matched web results on existing native routes', () => 
   expect(normalizeMobileDeepLink('/projects/3/issues?issue_id=8')).toBe('/projects/3/issues?issueId=8');
   expect(normalizeMobileDeepLink('//evil.test')).toBeNull();
 });
+
+test('opens scheduled meetings from calendar and notification links', () => {
+  expect(normalizeMobileDeepLink('https://divyarajsinh.com/chat?meeting=12')).toBe('/inbox/meetings?meeting=12');
+  expect(normalizeMobileDeepLink('/inbox/meetings?meeting=12')).toBe('/inbox/meetings?meeting=12');
+});

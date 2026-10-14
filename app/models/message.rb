@@ -110,6 +110,7 @@ class Message < ApplicationRecord
           message_id: id,
           conversation_id: conversation_id,
           conversation_name: conversation.display_name(recipient),
+          conversation_type: conversation.conversation_type,
           mentioned: mentioned,
           message_preview: body.present? ? body.to_s.truncate(120) : attachment_preview
         }

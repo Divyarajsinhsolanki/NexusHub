@@ -546,19 +546,30 @@ export const endpoints = {
       receipt: { message_id: messageId, state },
     });
   },
+  scheduledMeetings(page=1) {return collection<import('./types').ScheduledMeeting>('/scheduled_meetings',{page});},
+  scheduledMeeting(id:number) {return endpoints.rawResource<import('./types').ScheduledMeeting>(`/scheduled_meetings/${id}`);},
+  async saveScheduledMeeting(id:number|null,payload:Record<string,unknown>) {const response=id ? await api.patch(`/scheduled_meetings/${id}`,payload) : await api.post('/scheduled_meetings',payload);return unwrapData(response.data) as import('./types').ScheduledMeeting;},
+  async scheduledMeetingAction(id:number,action:'cancel'|'respond'|'join',payload:Record<string,unknown>={}) {const response=await api.post(`/scheduled_meetings/${id}/${action}`,payload);return unwrapData(response.data) as import('./types').ScheduledMeeting & {public_id:string};},
+  callHistory(page = 1) { return collection<import('./types').CallHistoryEntry>('/calls', { page, per_page: 25 }); },
   startCall(conversationId: number, callType: 'audio' | 'video') {
     return create<{ call_session: CallSession }>(`/conversations/${conversationId}/calls`, { call_type: callType, media_confirmation_required: true });
   },
   async joinCall(id: number) {
     const response = await api.post<ApiEnvelope<import('./types').LiveKitCredentials>>(`/calls/${id}/join`, { media_confirmation_required: true });
-    return unwrapData(response.data);
+    const result = unwrapData(response.data);
+    if ((result as unknown as {admission_pending?:boolean}).admission_pending) throw new Error('Host approval is required. Open the meeting link to request access.');
+    return result;
   },
   async meeting(publicId: string) {
     const response = await api.get<ApiEnvelope<{ call_session: CallSession }> | { call_session: CallSession }>(`/meet/${encodeURIComponent(publicId)}`);
     return unwrapData(response.data);
   },
   async joinMeeting(publicId: string) {
-    const response = await api.post<ApiEnvelope<import('./types').LiveKitCredentials> | import('./types').LiveKitCredentials>(`/meet/${encodeURIComponent(publicId)}/join`, { media_confirmation_required: true });
+    const response = await api.post<ApiEnvelope<import('./types').LiveKitCredentials | import('./types').MeetingAdmission> | import('./types').LiveKitCredentials | import('./types').MeetingAdmission>(`/meet/${encodeURIComponent(publicId)}/join`, { media_confirmation_required: true });
+    return unwrapData(response.data);
+  },
+  async hostCallAction(id: number, action: 'mute' | 'remove' | 'transfer_host' | 'approve' | 'reject', userId: number) {
+    const response = await api.post<ApiEnvelope<{call_session: CallSession}>>(`/calls/${id}/host_action`, {host_action: action, user_id: userId});
     return unwrapData(response.data);
   },
   async callAction(id: number, action: 'ack_ring' | 'decline' | 'leave' | 'end' | 'media_heartbeat') {

@@ -5,6 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, expect, it, vi } from 'vitest';
 import Meeting from './Meeting';
 import { fetchMeeting, endCall } from '../components/api';
+vi.mock('../context/AuthContext',()=>({AuthContext:React.createContext({user:{id:1}})}));
 vi.mock('../components/api', () => ({ fetchMeeting: vi.fn(), endCall: vi.fn(), joinMeeting: vi.fn(), leaveCall: vi.fn() }));
 vi.mock('../lib/chatCable', () => ({ subscribeToCall: () => ({unsubscribe:vi.fn()}) }));
 vi.mock('../components/chat/CallRoom', () => ({default: ({onEnd}) => <div><p>Connected room</p><button onClick={onEnd}>End for everyone</button></div>}));

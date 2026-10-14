@@ -14,7 +14,7 @@ class BackgroundSchedulesTest < ActiveJob::TestCase
     previous = DailyKnowledgePublishJob.queue_name_prefix
     DailyKnowledgePublishJob.queue_name_prefix = 'nexus_hub_production'
     definition = BackgroundSchedules.definitions(environment: 'production').fetch('production:daily-knowledge')
-    assert_equal '30 3 * * * UTC', definition.fetch('cron')
+    assert_equal '*/15 * * * * UTC', definition.fetch('cron')
     job = Sidekiq::Cron::Job.new(definition.merge('name' => 'daily-queue-test', 'status' => 'enabled', 'last_enqueue_time' => Time.current.utc.iso8601))
     job.define_singleton_method(:save_last_enqueue_time) {}
     job.define_singleton_method(:add_jid_history) { |_jid| }

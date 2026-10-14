@@ -18,9 +18,12 @@ module Chat
           ended_at: call_session.ended_at,
           ended_reason: call_session.ended_reason,
           created_at: call_session.created_at,
-          can_end: current_user.present? && current_user.id == call_session.initiator_id,
+          host_id: call_session.host_user_id,
+          host_name: call_session.host&.full_name || call_session.initiator.full_name,
+          can_end: current_user.present? && current_user.id == call_session.host_user_id && !current_participant&.removed_at?,
           current_participant: serialize_participant(current_participant),
-          participants: call_session.call_participants.map { |participant| serialize_participant(participant) }
+          host_approval_required: call_session.host_approval_required?,
+          participants: (call_session.host_approval_required? && current_user && call_session.host_user_id != current_user.id ? call_session.call_participants.select { |participant| participant.user_id == current_user.id } : call_session.call_participants).map { |participant| serialize_participant(participant) }
         }
       end
 
@@ -47,7 +50,9 @@ module Chat
           status: participant.status,
           ring_acknowledged_at: participant.ring_acknowledged_at,
           joined_at: participant.joined_at,
-          left_at: participant.left_at
+          left_at: participant.left_at,
+          approved: participant.approved_at.present?,
+          removed: participant.removed_at.present?
         }
       end
     end

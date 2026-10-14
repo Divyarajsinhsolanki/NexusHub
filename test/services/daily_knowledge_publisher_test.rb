@@ -34,6 +34,35 @@ class DailyKnowledgePublisherTest < ActiveSupport::TestCase
     assert items.all? { |item| item.payload["workspace_shared"] }
     assert_equal 1, @client.api_requests.count
     assert_equal 4000, @client.api_requests.first[:params][:inference_config][:max_tokens]
+    feed_posts = Post.in_workspace(@workspace)
+    assert_equal 1, feed_posts.count
+    assert_equal first.reload.metadata["post_id"], feed_posts.first.id
+    assert_includes feed_posts.first.message, "AI-generated · Amazon Bedrock"
+    assert alerts.all? { |alert| alert.metadata["post_id"] == feed_posts.first.id }
+  end
+
+  test "repairs an older daily run without regenerating or notifying twice" do
+    publisher = Knowledge::DailyPublisher.new(workspace: @workspace, client: @client)
+    run = publisher.publish(date: Date.new(2026, 10, 10))
+    Current.set(workspace: @workspace, user: @user) do
+      Post.find(run.metadata["post_id"]).destroy!
+      run.update!(metadata: run.metadata.except("post_id"))
+    end
+    assert_no_difference ["Notification.unscoped.count", "KnowledgePromptRun.unscoped.count"] do
+      assert_difference "Post.unscoped.count", 1 do
+        publisher.publish(date: Date.new(2026, 10, 10))
+      end
+    end
+    assert_equal 1, @client.api_requests.count
+  end
+
+  test "a deliberately deleted daily feed post stays deleted on recovery" do
+    publisher = Knowledge::DailyPublisher.new(workspace: @workspace, client: @client)
+    run = publisher.publish(date: Date.new(2026, 10, 10))
+    Post.unscoped.find(run.metadata["post_id"]).destroy!
+    assert_no_difference "Post.unscoped.count" do
+      publisher.publish(date: Date.new(2026, 10, 10))
+    end
   end
 
   test "new day archives only older daily content" do
@@ -65,6 +94,34 @@ class DailyKnowledgePublisherTest < ActiveSupport::TestCase
     stub_items([@items.first] * 4)
     assert_raises(ArgumentError) { Knowledge::DailyPublisher.new(workspace: @workspace, client: @client).publish }
     assert_empty KnowledgeItem.in_workspace(@workspace)
+  end
+
+  test "database rejects a second daily run for the same workspace and date" do
+    publisher = Knowledge::DailyPublisher.new(workspace: @workspace, client: @client)
+    run = publisher.publish(date: Date.new(2026, 10, 10))
+    Current.set(workspace: @workspace, user: @user) do
+      assert_raises(ActiveRecord::RecordNotUnique) do
+        KnowledgePromptRun.transaction(requires_new: true) do
+          @user.knowledge_prompt_runs.create!(prompt: "Duplicate", source: run.source, metadata: run.metadata)
+        end
+      end
+    end
+  end
+
+  test "long history contributes only the latest twenty daily batches" do
+    date = Date.new(2026, 10, 10)
+    Current.set(workspace: @workspace, user: @user) do
+      100.times do |index|
+        run = @user.knowledge_prompt_runs.create!(prompt: "History", source: "bedrock_daily", metadata: { daily_date: (date - 100 + index).iso8601 })
+        @user.knowledge_items.create!(knowledge_prompt_run: run, title: "History title #{index}")
+      end
+    end
+    Knowledge::DailyPublisher.new(workspace: @workspace, client: @client).publish(date: date)
+    prompt = @client.api_requests.first[:params][:messages].first[:content].first[:text]
+    assert_includes prompt, '"History title 99"'
+    assert_includes prompt, '"History title 80"'
+    assert_not_includes prompt, '"History title 79"'
+    assert_not_includes prompt, '"History title 0"'
   end
 
   private

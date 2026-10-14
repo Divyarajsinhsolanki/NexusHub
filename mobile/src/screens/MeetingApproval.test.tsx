@@ -1,0 +1,22 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import { expect, jest, test } from '@jest/globals';
+import MeetingScreen from '../../app/meet/[publicId]';
+import { endpoints } from '../api/endpoints';
+import { requestCallMediaPermissions } from '../calls/mediaPermissions';
+const mockCall={id:1,public_id:'room',call_type:'video',status:'active',initiator_name:'Ada',participants:[],current_participant:{user_id:2,status:'waiting',approved:false}};
+jest.mock('expo-router',()=>({useLocalSearchParams:()=>({publicId:'room'}),useRouter:()=>({replace:jest.fn()})}));
+jest.mock('../realtime/useCallRealtime',()=>({useCallRealtime:jest.fn()}));
+jest.mock('../config/runtimeEnvironment',()=>({validateLiveKitEnvironment:jest.fn()}));
+jest.mock('../calls/mediaPermissions',()=>({requestCallMediaPermissions:jest.fn()}));
+jest.mock('../api/endpoints',()=>({endpoints:{meeting:jest.fn(async()=>({call_session:mockCall})),joinMeeting:jest.fn(async()=>({admission_pending:true,call_session:mockCall})),callAction:jest.fn(async()=>({}))}}));
+test('waits for approval without requesting media permissions or rendering a media room',async()=>{
+ const client=new QueryClient({defaultOptions:{queries:{retry:false,gcTime:Infinity},mutations:{gcTime:Infinity}}});
+ const screen=await render(<QueryClientProvider client={client}><MeetingScreen/></QueryClientProvider>);
+ await screen.findByText('Join now');await fireEvent.press(screen.getByRole('button',{name:'Join now'}));
+ await screen.findByText('Waiting for host approval…');
+ expect(requestCallMediaPermissions).not.toHaveBeenCalled();
+ await fireEvent.press(screen.getByRole('button',{name:'Cancel join request'}));
+ await waitFor(()=>expect(endpoints.callAction).toHaveBeenCalledWith(1,'leave'));
+ await screen.unmount();client.clear();
+});

@@ -4,6 +4,7 @@ class CalendarEvent < ApplicationRecord
   EVENT_TYPES = %w[meeting deadline reminder focus sprint_ceremony].freeze
   RECURRENCE_RULES = %w[none daily weekly monthly].freeze
 
+  belongs_to :scheduled_meeting, optional: true
   belongs_to :user
   belongs_to :project, optional: true
   belongs_to :task, optional: true
@@ -39,7 +40,7 @@ class CalendarEvent < ApplicationRecord
 
   def as_api_json
     as_json(
-      only: [:id, :title, :description, :start_at, :end_at, :all_day, :event_type, :visibility, :status, :location_or_meet_link, :project_id, :task_id, :sprint_id, :user_id, :created_at, :updated_at, :recurrence_rule, :recurrence_until, :recurrence_parent_id, :external_source, :external_id],
+      only: [:scheduled_meeting_id, :id, :title, :description, :start_at, :end_at, :all_day, :event_type, :visibility, :status, :location_or_meet_link, :project_id, :task_id, :sprint_id, :user_id, :created_at, :updated_at, :recurrence_rule, :recurrence_until, :recurrence_parent_id, :external_source, :external_id],
       include: {
         event_reminders: {
           only: [:id, :channel, :minutes_before, :send_at, :sent_at, :state]
@@ -72,6 +73,7 @@ class CalendarEvent < ApplicationRecord
   end
 
   def editable_by?(actor)
+    return false if scheduled_meeting_id.present?
     return false unless actor && workspace_id == actor.workspace_id
     project? ? project&.editable_by?(actor) : user_id == actor.id
   end

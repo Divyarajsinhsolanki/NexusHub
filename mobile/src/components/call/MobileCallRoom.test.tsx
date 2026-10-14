@@ -11,6 +11,8 @@ jest.mock('../../api/endpoints', () => ({endpoints:{callAction:jest.fn(async () 
 let mockSharing = false;
 let mockTracks: any[] = [];
 const mockSetScreenShare = jest.fn<(enabled: boolean) => Promise<void>>();
+jest.mock("./MeetingHostControls", () => ({MeetingHostControls:()=>null}));
+jest.mock("./MeetingInteractions", () => ({MeetingInteractions:()=>null}));
 jest.mock('@livekit/react-native', () => ({
   AudioSession: { startAudioSession: jest.fn(async () => undefined), stopAudioSession: jest.fn(async () => undefined) },
   LiveKitRoom: ({ children, onConnected }: any) => { const {View} = require("react-native"); return <View accessibilityLabel="Media room" onTouchStart={onConnected}>{children}</View>; },

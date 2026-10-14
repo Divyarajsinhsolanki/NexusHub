@@ -14,6 +14,12 @@ class CallSession < ApplicationRecord
   }, prefix: :call
 
   belongs_to :conversation
+  belongs_to :host, class_name: "User", optional: true
+
+  def host_user_id
+    host_id || initiator_id
+  end
+
   belongs_to :initiator, class_name: "User"
   has_many :call_participants, dependent: :destroy
   has_many :participants, through: :call_participants, source: :user

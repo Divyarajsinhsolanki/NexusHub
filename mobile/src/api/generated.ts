@@ -2024,6 +2024,115 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/scheduled_meetings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Workspace-scoped meetings organized by or inviting the authenticated user. Paginated, newest start first. */
+        get: operations["listScheduledMeetings"];
+        put?: never;
+        post: operations["scheduleMeeting"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/scheduled_meetings/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get: operations["getScheduledMeeting"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** @description Organizer only before a room starts. Pass the current lock_version. Invitations and calendar reminders are replaced atomically. */
+        patch: operations["rescheduleMeeting"];
+        trace?: never;
+    };
+    "/scheduled_meetings/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Organizer cancellation disables reminders and ends a live room. */
+        post: operations["cancelScheduledMeeting"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/scheduled_meetings/{id}/respond": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["respondToMeetingInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/scheduled_meetings/{id}/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Opens 15 minutes before start. Organizer starts one room; invitees can then request host approval. */
+        post: operations["openScheduledMeetingRoom"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/calls": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Paginated current-workspace calls in which the authenticated user participated, newest first. Callback availability respects current conversation membership and live calls. Duration is the user's connected time, zero for unanswered calls. */
+        get: operations["listCallHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/calls/{id}/join": {
         parameters: {
             query?: never;
@@ -2036,6 +2145,25 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["joinCall"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/calls/{id}/host_action": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Current host only. Mute microphone tracks, remove a connected participant, or transfer host to a connected participant in the same workspace. Mute never remotely unmutes. Removed participants cannot obtain fresh call credentials. */
+        post: operations["moderateCallParticipant"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2711,6 +2839,38 @@ export interface components {
             /** Format: date-time */
             read_at?: string | null;
         };
+        ScheduledMeeting: {
+            id: number;
+            title: string;
+            description?: string | null;
+            /** Format: date-time */
+            starts_at: string;
+            /** Format: date-time */
+            ends_at: string;
+            /** @enum {string} */
+            status?: "scheduled" | "canceled" | "completed";
+            /** @enum {string} */
+            call_type?: "audio" | "video";
+            organizer_id: number;
+            organizer_name?: string;
+            can_manage: boolean;
+            can_join: boolean;
+            /** @enum {string} */
+            response?: "invited" | "accepted" | "declined";
+            lock_version: number;
+            /** Format: uuid */
+            public_id?: string | null;
+            invitations?: {
+                user_id?: number;
+                name?: string;
+                response?: string;
+            }[];
+        };
+        MeetingAdmission: {
+            /** @constant */
+            admission_pending: true;
+            call_session: components["schemas"]["CallSession"];
+        };
         CallParticipant: {
             user_id: number;
             name: string;
@@ -2721,6 +2881,30 @@ export interface components {
             joined_at?: string | null;
             /** Format: date-time */
             left_at?: string | null;
+            approved?: boolean;
+            removed?: boolean;
+        };
+        CallHistoryEntry: {
+            id: number;
+            conversation_id: number;
+            title: string;
+            /** @enum {string} */
+            call_type: "audio" | "video";
+            /** @enum {string} */
+            status: "ringing" | "active" | "ended" | "missed" | "canceled" | "failed";
+            /** @enum {string} */
+            participant_status: "ringing" | "joined" | "declined" | "missed" | "left";
+            /** @enum {string} */
+            direction: "incoming" | "outgoing";
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            started_at?: string | null;
+            /** Format: date-time */
+            ended_at?: string | null;
+            duration_seconds: number;
+            can_callback: boolean;
+            can_open_conversation: boolean;
         };
         CallSession: {
             id: number;
@@ -2734,6 +2918,9 @@ export interface components {
             status: string;
             initiator_id: number;
             initiator_name: string;
+            host_approval_required?: boolean;
+            host_id?: number;
+            host_name?: string;
             can_end: boolean;
             /** Format: date-time */
             started_at?: string | null;
@@ -5810,6 +5997,199 @@ export interface operations {
             201: components["responses"]["GenericSuccess"];
         };
     };
+    listScheduledMeetings: {
+        parameters: {
+            query?: {
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Meetings and pagination */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data?: components["schemas"]["ScheduledMeeting"][];
+                        meta?: components["schemas"]["PaginationMeta"];
+                    };
+                };
+            };
+        };
+    };
+    scheduleMeeting: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    title?: string;
+                    description?: string;
+                    /** Format: date-time */
+                    starts_at?: string;
+                    /** Format: date-time */
+                    ends_at?: string;
+                    /** @enum {string} */
+                    call_type?: "audio" | "video";
+                    invitee_ids?: number[];
+                    lock_version?: number;
+                };
+            };
+        };
+        responses: {
+            201: components["responses"]["GenericSuccess"];
+            422: components["responses"]["Error"];
+        };
+    };
+    getScheduledMeeting: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            404: components["responses"]["Error"];
+        };
+    };
+    rescheduleMeeting: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    title?: string;
+                    description?: string;
+                    /** Format: date-time */
+                    starts_at?: string;
+                    /** Format: date-time */
+                    ends_at?: string;
+                    /** @enum {string} */
+                    call_type?: "audio" | "video";
+                    invitee_ids?: number[];
+                    lock_version?: number;
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+        };
+    };
+    cancelScheduledMeeting: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+        };
+    };
+    respondToMeetingInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    response: "accepted" | "declined";
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+        };
+    };
+    openScheduledMeetingRoom: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Meeting room identifier */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        public_id?: string;
+                    };
+                };
+            };
+            422: components["responses"]["Error"];
+        };
+    };
+    listCallHistory: {
+        parameters: {
+            query?: {
+                page?: number;
+                per_page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Call history with pagination */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["CallHistoryEntry"][];
+                        meta: components["schemas"]["PaginationMeta"];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+        };
+    };
     joinCall: {
         parameters: {
             query?: never;
@@ -5832,6 +6212,41 @@ export interface operations {
         };
         responses: {
             200: components["responses"]["GenericSuccess"];
+            /** @description Waiting for host approval; no media credentials */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeetingAdmission"];
+                };
+            };
+        };
+    };
+    moderateCallParticipant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    host_action: "mute" | "remove" | "transfer_host" | "approve" | "reject";
+                    user_id: number;
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            503: components["responses"]["Error"];
         };
     };
     confirmCallMedia: {
@@ -5960,6 +6375,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LiveKitCredentials"];
+                };
+            };
+            /** @description Waiting for host approval; no media credentials */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeetingAdmission"];
                 };
             };
             410: components["responses"]["Error"];

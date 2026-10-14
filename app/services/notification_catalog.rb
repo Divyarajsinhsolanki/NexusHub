@@ -22,12 +22,12 @@ class NotificationCatalog
   CHAT_ACTIONS = %w[chat_message chat_mention message_reacted].freeze
   WORK_ACTIONS = %w[project_assigned task_assigned task_updated issue_assigned issue_updated team_member_added].freeze
   SOCIAL_ACTIONS = %w[post_liked post_commented skill_endorsed].freeze
-  REMINDER_ACTIONS = %w[calendar_reminder operations_reminder].freeze
+  REMINDER_ACTIONS = %w[calendar_reminder operations_reminder meeting_invitation meeting_rescheduled meeting_canceled meeting_invitation_withdrawn].freeze
   MISSED_CALL_ACTIONS = %w[missed_audio_call missed_video_call].freeze
   ENDED_CALL_ACTIONS = %w[ended_audio_call ended_video_call].freeze
   CALL_ACTIONS = (MISSED_CALL_ACTIONS + ENDED_CALL_ACTIONS).freeze
   LEGACY_PUSH_ACTIONS = %w[
-    daily_knowledge_published assigned commented update chat_message chat_ping reacted missed_call calendar_reminder operations_reminder
+    meeting_invitation meeting_rescheduled meeting_canceled meeting_invitation_withdrawn daily_knowledge_published assigned commented update chat_message chat_ping reacted missed_call calendar_reminder operations_reminder
     project_assigned task_assigned task_updated post_commented chat_mention message_reacted
     missed_audio_call missed_video_call ended_audio_call ended_video_call
   ].freeze
@@ -71,11 +71,14 @@ class NotificationCatalog
   end
 
   def group_key
+    return "meeting:#{metadata[:scheduled_meeting_id]}" if metadata[:scheduled_meeting_id].present?
     return "reactions:#{metadata[:conversation_id] || related_id}" if event_type == "message_reacted"
 
     case category
-    when "chat", "audio_calls", "video_calls"
+    when "chat"
       "conversation:#{metadata[:conversation_id] || related_id}"
+    when "audio_calls", "video_calls"
+      "call:#{metadata[:call_session_id] || related_id}"
     when "knowledge"
       "knowledge:#{metadata[:daily_date]}"
     when "social"
@@ -109,6 +112,10 @@ class NotificationCatalog
     when "post_liked" then "New post like"
     when "post_commented" then "New post comment"
     when "skill_endorsed" then "Skill endorsed"
+    when "meeting_invitation" then "Meeting invitation"
+    when "meeting_rescheduled" then "Meeting updated"
+    when "meeting_canceled" then "Meeting canceled"
+    when "meeting_invitation_withdrawn" then "Meeting invitation withdrawn"
     when "calendar_reminder" then "Upcoming event"
     when "operations_reminder" then metadata[:kind] == "license" ? "Licence expiry reminder" : "Deployment reminder"
     else "Nexus Hub"
@@ -122,6 +129,8 @@ class NotificationCatalog
 
     actor = notification.actor&.full_name.presence || "Someone"
     case event_type
+    when "meeting_invitation", "meeting_rescheduled", "meeting_canceled", "meeting_invitation_withdrawn"
+      "#{actor}: #{sanitized_preview(metadata[:meeting_title])}"
     when "daily_knowledge_published"
       "#{sanitized_preview(metadata[:post_title])} · 3 fresh tips + one technical post"
     when "chat_message"
@@ -182,6 +191,8 @@ class NotificationCatalog
   end
 
   def deep_link
+    return "/inbox/meetings" if event_type == "meeting_invitation_withdrawn"
+    return "/inbox/meetings?meeting=#{metadata[:scheduled_meeting_id].to_i}" if metadata[:scheduled_meeting_id].present?
     if event_type == 'operations_reminder'
       path = metadata[:path].to_s
       return path if path.match?(%r{\A/projects/\d+/dashboard\?tab=environments(?:&|\z)})
@@ -254,7 +265,7 @@ class NotificationCatalog
   end
 
   def feed_preference_key
-    return 'calendar_reminder' if event_type == 'operations_reminder'
+    return 'calendar_reminder' if event_type.in?(%w[operations_reminder meeting_invitation meeting_rescheduled meeting_canceled meeting_invitation_withdrawn])
 
     case event_type
     when "post_commented" then "commented"

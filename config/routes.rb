@@ -243,14 +243,22 @@ Rails.application.routes.draw do
           delete :reactions, to: "/api/message_reactions#destroy"
         end
       end
-      resources :calls, controller: "/api/calls", only: [] do
+      resources :calls, controller: "/api/calls", only: [:index] do
         member do
+          post :host_action
           post :media_heartbeat
           post :ack_ring
           post :join
           post :decline
           post :leave
           post :end, action: :end_call
+        end
+      end
+      resources :scheduled_meetings, controller: "/api/scheduled_meetings", only: [:index, :show, :create, :update] do
+        member do
+          post :cancel
+          post :respond
+          post :join
         end
       end
       post "meet", to: "/api/meetings#create"
@@ -490,14 +498,22 @@ Rails.application.routes.draw do
       end
     end
 
-    resources :calls, only: [] do
+    resources :calls, only: [:index] do
       member do
+        post :host_action
         post :media_heartbeat
         post :ack_ring
         post :join
         post :decline
         post :leave
         post :end, action: :end_call
+      end
+    end
+    resources :scheduled_meetings, only: [:index, :show, :create, :update] do
+      member do
+        post :cancel
+        post :respond
+        post :join
       end
     end
     post "meet", to: "meetings#create"

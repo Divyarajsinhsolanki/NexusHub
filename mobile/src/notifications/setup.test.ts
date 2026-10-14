@@ -1,12 +1,14 @@
 import { expect, jest, test } from '@jest/globals';
 let mockPlatform = 'android';
 const mockCategory = jest.fn(async (..._args: unknown[]) => undefined);
+const mockChannel = jest.fn(async (..._args: unknown[]) => undefined);
 jest.mock('react-native', () => { const actual = jest.requireActual('react-native') as typeof import('react-native'); return new Proxy(actual, { get(target, key) { if (key === 'Platform') return { ...actual.Platform, OS: mockPlatform }; return Reflect.get(target, key); } }); });
-jest.mock('expo-notifications', () => ({ AndroidImportance: { DEFAULT: 3, HIGH: 4, MAX: 5 }, AndroidNotificationVisibility: { PRIVATE: 0 }, setNotificationChannelAsync: jest.fn(async () => undefined), setNotificationCategoryAsync: (...args: unknown[]) => mockCategory(...args) }));
+jest.mock('expo-notifications', () => ({ AndroidImportance: { DEFAULT: 3, HIGH: 4, MAX: 5 }, AndroidNotificationVisibility: { PRIVATE: 0 }, setNotificationChannelAsync: (...args: unknown[]) => mockChannel(...args), setNotificationCategoryAsync: (...args: unknown[]) => mockCategory(...args) }));
 const { NOTIFICATION_ACTIONS, NOTIFICATION_CATEGORIES } = require('./constants');
 test.each(['android', 'ios'])('registers inline text replies with safe %s presentation', async platform => {
   mockPlatform = platform;
   mockCategory.mockClear();
+  mockChannel.mockClear();
   let setup: () => Promise<void>;
   jest.isolateModules(() => { setup = require('./setup').setupNotificationPresentation; });
   await setup!();
@@ -15,4 +17,6 @@ test.each(['android', 'ios'])('registers inline text replies with safe %s presen
   expect(reply?.textInput?.submitButtonTitle).toBe('Send');
   expect(reply?.options.opensAppToForeground).toBe(platform === 'ios');
   expect(reply?.options.isAuthenticationRequired).toBe(true);
+  if (platform === 'android') expect(mockChannel).toHaveBeenCalledWith('nexus_knowledge_v2', expect.objectContaining({ importance: 4 }));
+  else expect(mockChannel).not.toHaveBeenCalled();
 });
