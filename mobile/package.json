@@ -3,6 +3,7 @@
   "main": "index.js",
   "version": "1.0.0",
   "dependencies": {
+    "@babel/runtime": "^7.29.10",
     "@config-plugins/react-native-blob-util": "^14.0.1",
     "@config-plugins/react-native-pdf": "^14.0.1",
     "@config-plugins/react-native-webrtc": "^15.0.1",
@@ -100,6 +101,9 @@
     "preset": "jest-expo",
     "setupFilesAfterEnv": [
       "<rootDir>/jest.setup.ts"
+    ],
+    "modulePaths": [
+      "<rootDir>/node_modules"
     ]
   },
   "private": true

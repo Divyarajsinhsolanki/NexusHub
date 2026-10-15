@@ -189,6 +189,10 @@ class ConversationsTest < ActionDispatch::IntegrationTest
   end
 
   test "removing a member revokes their active call access" do
+    previous_livekit = ENV.to_h.slice("LIVEKIT_URL", "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET")
+    ENV["LIVEKIT_URL"] = "ws://livekit.example.test"
+    ENV["LIVEKIT_API_KEY"] = "testkey"
+    ENV["LIVEKIT_API_SECRET"] = "testsecret"
     group = create_group(@creator, @participant)
     call_session = create_active_call(group, initiator: @creator)
     login(@creator)
@@ -206,6 +210,10 @@ class ConversationsTest < ActionDispatch::IntegrationTest
     post "/api/calls/#{call_session.id}/join"
     assert_response :unprocessable_entity
     assert_equal "You no longer have access to this group call", JSON.parse(response.body).fetch("message")
+  ensure
+    %w[LIVEKIT_URL LIVEKIT_API_KEY LIVEKIT_API_SECRET].each do |key|
+      previous_livekit.key?(key) ? ENV[key] = previous_livekit[key] : ENV.delete(key)
+    end
   end
 
   test "a non-creator can leave a group but the creator must delete it" do
