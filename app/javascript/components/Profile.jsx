@@ -1,3 +1,4 @@
+import PageLoader from './ui/PageLoader';
 import React, { useEffect, useState, useMemo, useContext } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { fetchUserInfo, fetchUserProfile, fetchPosts, SchedulerAPI, fetchTeams, saveKekaCredentials, refreshKekaProfile, startDirectConversation } from "../components/api";
@@ -545,21 +546,7 @@ const Profile = () => {
     return project ? project.name : `Project ${projectId}`;
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center py-16">
-        <div className="premium-loader-card shell-panel shell-panel-strong rounded-[32px] px-8 py-10 text-center">
-          <div className="premium-loader-mark mx-auto">
-            <span />
-          </div>
-          <div className="premium-loader-track mt-6 w-56">
-            <div className="premium-loader-bar animate-[shell-loader_1.45s_ease-in-out_infinite]" />
-          </div>
-          <p className="mt-5 text-sm font-medium text-slate-600">Loading your profile...</p>
-        </div>
-      </div>
-    );
-  }
+  if (isLoading) return <PageLoader title="Profile" message="Loading your profile..." />;
 
   return (
     <div className="nexus-profile-page pb-6">

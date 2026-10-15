@@ -325,6 +325,20 @@ describe("chat composer and keyboard controls", () => {
     expect(composer.value).toBe("");
   });
 
+  it("selects messages through their actions and clears selection on cancel", async () => {
+    renderChat();
+    fireEvent.click(await screen.findByRole("button", { name: "Message actions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Select message" }));
+    const checkbox = screen.getByRole("checkbox", { name: "Select message: Initial message" });
+    expect(checkbox.getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(checkbox);
+    expect(screen.getByText("0 messages selected")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Select loaded messages" }));
+    expect(screen.getByText("1 messages selected")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel message selection" }));
+    expect(screen.queryByRole("checkbox", { name: "Select message: Initial message" })).toBeNull();
+  });
+
   it("opens reaction choices only on demand and restores focus with Escape", async () => {
     renderChat();
     const trigger = await screen.findByRole("button", { name: "Add reaction" });

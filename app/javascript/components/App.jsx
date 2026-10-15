@@ -24,6 +24,7 @@ import { getRouteLayout } from "./shell/routeLayout";
 const Admin = lazy(() => import("../components/Admin/Admin"));
 const AdminImpersonation = lazy(() => import("../pages/AdminImpersonation"));
 const AcceptWorkspaceInvitation = lazy(() => import("../pages/AcceptWorkspaceInvitation"));
+const GettingStarted = lazy(() => import("../pages/GettingStarted"));
 const AuthPage = lazy(() => import("../pages/AuthPage"));
 const Planning = lazy(() => import("../pages/Planning"));
 const Chat = lazy(() => import("../pages/Chat"));
@@ -76,6 +77,7 @@ const AppRoutes = () => {
         <Routes location={location}>
             <Route path="/" element={portfolioEnabled ? <PublicPortfolio /> : <AuthPage mode="login" />} />
             <Route path="/contact" element={portfolioEnabled ? <Contact /> : <Navigate to="/login" replace />} />
+            <Route path="/getting-started" element={<GettingStarted />} />
             <Route path="/legal" element={<Legal />} />
             <Route path="/privacy-requests" element={<PrivacyRequests />} />
             <Route path="/metaverse-landing" element={portfolioEnabled ? <MetaverseLanding /> : <Navigate to="/login" replace />} />
@@ -311,7 +313,7 @@ const AppShell = () => {
   const isImmersiveRoute = location.pathname.startsWith("/knowledge") || location.pathname.startsWith("/meet/") || isProjectMetaverseRoute || isPdfRoute;
   const isChatRoute = location.pathname.startsWith("/chat");
   const portfolioPublicRoutes = portfolioEnabled ? ["/contact", "/metaverse-landing"] : [];
-  const isPublicRoute = ["/", "/legal", "/privacy-requests", ...portfolioPublicRoutes].includes(location.pathname);
+  const isPublicRoute = ["/", "/legal", "/privacy-requests", "/getting-started", ...portfolioPublicRoutes].includes(location.pathname);
   const isAuthRoute = ["/login", "/signup", "/forgot-password", "/reset-password", "/invitations/accept"].includes(location.pathname);
   const routeLayout = getRouteLayout(location.pathname);
   const isChatThreadRoute = routeLayout.mobileChrome === "thread";

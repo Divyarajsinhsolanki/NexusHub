@@ -1,8 +1,9 @@
+import { LoadingSurface, loadingPalette } from '@/src/components/LoadingSurface';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useGlobalSearchParams, useLocalSearchParams, usePathname, useRouter, useSegments } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import * as Sentry from '@sentry/react-native';
 import * as SplashScreen from 'expo-splash-screen';
-import { ActivityIndicator, StyleSheet, useColorScheme, View } from 'react-native';
+import { StyleSheet, useColorScheme, View } from 'react-native';
 import { useEffect, useRef } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
@@ -125,9 +126,9 @@ function AuthGate() {
   return (
     <View
       accessibilityLabel="Loading session"
-      style={[styles.authGate, { backgroundColor: theme.background }]}
+      style={[styles.authGate, { backgroundColor: loadingPalette[theme.isDark ? 'dark' : 'light'].background }]}
     >
-      <ActivityIndicator color={theme.primary} size="large" />
+      <LoadingSurface title="Nexus Hub" label="Preparing your workspace…" />
     </View>
   );
 }

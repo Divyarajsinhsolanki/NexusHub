@@ -426,7 +426,7 @@ const Vault = () => {
               className="vault-grid"
             >
               {[...Array(6)].map((_, i) => (
-                <div key={i} className="h-32 bg-white/50 rounded-md animate-pulse border border-gray-200" />
+                <div key={i} className="h-32 bg-white/50 rounded-md workspace-skeleton animate-pulse border border-gray-200" />
               ))}
             </motion.div>
           ) : (

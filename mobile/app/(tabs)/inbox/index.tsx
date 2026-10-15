@@ -6,7 +6,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import { formatDistanceToNow } from 'date-fns';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Bell, Check, Heart, MessageCircle, MicOff, PhoneCall, Plus, Search, Share2, MoreHorizontal, UserRound, UsersRound, X } from 'lucide-react-native';
+import { Bell, Check, Heart, MessageCircle, MicOff, PhoneCall, Plus, Search, Share2, MoreHorizontal, ArrowDownWideNarrow, UserRound, UsersRound, X } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -55,6 +55,7 @@ export default function InboxScreen() {
   const [chatFilter, setChatFilter] = useState<ConversationFilter>('all');
   const [postFilter, setPostFilter] = useState<PostFilter>('all');
   const [postSort, setPostSort] = useState<PostSort>('newest');
+  const [sortOpen, setSortOpen] = useState(false);
   const [postSearch, setPostSearch] = useState('');
   const filteredConversations = useMemo(() => filterConversations(conversationRows, search, chatFilter), [conversationRows, search, chatFilter]);
   const filteredPosts = useMemo(() => filterPosts(posts.data?.data || [], postSearch, postFilter, postSort, user?.id), [posts.data, postSearch, postFilter, postSort, user?.id]);
@@ -65,12 +66,15 @@ export default function InboxScreen() {
   }, [params.mode]);
 
   return (
-    <Screen header={<PageHeader compact={mode === 'chat'} title={mode === 'chat' ? "Messages" : "Inbox"} subtitle="Updates and conversations" action={<View style={styles.headerActions}>{!user?.demo_account ? <Pressable accessibilityLabel={mode === 'posts' ? 'Create post' : 'New conversation'} onPress={() => mode === 'posts' ? router.push('/create?type=post' as never) : setNewConversation(true)} style={[styles.iconButton, { backgroundColor: theme.primary }]}><Plus color="#ffffff" size={20} /></Pressable> : null}{mode === 'chat' ? <Pressable accessibilityRole="button" accessibilityLabel="More inbox actions" onPress={() => setInboxMenuOpen(true)} style={[styles.iconButton, { backgroundColor: theme.surfaceMuted }]}><MoreHorizontal color={theme.text} size={20} /></Pressable> : null}<Pressable accessibilityLabel="Open notifications" onPress={() => router.push('/inbox/notifications')} style={[styles.iconButton, { backgroundColor: theme.surfaceMuted }]}><Bell color={theme.text} size={20} /></Pressable></View>} /> }>
+    <Screen header={<PageHeader compact title={mode === 'chat' ? "Messages" : "Inbox"} action={<View style={styles.headerActions}>{!user?.demo_account ? <Pressable accessibilityLabel={mode === 'posts' ? 'Create post' : 'New conversation'} onPress={() => mode === 'posts' ? router.push('/create?type=post' as never) : setNewConversation(true)} style={[styles.iconButton, styles.headerIconButton, { backgroundColor: theme.primary }]}><Plus color="#ffffff" size={20} /></Pressable> : null}{mode === 'chat' ? <Pressable accessibilityRole="button" accessibilityLabel="More inbox actions" onPress={() => setInboxMenuOpen(true)} style={[styles.iconButton, styles.headerIconButton, { backgroundColor: theme.surfaceMuted }]}><MoreHorizontal color={theme.text} size={20} /></Pressable> : null}<Pressable accessibilityLabel="Open notifications" onPress={() => router.push('/inbox/notifications')} style={[styles.iconButton, styles.headerIconButton, { backgroundColor: theme.surfaceMuted }]}><Bell color={theme.text} size={20} /></Pressable></View>} /> }>
       <View style={styles.toolbar}>
-        <SegmentedControl value={mode} onChange={(next) => { setMode(next); }} options={[{ value: 'posts', label: 'Updates' }, { value: 'chat', label: 'Chat' }]} />
+        <View style={styles.modeRow}><View style={styles.modeToggle}><SegmentedControl pill value={mode} onChange={(next) => { setMode(next); }} options={[{ value: 'posts', label: 'Updates' }, { value: 'chat', label: 'Chat' }]} /></View>{mode === 'posts' ? <Pressable accessibilityRole="button" accessibilityLabel={`Sort updates, ${postSort === 'active' ? 'Most active' : postSort === 'oldest' ? 'Oldest first' : 'Newest first'}`} onPress={() => setSortOpen(true)} style={[styles.sortButton, { backgroundColor: theme.surfaceMuted }]}><ArrowDownWideNarrow size={18} color={theme.textMuted} /></Pressable> : null}</View>
         <View style={[styles.search, { backgroundColor: theme.surface, borderColor: theme.border }]}><Search color={theme.textMuted} size={18} /><TextInput accessibilityLabel={mode === 'chat' ? "Search conversations" : "Search updates"} onChangeText={mode === 'chat' ? setSearch : setPostSearch} placeholder={mode === 'chat' ? "Search conversations" : "Search updates"} placeholderTextColor={theme.textMuted} style={[styles.searchInput, { color: theme.text }]} value={mode === 'chat' ? search : postSearch} /></View>
-        {mode === 'chat' ? <SegmentedControl value={chatFilter} onChange={setChatFilter} options={[{value:'all',label:'All'},{value:'unread',label:'Unread'},{value:'direct',label:'Direct'},{value:'group',label:'Groups'}]} /> : <><SegmentedControl value={postFilter} onChange={setPostFilter} options={[{value:'all',label:'All'},{value:'mine',label:'Mine'},{value:'media',label:'Media'},{value:'discussed',label:'Discussed'}]} /><SegmentedControl value={postSort} onChange={setPostSort} options={[{value:'newest',label:'Newest'},{value:'oldest',label:'Oldest'},{value:'active',label:'Most active'}]} /></>}
+        {mode === 'chat' ? <SegmentedControl pill value={chatFilter} onChange={setChatFilter} options={[{value:'all',label:'All'},{value:'unread',label:'Unread'},{value:'direct',label:'Direct'},{value:'group',label:'Groups'}]} /> : <><SegmentedControl pill value={postFilter} onChange={setPostFilter} options={[{value:'all',label:'All'},{value:'mine',label:'Mine'},{value:'media',label:'Media'},{value:'discussed',label:'Discussed'}]} /></>}
       </View>
+      <ChatActionSheet title="Sort updates" visible={sortOpen} onClose={() => setSortOpen(false)}>
+        {([{ value: 'newest', label: 'Newest first' }, { value: 'oldest', label: 'Oldest first' }, { value: 'active', label: 'Most active' }] as const).map(option => <ChatSheetAction key={option.value} label={`${option.label}${postSort === option.value ? ' · Selected' : ''}`} onPress={() => { setPostSort(option.value); setSortOpen(false); }} />)}
+      </ChatActionSheet>
       {mode === 'chat' && selectingChats ? <ConversationBulkActions selected={selectedChatIds} visibleIds={filteredConversations.map(row => row.id)} onSelection={setSelectedChatIds} onBusy={setSelectionBusy} onClose={() => { setSelectingChats(false); setSelectedChatIds(new Set()); }} /> : null}
       <ChatActionSheet title="Inbox options" visible={inboxMenuOpen} onClose={() => setInboxMenuOpen(false)}>
         {!user?.demo_account ? <ChatSheetAction label="Select chats" onPress={() => { setInboxMenuOpen(false); setSelectingChats(true); }} /> : null}
@@ -216,12 +220,16 @@ function conversationPreview(conversation: Conversation) {
 function personName(person: EntityRecord) { return String(person.name || person.full_name || [person.first_name, person.last_name].filter(Boolean).join(' ') || person.email || 'Workspace member'); }
 
 const styles = StyleSheet.create({
-  toolbar: { gap: 12, paddingHorizontal: 16, paddingTop: 12 },
-  headerActions: { flexDirection: 'row', gap: 7 },
+  toolbar: { gap: 8, paddingHorizontal: 16, paddingTop: 6, paddingBottom: 4 },
+  modeRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  modeToggle: { flex: 1, maxWidth: 280 },
+  sortButton: { minHeight: 44, minWidth: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  headerIconButton: { borderRadius: 22 },
+  headerActions: { flexDirection: 'row', gap: 4 },
   iconButton: { alignItems: 'center', borderRadius: 9, height: 44, justifyContent: 'center', width: 44 },
-  search: { alignItems: 'center', borderRadius: 9, borderWidth: 1, flexDirection: 'row', minHeight: 44, paddingHorizontal: 12 },
-  searchInput: { flex: 1, fontSize: 14, minHeight: 42, paddingHorizontal: 9, paddingVertical: 8 },
-  list: { paddingTop: 16, paddingBottom: 36, paddingHorizontal: 16 },
+  search: { alignItems: 'center', borderRadius: 22, borderWidth: 1, flexDirection: 'row', minHeight: 44, paddingHorizontal: 12 },
+  searchInput: { flex: 1, minWidth: 0, fontSize: 13, minHeight: 42, paddingHorizontal: 8, paddingVertical: 6 },
+  list: { paddingTop: 12, paddingBottom: 36, paddingHorizontal: 16 },
   post: { borderWidth: 1, borderRadius: 16, marginBottom: 16, overflow: 'hidden' },
   postHeader: { alignItems: 'center', flexDirection: 'row', borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 14, paddingVertical: 10, gap: 8 },
   postAuthor: { flexDirection: 'row', flex: 1, alignItems: 'center', minHeight: 44, minWidth: 0 },

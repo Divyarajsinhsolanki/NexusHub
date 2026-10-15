@@ -1,3 +1,4 @@
+import PageLoader from '../components/ui/PageLoader';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { fetchSheetData } from '../components/api';
 import {
@@ -106,14 +107,7 @@ const Sheet = ({ sheetName, projectId, sheetId }) => {
     return bodySourceRows.filter((row) => row.some((cell) => String(cell).toLowerCase().includes(query)));
   }, [bodySourceRows, searchQuery]);
 
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center p-20 animate-pulse">
-        <FiLoader className="w-12 h-12 text-blue-500 animate-spin mb-4" />
-        <p className="text-zinc-500 font-medium">Fetching sheet data...</p>
-      </div>
-    );
-  }
+  if (loading) return <PageLoader title="Sheet" message="Fetching sheet data..." />;
 
   if (error) {
     return (

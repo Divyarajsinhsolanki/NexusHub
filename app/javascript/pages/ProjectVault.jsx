@@ -1,3 +1,4 @@
+import LoadingIndicator from '../components/ui/LoadingIndicator';
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
@@ -362,10 +363,7 @@ const MediaUploadZone = ({ onUploadComplete, projectId }) => {
           <FiUpload className="h-8 w-8" />
         </div>
         {isUploading ? (
-          <div className="flex items-center gap-2 text-indigo-600">
-            <div className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-            <span className="font-medium">Uploading...</span>
-          </div>
+          <LoadingIndicator label="Uploading..." />
         ) : (
           <>
             <h3 className="text-lg font-semibold text-slate-700">
@@ -821,7 +819,7 @@ const ProjectVault = ({ projectId }) => {
               className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
             >
               {[...Array(8)].map((_, i) => (
-                <div key={i} className="h-40 bg-white rounded-xl animate-pulse border border-slate-200" />
+                <div key={i} className="h-40 bg-white rounded-xl workspace-skeleton animate-pulse border border-slate-200" />
               ))}
             </motion.div>
           ) : activeSection === "environments" ? (

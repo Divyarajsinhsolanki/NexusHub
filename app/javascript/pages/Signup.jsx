@@ -1,6 +1,6 @@
 import React, { useState, useContext } from "react";
 import { AuthContext } from "../context/AuthContext";
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import submitForm from "../utils/formSubmit";
 import { toast } from "react-hot-toast";
 import SpinnerOverlay from "../components/ui/SpinnerOverlay";
@@ -71,6 +71,10 @@ const Signup = ({ switchToLogin, embedded = false }) => {
       {loading && <SpinnerOverlay />}
             <h2 className="mb-2 font-bold">Create your company workspace</h2>
             <p className="mb-6 text-sm text-shell-muted">A private workspace for your company. Verify your email to get started.</p>
+
+            <Link to="/getting-started" target="_blank" rel="noopener noreferrer" className="mb-5 flex min-h-11 items-center justify-between gap-3 rounded-xl border border-shell-border bg-surface-card px-4 py-3 text-sm font-semibold text-theme focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-theme">
+              <span>New here? Read the signup &amp; company setup guide</span><span className="text-xs">Opens a new tab ↗</span>
+            </Link>
 
             <form onSubmit={handleSubmit} className="space-y-4" encType="multipart/form-data" aria-busy={loading}>
               <div>

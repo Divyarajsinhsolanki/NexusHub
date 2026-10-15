@@ -1,3 +1,4 @@
+import PageLoader from '../ui/PageLoader';
 import React, { useState, useEffect, Fragment } from 'react';
 import { toast } from 'react-hot-toast';
 import { Dialog, Transition } from '@headlessui/react';
@@ -312,9 +313,7 @@ function DynamicAdminTable({ table }) {
       {/* Table Area */}
       <div className="flex-1 overflow-auto relative">
         {loading ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 z-10">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          </div>
+          <div className="absolute inset-0 z-10"><PageLoader compact title="Records" message="Loading records…" /></div>
         ) : null}
 
         <table className="min-w-max w-full text-left text-sm text-gray-600">

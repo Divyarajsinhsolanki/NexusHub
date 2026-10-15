@@ -134,5 +134,9 @@
   "/privacy-requests": {
     "title": "Privacy rights requests",
     "description": "Submit a privacy rights request and privately track the operator\u2019s response."
+  },
+  "/getting-started": {
+    "title": "Signup & Company Setup Guide",
+    "description": "Learn how to create a Nexus Hub company workspace, verify your email, secure your account, and invite your team."
   }
 }

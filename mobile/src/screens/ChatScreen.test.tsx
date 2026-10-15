@@ -300,3 +300,23 @@ test('renders message timestamps outside the message body', async () => {
   expect(timestamp?.props.style).toEqual(expect.arrayContaining([expect.objectContaining({ marginTop: 4, fontSize: 10 })]));
   await screen.unmount(); client.clear();
 });
+
+test('selects multiple messages and copies them without leaving the conversation', async () => {
+  jest.clearAllMocks(); mockRouteParams = { id: '7' };
+  const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, gcTime: Infinity, retry: false } } });
+  client.setQueryData(mobileQueryKeys.conversation(7), { id: 7, title: 'Selection', participants: [] });
+  client.setQueryData(mobileQueryKeys.messages(7), { pageParams: [undefined], pages: [{ data: [
+    { id: 10, body: 'First selected', user_id: 2, created_at: '2026-10-06T00:00:00Z' },
+    { id: 11, body: 'Second selected', user_id: 5, created_at: '2026-10-06T00:01:00Z' },
+  ] }] });
+  const screen = await render(<QueryClientProvider client={client}><ChatRoute /></QueryClientProvider>);
+  await fireEvent(screen.getByText(/First selected/), 'longPress');
+  await fireEvent.press(screen.getByRole('button', { name: 'Select message' }));
+  expect(screen.getByRole('checkbox', { name: 'Select message: First selected' }).props.accessibilityState.checked).toBe(true);
+  await fireEvent.press(screen.getByRole('checkbox', { name: 'Select message: Second selected' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Copy selected messages' }));
+  await waitFor(() => expect(mockCopy).toHaveBeenCalledWith('First selected\n\nSecond selected'));
+  await fireEvent.press(screen.getByRole('button', { name: 'Cancel message selection' }));
+  expect(screen.queryByRole('checkbox', { name: 'Select message: First selected' })).toBeNull();
+  await screen.unmount(); client.clear();
+});

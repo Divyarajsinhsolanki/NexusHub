@@ -1,3 +1,4 @@
+import PageLoader from '../ui/PageLoader';
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { FiEdit2, FiTrash2, FiPlus, FiX, FiCalendar, FiChevronLeft, FiChevronRight, FiAlertTriangle } from 'react-icons/fi';
@@ -200,13 +201,7 @@ export default function SprintManager({ onSprintChange, projectId, projectName, 
   };
 
   // --- RENDER LOGIC ---
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-theme"></div>
-      </div>
-    );
-  }
+  if (loading) return <PageLoader compact title="Sprints" message="Loading sprints…" />;
 
   const portalTarget = typeof document !== 'undefined' ? document.body : null;
 

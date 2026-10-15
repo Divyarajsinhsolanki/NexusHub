@@ -26,7 +26,7 @@ export default function ConversationBulkActions({ selected, onSelection, visible
   return <section className="chat-bulk-actions" aria-label="Selected conversations" aria-busy={busy}>
     <div className="flex items-center justify-between gap-2"><strong role="status">{selected.size} selected</strong><button type="button" disabled={busy} onClick={onClose}>Cancel selection</button></div>
     <div className="flex flex-wrap gap-2">
-      <button type="button" disabled={busy || !visibleIds.length} onClick={() => onSelection(new Set([...selected, ...visibleIds]))}>Select visible</button>
+      <button type="button" disabled={busy || !selected.size} onClick={() => onSelection(new Set())}>Clear chat selection</button><button type="button" disabled={busy || !visibleIds.length} onClick={() => onSelection(new Set([...selected, ...visibleIds]))}>Select visible</button>
       <button type="button" disabled={busy || !selected.size} onClick={() => setStage('mute')}>Mute selected</button>
       <button type="button" disabled={busy || !selected.size} onClick={() => apply('unmute')}>Unmute selected</button>
       <button type="button" disabled={busy || !selected.size} onClick={() => setStage('delete')}>Delete selected for me</button>

@@ -1,17 +1,12 @@
+import { LoadingSurface } from './LoadingSurface';
 import { AlertCircle, Inbox } from 'lucide-react-native';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { useAppTheme } from '../theme';
 import { TouchableScale } from './TouchableScale';
 
 export function LoadingState({ label = 'Loading' }: { label?: string }) {
-  const theme = useAppTheme();
-  return (
-    <View accessible accessibilityLabel={label} accessibilityState={{ busy: true }} accessibilityLiveRegion="polite" style={styles.state}>
-      <ActivityIndicator color={theme.primary} size="large" />
-      <Text style={[styles.message, { color: theme.textMuted }]}>{label}</Text>
-    </View>
-  );
+  return <LoadingSurface label={label} />;
 }
 
 export function EmptyState({ title, message }: { title: string; message: string }) {

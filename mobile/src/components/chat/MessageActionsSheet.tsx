@@ -6,7 +6,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import type { Message } from '../../api/types';
 import { useAppTheme } from '../../theme';
 const EMOJIS = ['👍', '❤️', '😂', '🎉', '🙌', '🔥', '👏', '🙏', '😊', '😍', '😮', '😢', '😡', '✅', '💯', '🚀', '👀', '🤔', '😎', '🥳', '💪', '✨', '😅', '🤝', '🏆'];
-export function MessageActionsSheet({ message, canEdit, onEdit, onDelete, onClose, onSelect, onReply, onThread, onPin, pending }: { message: Message | null; canEdit: boolean; onEdit: () => void; onDelete: () => void; onClose: () => void; onSelect: (emoji: string) => void; onReply: () => void; onThread?: () => void; onPin?: () => void; pending: boolean }) {
+export function MessageActionsSheet({ message, canEdit, onEdit, onDelete, onClose, onSelect, onReply, onThread, onPin, onSelectMessages, pending }: { message: Message | null; canEdit: boolean; onEdit: () => void; onDelete: () => void; onClose: () => void; onSelect: (emoji: string) => void; onReply: () => void; onThread?: () => void; onPin?: () => void; onSelectMessages?: () => void; pending: boolean }) {
   const theme = useAppTheme();
   const [confirmDelete, setConfirmDelete] = useState(false);
   useEffect(() => setConfirmDelete(false), [message?.id]);
@@ -14,6 +14,7 @@ export function MessageActionsSheet({ message, canEdit, onEdit, onDelete, onClos
   return <ChatActionSheet title="Message actions" visible={Boolean(message)} onClose={onClose}>
       <Text numberOfLines={2} style={{ color: theme.textMuted, fontSize: 13, marginBottom: 8 }}>{String(message?.body || message?.attachments?.[0]?.filename || 'Attachment')}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.reactions} keyboardShouldPersistTaps="handled">{EMOJIS.map(emoji => <Pressable key={emoji} accessibilityRole="button" accessibilityLabel={`React ${emoji}`} accessibilityState={{ selected: !!message?.reacted_emojis?.includes(emoji) }} disabled={pending} onPress={() => onSelect(emoji)} style={[styles.emoji, message?.reacted_emojis?.includes(emoji) && { backgroundColor: theme.surfaceMuted }]}><Text style={{ fontSize: 26 }}>{emoji}</Text></Pressable>)}</ScrollView>
+      {onSelectMessages ? <Action label="Select message" text="Select message" icon={Copy} onPress={onSelectMessages} /> : null}
       <Action label="Reply to message" text="Reply" icon={CornerUpLeft} onPress={onReply} />
       {onThread ? <Action label="View reply thread" text="View reply thread" icon={MessageSquare} onPress={onThread} /> : null}
       {onPin ? <Action label={message?.pinned_at ? 'Unpin message' : 'Pin message'} text={message?.pinned_at ? 'Unpin message' : 'Pin message'} icon={Pin} onPress={onPin} /> : null}

@@ -1,3 +1,5 @@
+import PageLoader from '../components/ui/PageLoader';
+import LoadingIndicator from '../components/ui/LoadingIndicator';
 import MemberProfileCard from "../components/ui/MemberProfileCard";
 import React, { useEffect, useState, useContext, useCallback, useMemo, useRef } from "react";
 import { useLocation } from "react-router-dom";
@@ -830,10 +832,7 @@ const Teams = () => {
 
                 <nav className="flex-1 overflow-y-auto p-3 space-y-2">
                     {isLoading ? (
-                        <div className="flex flex-col items-center justify-center py-12 text-zinc-500">
-                            <FiLoader className="w-8 h-8 animate-spin text-blue-500 mb-3" />
-                            <p className="text-sm">Loading teams...</p>
-                        </div>
+                        <div className="flex justify-center py-12"><LoadingIndicator label="Loading teams..." /></div>
                     ) : filteredTeams.length > 0 ? (
                         filteredTeams.map((team) => (
                             <TeamCard
@@ -1155,10 +1154,7 @@ const Teams = () => {
                             )}
                         </motion.div>
                     ) : isLoading ? (
-                        <div className="flex flex-col items-center justify-center h-full py-20">
-                            <FiLoader className="w-10 h-10 animate-spin text-blue-500 mb-4" />
-                            <p className="text-zinc-500">Loading teams...</p>
-                        </div>
+                        <PageLoader title="Teams" message="Loading teams..." />
                     ) : (
                         // Empty State / All Teams View
                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>

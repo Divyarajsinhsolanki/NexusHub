@@ -1,3 +1,4 @@
+import LoadingIndicator from './ui/LoadingIndicator';
 import React, {
   useCallback,
   useEffect,
@@ -10,7 +11,7 @@ import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/TextLayer.css";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-import { AlertTriangle, GripVertical, Loader2 } from "lucide-react";
+import { AlertTriangle, GripVertical } from "lucide-react";
 import {
   appendPdfPenPoint,
   boundPdfShape,
@@ -1065,7 +1066,7 @@ const PdfDocumentCanvas = ({
                 role="status"
                 aria-label="Loading PDF"
               >
-                <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+                <LoadingIndicator label="Loading PDF" />
               </div>
             }
           >

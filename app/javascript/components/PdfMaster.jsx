@@ -1,3 +1,4 @@
+import PageLoader from './ui/PageLoader';
 import React, {
   useCallback,
   useContext,
@@ -2687,17 +2688,8 @@ export default function PdfMaster() {
       )}
     </>
   );
-  if (loading)
-    return (
-      <div
-        className="nexus-pdf-master pdf-loading"
-        aria-busy="true"
-        aria-label="Loading document library"
-      >
-        <Loader2 className="animate-spin" />
-        <span>Loading documents…</span>
-      </div>
-    );
+  if (loading) return <PageLoader title="Documents" message="Loading documents…" />;
+
   return (
     <div className={`nexus-pdf-master pdf-workspace ${focusMode ? "is-focused" : ""}`}>
       <input

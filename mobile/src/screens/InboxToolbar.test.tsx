@@ -1,0 +1,26 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { fireEvent, render } from '@testing-library/react-native';
+import { expect, jest, test } from '@jest/globals';
+import InboxScreen from '../../app/(tabs)/inbox';
+jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }), useLocalSearchParams: () => ({}) }));
+jest.mock('../auth/AuthProvider', () => ({ useAuth: () => ({ user: { id: 1 } }) }));
+jest.mock('../components/Screen', () => ({ Screen: ({ header, children }: any) => <>{header}{children}</> }));
+jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
+jest.mock('../api/endpoints', () => ({ endpoints: { posts: jest.fn(async () => ({ data: [], meta: {} })), conversations: jest.fn(async () => ({ data: [], meta: {} })) } }));
+test('keeps sorting available in the compact menu and switches mode-specific search and filters', async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { gcTime: Infinity } } });
+  const screen = await render(<QueryClientProvider client={client}><InboxScreen /></QueryClientProvider>);
+  await screen.findByText('No updates yet');
+  await fireEvent.press(screen.getByLabelText('Sort updates, Newest first'));
+  await fireEvent.press(screen.getByText('Oldest first'));
+  expect(screen.getByLabelText('Sort updates, Oldest first')).toBeTruthy();
+  await fireEvent.changeText(screen.getByLabelText('Search updates'), 'release');
+  await fireEvent.press(screen.getByRole('tab', { name: 'Chat' }));
+  expect(screen.getByLabelText('Search conversations')).toBeTruthy();
+  expect(screen.getByRole('tab', { name: 'Unread' })).toBeTruthy();
+  expect(screen.queryByLabelText('Sort updates, Oldest first')).toBeNull();
+  await fireEvent.press(screen.getByRole('tab', { name: 'Updates' }));
+  expect(screen.getByLabelText('Search updates').props.value).toBe('release');
+  expect(screen.getByLabelText('Sort updates, Oldest first')).toBeTruthy();
+  await screen.unmount(); client.clear();
+});

@@ -1,3 +1,4 @@
+import PageLoader from '../ui/PageLoader';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -712,10 +713,7 @@ export default function Knowledge3DRoom({
 
       {!threeModules && viewMode === "room" ? (
         <div className={styles.loadingLayer}>
-          <div>
-            <span>Loading Three.js room</span>
-            <strong>Preparing knowledge walls...</strong>
-          </div>
+          <PageLoader compact title="Loading Three.js room" message="Preparing knowledge walls..." />
         </div>
       ) : null}
 

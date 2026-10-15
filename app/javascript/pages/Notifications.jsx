@@ -448,10 +448,10 @@ const Notifications = () => {
                 key={index}
                 className="overflow-hidden rounded-[30px] border border-white/70 bg-white/76 p-5 shadow-[0_20px_44px_rgb(15_23_42_/_0.08)]"
               >
-                <div className="mb-4 h-6 w-48 animate-pulse rounded-xl bg-slate-100" />
+                <div className="mb-4 h-6 w-48 workspace-skeleton animate-pulse rounded-xl bg-slate-100" />
                 <div className="space-y-3">
                   {Array.from({ length: 3 }).map((__, rowIndex) => (
-                    <div key={rowIndex} className="h-24 animate-pulse rounded-[22px] bg-slate-100" />
+                    <div key={rowIndex} className="h-24 workspace-skeleton animate-pulse rounded-[22px] bg-slate-100" />
                   ))}
                 </div>
               </div>

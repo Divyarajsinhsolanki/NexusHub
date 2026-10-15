@@ -1,3 +1,4 @@
+import { loadingPalette } from '../components/LoadingSurface';
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import * as WebBrowser from 'expo-web-browser';
@@ -378,7 +379,8 @@ function SocialContactSection({ colors, profile, publicMode }: { colors: Portfol
 }
 
 function PortfolioSkeleton({ colors }: { colors: PortfolioColors }) {
-  return <View accessibilityLabel="Loading portfolio" style={styles.skeleton}><View style={[styles.skeletonAvatar, { backgroundColor: colors.surfaceMuted }]} /><View style={styles.skeletonCopy}><View style={[styles.skeletonLine, { backgroundColor: colors.surfaceMuted, width: '74%' }]} /><View style={[styles.skeletonLine, { backgroundColor: colors.surfaceMuted, width: '92%' }]} /><View style={[styles.skeletonLine, { backgroundColor: colors.surfaceMuted, width: '58%' }]} /></View><View style={[styles.skeletonHero, { backgroundColor: colors.surfaceMuted }]} /><View style={[styles.skeletonLine, { backgroundColor: colors.surfaceMuted, marginTop: 28, width: '42%' }]} /><View style={[styles.skeletonCover, { backgroundColor: colors.surfaceMuted }]} /></View>;
+  const loading = loadingPalette[useAppTheme().isDark ? 'dark' : 'light'];
+  return <View accessibilityLabel="Loading portfolio" accessibilityState={{ busy: true }} style={styles.skeleton}><View style={[styles.skeletonAvatar, { backgroundColor: loading.soft }]} /><View style={styles.skeletonCopy}><View style={[styles.skeletonLine, { backgroundColor: loading.soft, width: '74%' }]} /><View style={[styles.skeletonLine, { backgroundColor: loading.soft, width: '92%' }]} /><View style={[styles.skeletonLine, { backgroundColor: loading.soft, width: '58%' }]} /></View><View style={[styles.skeletonHero, { backgroundColor: loading.soft }]} /><View style={[styles.skeletonLine, { backgroundColor: loading.soft, marginTop: 28, width: '42%' }]} /><View style={[styles.skeletonCover, { backgroundColor: loading.soft }]} /></View>;
 }
 
 function ActionButton({ colors, disabled, icon: Icon, label, onPress, primary = false }: { colors: PortfolioColors; disabled?: boolean; icon: LucideIcon; label: string; onPress: () => void; primary?: boolean }) {

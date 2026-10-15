@@ -38,3 +38,13 @@ it('reports confirmation delivery failure instead of claiming the account is rea
   await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Account created, but confirmation delivery failed. Contact support.'));
   expect(toast.success).not.toHaveBeenCalled();
 });
+
+it('opens the setup guide separately so entered signup details remain intact', () => {
+  render(<MemoryRouter><AuthContext.Provider value={{}}><Signup embedded /></AuthContext.Provider></MemoryRouter>);
+  fireEvent.change(screen.getByLabelText('Company name'), { target: { value: 'My company' } });
+  const guide = screen.getByRole('link', { name: /Read the signup & company setup guide/ });
+  expect(guide.getAttribute('href')).toBe('/getting-started');
+  expect(guide.getAttribute('target')).toBe('_blank');
+  expect(guide.getAttribute('rel')).toContain('noopener');
+  expect(screen.getByLabelText('Company name').value).toBe('My company');
+});

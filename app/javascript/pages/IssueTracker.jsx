@@ -1,3 +1,4 @@
+import LoadingIndicator from '../components/ui/LoadingIndicator';
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { SchedulerAPI, getIssues, createIssue, updateIssue, deleteIssue, importIssuesFromSheet } from "../components/api";
@@ -1705,7 +1706,7 @@ const IssueTracker = ({ projectId: providedProjectId, sprint, standalone = false
         </div>
 
         {loading ? (
-          <div className="flex items-center gap-3 text-slate-500"><span className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-[var(--theme-color)]" /> Loading issues...</div>
+          <LoadingIndicator label="Loading issues..." />
         ) : filteredIssues.length === 0 && !editing ? (
           filter !== "all" || sprintFilter !== "all" || foundByFilter !== "all" || moduleFilter !== "all" || severityFilter !== "all" || searchId.trim() ? (
             <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center">

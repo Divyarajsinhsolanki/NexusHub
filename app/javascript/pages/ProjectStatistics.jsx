@@ -1,3 +1,4 @@
+import PageLoader from '../components/ui/PageLoader';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ChartBarIcon,
@@ -442,15 +443,7 @@ const ProjectStatistics = ({ projectId }) => {
     completed: recentlyCompletedMilestones.length,
   }), [atRiskTasks, upcomingMilestones, recentlyCompletedMilestones]);
 
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-96 bg-gradient-to-br from-gray-50 to-white rounded-3xl shadow-sm border border-gray-100 p-8">
-        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mb-4" />
-        <p className="text-gray-600 font-medium">Loading project analytics...</p>
-        <p className="text-sm text-gray-500 mt-2">Crunching the numbers</p>
-      </div>
-    );
-  }
+  if (loading) return <PageLoader title="Project analytics" message="Loading project analytics..." />;
 
   if (error) {
     return (

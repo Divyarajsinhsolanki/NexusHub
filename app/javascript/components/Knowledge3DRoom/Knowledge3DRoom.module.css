@@ -50,27 +50,16 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle at 50% 46%, rgba(14, 165, 233, 0.16), rgba(9, 17, 31, 0.86) 54%);
-  color: #e2e8f0;
+  background: #f6f3ed;
+  padding: 20px;
 }
 
-.loadingLayer div {
-  display: grid;
-  gap: 8px;
-  text-align: center;
-}
-
-.loadingLayer span,
 .topBar span,
 .wallHeader span {
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-}
-
-.loadingLayer strong {
-  font-size: 1.1rem;
 }
 
 .topBar,
@@ -745,3 +734,5 @@
 .viewToggle button { padding: 6px 10px; border-radius: 7px; color: #64748b; font-size: 12px; font-weight: 700; }
 .viewToggle button[aria-pressed="true"] { background: #346dff; color: #fff; }
 @media (max-width: 860px) { .overviewGrid { top: 160px; bottom: 140px; left: 12px; right: 12px; gap: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); } .overviewCard { gap: 4px; padding: 10px; } .overviewCard small { display: none; } }
+
+:global(.dark) .loadingLayer { background: #191c23; }

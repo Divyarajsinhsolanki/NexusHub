@@ -51,8 +51,8 @@
 .knowledge-empty h3 { color: var(--knowledge-text); font-size: 18px; font-weight: 600; }
 .knowledge-empty p { font-size: 13px; }
 .knowledge-empty button { border: 1px solid var(--knowledge-line); padding: 8px 14px; border-radius: 5px; font-size: 13px; background: var(--knowledge-surface); }
-.knowledge-skeleton { height: 250px; padding: 24px; border: 1px solid var(--knowledge-line); border-radius: 8px; background: var(--knowledge-surface); }
-.knowledge-skeleton span { display: block; height: 12px; background: #edf1ee; margin: 14px 0; border-radius: 3px; animation: knowledge-pulse 1.5s ease-in-out infinite; }
+.knowledge-skeleton { --knowledge-surface: #fffdf9; --knowledge-line: #e5dfd5; height: 250px; padding: 24px; border: 1px solid var(--knowledge-line); border-radius: 8px; background: var(--knowledge-surface); }
+.knowledge-skeleton span { display: block; height: 12px; background: #eee9e0; margin: 14px 0; border-radius: 3px; animation: knowledge-pulse 1.5s ease-in-out infinite; }
 .knowledge-skeleton span:first-child { width: 60%; height: 18px; }
 .knowledge-skeleton span:last-child { width: 80%; }
 .knowledge-room-view { padding: 0; display: flex; flex-direction: column; overflow: hidden; }
@@ -83,3 +83,6 @@
 @media (prefers-reduced-motion: reduce) { .knowledge-skeleton span { animation: none; } }
 .knowledge-library:not(.knowledge-room-view) { padding-bottom: 96px; }
 @media (max-width: 700px) { .knowledge-library.knowledge-room-view { height: calc(100dvh - var(--nexus-command-height, 64px) - 64px); } }
+
+.dark .knowledge-skeleton { --knowledge-surface: #242833; --knowledge-line: #3c414c; }
+.dark .knowledge-skeleton span { background: #333e60; }

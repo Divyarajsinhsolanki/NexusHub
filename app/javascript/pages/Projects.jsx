@@ -1,3 +1,5 @@
+import PageLoader from '../components/ui/PageLoader';
+import LoadingIndicator from '../components/ui/LoadingIndicator';
 import { canOpenProjectWorkspace } from "../utils/projectAccess";
 import MemberProfileCard from "../components/ui/MemberProfileCard";
 import React, { useEffect, useState, useContext, useCallback } from "react";
@@ -960,10 +962,7 @@ const Projects = () => {
 
                 <nav className="flex-1 overflow-y-auto p-3 space-y-4">
                     {isLoading ? (
-                        <div className="flex flex-col items-center justify-center py-12 text-zinc-500">
-                            <FiLoader className="w-8 h-8 animate-spin text-violet-500 mb-3" />
-                            <p className="text-sm">Loading projects...</p>
-                        </div>
+                        <div className="flex justify-center py-12"><LoadingIndicator label="Loading projects..." /></div>
                     ) : filteredProjects.length > 0 ? (
                         projectStatuses.map((status) => (
                             groupedProjects[status] && groupedProjects[status].length > 0 && (
@@ -1734,10 +1733,7 @@ const Projects = () => {
                             </section>
                         </div>
                     ) : isLoading ? (
-                        <div className="text-center h-full flex flex-col items-center justify-center min-h-[50vh]">
-                            <FiLoader className="animate-spin text-5xl mb-4 text-[var(--theme-color)]" />
-                            <p className="text-gray-600 text-lg">Loading project data...</p>
-                        </div>
+                        <PageLoader title="Projects" message="Loading project data..." />
                     ) : (
                         // Show introductory message or all project cards
                         <div>

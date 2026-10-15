@@ -1,3 +1,5 @@
+import PageLoader from '../components/ui/PageLoader';
+import MessageBulkActions from '../components/chat/MessageBulkActions';
 import ConversationBulkActions from '../components/chat/ConversationBulkActions';
 import GroupProfile from "../components/chat/GroupProfile";
 import ChatMenu from "../components/chat/ChatMenu";
@@ -793,7 +795,7 @@ const MessageAttachmentCard = ({ attachment, isMe, searchQuery }) => {
   );
 };
 
-const MessageBubble = React.memo(({ message, conversationId, isMe, showAvatar, onToggleReaction, onReply, onEdit, onDelete, onContext, onThread, onPin, participants, conversationType, searchQuery, mentionLookups }) => {
+const MessageBubble = React.memo(({ message, conversationId, isMe, showAvatar, onToggleReaction, onReply, onEdit, onDelete, onContext, onThread, onPin, onSelectMessage, selecting = false, selected = false, selectionBusy = false, onToggleSelection, participants, conversationType, searchQuery, mentionLookups }) => {
   const [isReactionPickerOpen, setIsReactionPickerOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [isReactionPickerExpanded, setIsReactionPickerExpanded] = useState(false);
@@ -866,7 +868,8 @@ const MessageBubble = React.memo(({ message, conversationId, isMe, showAvatar, o
 
   return (
     <div data-outgoing={isMe} data-group-start={showAvatar} className={`nx-chat-message group/bubble flex w-full ${showAvatar ? "pt-3" : "pt-0.5"} ${isMe ? "justify-end" : "justify-start"}`}>
-      <div className={`flex min-w-0 max-w-[94%] gap-2.5 md:max-w-[78%] ${isMe ? "flex-row-reverse" : "flex-row"}`}>
+      {selecting && message.id > 0 && !message.deleted_at && message.message_type !== 'system' && <button type="button" role="checkbox" aria-checked={selected} aria-label={`Select message: ${message.body || 'Attachment'}`} disabled={selectionBusy} onClick={() => onToggleSelection(message)} className="chat-selection-checkbox">{selected ? <FiCheck /> : <span aria-hidden="true">○</span>}</button>}
+      <div inert={selecting ? true : undefined} className={`flex min-w-0 max-w-[94%] gap-2.5 md:max-w-[78%] ${isMe ? "flex-row-reverse" : "flex-row"}`}>
         {!isMe && (
           <div className="flex w-8 shrink-0 items-start justify-center pt-1">
             {showAvatar ? <Avatar name={message.user_name} src={message.user_profile_picture} size="sm" /> : <div className="h-8 w-8" />}
@@ -912,7 +915,8 @@ const MessageBubble = React.memo(({ message, conversationId, isMe, showAvatar, o
 
           {!message.deleted_at && <button ref={messageToolsTriggerRef} type="button" className="chat-mobile-message-menu" title="Message actions" aria-label="Message actions" aria-expanded={toolsOpen} onClick={() => setToolsOpen((open) => !open)}><FiMoreVertical /></button>}
           </div>
-          <MessageActionsPopover open={toolsOpen} outgoing={isMe} triggerRef={messageToolsTriggerRef} menuRef={messageToolsRef}>
+          <MessageActionsPopover open={toolsOpen && !selecting} outgoing={isMe} triggerRef={messageToolsTriggerRef} menuRef={messageToolsRef}>
+            {onSelectMessage && message.id > 0 && !message.deleted_at && message.message_type !== 'system' && <button type="button" className="chat-icon-button" onClick={() => { setToolsOpen(false); onSelectMessage(message); }}>Select message</button>}
             {onContext && <button type="button" onClick={() => onContext(message.id)} className="chat-icon-button" aria-label="Open message in conversation"><FiSearch /></button>}
             {canChangeMessage(message, isMe ? message.user_id : null) && <>
               <button type="button" onClick={() => { setToolsOpen(false); onEdit(message); }} aria-label="Edit message" className="chat-icon-button"><FiEdit /><span>Edit message</span></button>
@@ -1227,6 +1231,14 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   const [isCallConnecting, setIsCallConnecting] = useState(false);
   const [callError, setCallError] = useState("");
   const [selectingChats, setSelectingChats] = useState(false);
+  const [selectingMessages, setSelectingMessages] = useState(false);
+  const [selectedMessageIds, setSelectedMessageIds] = useState(new Set());
+  const [messageSelectionBusy, setMessageSelectionBusy] = useState(false);
+  const toggleMessageSelection = useCallback(message => {
+    if (messageSelectionBusy || message.id <= 0 || message.deleted_at || message.message_type === 'system') return;
+    setSelectedMessageIds(previous => { const next = new Set(previous); if (next.has(message.id)) next.delete(message.id); else if (next.size < 100) next.add(message.id); return next; });
+  }, [messageSelectionBusy]);
+
   const [selectionBusy, setSelectionBusy] = useState(false);
   const [selectedChatIds, setSelectedChatIds] = useState(new Set());
   const [presenceNow, setPresenceNow] = useState(() => Date.now());
@@ -2791,6 +2803,8 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   }, [conversationId, replyTo?.id, activeConversationMessages, activeConversation?.id, isConversationLoading]);
 
 
+  useEffect(() => { setSelectingMessages(false); setSelectedMessageIds(new Set()); }, [conversationId, user?.id, deferredThreadSearchQuery]);
+
   const attachmentPreviewUrls = useMemo(
     () => attachments.map((file) => (file.type.startsWith("image/") || file.type.startsWith("video/")) ? URL.createObjectURL(file) : null),
     [attachments]
@@ -3478,10 +3492,10 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                 {[1, 2, 3, 4].map((item) => (
                   <div key={item} className="rounded-[22px] border border-white/70 bg-white/72 p-3.5 shadow-[0_18px_45px_-34px_rgba(15,23,42,0.5)] dark:border-zinc-800 dark:bg-zinc-900/80">
                     <div className="flex items-start gap-3">
-                      <div className="h-11 w-11 animate-pulse rounded-full bg-slate-200 dark:bg-zinc-800" />
+                      <div className="h-11 w-11 workspace-skeleton animate-pulse rounded-full bg-slate-200 dark:bg-zinc-800" />
                       <div className="min-w-0 flex-1 space-y-3">
-                        <div className="h-3 w-32 animate-pulse rounded-full bg-slate-200 dark:bg-zinc-800" />
-                        <div className="h-3 w-44 animate-pulse rounded-full bg-slate-100 dark:bg-zinc-900" />
+                        <div className="h-3 w-32 workspace-skeleton animate-pulse rounded-full bg-slate-200 dark:bg-zinc-800" />
+                        <div className="h-3 w-44 workspace-skeleton animate-pulse rounded-full bg-slate-100 dark:bg-zinc-900" />
                       </div>
                     </div>
                   </div>
@@ -3600,25 +3614,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
 
         <main className={`nexus-chat-thread relative z-10 flex min-h-0 min-w-0 flex-1 flex-col ${!conversationId ? "hidden md:flex" : "flex"}`}>
           {showThreadLoadingState ? (
-            <div className="chat-loading-state relative flex flex-1 items-center justify-center p-6 md:p-10">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(125,211,252,0.22),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.6),rgba(248,250,252,0.72))] dark:bg-[linear-gradient(180deg,rgba(9,9,11,0.72),rgba(17,24,39,0.82))]" />
-              <div className="relative z-10 w-full max-w-xl rounded-[32px] border border-white/80 bg-white/78 p-8 shadow-[0_30px_70px_-40px_rgba(15,23,42,0.8)] backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-950/78">
-                <div className="flex items-center gap-4">
-                  <div className="h-14 w-14 animate-pulse rounded-full bg-slate-200 dark:bg-zinc-800" />
-                  <div className="flex-1 space-y-3">
-                    <div className="h-4 w-32 animate-pulse rounded-full bg-slate-200 dark:bg-zinc-800" />
-                    <div className="h-3 w-48 animate-pulse rounded-full bg-slate-100 dark:bg-zinc-900" />
-                  </div>
-                </div>
-                <div className="mt-8 space-y-4">
-                  {[1, 2, 3].map((item) => (
-                    <div key={item} className={`flex ${item % 2 === 0 ? "justify-end" : "justify-start"}`}>
-                      <div className="h-20 w-[70%] animate-pulse rounded-[24px] bg-slate-200/80 dark:bg-zinc-800/90" />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            <div className="flex min-h-0 flex-1"><PageLoader title="Chat" message="Loading your conversations…" /></div>
           ) : !activeConversation ? (
             <div className="chat-welcome">
               <div className="chat-welcome-visual" aria-hidden="true">
@@ -3830,6 +3826,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                   </form>}
                   {contextMessages && <button className="chat-context-return" onClick={() => { setContextMessages(null); setContextTarget(null); isAtLatestMessagesRef.current = true; scrollMessagesToBottom(80); }}>Viewing message context · Back to latest</button>}
                   <ChatTools mode={chatToolMode} onModeChange={setChatToolMode} unreadId={Number(unreadAnchor?.conversationId) === Number(conversationId) ? unreadAnchor?.id : null} onJumpUnread={() => openMessageContext(unreadAnchor.id)} key={conversationId} conversationId={conversationId} thread={threadTarget} onCloseThread={() => setThreadTarget(null)} onReply={handleReply} onOpen={openMessageContext} readOnly={user?.demo_account} draft={{ body: messageBody, attachments, replyTo, clientId: pendingSendRef.current?.clientId }} onScheduled={handleScheduled} />
+                  {selectingMessages && <MessageBulkActions key={conversationId} messages={filteredMessages} selected={selectedMessageIds} onSelection={setSelectedMessageIds} onClose={() => { setSelectingMessages(false); setSelectedMessageIds(new Set()); }} conversationId={conversationId} userId={user?.id} readOnly={Boolean(user?.demo_account)} onChanged={applyMessageChange} onBusy={setMessageSelectionBusy} />}
                   <div
                     ref={messageListRef}
                     onScroll={handleMessageListScroll}
@@ -3904,7 +3901,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                             return <>
                               {Number(unreadAnchor?.conversationId) === Number(conversationId) && Number(message.id) === Number(unreadAnchor?.id) && <div className="chat-day-divider" role="separator" aria-label="Unread messages"><span>Unread messages</span></div>}
                               {dayStart && <div className="chat-day-divider"><span>{formatDayLabel(message.created_at)}</span></div>}
-                              <MessageBubble conversationId={conversationId} message={message} isMe={Number(message.user_id) === Number(user?.id)}
+                              <MessageBubble selecting={selectingMessages} selected={selectedMessageIds.has(message.id)} selectionBusy={messageSelectionBusy} onToggleSelection={toggleMessageSelection} onSelectMessage={message => { setSelectingMessages(true); setSelectedMessageIds(new Set([message.id])); }} conversationId={conversationId} message={message} isMe={Number(message.user_id) === Number(user?.id)}
                                 showAvatar={dayStart || Number(previous?.user_id) !== Number(message.user_id)}
                                 onThread={setThreadTarget} onPin={user?.demo_account ? null : handlePin}
                                 onToggleReaction={handleToggleReaction}
@@ -4572,7 +4569,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
               <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">
                 {isUsersLoading ? (
                   <div className="grid gap-2" aria-label="Loading people">
-                    {[0, 1, 2].map((item) => <div key={item} className="h-16 animate-pulse rounded-xl bg-slate-100 dark:bg-zinc-900" />)}
+                    {[0, 1, 2].map((item) => <div key={item} className="h-16 workspace-skeleton animate-pulse rounded-xl bg-slate-100 dark:bg-zinc-900" />)}
                   </div>
                 ) : availableGroupMembers.length > 0 ? (
                   <div className="grid gap-2">

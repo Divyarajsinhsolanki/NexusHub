@@ -1,10 +1,10 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Controller, useForm } from 'react-hook-form';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { StyleSheet, Text, TextInput } from 'react-native';
+import { Alert, Linking, Pressable, StyleSheet, Text, TextInput } from 'react-native';
 import { z } from 'zod';
 
-import { apiErrorMessage } from '@/src/api/client';
+import { API_URL, apiErrorMessage } from '@/src/api/client';
 import { useAuth } from '@/src/auth/AuthProvider';
 import { AuthScaffold } from '@/src/components/AuthScaffold';
 import { PrimaryButton } from '@/src/components/PrimaryButton';
@@ -37,6 +37,10 @@ export default function SignupScreen() {
   return (
     <AuthScaffold title="Create your workspace" subtitle="Start with a private workspace. You can add teams, projects, and members after confirming your email."
       footer={<Text style={{ color: theme.textMuted }}>Already registered? <Text accessibilityRole="link" onPress={() => router.replace(returnTo ? `/login?returnTo=${encodeURIComponent(returnTo)}` as never : '/login')} style={{ color: theme.primary, fontWeight: '700' }}>Sign in</Text></Text>}>
+      <Pressable accessibilityRole="link" accessibilityLabel="Signup and company setup guide, opens in browser" onPress={() => { void Linking.openURL(`${API_URL.replace(/\/api\/v1$/, '')}/getting-started`).catch(() => Alert.alert('Unable to open guide', 'Please open the signup guide on the Nexus Hub website.')); }} style={{ minHeight: 44, justifyContent: 'center', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: theme.border, marginBottom: 12 }}>
+        <Text style={{ color: theme.primary, fontWeight: '700' }}>Signup &amp; company setup guide ↗</Text>
+        <Text style={{ color: theme.textMuted, marginTop: 4 }}>Learn how to create a workspace or join your team.</Text>
+      </Pressable>
       {isSubmitSuccessful ? (
         <Text accessibilityRole="alert" style={[styles.success, { backgroundColor: theme.surfaceMuted, color: theme.success }]}>Account created. Check your email to confirm it, then return to sign in.</Text>
       ) : (

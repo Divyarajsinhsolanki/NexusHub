@@ -329,7 +329,7 @@ const DailyMomentumHub = () => {
             {Array.from({ length: 4 }).map((_, idx) => (
               <div
                 key={idx}
-                className="h-64 animate-pulse rounded-[30px] border border-white/70 bg-white/76 shadow-[0_20px_44px_rgb(15_23_42_/_0.08)]"
+                className="h-64 workspace-skeleton animate-pulse rounded-[30px] border border-white/70 bg-white/76 shadow-[0_20px_44px_rgb(15_23_42_/_0.08)]"
               />
             ))}
           </div>

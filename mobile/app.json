@@ -45,7 +45,8 @@
         {
           "image": "./assets/images/ds-splash-logo-v2.png",
           "resizeMode": "contain",
-          "backgroundColor": "#185878",
+          "backgroundColor": "#f6f3ed",
+          "dark": { "backgroundColor": "#191c23" },
           "imageWidth": 240,
           "android": {
             "imageWidth": 160,

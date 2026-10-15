@@ -462,7 +462,7 @@ const Users = () => {
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {[1, 2, 3, 4].map((n) => (
-              <div key={n} className="bg-white rounded-2xl h-80 shadow-sm animate-pulse border border-gray-100"></div>
+              <div key={n} className="bg-white rounded-2xl h-80 shadow-sm workspace-skeleton animate-pulse border border-gray-100"></div>
             ))}
           </div>
         ) : (
