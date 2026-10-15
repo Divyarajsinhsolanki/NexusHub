@@ -154,3 +154,15 @@ Deploy the Rails `/api/v1/notifications/:id/reply` endpoint before releasing the
 Replies are saved to the local notification-action queue before sending. Temporary network/login failures retry on app launch, resume or reconnect; queued replies expire after 24 hours. Removed conversations or lost access stop retries. A failed background reply displays a status notification without including the reply text. Successful sending dismisses the original notification and updates the badge.
 
 Verify on physical Android and iOS devices with a native development/release build (not Expo Go): foreground, background, terminated app, offline then reconnect, expired login, switching accounts, duplicate callbacks, deleted originals, and a newer unread message arriving before replying. Confirm no duplicate message, correct reply target, correct badge, and that newer messages remain unread. Automated tests cover the JS task/category setup, action processor, API authorization, receipts and idempotency; OS tray behavior still requires this device check.
+
+### EAS archive and shared call modules
+
+The upload is filtered by the repository-root `.easignore`. Besides `mobile/`, it includes exactly `app/javascript/lib/meetingConnection.ts` and `app/javascript/lib/meetingInteractionSession.ts`: native call components import these modules, and Metro watches their directory. Keep these files in the archive when changing upload rules; a full-checkout export alone cannot detect an accidentally excluded shared dependency. The remaining Rails application and local credentials stay excluded.
+
+Inspect the actual preview archive before retrying a packaging failure:
+
+```bash
+eas build:inspect --platform android --profile preview --stage archive --output /tmp/nexushub-preview-archive
+```
+
+Check Expo SDK compatibility with `npx expo-doctor`. Apply compatible patch updates with `npx expo install --fix` and commit both dependency manifests before a new build.

@@ -1,6 +1,16 @@
-# EAS archives the Git repository root; the mobile app is self-contained.
+# EAS archives the Git repository root; include mobile and its two shared call modules.
 /*
 !/mobile
+
+# Metro resolves these shared web/native modules; keep the remaining Rails app excluded.
+!/app
+/app/*
+!/app/javascript
+/app/javascript/*
+!/app/javascript/lib
+/app/javascript/lib/*
+!/app/javascript/lib/meetingConnection.ts
+!/app/javascript/lib/meetingInteractionSession.ts
 
 # Dependencies, generated native projects, local configuration and credentials.
 mobile/node_modules/
