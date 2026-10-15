@@ -32,7 +32,7 @@ class OperationReminderDeliveryJob < ApplicationJob
 
   def eligible?(record)
     return false unless Operations::Schedules.delivery_current?(record)
-    return false unless record.recipient.active? && record.project.project_users.exists?(user_id: record.recipient_id, status: 'active')
+    return false unless record.recipient.workspace_access?(record.workspace) && record.recipient.active? && record.project.project_users.exists?(user_id: record.recipient_id, status: 'active')
     return false unless record.recipient.notification_preference_enabled?('calendar_reminder')
     return false if record.workspace.demo?
     true

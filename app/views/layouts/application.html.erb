@@ -17,7 +17,7 @@
     <meta name="twitter:title" content="<%= metadata["title"] %>">
     <meta name="twitter:description" content="<%= metadata["description"] %>">
     <% if public_portfolio_page? && request.path == "/" %>
-      <script type="application/ld+json"><%= raw(json_escape({ "@context" => "https://schema.org", "@graph" => [ { "@type" => "WebSite", "name" => "Divyarajsinh Solanki", "alternateName" => "Divyarajsinh", "url" => "#{seo_site_url}/" }, { "@type" => "Person", "name" => "Divyarajsinh Solanki", "url" => "#{seo_site_url}/", "jobTitle" => "Full-stack Engineer" } ] }.to_json)) %></script>
+      <script type="application/ld+json" nonce="<%= content_security_policy_nonce %>"><%= raw(json_escape({ "@context" => "https://schema.org", "@graph" => [ { "@type" => "WebSite", "name" => "Divyarajsinh Solanki", "alternateName" => "Divyarajsinh", "url" => "#{seo_site_url}/" }, { "@type" => "Person", "name" => "Divyarajsinh Solanki", "url" => "#{seo_site_url}/", "jobTitle" => "Full-stack Engineer" } ] }.to_json)) %></script>
     <% end %>
     <meta name="nexus-portfolio-enabled" content="<%= PortfolioAccess.enabled? %>">
     <% recaptcha_enabled = ActiveModel::Type::Boolean.new.cast(ENV["RECAPTCHA_ENABLED"]) || ENV["VITE_RECAPTCHA_SITE_KEY"].present? %>
@@ -39,14 +39,19 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
-    <%= vite_client_tag %>
-    <%= vite_javascript_tag 'entrypoints/application.jsx' %>
+    <%= vite_client_tag nonce: true %>
+    <%= vite_javascript_tag 'entrypoints/application.jsx', nonce: true %>
     <%= vite_stylesheet_tag 'entrypoints/application.jsx' %>
 
     <%#= vite_javascript_tag 'components/App.jsx' %>
   </head>
 
   <body>
+    <% if ENV["DEPLOYMENT_TIER"] == "staging" %>
+      <aside role="status" class="border-b border-amber-300 bg-amber-100 px-4 py-2 text-center text-sm text-amber-950">
+        Staging · Synthetic data · Email is captured locally. Do not enter customer data or live credentials.
+      </aside>
+    <% end %>
     <div id="root">
       <% if @portfolio_profile.present? %>
         <%= render "pages/portfolio", profile: @portfolio_profile, projects: @portfolio_projects %>

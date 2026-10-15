@@ -4,12 +4,9 @@ import { useNavigate } from "react-router-dom";
 import {
   FiArrowDown,
   FiArrowRight,
-  FiArrowLeft,
-  FiBox,
   FiCpu,
   FiDatabase,
   FiGlobe,
-  FiZap,
   FiArrowUpRight,
   FiCheck,
   FiCode,
@@ -19,9 +16,10 @@ import {
   FiLinkedin,
   FiMail,
   FiMapPin,
+  FiPause,
+  FiPlay,
   FiMenu,
   FiSend,
-  FiShield,
   FiX,
 } from "react-icons/fi";
 import { AuthContext } from "../context/AuthContext";
@@ -270,19 +268,44 @@ const ContactForm = () => {
 };
 
 const navItems = [
-  ["About", "about"],
   ["Work", "case-study"],
-  ["Features", "features"],
+  ["Walkthrough", "features"],
   ["Approach", "decisions"],
+  ["About", "about"],
   ["Contact", "contact"],
 ];
-const featureIcons = [FiLayers, FiZap, FiGlobe, FiCode, FiBox, FiCpu];
+const architectureLayers = [
+  { title: "The experience", stack: "React + Vite", Icon: FiLayers, description: "The browser presents responsive product screens and connects user actions to the Rails API." },
+  { title: "The engine", stack: "Rails · APIs · Realtime", Icon: FiCpu, description: "Rails handles application workflows, workspace authorization, and APIs supporting realtime collaboration." },
+  { title: "The foundation", stack: "PostgreSQL · Redis · S3", Icon: FiDatabase, description: "PostgreSQL stores application records, Redis supports realtime infrastructure, and S3 provides asset storage." },
+];
+
+const FeatureScreenshot = ({ feature }) => {
+  const [failed, setFailed] = useState(false);
+  return feature.screenshot_url && !failed ? (
+    <img src={feature.screenshot_url} alt={feature.alt_text || feature.title} onError={() => setFailed(true)} />
+  ) : (
+    <div className="pf-walkthrough-placeholder" role="status">
+      <FiLayers aria-hidden="true" />
+      <p>Screenshot unavailable for {feature.title}.</p>
+      <span>Open the live screen to explore this product area.</span>
+    </div>
+  );
+};
 const pad = (value) => String(value).padStart(2, "0");
 
 const SectionLabel = ({ number, children }) => (
   <p className="pf-section-label">
     <span>{number} /</span> {children}
   </p>
+);
+
+const KineticRibbon = ({ words, reverse = false }) => (
+  <div className={`pf-kinetic-ribbon ${reverse ? "pf-ribbon-reverse" : ""}`} data-kinetic aria-hidden="true">
+    <div className="pf-ribbon-track">
+      {[0, 1, 2, 3].map((copy) => <span key={copy}>{words}<i>✳</i></span>)}
+    </div>
+  </div>
 );
 
 const OrbitScene = ({ initials }) => (
@@ -326,12 +349,14 @@ const PublicPortfolio = () => {
   const navigate = useNavigate();
   const { handleDemoLogin } = useContext(AuthContext);
   const rootRef = useRef(null);
-  const galleryRef = useRef(null);
+  const [selectedFeature, setSelectedFeature] = useState(0);
+  const [selectedLayer, setSelectedLayer] = useState(0);
   const [data, setData] = useState({
     profile: fallbackProfile,
     projects: [fallbackProject],
     seo: {},
   });
+  const [motionPaused, setMotionPaused] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [demoLoading, setDemoLoading] = useState("");
   const [demoError, setDemoError] = useState("");
@@ -365,12 +390,14 @@ const PublicPortfolio = () => {
       ),
     [project.features],
   );
+  useEffect(() => setSelectedFeature(0), [project]);
+  const feature = features[selectedFeature] || features[0];
   const { activeSection, reducedMotion } = usePortfolioMotion(rootRef, [
     features.length,
     data,
-  ]);
+  ], !motionPaused);
   const socialLinks = profile.social_links || {};
-  const caseStudy = { ...fallbackProject.case_study, ...project.case_study };
+  const caseStudy = project.case_study || {};
   const seo = data.seo || {};
   const initials = (profile.full_name || fallbackProfile.full_name)
     .split(/\s+/)
@@ -432,45 +459,6 @@ const PublicPortfolio = () => {
     }
   };
 
-  const focusFeature = (index, smooth = true) => {
-    const gallery = galleryRef.current;
-    if (!gallery || gallery.dataset.galleryPinned !== "true") return;
-    const track = gallery.querySelector("[data-gallery-track]");
-    const cards = [...track.children];
-    const max = Math.max(
-      1,
-      track.scrollWidth -
-        gallery.querySelector("[data-gallery-viewport]").clientWidth,
-    );
-    const progress = Math.min(1, cards[index].offsetLeft / max);
-    const top = window.scrollY + gallery.getBoundingClientRect().top;
-    window.scrollTo({
-      top: top + progress * (gallery.offsetHeight - window.innerHeight),
-      behavior: smooth && !reducedMotion ? "smooth" : "instant",
-    });
-  };
-  const stepGallery = (direction) => {
-    const gallery = galleryRef.current;
-    if (!gallery) return;
-    const viewport = gallery.querySelector("[data-gallery-viewport]");
-    const track = gallery.querySelector("[data-gallery-track]");
-    const distance = track.scrollWidth - viewport.clientWidth;
-    if (distance <= 0 || gallery.dataset.galleryPinned !== "true") return;
-    const current = -(
-      parseFloat(gallery.style.getPropertyValue("--gallery-shift")) || 0
-    );
-    const step =
-      track.firstElementChild.offsetWidth +
-      (parseFloat(getComputedStyle(track).gap) || 24);
-    const progress =
-      Math.max(0, Math.min(distance, current + direction * step)) / distance;
-    const top = window.scrollY + gallery.getBoundingClientRect().top;
-    window.scrollTo({
-      top: top + progress * (gallery.offsetHeight - window.innerHeight),
-      behavior: reducedMotion ? "instant" : "smooth",
-    });
-  };
-
   return (
     <div className="pf-page" ref={rootRef}>
       <Helmet>
@@ -506,7 +494,18 @@ const PublicPortfolio = () => {
       <a className="pf-skip-link" href="#portfolio-main">
         Skip to content
       </a>
+      <div className="pf-atmosphere" aria-hidden="true"><span /><span /><div /></div>
       <div className="pf-scroll-progress" aria-hidden="true" />
+      <nav className="pf-chapter-rail" aria-label="Scroll chapters">
+        {[["Start", "top"], ...navItems.slice(0, 3), ["Architecture", "architecture"], ...navItems.slice(3)].map(([label, id], index) => (
+          <a key={id} href={`#${id}`} aria-label={label} aria-current={activeSection === id ? "location" : undefined} onClick={(event) => { event.preventDefault(); scrollTo(id); }}>
+            <span>{pad(index)}</span><i /><strong>{label}</strong>
+          </a>
+        ))}
+      </nav>
+      <button type="button" className="pf-motion-toggle" aria-pressed={motionPaused} aria-label={motionPaused ? "Resume visual motion" : "Pause visual motion"} onClick={() => setMotionPaused((value) => !value)}>
+        {motionPaused ? <FiPlay aria-hidden="true" /> : <FiPause aria-hidden="true" />}<span>{motionPaused ? "Motion paused" : reducedMotion ? "Reduced motion" : "Motion on"}</span>
+      </button>
       <header className="pf-header">
         <a
           className="pf-brand"
@@ -600,20 +599,18 @@ const PublicPortfolio = () => {
           data-portfolio-section
           className="pf-hero pf-container"
         >
-          <div className="pf-hero-content">
+          <div className="pf-hero-content" data-parallax="0.08">
             <p className="pf-eyebrow">
               <span className="pf-status-dot" /> Engineering with a product
               mindset
             </p>
             <h1>
-              From ideas
+              {profile.full_name}
               <br />
-              to <span className="pf-serif">impact.</span>
+              <span className="pf-serif">Full-stack engineer.</span>
             </h1>
             <p className="pf-hero-description">
-              I’m {profile.full_name.split(" ")[0]}. I build thoughtful digital
-              products — from the first interaction to the last line of
-              infrastructure.
+              {profile.headline}. Rails APIs, React interfaces, and production deployment.
             </p>
             <div className="pf-hero-actions">
               <a
@@ -626,16 +623,11 @@ const PublicPortfolio = () => {
               >
                 Explore my work <FiArrowDown />
               </a>
-              <a
-                className="pf-text-link"
-                href="#contact"
-                onClick={(event) => {
-                  event.preventDefault();
-                  scrollTo("contact");
-                }}
-              >
-                Let’s talk <FiArrowUpRight />
-              </a>
+              {profile.resume_url ? (
+                <a className="pf-text-link" href={profile.resume_url}>View résumé <FiDownload /></a>
+              ) : (
+                <a className="pf-text-link" href="#about" onClick={(event) => { event.preventDefault(); scrollTo("about"); }}>My experience <FiArrowUpRight /></a>
+              )}
             </div>
             <div className="pf-hero-note">
               <FiMapPin />
@@ -644,14 +636,15 @@ const PublicPortfolio = () => {
               <span>Building for the web</span>
             </div>
           </div>
-          <OrbitScene initials={initials} />
+          <div className="pf-hero-depth" data-parallax="-0.15"><OrbitScene initials={initials} /></div>
+          <span className="pf-hero-ghost" data-parallax="0.2" aria-hidden="true">ENGINEER</span>
           <div className="pf-hero-bottom">
             <span>STRATEGY → DESIGN → DEVELOPMENT</span>
             <a
-              href="#about"
+              href="#case-study"
               onClick={(event) => {
                 event.preventDefault();
-                scrollTo("about");
+                scrollTo("case-study");
               }}
             >
               <span>Scroll to discover</span>
@@ -663,24 +656,201 @@ const PublicPortfolio = () => {
           </div>
         </section>
 
-        <div className="pf-skills-strip" aria-label="Technology stack">
+        <KineticRibbon words="IDEAS INTO INTERFACES" />
+
+        <section
+          id="case-study"
+          data-portfolio-section
+          className="pf-section pf-case-study"
+        >
           <div className="pf-container">
-            {[
-              "Ruby on Rails",
-              "React",
-              "PostgreSQL",
-              "AWS",
-              "Creative engineering",
-            ].map((skill) => (
-              <span key={skill}>
-                <span className="pf-spark" aria-hidden="true">
-                  ✳
-                </span>
-                {skill}
+            <div className="pf-section-heading" data-reveal>
+              <div>
+                <SectionLabel number="01">Flagship Case Study</SectionLabel>
+                <h2>
+                  {project.title}
+                  <br />
+                  <span className="pf-serif">Built from interface to infrastructure.</span>
+                </h2>
+              </div>
+              <span className="pf-project-year">
+                DESIGN + DEVELOPMENT
+                <br />
+                FULL-STACK PRODUCT
               </span>
+            </div>
+            <div className="pf-cinema" data-scroll-scene>
+              <div className="pf-cinema-sticky">
+                <div className="pf-cinema-caption"><span>01 / THE PRODUCT</span><span>SCROLL TO REVEAL <FiArrowDown /></span></div>
+                <div className="pf-project-stage">
+                  <span className="pf-cinema-word" aria-hidden="true">{project.title}</span>
+                  <div className="pf-project-window">
+                <div className="pf-window-bar">
+                  <span className="pf-window-dots">
+                    <i />
+                    <i />
+                    <i />
+                  </span>
+                  <span>nexus / connected workspace</span>
+                  <FiArrowUpRight />
+                </div>
+                <LoopingVideo
+                  srcWebm={reducedMotion ? undefined : NEXUS_PRODUCT_LOOP_WEBM}
+                  srcMp4={reducedMotion ? undefined : NEXUS_PRODUCT_LOOP_MP4}
+                  poster={nexusProductPoster}
+                  ariaLabel="Current Nexus Hub application screens"
+                  className="pf-product-video"
+                />
+                  </div>
+                </div>
+                <div className="pf-cinema-meter" aria-hidden="true"><i /></div>
+              </div>
+            </div>
+            <div className="pf-project-details" data-reveal>
+              <div>
+                <span className="pf-overline">SELECTED WORK / 001</span>
+                <h3>{project.title}</h3>
+                <p>{project.tagline}</p>
+              </div>
+              <div>
+                <p>{project.summary}</p>
+                <div className="pf-project-actions">
+                  <button
+                    className="pf-button pf-button-primary"
+                    onClick={() => openDemo()}
+                    disabled={!!demoLoading}
+                  >
+                    {demoLoading ? "Starting demo…" : "Explore Nexus Hub"}
+                    <FiArrowUpRight />
+                  </button>
+                  {project.repository_url ? (
+                    <a
+                      className="pf-text-link"
+                      href={project.repository_url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      View code <FiGithub />
+                    </a>
+                  ) : null}
+                </div>
+                <div className="pf-stack-tags">
+                  {(project.stack || profile.skills || []).map((item) => (
+                    <span key={item}>{item}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="features" data-portfolio-section className="pf-section pf-container pf-walkthrough">
+          <div className="pf-section-heading" data-reveal>
+            <div>
+              <SectionLabel number="02">Product walkthrough</SectionLabel>
+              <h2>Explore what I <span className="pf-serif">built.</span></h2>
+              <p>Choose a product area to inspect its interface and purpose.</p>
+            </div>
+          </div>
+          <div className="pf-feature-selector" role="group" aria-label="Product areas">
+            {features.map((item, index) => (
+              <button key={item.id || item.title} type="button" aria-pressed={feature === item} aria-controls="portfolio-feature-panel" onClick={() => setSelectedFeature(index)}>
+                <span>{pad(index + 1)}</span> {item.category || item.title}
+              </button>
             ))}
           </div>
-        </div>
+          {feature ? (
+            <article id="portfolio-feature-panel" className="pf-walkthrough-panel" aria-label={feature.title}>
+              <div className="pf-walkthrough-screen">
+                <div className="pf-window-bar"><span>{project.title} / {feature.category}</span></div>
+                <FeatureScreenshot key={`${feature.id || feature.title}:${feature.screenshot_url}`} feature={feature} />
+              </div>
+              <div className="pf-walkthrough-copy">
+                <p className="pf-overline">{feature.category}</p>
+                <h3>{feature.title}</h3>
+                <p>{feature.summary}</p>
+                {feature.review_notes && <p className="pf-review-note"><strong>Review focus</strong><br />{feature.review_notes}</p>}
+                <button type="button" className="pf-button pf-button-primary" onClick={() => openDemo(feature.demo_path || "/demo")} disabled={!!demoLoading}>
+                  Open live screen <FiArrowUpRight />
+                </button>
+              </div>
+            </article>
+          ) : <p role="status">No product walkthroughs are available yet. Explore the flagship demo above.</p>}
+        </section>
+
+        <KineticRibbon words="DESIGN / BUILD / SHIP" reverse />
+
+        <section
+          id="decisions"
+          data-portfolio-section
+          className="pf-section pf-container pf-approach"
+        >
+          <div className="pf-approach-intro" data-reveal>
+            <SectionLabel number="03">Engineering Decisions</SectionLabel>
+            <h2>
+              Good products.
+              <br />
+              <span className="pf-muted">Considered decisions.</span>
+            </h2>
+            <p>
+              Every interface has a system behind it. Here’s the thinking behind{" "}
+              {project.title}.
+            </p>
+          </div>
+          <div className="pf-decision-list">
+            {[["The challenge", caseStudy.problem], ["My contribution", caseStudy.role]].map(([title, content]) => content ? (
+              <article className="pf-story-overview" key={title}><h3>{title}</h3><p>{content}</p></article>
+            ) : null)}
+            {[["Constraints", caseStudy.constraints], ["Decisions", caseStudy.decisions], ["Tradeoffs", caseStudy.trade_offs], ["Outcomes", caseStudy.outcomes]].map(([title, content]) => Array.isArray(content) && content.length ? (
+              <details className="pf-story-detail" key={title}>
+                <summary>{title}<FiArrowDown aria-hidden="true" /></summary>
+                <ul>{content.map((item) => <li key={item}>{item}</li>)}</ul>
+              </details>
+            ) : null)}
+          </div>
+        </section>
+
+        <section
+          id="architecture"
+          data-portfolio-section
+          className="pf-section pf-architecture"
+        >
+          <span className="pf-section-ghost" data-parallax="-0.12" aria-hidden="true">SYSTEMS</span>
+          <div className="pf-container">
+            <div className="pf-section-heading" data-reveal>
+              <div>
+                <SectionLabel number="04">Architecture</SectionLabel>
+                <h2>
+                  From pixel
+                  <br />
+                  to <span className="pf-serif">production.</span>
+                </h2>
+              </div>
+              <p>Simplified system overview. Select a layer to see its responsibility.</p>
+            </div>
+            <div className="pf-architecture-flow" data-reveal>
+              {architectureLayers.map(({ title, stack, Icon }, index) => (
+                <button type="button" className="pf-architecture-node" key={title} aria-pressed={selectedLayer === index} aria-controls="portfolio-layer-detail" onClick={() => setSelectedLayer(index)}>
+                  <div><span>{pad(index + 1)}</span><Icon aria-hidden="true" /></div>
+                  <h3>{title}</h3><p>{stack}</p>
+                </button>
+              ))}
+            </div>
+            <div id="portfolio-layer-detail" className="pf-layer-detail">
+              <h3>{architectureLayers[selectedLayer].title}</h3>
+              <p>{architectureLayers[selectedLayer].description}</p>
+              <p className="pf-overline">{architectureLayers[selectedLayer].stack}</p>
+            </div>
+            <div className="pf-architecture-tags" data-reveal>
+              {(profile.architecture || []).map((item) => (
+                <span key={item}>
+                  <FiCheck />
+                  {item}
+                </span>
+              ))}
+            </div>
+          </div>
+        </section>
 
         <section
           id="about"
@@ -688,7 +858,7 @@ const PublicPortfolio = () => {
           className="pf-section pf-container pf-about"
         >
           <div data-reveal>
-            <SectionLabel number="01">A little about me</SectionLabel>
+            <SectionLabel number="05">A little about me</SectionLabel>
             <h2>
               About {profile.full_name}
               <br />
@@ -739,296 +909,7 @@ const PublicPortfolio = () => {
           </div>
         </section>
 
-        <section
-          id="case-study"
-          data-portfolio-section
-          className="pf-section pf-case-study"
-        >
-          <div className="pf-container">
-            <div className="pf-section-heading" data-reveal>
-              <div>
-                <SectionLabel number="02">Flagship Case Study</SectionLabel>
-                <h2>
-                  One product.
-                  <br />
-                  <span className="pf-serif">A world of possibilities.</span>
-                </h2>
-              </div>
-              <span className="pf-project-year">
-                DESIGN + DEVELOPMENT
-                <br />
-                FULL-STACK PRODUCT
-              </span>
-            </div>
-            <div className="pf-project-stage" data-reveal>
-              <div className="pf-project-orbit" aria-hidden="true" />
-              <div className="pf-project-window">
-                <div className="pf-window-bar">
-                  <span className="pf-window-dots">
-                    <i />
-                    <i />
-                    <i />
-                  </span>
-                  <span>nexus / connected workspace</span>
-                  <FiArrowUpRight />
-                </div>
-                <LoopingVideo
-                  srcWebm={NEXUS_PRODUCT_LOOP_WEBM}
-                  srcMp4={NEXUS_PRODUCT_LOOP_MP4}
-                  poster={nexusProductPoster}
-                  ariaLabel="Current Nexus Hub application screens"
-                  className="pf-product-video"
-                />
-              </div>
-              <span className="pf-floating-tag pf-floating-tag-one">
-                <FiLayers /> Seven connected product areas
-              </span>
-              <span className="pf-floating-tag pf-floating-tag-two">
-                <span className="pf-status-dot" /> Designed. Built. Deployed.
-              </span>
-            </div>
-            <div className="pf-project-details" data-reveal>
-              <div>
-                <span className="pf-overline">SELECTED WORK / 001</span>
-                <h3>{project.title}</h3>
-                <p>{project.tagline}</p>
-              </div>
-              <div>
-                <p>{project.summary}</p>
-                <div className="pf-project-actions">
-                  <button
-                    className="pf-button pf-button-primary"
-                    onClick={() => openDemo()}
-                    disabled={!!demoLoading}
-                  >
-                    {demoLoading ? "Starting demo…" : "Explore Nexus Hub"}
-                    <FiArrowUpRight />
-                  </button>
-                  {project.repository_url ? (
-                    <a
-                      className="pf-text-link"
-                      href={project.repository_url}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      View code <FiGithub />
-                    </a>
-                  ) : null}
-                </div>
-                <div className="pf-stack-tags">
-                  {(project.stack || profile.skills || []).map((item) => (
-                    <span key={item}>{item}</span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section
-          id="features"
-          data-portfolio-section
-          data-portfolio-gallery
-          ref={galleryRef}
-          className="pf-gallery-section"
-        >
-          <div className="pf-gallery-sticky">
-            <div className="pf-container pf-gallery-heading">
-              <div>
-                <SectionLabel number="03">Feature Map</SectionLabel>
-                <h2>
-                  Built to <span className="pf-serif">work together.</span>
-                </h2>
-                <p>A large product, organized for a fast technical review.</p>
-              </div>
-              <div className="pf-gallery-controls">
-                <span>
-                  SCROLL TO EXPLORE <FiArrowRight />
-                </span>
-                <button
-                  aria-label="Previous feature"
-                  onClick={() => stepGallery(-1)}
-                >
-                  <FiArrowLeft />
-                </button>
-                <button
-                  aria-label="Next feature"
-                  onClick={() => stepGallery(1)}
-                >
-                  <FiArrowRight />
-                </button>
-              </div>
-            </div>
-            <div className="pf-gallery-viewport" data-gallery-viewport>
-              <div className="pf-gallery-track" data-gallery-track>
-                {features.map((feature, index) => {
-                  const Icon = featureIcons[index % featureIcons.length];
-                  return (
-                    <article
-                      key={feature.id || feature.title}
-                      className="pf-feature-card"
-                    >
-                      <button
-                        type="button"
-                        className="pf-feature-hitarea"
-                        aria-label={`Open ${feature.title} live screen`}
-                        onClick={() => openDemo(feature.demo_path || "/demo")}
-                        disabled={!!demoLoading}
-                        onFocus={() => focusFeature(index, false)}
-                      />
-                      <div className="pf-feature-image">
-                        {feature.screenshot_url ? (
-                          <img
-                            src={feature.screenshot_url}
-                            alt={feature.alt_text || feature.title}
-                            loading="lazy"
-                          />
-                        ) : (
-                          <div className="pf-feature-placeholder">
-                            <Icon />
-                            <span>{feature.category}</span>
-                            <div className="pf-placeholder-lines">
-                              <i />
-                              <i />
-                              <i />
-                            </div>
-                          </div>
-                        )}
-                        <span className="pf-feature-number">
-                          {pad(index + 1)}
-                        </span>
-                        <span className="pf-feature-open">
-                          <FiArrowUpRight />
-                        </span>
-                      </div>
-                      <div className="pf-feature-content">
-                        <p className="pf-overline">{feature.category}</p>
-                        <h3>{feature.title}</h3>
-                        <p>{feature.summary}</p>
-                        {feature.review_notes ? (
-                          <span className="pf-feature-note">
-                            Review focus: {feature.review_notes}
-                          </span>
-                        ) : null}
-                        <span className="pf-feature-link">
-                          Open live screen <FiArrowUpRight />
-                        </span>
-                      </div>
-                    </article>
-                  );
-                })}
-                {!features.length && (
-                  <article className="pf-feature-card">
-                    <div className="pf-feature-content" role="status">
-                      <p>Feature map is loading. Refresh the page if this message stays visible.</p>
-                    </div>
-                  </article>
-                )}
-              </div>
-            </div>
-            <div className="pf-gallery-footer pf-container">
-              <span>
-                {pad(features.length)} PRODUCT AREAS / ONE CONNECTED SYSTEM
-              </span>
-              <div aria-hidden="true" className="pf-gallery-progress">
-                <i />
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section
-          id="decisions"
-          data-portfolio-section
-          className="pf-section pf-container pf-approach"
-        >
-          <div className="pf-approach-intro" data-reveal>
-            <SectionLabel number="04">Engineering Decisions</SectionLabel>
-            <h2>
-              Good products.
-              <br />
-              <span className="pf-muted">Considered decisions.</span>
-            </h2>
-            <p>
-              Every interface has a system behind it. Here’s the thinking behind{" "}
-              {project.title}.
-            </p>
-          </div>
-          <div className="pf-decision-list">
-            {[
-              ["The challenge", caseStudy.problem, FiBox],
-              ["The constraints", caseStudy.constraints, FiShield],
-              ["My contribution", caseStudy.role, FiCode],
-              ["The decisions", caseStudy.decisions, FiCpu],
-              ["The trade-offs", caseStudy.trade_offs, FiShield],
-              ["The outcomes", caseStudy.outcomes, FiCheck],
-            ].map(([title, content, Icon], index) => (
-              <article className="pf-decision" key={title} data-reveal>
-                <span className="pf-decision-icon">
-                  <Icon />
-                </span>
-                <div>
-                  <span className="pf-overline">{pad(index + 1)}</span>
-                  <h3>{title}</h3>
-                  {Array.isArray(content) ? (
-                    <ul>
-                      {content.map((item) => (
-                        <li key={item}>{item}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p>{content}</p>
-                  )}
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section
-          id="architecture"
-          data-portfolio-section
-          className="pf-section pf-architecture"
-        >
-          <div className="pf-container">
-            <div className="pf-section-heading" data-reveal>
-              <div>
-                <SectionLabel number="05">Architecture</SectionLabel>
-                <h2>
-                  From pixel
-                  <br />
-                  to <span className="pf-serif">production.</span>
-                </h2>
-              </div>
-              <p>A connected stack, with intention at every layer.</p>
-            </div>
-            <div className="pf-architecture-flow" data-reveal>
-              {[
-                ["01", "The experience", "React + Vite", FiLayers],
-                ["02", "The engine", "Rails · APIs · Realtime", FiCpu],
-                ["03", "The foundation", "PostgreSQL · Redis · S3", FiDatabase],
-              ].map(([number, title, stack, Icon]) => (
-                <div key={number} className="pf-architecture-node">
-                  <div>
-                    <span>{number}</span>
-                    <Icon />
-                  </div>
-                  <h3>{title}</h3>
-                  <p>{stack}</p>
-                  <span className="pf-node-port" />
-                </div>
-              ))}
-            </div>
-            <div className="pf-architecture-tags" data-reveal>
-              {(profile.architecture || []).map((item) => (
-                <span key={item}>
-                  <FiCheck />
-                  {item}
-                </span>
-              ))}
-            </div>
-          </div>
-        </section>
+        <KineticRibbon words="LET’S MAKE SOMETHING MATTER" />
 
         <section
           id="contact"
@@ -1041,7 +922,7 @@ const PublicPortfolio = () => {
               Let’s build
               <br />
               something <span className="pf-serif">great.</span>
-              <FiArrowUpRight className="pf-contact-arrow" aria-hidden="true" />
+              <span className="pf-contact-arrow-depth" data-parallax="-0.18"><FiArrowUpRight className="pf-contact-arrow" aria-hidden="true" /></span>
             </h2>
             <p>
               Have a product in mind, a challenging problem, or a role to talk

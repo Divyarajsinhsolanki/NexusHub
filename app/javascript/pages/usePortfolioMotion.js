@@ -3,12 +3,10 @@ import { useEffect, useState } from "react";
 const clamp = (value, minimum = 0, maximum = 1) =>
   Math.min(maximum, Math.max(minimum, value));
 const motionQuery = "(prefers-reduced-motion: reduce)";
-const desktopQuery = "(min-width: 901px)";
 const pointerQuery = "(hover: hover) and (pointer: fine)";
 
-// Scroll remains native. Only decorative transforms and the desktop project
-// gallery follow it; every section stays in the document and keyboard order.
-export default function usePortfolioMotion(rootRef, dependencies = []) {
+// Native scrolling drives decorative motion and section navigation only.
+export default function usePortfolioMotion(rootRef, dependencies = [], motionEnabled = true) {
   const [activeSection, setActiveSection] = useState("");
   const [reducedMotion, setReducedMotion] = useState(
     () =>
@@ -21,18 +19,13 @@ export default function usePortfolioMotion(rootRef, dependencies = []) {
     if (!root || typeof window === "undefined") return undefined;
 
     const motionMedia = window.matchMedia?.(motionQuery);
-    const desktopMedia = window.matchMedia?.(desktopQuery);
     const pointerMedia = window.matchMedia?.(pointerQuery);
     const sections = [...root.querySelectorAll("[data-portfolio-section][id]")];
     const reveals = [...root.querySelectorAll("[data-reveal]")];
     const scenes = [...root.querySelectorAll("[data-hero-scene]")];
-    const galleries = [
-      ...root.querySelectorAll("[data-portfolio-gallery]"),
-    ].map((section) => ({
-      section,
-      viewport: section.querySelector("[data-gallery-viewport]"),
-      track: section.querySelector("[data-gallery-track]"),
-    }));
+    const parallaxLayers = [...root.querySelectorAll("[data-parallax]")];
+    const scrollScenes = [...root.querySelectorAll("[data-scroll-scene]")];
+    const ribbons = [...root.querySelectorAll("[data-kinetic]")];
     const originals = new Map();
     const originallyVisible = new Map(
       reveals.map((element) => [
@@ -44,6 +37,10 @@ export default function usePortfolioMotion(rootRef, dependencies = []) {
     let pointerX = 0;
     let pointerY = 0;
     let stopped = false;
+    let easedScroll = window.scrollY || 0;
+    let lastScroll = easedScroll;
+    let velocity = 0;
+    let lastFrameTime = 0;
 
     const remember = (element, kind, name) => {
       if (!originals.has(element)) originals.set(element, new Map());
@@ -71,7 +68,7 @@ export default function usePortfolioMotion(rootRef, dependencies = []) {
       if (element.getAttribute(name) !== value)
         element.setAttribute(name, value);
     };
-    const motionIsReduced = () => Boolean(motionMedia?.matches);
+    const motionIsReduced = () => !motionEnabled || Boolean(motionMedia?.matches);
     const reveal = (element) => element.classList.add("is-visible");
     const revealAboveFold = () => {
       reveals.forEach((element) => {
@@ -95,45 +92,23 @@ export default function usePortfolioMotion(rootRef, dependencies = []) {
       );
     };
 
-    const update = () => {
+    const update = (time = 0) => {
       frame = null;
       if (stopped) return;
       const reduced = motionIsReduced();
-      const desktop = desktopMedia
-        ? desktopMedia.matches
-        : window.innerWidth >= 901;
       const finePointer = Boolean(pointerMedia?.matches) && !reduced;
       const scrollTop =
         window.scrollY || document.documentElement.scrollTop || 0;
 
-      // The horizontal track layout itself is gated by this attribute. Enable
-      // eligible galleries before measuring, otherwise their grid fallback has
-      // no overflow and would never transition into a pinned gallery.
-      galleries.forEach(({ section, viewport, track }) => {
-        attribute(
-          section,
-          "data-gallery-pinned",
-          String(desktop && !reduced && Boolean(viewport && track)),
-        );
-      });
-      const galleryLayouts = galleries.map((gallery) => ({
-        ...gallery,
-        distance: Math.max(
-          0,
-          (gallery.track?.scrollWidth || 0) -
-            (gallery.viewport?.clientWidth || 0),
-        ),
-      }));
-      galleryLayouts.forEach(({ section, viewport, track, distance }) => {
-        attribute(
-          section,
-          "data-gallery-pinned",
-          String(
-            desktop && !reduced && distance > 1 && Boolean(viewport && track),
-          ),
-        );
-        style(section, "--gallery-distance", `${distance}px`);
-      });
+      const elapsed = lastFrameTime ? clamp(time - lastFrameTime, 8, 64) : 16;
+      lastFrameTime = time;
+      const ease = 1 - Math.pow(0.8, elapsed / 16);
+      easedScroll = reduced ? scrollTop : easedScroll + (scrollTop - easedScroll) * ease;
+      if (Math.abs(scrollTop - easedScroll) < 0.25) easedScroll = scrollTop;
+      velocity = reduced ? 0 : velocity * 0.82 + clamp((scrollTop - lastScroll) / elapsed, -3, 3) * 0.18;
+      if (Math.abs(velocity) < 0.002) velocity = 0;
+      lastScroll = scrollTop;
+
       const documentHeight = Math.max(
         document.documentElement.scrollHeight,
         document.body?.scrollHeight || 0,
@@ -157,18 +132,34 @@ export default function usePortfolioMotion(rootRef, dependencies = []) {
           String(reduced ? 0 : clamp(-rect.top / Math.max(rect.height, 1))),
         );
       });
-      galleryLayouts.forEach(({ section, viewport, track, distance }) => {
-        const pinned =
-          desktop && !reduced && distance > 1 && Boolean(viewport && track);
-        // Read after setting distance: CSS can size the sticky section from it.
+      const mobile = window.innerWidth < 901;
+      // Decorative layers ease behind native scrolling; links, focus and content
+      // stay in the normal document flow. No wheel/touch events are intercepted.
+      parallaxLayers.forEach((layer) => {
+        const section = layer.closest("[data-portfolio-section]");
+        const rect = (section || layer).getBoundingClientRect();
+        const offset = window.innerHeight * 0.4 - (rect.top + scrollTop - easedScroll);
+        const speed = Number(layer.dataset.parallax) || 0;
+        const displacement = reduced ? 0 : clamp(offset * speed * (mobile ? 0.35 : 1), -120, 120);
+        style(layer, "--parallax-y", `${displacement}px`);
+      });
+      sections.forEach((section) => {
         const rect = section.getBoundingClientRect();
-        const progress = pinned
-          ? clamp(-rect.top / Math.max(rect.height - window.innerHeight, 1))
-          : 0;
-        style(section, "--gallery-progress", String(progress));
-        style(section, "--gallery-shift", `${-progress * distance}px`);
+        style(section, "--section-progress", String(reduced ? 0 : clamp((window.innerHeight - rect.top) / (window.innerHeight + rect.height))));
+      });
+      scrollScenes.forEach((scene) => {
+        const rect = scene.getBoundingClientRect();
+        const progress = reduced || mobile ? 1 : clamp((110 - rect.top) / Math.max(rect.height - window.innerHeight * 0.78, 1));
+        style(scene, "--cinema-progress", String(progress));
+      });
+      ribbons.forEach((ribbon) => {
+        const rect = ribbon.getBoundingClientRect();
+        const progress = clamp((window.innerHeight - rect.top) / (window.innerHeight + rect.height));
+        style(ribbon, "--ribbon-shift", `${reduced ? 0 : (progress - 0.5) * (mobile ? 100 : 240)}px`);
+        style(ribbon, "--ribbon-skew", `${velocity * -1.8}deg`);
       });
       updateActiveSection();
+      if (!reduced && (Math.abs(scrollTop - easedScroll) >= 0.25 || velocity !== 0)) schedule();
     };
     const requestFrame =
       window.requestAnimationFrame?.bind(window) ||
@@ -251,7 +242,7 @@ export default function usePortfolioMotion(rootRef, dependencies = []) {
     window.addEventListener("resize", onResize, { passive: true });
     root.addEventListener("pointermove", onPointerMove, { passive: true });
     root.addEventListener("pointerleave", onPointerLeave, { passive: true });
-    const mediaQueries = [motionMedia, desktopMedia, pointerMedia].filter(
+    const mediaQueries = [motionMedia, pointerMedia].filter(
       Boolean,
     );
     mediaQueries.forEach((media) => {
@@ -262,10 +253,7 @@ export default function usePortfolioMotion(rootRef, dependencies = []) {
     let resizeObserver;
     if (window.ResizeObserver) {
       resizeObserver = new window.ResizeObserver(schedule);
-      galleries.forEach(({ viewport, track }) => {
-        if (viewport) resizeObserver.observe(viewport);
-        if (track) resizeObserver.observe(track);
-      });
+      resizeObserver.observe(root);
     }
 
     return () => {
@@ -301,7 +289,7 @@ export default function usePortfolioMotion(rootRef, dependencies = []) {
     };
     // Content changes can add sections/reveal targets; callers supply stable
     // scalar dependencies for that data, rather than recreating the root ref.
-  }, [rootRef, ...dependencies]);
+  }, [rootRef, motionEnabled, ...dependencies]);
 
   return { activeSection, reducedMotion };
 }

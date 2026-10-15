@@ -1,0 +1,10 @@
+FROM postgres:16
+RUN apt-get update -qq && apt-get install --no-install-recommends -y ruby ruby-pg gnupg awscli ca-certificates && rm -rf /var/lib/apt/lists/*
+WORKDIR /recovery
+COPY lib/recovery /recovery/lib/recovery
+COPY bin/recovery /recovery/bin/recovery
+RUN useradd --create-home --uid 10001 nexusbackup && mkdir /backups && chown nexusbackup:nexusbackup /backups
+USER nexusbackup
+ENV BACKUP_DIRECTORY=/backups
+ENTRYPOINT ["/recovery/bin/recovery"]
+CMD ["backup"]

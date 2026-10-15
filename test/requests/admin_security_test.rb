@@ -10,6 +10,7 @@ class AdminSecurityTest < ActionDispatch::IntegrationTest
     Current.workspace = @workspace
     @admin.roles = [Role.find_by!(name: "admin")]
     post "/api/login", params: { auth: { email: @admin.email, password: "Password!42" } }
+    complete_test_mfa
     assert_response :success
   end
 

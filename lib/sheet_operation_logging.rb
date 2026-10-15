@@ -14,10 +14,7 @@ module SheetOperationLogging
   end
 
   def summarize_sheet_row(row)
-    Array(row).first(12).map do |cell|
-      value = cell.to_s
-      value.length > 120 ? "#{value.first(120)}..." : value
-    end
+    "[REDACTED]"
   end
 
   def sheet_logging_payload

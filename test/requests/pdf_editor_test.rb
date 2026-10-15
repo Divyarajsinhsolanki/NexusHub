@@ -143,6 +143,7 @@ class PdfEditorTest < ActionDispatch::IntegrationTest
 
   def login(user)
     post "/api/login", params: { auth: { email: user.email, password: "Password!42" } }
+    complete_test_mfa
     assert_response :success
   end
 end

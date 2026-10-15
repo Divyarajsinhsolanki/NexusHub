@@ -1,10 +1,10 @@
-import { absoluteAssetUrl } from '../api/client';
+import { usePrivateAssetUrl } from '../api/usePrivateAssetUrl';
 import { useEffect, useState } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 
 export function Avatar({ name, uri, color = '#475569', size = 40 }: { name: string; uri?: string | null; color?: string; size?: number }) {
   const [imageFailed, setImageFailed] = useState(false);
-  const imageUri = absoluteAssetUrl(uri);
+  const imageUri = usePrivateAssetUrl(uri);
   const hasValidUri = Boolean(imageUri && !imageFailed);
 
   useEffect(() => {

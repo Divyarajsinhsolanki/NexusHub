@@ -59,6 +59,9 @@ services:
       RAILS_ENV: production
       RAILS_SERVE_STATIC_FILES: "true"
       AUTO_RELEASE: "false"
+      DEPLOYMENT_TIER: production
+      APP_REVISION: ${APP_REVISION:-unknown}
+      BACKUP_RECEIPT_PATH: /backups/latest.json
       SEED_PORTFOLIO: ${SEED_PORTFOLIO:-true}
       SEED_DEMO: ${SEED_DEMO:-true}
     depends_on:
@@ -66,6 +69,11 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      pre_release_backup:
+        condition: service_completed_successfully
+    volumes:
+      - db-backups:/backups:ro
+      - app-files:/rails/storage
 
   web:
     build: .
@@ -73,11 +81,12 @@ services:
     env_file: .env
     environment: *app-environment
     command: ./bin/rails server -b 0.0.0.0
+    volumes: [app-files:/rails/storage]
     depends_on:
       release:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD-SHELL", "ruby -rnet/http -e 'exit(Net::HTTP.get_response(URI(\"http://localhost:3000/up\")).is_a?(Net::HTTPSuccess) ? 0 : 1)'"]
+      test: ["CMD-SHELL", "ruby -rnet/http -e 'u=URI(\"http://localhost:3000/up\"); r=Net::HTTP::Get.new(u); r[\"Host\"]=URI(ENV.fetch(\"BASE_URL\")).host; exit(Net::HTTP.start(u.host,u.port){|h| h.request(r)}.is_a?(Net::HTTPSuccess) ? 0 : 1)'"]
       interval: 20s
       timeout: 5s
       retries: 10
@@ -88,6 +97,25 @@ services:
     env_file: .env
     environment: *app-environment
     command: bundle exec sidekiq
+    volumes: [app-files:/rails/storage]
+    depends_on:
+      release:
+        condition: service_completed_successfully
+
+  pdf_worker:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment: *app-environment
+    command: bundle exec sidekiq -C config/sidekiq_pdf.yml
+    volumes: [app-files:/rails/storage]
+    mem_limit: 3g
+    cpus: 1.0
+    pids_limit: 128
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=512m,mode=1777
     depends_on:
       release:
         condition: service_completed_successfully
@@ -109,25 +137,56 @@ services:
       web:
         condition: service_healthy
 
-  backup:
-    image: postgres:16
-    restart: unless-stopped
-    environment:
-      PGHOST: db
-      PGDATABASE: nexus_hub_production
-      PGUSER: nexus
-      PGPASSWORD: ${POSTGRES_PASSWORD}
-      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+  pre_release_backup:
+    build: .
+    env_file:
+      - .env
+      - ${BACKUP_ENV_FILE:-.env.backup}
+    environment: &backup-environment
+      REDIS_URL: redis://redis:6379/1
+      RAILS_ENV: production
+      DEPLOYMENT_TIER: production
+      AUTO_RELEASE: "false"
+      APP_REVISION: ${APP_REVISION:-unknown}
+      BACKUP_DIRECTORY: /backups
+      BACKUP_PUBLIC_KEY_FILE: /run/backup-recipient.asc
+      BACKUP_UPLOAD_MODE: active_storage
+    command: bundle exec rails recovery:prepare_release_backup
     volumes:
-      - ./bin/backup-database:/usr/local/bin/backup-database:ro
       - db-backups:/backups
-    entrypoint: ["/bin/bash", "-c"]
-    command: ["while true; do backup-database; sleep 86400; done"]
+      - app-files:/rails/storage:ro
+      - ${BACKUP_PUBLIC_KEY_PATH:?Set BACKUP_PUBLIC_KEY_PATH}:/run/backup-recipient.asc:ro
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  backup:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+      - ${BACKUP_ENV_FILE:-.env.backup}
+    environment: *backup-environment
+    volumes:
+      - db-backups:/backups
+      - app-files:/rails/storage:ro
+      - ${BACKUP_PUBLIC_KEY_PATH:?Set BACKUP_PUBLIC_KEY_PATH}:/run/backup-recipient.asc:ro
+    entrypoint: ["/bin/bash", "-c"]
+    command: ["while true; do bundle exec rails recovery:backup || exit 1; sleep 86400; done"]
+    depends_on:
+      release:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "./bin/recovery", "check", "/backups/latest.json"]
+      interval: 5m
+      timeout: 10s
+      retries: 1
+      start_period: 10m
 
 volumes:
+  app-files:
   db-data:
   redis-data:
   db-backups:

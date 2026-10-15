@@ -4,7 +4,7 @@
     "slug": "nexushub",
     "version": "1.0.4",
     "orientation": "portrait",
-    "icon": "./assets/images/ds-app-icon.png",
+    "icon": "./assets/images/ds-app-icon-v2.png",
     "scheme": "nexushub",
     "userInterfaceStyle": "automatic",
     "ios": {
@@ -28,7 +28,7 @@
       ],
       "adaptiveIcon": {
         "backgroundColor": "#185878",
-        "foregroundImage": "./assets/images/ds-adaptive-foreground.png",
+        "foregroundImage": "./assets/images/ds-adaptive-foreground-v2.png",
         "monochromeImage": "./assets/images/ds-monochrome.png"
       },
       "predictiveBackGestureEnabled": false
@@ -43,10 +43,14 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/icon-concepts/ds-design-studio-3d-2026-10/ds-design-studio-3d.png",
+          "image": "./assets/images/ds-splash-logo-v2.png",
           "resizeMode": "contain",
           "backgroundColor": "#185878",
-          "imageWidth": 220
+          "imageWidth": 240,
+          "android": {
+            "imageWidth": 160,
+            "resizeMode": "contain"
+          }
         }
       ],
       "expo-secure-store",

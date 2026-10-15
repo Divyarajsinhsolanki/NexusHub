@@ -8,6 +8,7 @@ import { endpoints } from '../api/endpoints';
 import { mobileQueryKeys } from '../cache/mobileCache';
 
 jest.mock('expo-document-picker', () => ({ getDocumentAsync: require('@jest/globals').jest.fn() }));
+const mockPush = jest.fn();
 const mockCopy = jest.fn(async (_text: unknown) => undefined);
 jest.mock('expo-clipboard', () => ({ setStringAsync: (...args: unknown[]) => mockCopy(args[0]) }));
 const mockPerform = jest.fn();
@@ -17,7 +18,7 @@ jest.mock('@sentry/react-native', () => ({ captureException: jest.fn(), addBread
 jest.mock('expo-router', () => ({
   useLocalSearchParams: () => mockRouteParams,
   usePathname: () => '/chat/7',
-  useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn(), canGoBack: () => true }),
+  useRouter: () => ({ push: mockPush, replace: jest.fn(), back: jest.fn(), canGoBack: () => true }),
   useFocusEffect: (callback: () => void) => require('react').useEffect(callback, [callback]),
 }));
 jest.mock('react-native-safe-area-context', () => ({
@@ -27,7 +28,7 @@ jest.mock('react-native-safe-area-context', () => ({
 jest.mock('../auth/AuthProvider', () => ({ useAuth: () => ({ user: { id: 5, full_name: 'Mobile user' } }) }));
 jest.mock('../realtime/useChatRealtime', () => ({ useChatRealtime: (_id: number, callback: (event: any) => void) => { mockChatEvent = callback; return 'connected'; } }));
 jest.mock('../realtime/RealtimeProvider', () => ({ useRealtimeActions: () => ({ perform: mockPerform }) }));
-jest.mock('../api/endpoints', () => ({ endpoints: { messageContext: jest.fn(), createMessage: jest.fn(), updateConversationReceipt: jest.fn(async () => undefined) } }));
+jest.mock('../api/endpoints', () => ({ endpoints: { chatToolMessages: jest.fn(async () => ({ data: [], meta: {} })), scheduledMessages: jest.fn(async () => ({ data: [], meta: {} })), messageContext: jest.fn(), createMessage: jest.fn(), updateConversationReceipt: jest.fn(async () => undefined) } }));
 jest.mock('expo-crypto', () => ({ randomUUID: () => 'stable-client-draft' }));
 
 test('opens a cached chat safely and sends an idempotent message', async () => {
@@ -214,5 +215,48 @@ test('supports accessible swipe reply without opening the message menu', async (
   expect(screen.getAllByText('Reply to this').length).toBeGreaterThan(0);
   expect(screen.getByLabelText('Cancel reply')).toBeTruthy();
   expect(screen.queryByText('Message actions')).toBeNull();
+  await screen.unmount(); client.clear();
+});
+
+test('keeps conversation tools in More and offers voice/video choices in Call', async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, gcTime: Infinity, retry: false } } });
+  client.setQueryData(mobileQueryKeys.conversation(7), { id: 7, title: 'Compact chat', participants: [] });
+  client.setQueryData(mobileQueryKeys.messages(7), { pageParams: [undefined], pages: [{ data: [] }] });
+  const screen = await render(<QueryClientProvider client={client}><ChatRoute /></QueryClientProvider>);
+  expect(screen.queryByText('Shared media')).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Search conversation' })).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'More conversation actions' }));
+  for (const label of ['Shared media', 'Shared files', 'Pinned messages', 'Scheduled messages', 'Conversation details', 'Search conversation']) {
+    expect(screen.getByRole('button', { name: label })).toBeTruthy();
+  }
+  for (const label of ['Shared media', 'Shared files', 'Pinned messages', 'Scheduled messages']) {
+    await fireEvent.press(screen.getByRole('button', { name: label }));
+    expect(screen.getByRole('header', { name: label })).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: 'Close menu' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'More conversation actions' }));
+  }
+  await fireEvent.press(screen.getByRole('button', { name: 'Search conversation' }));
+  expect(screen.getByLabelText('Search conversation')).toBeTruthy();
+  await fireEvent.press(screen.getByRole('button', { name: 'Close search' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Call' }));
+  expect(screen.getByRole('button', { name: 'Start audio call' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Start video call' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Shared media' })).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'Close menu' }));
+  expect(screen.queryByRole('button', { name: 'Start audio call' })).toBeNull();
+  await screen.unmount(); client.clear();
+});
+
+test('offers the existing active call from the compact call menu', async () => {
+  mockPush.mockClear();
+  const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, gcTime: Infinity, retry: false } } });
+  client.setQueryData(mobileQueryKeys.conversation(7), { id: 7, title: 'Active call', participants: [], active_call: { id: 42, call_type: 'video' } });
+  client.setQueryData(mobileQueryKeys.messages(7), { pageParams: [undefined], pages: [{ data: [] }] });
+  const screen = await render(<QueryClientProvider client={client}><ChatRoute /></QueryClientProvider>);
+  await fireEvent.press(screen.getByRole('button', { name: 'Join active call' }));
+  expect(screen.queryByRole('button', { name: 'Start video call' })).toBeNull();
+  const join = screen.getAllByRole('button', { name: 'Join active call' });
+  await fireEvent.press(join[join.length - 1]);
+  expect(mockPush).toHaveBeenCalledWith('/call/42?type=video');
   await screen.unmount(); client.clear();
 });

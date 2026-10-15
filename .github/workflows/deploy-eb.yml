@@ -1,26 +1,64 @@
 name: Deploy Elastic Beanstalk
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
+    inputs:
+      target:
+        description: Reviewed deployment environment
+        required: true
+        type: choice
+        default: staging
+        options: [staging, production]
 
 concurrency:
-  group: eb-production
+  group: eb-${{ inputs.target }}
   cancel-in-progress: false
 
+permissions:
+  contents: read
+  actions: read
+  deployments: read
+
 jobs:
-  deploy:
-    name: Deploy nexus-hub-prod
+  checks:
+    uses: ./.github/workflows/ci.yml
+
+  promotion-gate:
+    timeout-minutes: 5
+    needs: checks
     runs-on: ubuntu-latest
-    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+      - name: Verify commit evidence and staging promotion
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          RELEASE_TARGET: ${{ inputs.target }}
+        run: bin/release-gate "$RELEASE_TARGET"
+
+  deploy:
+    needs: [checks, promotion-gate]
+    timeout-minutes: 45
+    name: Deploy reviewed environment
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target }}
     permissions:
       contents: read
+      actions: read
+      deployments: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+      - name: Recheck evidence after environment approval
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          RELEASE_TARGET: ${{ inputs.target }}
+        run: bin/release-gate "$RELEASE_TARGET"
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -35,5 +73,20 @@ jobs:
           pip install awsebcli
 
       - name: Deploy to Elastic Beanstalk
+        env:
+          EB_ENVIRONMENT: ${{ vars.EB_ENVIRONMENT }}
+          TARGET: ${{ inputs.target }}
         run: |
-          eb deploy nexus-hub-prod --region ap-south-1 --timeout 30 --label "github-${GITHUB_SHA::12}"
+          test -n "$EB_ENVIRONMENT" || { echo 'Configure EB_ENVIRONMENT in the selected GitHub environment'; exit 1; }
+          if [ "$TARGET" = staging ] && [[ "$EB_ENVIRONMENT" != *staging* ]]; then
+            echo 'Staging deployments require a staging-named EB environment'; exit 1
+          fi
+          printf '%s\n' "$GITHUB_SHA" > .release-revision
+          eb deploy "$EB_ENVIRONMENT" --region ap-south-1 --timeout 30 --label "github-${GITHUB_SHA::12}"
+
+      - name: Verify live revision and unauthenticated security boundaries
+        env:
+          RELEASE_BASE_URL: ${{ vars.RELEASE_BASE_URL }}
+          RELEASE_SHA: ${{ github.sha }}
+          RELEASE_TARGET: ${{ inputs.target }}
+        run: bin/release-smoke

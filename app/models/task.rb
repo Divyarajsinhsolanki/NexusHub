@@ -26,11 +26,12 @@ class Task < ApplicationRecord
   NOTIFIABLE_UPDATE_FIELDS = %w[status priority start_date end_date].freeze
 
   def self.visible_to(user)
-    return none unless user
+    return none unless user&.workspace_access?
 
-    personal = where(type: 'general').where('created_by = :id OR assigned_to_user = :id', id: user.id)
-    project_tasks = where.not(type: 'general').where(project_id: Project.accessible_to(user).select(:id))
-    unassigned = where(project_id: nil).where('created_by = :id OR developer_id = :id OR assigned_to_user = :id', id: user.id)
+    workspace_tasks = where(workspace_id: user.workspace_id)
+    personal = workspace_tasks.where(type: 'general').where('created_by = :id OR assigned_to_user = :id', id: user.id)
+    project_tasks = workspace_tasks.where.not(type: 'general').where(project_id: Project.accessible_to(user).select(:id))
+    unassigned = workspace_tasks.where(project_id: nil).where('created_by = :id OR developer_id = :id OR assigned_to_user = :id', id: user.id)
     personal.or(project_tasks).or(unassigned)
   end
 

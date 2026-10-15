@@ -20,7 +20,19 @@ class TeamUser < ApplicationRecord
 
   after_create_commit :notify_member
 
+  around_save :require_active_workspace_member, if: -> { status != "rejected" && (new_record? || will_save_change_to_status? || will_save_change_to_user_id?) }
+
   private
+
+  def require_active_workspace_member
+    workspace.with_lock do
+      unless user.workspace_access?(workspace)
+        errors.add(:user, "must have active workspace access")
+        raise ActiveRecord::RecordInvalid, self
+      end
+      yield
+    end
+  end
 
   def notify_member
     actor = Current.user

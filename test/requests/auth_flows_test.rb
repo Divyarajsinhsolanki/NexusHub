@@ -65,6 +65,7 @@ class AuthFlowsTest < ActionDispatch::IntegrationTest
 
     with_firebase_payload(provider_payload) do
       post "/api/login", params: { id_token: "verified-token" }
+      complete_test_mfa
     end
 
     assert_response :success
@@ -116,6 +117,7 @@ class AuthFlowsTest < ActionDispatch::IntegrationTest
 
   def login
     post "/api/login", params: { auth: { email: @user.email, password: PASSWORD } }
+    complete_test_mfa
     assert_response :success
   end
 

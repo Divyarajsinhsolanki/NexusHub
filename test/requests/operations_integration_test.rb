@@ -16,6 +16,7 @@ class OperationsIntegrationTest < ActionDispatch::IntegrationTest
     @event = CalendarEvent.find_by!(operation_source: @license)
     Current.reset_all
     post '/api/login', params: { auth: { email: @user.email, password: 'Password!42' } }
+    complete_test_mfa
     assert_response :success
   end
 
@@ -65,6 +66,7 @@ class OperationsIntegrationTest < ActionDispatch::IntegrationTest
 
   test 'generic administration cannot expose protected records or mutate managed calendar events' do
     in_workspace { UserRole.create!(user: @user, role: Role.find_by!(name: 'owner')) }
+    enroll_test_mfa(@user)
     get '/api/admin/tables'
     assert_response :success
     %w[ProjectEnvironment ProjectOperationItem ProjectOperationEntry ProjectOperationChange ProjectDeployment ProjectDeploymentSeries OperationReminderDelivery].each do |name|
@@ -152,6 +154,7 @@ class OperationsIntegrationTest < ActionDispatch::IntegrationTest
 
   test 'user and generic admin deletion report operational ownership restrictions without deleting records' do
     in_workspace { UserRole.create!(user: @user, role: Role.find_by!(name: 'owner')) }
+    enroll_test_mfa(@user)
 
     ["/api/users/#{@user.id}", "/api/admin/User/#{@user.id}"].each do |path|
       delete path

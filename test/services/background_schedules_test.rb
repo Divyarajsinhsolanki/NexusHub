@@ -25,3 +25,39 @@ class BackgroundSchedulesTest < ActiveJob::TestCase
     DailyKnowledgePublishJob.queue_name_prefix = previous
   end
 end
+
+class ResourceMaintenanceTest < ActiveJob::TestCase
+  test "resource cleanup has a durable hourly ActiveJob schedule" do
+    definition = BackgroundSchedules.definitions(environment: "production").fetch("production:resource-maintenance")
+    assert_equal "17 * * * * UTC", definition.fetch("cron")
+    assert_equal "ResourceMaintenanceJob", definition.fetch("class")
+    assert definition.fetch("active_job")
+  end
+
+  test "maintenance expires abandoned queued work and preserves active or recent operations" do
+    workspace = Workspace.create!(name: "Maintenance", slug: "resource-maintenance", kind: "private")
+    user = create_test_user(workspace:, email: "maintenance@example.test")
+    Current.user, Current.workspace = user, workspace
+    abandoned = user.pdf_document_operations.create!(workspace:, kind: "merge", parameters: {}, created_at: 2.hours.ago)
+    active = user.pdf_document_operations.create!(workspace:, kind: "merge", status: "processing", parameters: {}, created_at: 2.hours.ago)
+    recent = user.pdf_document_operations.create!(workspace:, kind: "merge", parameters: {})
+    AbusePrevention::Maintenance.expire_pdf_queue!
+    assert_equal "failed", abandoned.reload.status
+    assert_equal "processing", active.reload.status
+    assert_equal "queued", recent.reload.status
+  end
+
+  test "maintenance purges only abandoned unattached bytes" do
+    workspace = Workspace.create!(name: "Purge maintenance", slug: "purge-maintenance", kind: "private")
+    user = create_test_user(workspace:, email: "purge-maintenance@example.test")
+    Current.user, Current.workspace = user, workspace
+    orphan = ActiveStorage::Blob.create_and_upload!(io: StringIO.new("orphan"), filename: "orphan.txt")
+    orphan.update_columns(created_at: 2.days.ago)
+    user.cover_photo.attach(io: StringIO.new("attached"), filename: "cover.txt")
+    user.cover_photo.blob.update_columns(created_at: 2.days.ago)
+    clear_enqueued_jobs
+    AbusePrevention::Maintenance.purge_abandoned_uploads!
+    assert_enqueued_with(job: ActiveStorage::PurgeJob, args: [orphan])
+    refute enqueued_jobs.any? { |job| job[:args].to_s.include?(user.cover_photo.blob.to_global_id.to_s) }
+  end
+end

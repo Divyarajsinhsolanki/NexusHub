@@ -37,7 +37,14 @@ command -v docker >/dev/null 2>&1 || fail "Docker is not installed."
 docker compose version >/dev/null 2>&1 || fail "the Docker Compose plugin is not installed."
 [ -f .env ] || fail "copy .env.example to .env and configure the production values first."
 
+echo "== Verifying committed source, CI and staging promotion evidence =="
+bin/release-gate production
+
 require_value "POSTGRES_PASSWORD"
+require_value "APP_REVISION"
+[ "$(env_value APP_REVISION)" = "$(git rev-parse HEAD)" ] || fail "APP_REVISION must match the gated source commit."
+require_value "BACKUP_PUBLIC_KEY_PATH"
+[ -f "${BACKUP_ENV_FILE:-.env.backup}" ] || fail "configure .env.backup for encrypted offsite backups first."
 
 if [ -n "$(env_value SECRET_KEY_BASE)" ]; then
   require_value "SECRET_KEY_BASE"
@@ -57,10 +64,31 @@ fi
 echo "== Validating deployment configuration =="
 docker compose config --quiet
 
-echo "== Building, releasing, and starting Nexus Hub =="
-docker compose up --detach --build --remove-orphans --wait
+echo "== Building before the maintenance window =="
+docker compose build
+
+source_revision="$(env_value APP_REVISION)"
+source_container="$(docker compose ps -q web)"
+if [ -n "$source_container" ]; then
+  source_revision="$(docker inspect --format '{{.Image}}' "$source_container")"
+fi
+
+echo "== Pausing ingress and workers for the guarded release =="
+docker compose stop caddy web worker pdf_worker backup
+
+echo "== Capturing a fresh offsite recovery point =="
+docker compose up --detach --wait db redis
+docker compose run --rm --no-deps -e "APP_REVISION=$source_revision" pre_release_backup
+
+echo "== Running guarded migrations =="
+docker compose run --rm --no-deps release
+
+echo "== Starting the reviewed release =="
+docker compose up --detach --no-deps --wait web worker pdf_worker backup livekit caddy
 
 echo
 docker compose ps
 echo
-echo "Deployment complete. Database preparation and safe seeds ran through bin/release."
+export RELEASE_BASE_URL="$(env_value BASE_URL)" RELEASE_SHA="$(git rev-parse HEAD)" RELEASE_TARGET=production
+bin/release-smoke
+echo "Deployment complete. Security, recovery and live revision checks passed."

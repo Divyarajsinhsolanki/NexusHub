@@ -56,8 +56,9 @@ ENV SMTP_ADDRESS="smtp.example.com" \
     SMTP_USERNAME="dummy@example.com" \
     SMTP_PASSWORD="dummy" \
     SECRET_KEY_BASE="dummy_secret_key_base_for_build" \
-    KEKA_API_KEY_ENCRYPTION_KEY="0123456789abcdef0123456789abcdef" \
-    ACTIVE_STORAGE_SERVICE="local"
+    KEKA_API_KEY_ENCRYPTION_KEY="00000000000000000000000000000000" \
+    ACTIVE_STORAGE_SERVICE="local" \
+    RACK_ATTACK_REDIS_URL="redis://127.0.0.1:6379/15"
 
 RUN RAILS_ENV=production bin/vite build
 RUN RAILS_ENV=production bundle exec rails assets:precompile
@@ -72,16 +73,29 @@ RUN apt-get update -qq && \
       imagemagick \
       poppler-utils \
       ghostscript \
-      qpdf && \
+      qpdf \
+      bubblewrap \
+      curl \
+      ca-certificates \
+      gnupg \
+      awscli && \
+    install -d /usr/share/postgresql-common/pgdg && \
+    curl --fail --silent --show-error https://www.postgresql.org/media/keys/ACCC4CF8.asc -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc && \
+    . /etc/os-release && \
+    printf 'Types: deb\nURIs: https://apt.postgresql.org/pub/repos/apt\nSuites: %s-pgdg\nComponents: main\nSigned-By: /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc\n' "$VERSION_CODENAME" > /etc/apt/sources.list.d/pgdg.sources && \
+    apt-get update -qq && apt-get install --no-install-recommends -y postgresql-client-16 && \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
+
+# Match the deployed PostgreSQL 16 server and standalone recovery image.
+ENV PATH="/usr/lib/postgresql/16/bin:${PATH}"
 
 COPY --from=build /usr/local/bundle /usr/local/bundle
 COPY --from=build /rails /rails
 
 # Ensure all required directories exist before chown
-RUN mkdir -p db log storage tmp public/vite-production && \
+RUN mkdir -p db log storage tmp public/vite-production /backups && \
     useradd rails --create-home --shell /bin/bash && \
-    chown -R rails:rails db log storage tmp public/vite-production
+    chown -R rails:rails db log storage tmp public/vite-production /backups
 
 USER rails:rails
 

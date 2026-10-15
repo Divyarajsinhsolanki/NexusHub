@@ -173,7 +173,7 @@ describe("role navigation", () => {
     expect(screen.getAllByRole('link', { name: 'People' }).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', { name: 'Open account menu' }));
     expect(Boolean(screen.queryByRole('menuitem', { name: 'Admin console' }))).toBe(admin);
-    expect(Boolean(screen.queryByRole('menuitem', { name: 'View as user' }))).toBe(owner);
+    expect(Boolean(screen.queryByRole('menuitem', { name: 'Support access' }))).toBe(owner);
     fireEvent.click(screen.getByRole('button', { name: 'Open context navigation' }));
     expect(Boolean(screen.queryByRole('link', { name: 'System admin' }))).toBe(admin);
   });

@@ -1,6 +1,6 @@
 class CallChannel < ApplicationCable::Channel
   def subscribed
-    call_session = CallSession.unscoped.find_by(public_id: params[:public_id])
+    call_session = CallSession.unscoped.find_by(public_id: params[:public_id], workspace_id: current_workspace.id)
     participant = call_session&.call_participants&.find_by(user_id: current_user.id)
 
     admitted = call_session && (!call_session.host_approval_required? || call_session.host_user_id == current_user.id || participant&.approved_at?)

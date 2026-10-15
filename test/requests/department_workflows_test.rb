@@ -125,6 +125,7 @@ class DepartmentWorkflowsTest < ActionDispatch::IntegrationTest
     post "#{root(@target)}/requests",headers:headers_for(@member)
     request_id=data['id']
     Current.set(workspace:@workspace,user:@head) { @head.roles=[Role.find_by!(name:'owner')] }
+    enroll_test_mfa(@head, headers: @headers, native: true)
     patch "#{root(@target)}/requests/#{request_id}",params:{decision:'approve'},headers:@headers
     assert_response :success
     assert_equal 'approved',data['status']

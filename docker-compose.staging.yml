@@ -1,0 +1,112 @@
+# Standalone configuration: do not merge with docker-compose.yml or a production env file.
+name: nexus-staging
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: nexus_hub_staging
+      POSTGRES_USER: staging
+      POSTGRES_PASSWORD: ${STAGING_POSTGRES_PASSWORD:?Set STAGING_POSTGRES_PASSWORD}
+    volumes: [staging-db:/var/lib/postgresql/data]
+    networks: [isolated]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U staging -d nexus_hub_staging"]
+      interval: 5s
+      retries: 20
+  redis:
+    image: redis:7-alpine
+    networks: [isolated]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      retries: 20
+  mailpit:
+    image: axllent/mailpit:v1.27
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: 'true'
+      MP_SMTP_AUTH_ALLOW_INSECURE: 'true'
+    ports: ['127.0.0.1:8025:8025']
+    networks: [isolated, edge]
+  release:
+    build: .
+    env_file: ${STAGING_ENV_FILE:-.env.staging}
+    environment: &staging-env
+      RAILS_ENV: production
+      DEPLOYMENT_TIER: staging
+      NONPRODUCTION_ISOLATION_CONFIRMED: 'true'
+      DATABASE_URL: postgres://staging:${STAGING_POSTGRES_PASSWORD}@db:5432/nexus_hub_staging
+      REDIS_URL: redis://redis:6379/2
+      ACTIVE_STORAGE_SERVICE: local
+      AUTO_RELEASE: 'false'
+      SEED_PORTFOLIO: 'false'
+      SEED_DEMO: 'true'
+      SMTP_ADDRESS: mailpit
+      SMTP_PORT: '1025'
+      SMTP_USERNAME: capture
+      SMTP_PASSWORD: capture
+      EMAIL_DELIVERY_METHOD: smtp
+      MAILER_SENDER: nexus@staging.invalid
+      BASE_URL: https://nexus-staging.localhost:8443
+      APP_DOMAIN: nexus-staging.localhost
+      BROWSER_ALLOWED_ORIGINS: https://nexus-staging.localhost:8443
+      API_ALLOWED_ORIGINS: https://nexus-staging.localhost:8443
+      RAILS_SERVE_STATIC_FILES: 'true'
+    command: ./bin/release
+    volumes: [staging-files:/rails/storage]
+    networks: [isolated]
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      mailpit: {condition: service_started}
+  web:
+    build: .
+    env_file: ${STAGING_ENV_FILE:-.env.staging}
+    environment: *staging-env
+    command: ./bin/rails server -b 0.0.0.0
+    healthcheck:
+      test: [CMD-SHELL, "ruby -rnet/http -e 'u=URI(\"http://localhost:3000/up\"); r=Net::HTTP::Get.new(u); r[\"Host\"]=\"nexus-staging.localhost\"; exit(Net::HTTP.start(u.host,u.port){|h| h.request(r)}.is_a?(Net::HTTPSuccess) ? 0 : 1)'"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    volumes: [staging-files:/rails/storage]
+    networks: [isolated]
+    depends_on:
+      release: {condition: service_completed_successfully}
+  worker:
+    build: .
+    env_file: ${STAGING_ENV_FILE:-.env.staging}
+    environment: *staging-env
+    command: bundle exec sidekiq
+    volumes: [staging-files:/rails/storage]
+    networks: [isolated]
+    depends_on:
+      release: {condition: service_completed_successfully}
+  pdf_worker:
+    build: .
+    env_file: ${STAGING_ENV_FILE:-.env.staging}
+    environment: *staging-env
+    command: bundle exec sidekiq -C config/sidekiq_pdf.yml
+    mem_limit: 3g
+    cpus: 1.0
+    pids_limit: 128
+    security_opt: [no-new-privileges:true]
+    volumes: [staging-files:/rails/storage]
+    tmpfs: [/tmp:size=512m,mode=1777]
+    networks: [isolated]
+    depends_on:
+      release: {condition: service_completed_successfully}
+  proxy:
+    image: caddy:2-alpine
+    ports: ['127.0.0.1:8443:443']
+    volumes:
+      - ./infrastructure/recovery/Caddyfile.staging:/etc/caddy/Caddyfile:ro
+      - staging-caddy:/data
+    networks: [edge, isolated]
+    depends_on: [web]
+networks:
+  edge: {}
+  isolated: {internal: true}
+volumes:
+  staging-db: {}
+  staging-files: {}
+  staging-caddy: {}

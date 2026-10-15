@@ -4,10 +4,16 @@ test:
 
 local:
   service: Disk
-  root: <%= Rails.root.join("storage") %>
+  root: <%= ENV["LOCAL_STORAGE_ROOT"].presence || Rails.root.join("storage") %>
 
+# Read existing public objects only during the documented migration window.
 cloudinary:
   service: Cloudinary
+
+private_cloudinary:
+  service: PrivateCloudinary
+  type: authenticated
+  sign_url: true
 
 s3:
   service: S3

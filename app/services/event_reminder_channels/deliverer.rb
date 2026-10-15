@@ -50,15 +50,20 @@ module EventReminderChannels
     end
 
     def deliver_slack
-      webhook_url = ENV['SLACK_WEBHOOK_URL'].to_s
-      return if webhook_url.blank?
+      connection = WorkspaceIntegration.in_workspace(@event.workspace).find_by(provider: 'slack', revoked_at: nil)
+      return unless connection
+      webhook_url = connection.secret
 
       payload = {
         text: "⏰ Reminder: #{@event.title} starts at #{@event.start_at.in_time_zone.strftime('%b %-d, %Y %I:%M %p')}"
       }
 
       uri = URI.parse(webhook_url)
-      Net::HTTP.post(uri, payload.to_json, 'Content-Type' => 'application/json')
+      request = Net::HTTP::Post.new(uri)
+      request['Content-Type'] = 'application/json'
+      request.body = payload.to_json
+      response = Net::HTTP.start(uri.hostname, uri.port, use_ssl: true, open_timeout: 5, read_timeout: 10) { |http| http.request(request) }
+      raise Integrations::SecretBox::Unavailable, "Slack reminder delivery failed (HTTP #{response.code.to_i})." unless response.is_a?(Net::HTTPSuccess)
     end
   end
 end

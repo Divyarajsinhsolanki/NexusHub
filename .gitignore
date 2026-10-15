@@ -11,6 +11,8 @@
 /.env*
 !/.env*.erb
 !/.env.example
+!/.env.staging.example
+!/.env.backup.example
 
 # Ignore all logfiles and tempfiles.
 /log/*
@@ -67,3 +69,16 @@ pdf_master.log*
 !.elasticbeanstalk/config.yml
 !.elasticbeanstalk/*.cfg.yml
 !.elasticbeanstalk/*.global.yml
+/public/temp_uploads
+/config/google_service_account*.json
+/config/*service-account*.json
+
+# Recovery evidence, database dumps and recipient/private-key exports.
+/backups/
+/recovery-artifacts/
+*.dump
+*.tar.gpg
+*.asc
+
+# Injected by the reviewed EB packaging workflow.
+/.release-revision

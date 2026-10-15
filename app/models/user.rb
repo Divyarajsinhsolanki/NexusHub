@@ -1,6 +1,13 @@
 require 'digest'
 
 class User < ApplicationRecord
+  MFA_PRIVATE_ATTRIBUTES = %w[mfa_secret_ciphertext mfa_pending_secret_ciphertext mfa_pending_expires_at mfa_enabled_at mfa_last_otp_at mfa_recovery_digests mfa_failed_attempts mfa_locked_until].freeze
+  def serializable_hash(options = nil)
+    options = (options || {}).dup
+    options[:except] = Array(options[:except]) + MFA_PRIVATE_ATTRIBUTES + PUBLIC_JSON_EXCLUDED_ATTRIBUTES
+    super(options)
+  end
+
   has_many :scheduled_meetings, foreign_key: :organizer_id, dependent: :destroy
   has_many :meeting_invitations, dependent: :destroy
   has_many :department_entries, foreign_key: :author_id, dependent: :nullify
@@ -58,11 +65,13 @@ class User < ApplicationRecord
     keka_last_synced_at
     encrypted_keka_api_key
     encrypted_keka_api_key_iv
+    keka_secret_ciphertext
   ].freeze
 
   has_one_attached :profile_picture
   has_one_attached :cover_photo
   belongs_to :workspace
+  has_one :workspace_membership, dependent: :destroy, inverse_of: :user
   has_one :account_deletion_request, dependent: :destroy
   has_many :web_sessions, dependent: :destroy
   has_many :posts, dependent: :destroy, inverse_of: :user
@@ -116,6 +125,10 @@ class User < ApplicationRecord
                  ),
                  algorithm: "aes-256-gcm"
 
+  alias_method :legacy_keka_api_key, :keka_api_key
+  prepend ProtectedKekaCredentials
+  self.filter_attributes += %i[keka_api_key keka_secret_ciphertext encrypted_keka_api_key encrypted_keka_api_key_iv]
+
   enum :availability_status, {
     available_now: 'available_now',
     available_soon: 'available_soon',
@@ -131,13 +144,18 @@ class User < ApplicationRecord
   validates :avatar_color, format: { with: AVATAR_COLOR_FORMAT }
   validates :demo_account, uniqueness: { scope: :workspace_id }, if: :demo_account?
   validate :department_belongs_to_workspace
+  validate :preserve_last_owner_when_locked, on: :update
 
   before_validation :normalize_home_preferences
   before_validation :normalize_avatar_color
   before_validation :ensure_avatar_color
   before_validation :assign_site_admin_from_environment
+  after_create :create_initial_workspace_membership
   after_create :assign_default_role
   before_destroy :prevent_operations_owner_deletion, prepend: true
+  before_destroy :prevent_last_workspace_owner_deletion, prepend: true
+  around_update :serialize_workspace_owner_lock, if: -> { will_save_change_to_status? && locked? }
+  around_destroy :serialize_workspace_owner_removal, prepend: true
 
   def self.generate_avatar_color(seed)
     digest = Digest::SHA256.hexdigest(seed.to_s)
@@ -148,16 +166,21 @@ class User < ApplicationRecord
     hsl_to_hex(hue, saturation, lightness)
   end
 
+  def membership_for(workspace = self.workspace)
+    return unless persisted? && workspace && workspace.id == workspace_id
+
+    WorkspaceMembership.in_workspace(workspace).find_by(user_id: id)
+  end
+
+  def workspace_access?(workspace = self.workspace)
+    !locked? && !deleted_at? && membership_for(workspace)&.active? == true
+  end
+
   def role_names
-    @role_names ||= if association(:roles).loaded?
-      roles.map(&:name)
-    else
-      UserRole.in_workspace(workspace)
-        .where(user_id: id)
-        .joins(:role)
-        .order("roles.name")
-        .pluck("roles.name")
-    end
+    membership = membership_for
+    return [] unless !locked? && !deleted_at? && membership&.active?
+
+    membership.role_names
   end
 
   def has_role?(name)
@@ -212,14 +235,12 @@ class User < ApplicationRecord
     api_key = safe_keka_api_key
     return if api_key.blank?
 
-    visible = api_key.to_s.last(4)
-    masked_length = [api_key.to_s.length - 4, 0].max
-    "#{'*' * masked_length}#{visible}"
+    "••••••••"
   end
 
   def safe_keka_api_key
     keka_api_key
-  rescue OpenSSL::Cipher::CipherError, ArgumentError => error
+  rescue Integrations::SecretBox::Unavailable, OpenSSL::Cipher::CipherError, ArgumentError => error
     unless @keka_decryption_warning_logged
       Rails.logger.warn(
         "Unable to decrypt Keka credentials for user_id=#{id}; credentials must be saved again (#{error.class})."
@@ -236,12 +257,12 @@ class User < ApplicationRecord
       employee_id: keka_employee_id,
       api_key_masked: keka_api_key_masked,
       last_synced_at: keka_last_synced_at,
-      data: keka_profile_data || {}
+      data: Integrations::Redactor.call(keka_profile_data || {}, known_secrets: [safe_keka_api_key])
     }
   end
 
   def public_json(include_roles: false)
-    options = { except: PUBLIC_JSON_EXCLUDED_ATTRIBUTES }
+    options = { except: PUBLIC_JSON_EXCLUDED_ATTRIBUTES + MFA_PRIVATE_ATTRIBUTES }
     payload = as_json(options)
 
     if include_roles
@@ -308,11 +329,56 @@ class User < ApplicationRecord
 
   private
 
-  def prevent_operations_owner_deletion
-    owns_operations = ProjectDeployment.unscoped.where(owner_id: id).exists? ||
+  def serialize_workspace_owner_lock
+    workspace.with_lock do
+      WorkspaceMemberManagement.protect_last_owner!(membership_for)
+      yield
+    end
+  rescue ActiveRecord::RecordInvalid => error
+    raise if error.record == self
+
+    errors.add(:base, error.record.errors.full_messages.join(", "))
+    raise ActiveRecord::RecordInvalid, self
+  end
+
+  def serialize_workspace_owner_removal
+    return yield if destroyed_by_association&.active_record == Workspace
+
+    workspace.with_lock do
+      WorkspaceMemberManagement.protect_last_owner!(membership_for) unless owns_operational_records?
+      yield
+    end
+  rescue ActiveRecord::RecordInvalid => error
+    errors.add(:base, error.record.errors.full_messages.join(", "))
+    false
+  end
+
+  def preserve_last_owner_when_locked
+    return unless will_save_change_to_status? && locked?
+
+    WorkspaceMemberManagement.protect_last_owner!(membership_for)
+  rescue ActiveRecord::RecordInvalid => error
+    errors.add(:base, error.record.errors.full_messages.join(", "))
+  end
+
+  def prevent_last_workspace_owner_deletion
+    return if destroyed_by_association&.active_record == Workspace
+
+    WorkspaceMemberManagement.protect_last_owner!(membership_for)
+  rescue ActiveRecord::RecordInvalid => error
+    errors.add(:base, error.record.errors.full_messages.join(", "))
+    prevent_operations_owner_deletion
+    throw :abort
+  end
+
+  def owns_operational_records?
+    ProjectDeployment.unscoped.where(owner_id: id).exists? ||
       ProjectDeploymentSeries.unscoped.where(owner_id: id).exists? ||
       ProjectOperationItem.unscoped.where(kind: 'license').where("details ->> 'owner_id' = ?", id.to_s).exists?
-    return unless owns_operations
+  end
+
+  def prevent_operations_owner_deletion
+    return unless owns_operational_records?
 
     errors.add(:base, 'Reassign operational ownership before deleting this user. Deactivate users who own historical deployments to preserve their records.')
     throw :abort
@@ -371,6 +437,10 @@ class User < ApplicationRecord
 
   def after_confirmation
     update_column(:status, "active")
+  end
+
+  def create_initial_workspace_membership
+    create_workspace_membership!(workspace: workspace)
   end
 
   def assign_default_role

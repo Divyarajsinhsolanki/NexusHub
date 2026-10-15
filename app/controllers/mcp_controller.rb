@@ -1,4 +1,5 @@
 class McpController < ApplicationController
+  include AuthenticatedResourceLimits
   skip_forgery_protection
   skip_before_action :set_current_user
   before_action :authenticate_mcp_token!, only: :handle
@@ -22,6 +23,8 @@ class McpController < ApplicationController
   def handle
     payload = parse_payload
     messages = payload.is_a?(Array) ? payload : [payload]
+    return render json: jsonrpc_error(nil, -32_600, "Batch limited to 20 messages"), status: :unprocessable_entity if messages.size > 20
+    AbusePrevention::RateLimiter.check!(Current.user, :mcp, cost: [messages.size, 1].max)
     responses = messages.filter_map { |message| handle_message(message) }
 
     if payload.is_a?(Array)
@@ -72,6 +75,7 @@ class McpController < ApplicationController
   def set_mcp_current_context
     Current.user = @mcp_access_token.user
     Current.workspace = @mcp_access_token.workspace
+    Current.membership = Current.user.membership_for(Current.workspace)
   end
 
   def parse_payload

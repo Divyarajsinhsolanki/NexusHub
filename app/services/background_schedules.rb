@@ -1,11 +1,17 @@
 module BackgroundSchedules
-  def self.definitions(environment: Rails.env)
+  def self.definitions(environment: ENV.fetch("DEPLOYMENT_TIER", Rails.env.to_s))
     {
       "#{environment}:scheduled-meetings" => {
         'cron' => '* * * * * UTC', 'class' => 'ScheduledMeetingSweepJob', 'active_job' => true
       },
       "#{environment}:call-presence" => {
         'cron' => '* * * * * UTC', 'class' => 'CallPresenceSweepJob', 'active_job' => true
+      },
+      "#{environment}:privacy-request-maintenance" => {
+        'cron' => '31 2 * * * UTC', 'class' => 'PrivacyRequestMaintenanceJob', 'active_job' => true
+      },
+      "#{environment}:resource-maintenance" => {
+        'cron' => '17 * * * * UTC', 'class' => 'ResourceMaintenanceJob', 'active_job' => true
       },
       "#{environment}:account-deletion" => {
         'cron' => '0 * * * * UTC', 'class' => 'AccountDeletionSweepJob', 'active_job' => true

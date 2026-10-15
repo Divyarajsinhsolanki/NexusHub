@@ -93,7 +93,7 @@ module Keka
       if response.is_a?(Net::HTTPSuccess)
         { success: true, status: status, data: body }
       else
-        { success: false, status: status, error: body.presence || response.message }
+        { success: false, status: status, error: "Keka request failed (HTTP #{status})." }
       end
     rescue Timeout::Error
       { success: false, error: "Request to Keka timed out", error_type: :timeout }

@@ -32,6 +32,11 @@ module SessionCookieAuthentication
     cookies.delete(:refresh_token, httponly: true)
   end
 
+  def membership_payload(user)
+    membership = user.membership_for
+    membership && { id: membership.id, workspace_id: membership.workspace_id, status: membership.status, roles: membership.role_names, offboarded_at: membership.offboarded_at }
+  end
+
   def authentication_user_payload(user)
     profile_picture_url = rails_blob_url(user.profile_picture, only_path: true) if user.profile_picture.attached?
     cover_photo_url = rails_blob_url(user.cover_photo, only_path: true) if user.cover_photo.attached?
@@ -46,6 +51,9 @@ module SessionCookieAuthentication
       social_links: user.social_links || {},
       demo_account: user.demo_account?,
       site_admin: user.site_admin?,
+      mfa: mfa_payload(user),
+      permissions: WorkspaceAuthorization.permissions(user),
+      workspace_membership: membership_payload(user),
       workspace: {
         id: user.workspace_id,
         name: user.workspace.name,

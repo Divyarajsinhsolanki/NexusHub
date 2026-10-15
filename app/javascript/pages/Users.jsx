@@ -1,3 +1,4 @@
+import { hasWorkspacePermission } from "../utils/workspaceAccess";
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
@@ -8,8 +9,6 @@ import {
 } from "lucide-react";
 import {
   getUsers,
-  createUser,
-  deleteUser,
   updateUser,
   fetchTeams,
   fetchProjects,
@@ -18,21 +17,12 @@ import {
   updatePresence,
 } from "../components/api";
 import { subscribeToPresence } from "../lib/chatCable";
+import WorkspaceInviteDialog from "../components/WorkspaceInviteDialog";
+import WorkspaceInvitationsPanel from "../components/WorkspaceInvitationsPanel";
+import WorkspaceOffboardingDialog from "../components/WorkspaceOffboardingDialog";
 import UserEditorDialog from "../components/UserEditorDialog";
 import MemberContactActions from "../components/ui/MemberContactActions";
 import { buildAvatarStyle, generateAvatarColor, getAvatarInitial, normalizeAvatarColor } from "../utils/avatar";
-
-const DEFAULT_CREATE_FORM = {
-  first_name: "",
-  last_name: "",
-  email: "",
-  password: "",
-  password_confirmation: "",
-  job_title: "Team Member",
-  department_id: "",
-  role_names: ["member"],
-  project_ids: [],
-};
 
 const UserProfileAvatar = ({ user }) => {
   const [imageFailed, setImageFailed] = useState(false);
@@ -67,7 +57,7 @@ const UserProfileAvatar = ({ user }) => {
 };
 
 const Users = () => {
-  const { user: currentUser } = React.useContext(AuthContext);
+  const { user: currentUser, setUser } = React.useContext(AuthContext);
   // --- State Management ---
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState("");
@@ -84,28 +74,28 @@ const Users = () => {
   const [projects, setProjects] = useState([]);
   const [roles, setRoles] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [invitationRevision, setInvitationRevision] = useState(0);
+  const [inviteEmail, setInviteEmail] = useState("");
   const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [createForm, setCreateForm] = useState({ ...DEFAULT_CREATE_FORM, role_names: [...DEFAULT_CREATE_FORM.role_names], project_ids: [] });
-  const [isCreatingUser, setIsCreatingUser] = useState(false);
 
   // Edit State
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState({
     first_name: "", last_name: "", email: "",
     date_of_birth: "", profile_picture: null,
-    cover_photo: null, roles: [], department_id: "",
+    cover_photo: null, roles: [], membership_status: "active", department_id: "",
     job_title: "", phone_number: "", bio: "", landing_page: ""
   });
 
   // Modal State
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [offboardingOpen, setOffboardingOpen] = useState(false);
   const [isUpdatingUser, setIsUpdatingUser] = useState(false);
-  const [userToDelete, setUserToDelete] = useState(null);
+  const [offboardingUser, setOffboardingUser] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const usersPerPage = 8;
 
-  const canCreateUsers = currentUser?.roles?.some((role) => ["owner", "admin"].includes(role.name));
-  const canEditUsers = currentUser?.roles?.some((role) => role.name === "owner");
+  const canCreateUsers = hasWorkspacePermission(currentUser, "invitations.manage");
+  const canEditUsers = hasWorkspacePermission(currentUser, "users.manage");
 
   // --- Helpers ---
   const formatRole = (role) =>
@@ -163,6 +153,7 @@ const Users = () => {
       profile_picture: null,
       cover_photo: null,
       roles: user.roles || [],
+      membership_status: user.workspace_membership?.status || "active",
       job_title: user.job_title || "",
       phone_number: user.phone_number || "",
       bio: user.bio || "",
@@ -175,7 +166,7 @@ const Users = () => {
     setFormData({
       first_name: "", last_name: "", email: "",
       date_of_birth: "", profile_picture: null,
-      cover_photo: null, roles: [], department_id: "",
+      cover_photo: null, roles: [], membership_status: "active", department_id: "",
       job_title: "", phone_number: "", bio: "", landing_page: ""
     });
   };
@@ -197,78 +188,7 @@ const Users = () => {
     });
   };
 
-  const resetCreateForm = () => {
-    setCreateForm({ ...DEFAULT_CREATE_FORM, role_names: [...DEFAULT_CREATE_FORM.role_names], project_ids: [] });
-  };
-
-  const closeCreateModal = () => {
-    setCreateModalOpen(false);
-    resetCreateForm();
-  };
-
-  const handleCreateChange = (e) => {
-    const { name, value } = e.target;
-    setCreateForm((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
-  const handleCreateRoleToggle = (role) => {
-    setCreateForm((prev) => ({
-      ...prev,
-      role_names: prev.role_names.includes(role)
-        ? prev.role_names.filter((existingRole) => existingRole !== role)
-        : [...prev.role_names, role],
-    }));
-  };
-
-  const handleCreateProjectToggle = (projectId) => {
-    setCreateForm((prev) => {
-      const nextProjectIds = prev.project_ids.includes(projectId)
-        ? prev.project_ids.filter((id) => id !== projectId)
-        : [...prev.project_ids, projectId];
-
-      return {
-        ...prev,
-        project_ids: nextProjectIds,
-      };
-    });
-  };
-
-  const handleCreateUser = async (e) => {
-    e.preventDefault();
-
-    if (createForm.password !== createForm.password_confirmation) {
-      toast.error("Password confirmation does not match.");
-      return;
-    }
-
-    setIsCreatingUser(true);
-
-    try {
-      await createUser({
-        first_name: createForm.first_name,
-        last_name: createForm.last_name,
-        email: createForm.email,
-        password: createForm.password,
-        password_confirmation: createForm.password_confirmation,
-        job_title: createForm.job_title,
-        department_id: createForm.department_id || null,
-        role_names: createForm.role_names,
-        project_ids: createForm.project_ids,
-      });
-      toast.success("User created successfully.");
-      closeCreateModal();
-      await fetchData();
-    } catch (error) {
-      console.error("Create user failed", error);
-      const message = error.response?.data?.errors?.join(", ") || "User creation failed.";
-      toast.error(message);
-    } finally {
-      setIsCreatingUser(false);
-    }
-  };
+  const closeCreateModal = () => setCreateModalOpen(false);
 
   const handleUpdate = async (e) => {
     e.preventDefault();
@@ -279,7 +199,7 @@ const Users = () => {
       // Append fields (simplified for brevity)
       Object.keys(formData).forEach(key => {
         if (key === 'roles') {
-          formData.roles.forEach(r => data.append("user[role_names][]", r));
+          (formData.roles.length ? formData.roles : ["member"]).forEach(r => data.append("user[role_names][]", r));
         } else if (key === 'profile_picture' || key === 'cover_photo') {
           if (formData[key]) data.append(`user[${key}]`, formData[key]);
         } else {
@@ -287,10 +207,16 @@ const Users = () => {
         }
       });
       
-      await updateUser(editingId, data);
+      const { data: updated } = await updateUser(editingId, data);
+      const editingSelf = updated?.id === currentUser?.id;
+      if (editingSelf && setUser) {
+        setUser((current) => updated.workspace_membership?.status === "suspended" ? null : {
+          ...current, ...updated, roles: (updated.roles || []).map((name) => ({ name })),
+        });
+      }
       toast.success("User updated successfully.");
       setEditingId(null);
-      fetchData(); // Refresh list
+      if (!editingSelf || updated.workspace_membership?.status !== "suspended") fetchData();
     } catch (error) {
       console.error("Update failed", error);
       toast.error(error.response?.data?.errors?.join(', ') || 'Unable to update user.');
@@ -299,21 +225,9 @@ const Users = () => {
     }
   };
 
-  const initiateDelete = (user) => {
-    setUserToDelete(user);
-    setDeleteModalOpen(true);
-  };
-
-  const confirmDelete = async () => {
-    if (!userToDelete) return;
-    try {
-      await deleteUser(userToDelete.id);
-      setUsers((prev) => prev.filter((u) => u.id !== userToDelete.id));
-      setDeleteModalOpen(false);
-      setUserToDelete(null);
-    } catch (error) {
-      console.error("Delete failed", error);
-    }
+  const beginOffboarding = (user) => {
+    setOffboardingUser(user);
+    setOffboardingOpen(true);
   };
 
   const openPhotoModal = (user) => {
@@ -459,6 +373,8 @@ const Users = () => {
 
             {/* Badges */}
             <div className="flex flex-wrap gap-2 mt-4">
+              {user.workspace_membership?.offboarded_at && canCreateUsers && <button type="button" className="text-xs font-semibold text-emerald-700" onClick={() => { setInviteEmail(user.email); setCreateModalOpen(true); }}>Reinvite</button>}
+              {user.workspace_membership?.status === "suspended" && <span className="rounded-md bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800">Access suspended</span>}
               {user.roles?.map((role) => (
                 <span key={role} className="px-2 py-1 bg-indigo-50 text-indigo-700 text-xs font-semibold rounded-md border border-indigo-100">
                   {formatRole(role)}
@@ -488,10 +404,10 @@ const Users = () => {
                     <Edit2 size={16} /> Edit
                 </button>
                 <button 
-                    onClick={() => initiateDelete(user)}
+                    onClick={() => beginOffboarding(user)}
                     className="text-gray-400 hover:text-red-600 font-medium text-sm flex items-center gap-2 transition-colors"
                 >
-                    <Trash2 size={16} /> Delete
+                    <Trash2 size={16} /> Offboard
                 </button>
               </div>
             ) : null}
@@ -522,7 +438,7 @@ const Users = () => {
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700"
               >
                 <UserPlus size={16} />
-                Add user
+                Invite teammate
               </button>
             )}
 
@@ -610,7 +526,8 @@ const Users = () => {
         )}
       </div>
 
-      {createModalOpen && <UserEditorDialog mode="create" value={createForm} roles={roles} departments={departments} projects={projects} onChange={handleCreateChange} onRoleToggle={handleCreateRoleToggle} onProjectToggle={handleCreateProjectToggle} onClose={closeCreateModal} onSubmit={handleCreateUser} busy={isCreatingUser} />}
+      {canCreateUsers && <WorkspaceInvitationsPanel revision={invitationRevision} />}
+      {createModalOpen && <WorkspaceInviteDialog initialEmail={inviteEmail} roles={roles} departments={departments} projects={projects} onClose={() => { closeCreateModal(); setInviteEmail(""); }} onCreated={(invitation) => { toast.success(invitation.delivery_status === "failed" ? "Invitation created. Email delivery failed; use Resend to retry." : "Invitation created. Email delivery is queued."); closeCreateModal(); setInviteEmail(""); setInvitationRevision((value) => value + 1); }} />}
 
       {/* Photo Update Modal */}
       {photoModalOpen && photoModalUser && (
@@ -691,38 +608,10 @@ const Users = () => {
         </div>
       )}
 
-      {editingId && <UserEditorDialog mode="edit" value={formData} roles={roles} departments={departments} onChange={handleChange} onRoleToggle={handleRoleChange} onClose={closeEditModal} onSubmit={handleUpdate} busy={isUpdatingUser} />}
+      {editingId && <UserEditorDialog offboarded={users.find((item) => item.id === editingId)?.workspace_membership?.offboarded_at} mode="edit" value={formData} roles={roles} departments={departments} onChange={handleChange} onRoleToggle={handleRoleChange} onClose={closeEditModal} onSubmit={handleUpdate} busy={isUpdatingUser} />}
 
-      {deleteModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 pt-6 backdrop-blur-sm transition-opacity sm:items-center sm:pt-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 transform transition-all scale-100">
-            <div className="flex flex-col items-center text-center">
-              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-4 text-red-600">
-                <Trash2 size={24} />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Delete User?</h3>
-              <p className="text-gray-500 mb-6">
-                Are you sure you want to remove <span className="font-semibold text-gray-800">{userToDelete?.first_name}</span>? 
-                This action cannot be undone.
-              </p>
-              <div className="flex gap-3 w-full">
-                <button 
-                  onClick={() => setDeleteModalOpen(false)}
-                  className="flex-1 px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button 
-                  onClick={confirmDelete}
-                  className="flex-1 px-4 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 shadow-md shadow-red-200 transition-colors"
-                >
-                  Yes, Delete
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {offboardingOpen && offboardingUser && <WorkspaceOffboardingDialog user={offboardingUser} onClose={() => setOffboardingOpen(false)} onOffboarded={(receipt) => { toast.success(receipt.cleanup_status === "failed" ? "Access removed. Call cleanup failed; retry offboarding." : receipt.cleanup_status === "pending" ? "Workspace access removed. Call cleanup is queued." : "Employee offboarded. Company records retained."); setOffboardingOpen(false); setOffboardingUser(null); setInvitationRevision((value) => value + 1); if (offboardingUser.id === currentUser.id) setUser(null); else fetchData(); }} />}
+
     </div>
   );
 };

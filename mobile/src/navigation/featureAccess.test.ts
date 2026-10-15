@@ -11,7 +11,7 @@ describe('More feature access', () => {
     const admin = { permissions: ['admin.manage', 'users.create'], features: { admin: true } };
     expect(canOpenMoreFeature(admin, 'admin')).toBe(true);
     expect(canOpenMoreFeature(admin, 'impersonation')).toBe(false);
-    expect(canOpenMoreFeature({ permissions: ['impersonation.manage'] }, 'impersonation')).toBe(true);
+    expect(canOpenMoreFeature({ permissions: ['support.manage'] }, 'impersonation')).toBe(true);
     expect(canOpenMoreFeature({ permissions: ['portfolio.manage'], features: { portfolio_admin: true } }, 'portfolio-admin')).toBe(true);
   });
 });

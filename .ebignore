@@ -19,3 +19,14 @@ vendor/bundle
 *.log
 *.log.*
 dump.rdb
+
+# Secrets and recovery data must never be zipped into an EB source bundle.
+config/master.key
+config/credentials/*.key
+config/google_service_account*.json
+config/*service-account*.json
+backups
+recovery-artifacts
+*.dump
+*.tar.gpg
+*.asc

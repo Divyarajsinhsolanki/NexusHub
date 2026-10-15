@@ -42,19 +42,21 @@ class KnowledgeItemsTest < ActionDispatch::IntegrationTest
   end
 
   test "native discovery routes return wrapped web card data" do
+    mobile, = MobileSession.issue_for!(user: @user)
+    native_headers = { "Authorization" => "Bearer #{MobileAccessToken.issue(mobile)[:token]}" }
     { "coding_tip" => "tip", "dev_tool_of_the_day" => "name", "open_issue_spotlight" => "repository" }.each do |path, field|
-      get "/api/v1/#{path}"
+      get "/api/v1/#{path}", headers: native_headers
       assert_response :success
       assert response.parsed_body.dig("data", field).present?
     end
     News::LocalHeadlinesService.stub(:fetch, ->(region:) { { region: region, articles: [{ title: "Local story", url: "https://example.test/story" }] } }) do
-      get "/api/v1/news/local_headlines", params: { region: "in" }
+      get "/api/v1/news/local_headlines", params: { region: "in" }, headers: native_headers
       assert_response :success
       assert_equal "in", response.parsed_body.dig("data", "region")
       assert_equal "Local story", response.parsed_body.dig("data", "articles", 0, "title")
     end
     News::PolicyBriefsService.stub(:fetch, ->(topic:) { { topic: topic, briefs: [{ title: "A brief" }] } }) do
-      get "/api/v1/news/policy_briefs", params: { topic: "technology" }
+      get "/api/v1/news/policy_briefs", params: { topic: "technology" }, headers: native_headers
       assert_response :success
       assert_equal "technology", response.parsed_body.dig("data", "topic")
     end
@@ -117,6 +119,7 @@ class KnowledgeItemsTest < ActionDispatch::IntegrationTest
 
   def login_as(user)
     post "/api/login", params: { auth: { email: user.email, password: "Password!42" } }
+    complete_test_mfa
     assert_response :success
   end
 

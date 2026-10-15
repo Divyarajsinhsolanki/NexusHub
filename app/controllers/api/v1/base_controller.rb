@@ -60,6 +60,8 @@ class Api::V1::BaseController < Api::BaseController
   def serialize_user(user)
     {
       id: user.id,
+      mfa: mfa_payload(user),
+      site_admin: user.site_admin?,
       email: user.email,
       first_name: user.first_name,
       last_name: user.last_name,
@@ -86,6 +88,7 @@ class Api::V1::BaseController < Api::BaseController
       },
       push_notification_settings: user.push_notification_settings_with_defaults,
       permissions: mobile_permissions(user),
+      workspace_membership: membership_payload(user),
       features: mobile_features(user),
       impersonation: {
         active: current_mobile_session&.impersonating? || false,
@@ -226,17 +229,7 @@ class Api::V1::BaseController < Api::BaseController
   end
 
   def mobile_permissions(user)
-    permissions = %w[
-      activity.read calendar.manage posts.manage work.manage knowledge.read chat.manage
-      profile.manage notifications.manage vault.manage pdf.manage
-    ]
-    permissions.concat(%w[projects.manage project_members.manage]) if user.owner? || user.admin? || user.project_manager?
-    permissions.concat(%w[teams.manage]) if user.owner? || user.team_leader?
-    permissions.concat(%w[users.create departments.manage]) if user.owner? || user.admin?
-    permissions.concat(%w[users.manage impersonation.manage]) if user.owner?
-    permissions.concat(%w[admin.manage]) if user.owner? || user.admin? || user.site_admin?
-    permissions << "portfolio.manage" if user.site_admin?
-    permissions.uniq.sort
+    WorkspaceAuthorization.permissions(user)
   end
 
   def mobile_features(user)

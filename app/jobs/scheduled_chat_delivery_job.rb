@@ -6,8 +6,8 @@ class ScheduledChatDeliveryJob < ApplicationJob
     Current.set(workspace: schedule.workspace, user: schedule.user) do
       schedule.with_lock do
         return unless schedule.state == 'pending' && schedule.send_at <= Time.current
-        membership = schedule.conversation.conversation_participants.find_by(user_id: schedule.user_id)
-        unless membership && schedule.user.workspace_id == schedule.workspace_id && !schedule.workspace.demo?
+        membership = schedule.conversation.conversation_participants.active.find_by(user_id: schedule.user_id)
+        unless membership && schedule.user.workspace_access?(schedule.workspace) && !schedule.workspace.demo?
           schedule.update!(state: 'cancelled')
           return
         end

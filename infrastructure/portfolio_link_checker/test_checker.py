@@ -27,10 +27,13 @@ class CheckerTests(unittest.TestCase):
         send.assert_called_once()
     @patch.object(checker, 'send_email', return_value='test-message-id')
     @patch.object(checker, 'fetch', return_value={})
-    @patch.object(checker, 'check_link', return_value={'state': 'ok'})
-    def test_healthy_sends_no_email(self, check, fetch, send):
-        checker.lambda_handler({}, None)
-        send.assert_not_called()
+    @patch.object(checker, 'check_link', return_value={'url': 'https://example.com', 'state': 'ok', 'status': 200})
+    def test_healthy_sends_success_report(self, check, fetch, send):
+        report = checker.lambda_handler({}, None)
+        send.assert_called_once()
+        self.assertEqual(send.call_args.args[0], 'Portfolio link check successful')
+        self.assertIn('2 passed, 0 failed, 0 unverified', send.call_args.args[1])
+        self.assertEqual(report['email_message_id'], 'test-message-id')
     @patch.object(checker, 'send_email', return_value='test-message-id')
     @patch.object(checker, 'fetch', side_effect=RuntimeError('Unavailable'))
     def test_url_does_not_send_email(self, fetch, send):
@@ -41,8 +44,19 @@ class CheckerTests(unittest.TestCase):
     @patch.object(checker, 'check_link', return_value={'url': 'https://example.com', 'state': 'unverified', 'status': 403})
     def test_blocked_sites_do_not_alert_as_failures(self, check, fetch, send):
         report = checker.lambda_handler({}, None)
-        send.assert_not_called()
+        send.assert_called_once()
+        self.assertEqual(send.call_args.args[0], 'Portfolio link check complete: no confirmed failures')
+        self.assertIn('UNVERIFIED: https://example.com', send.call_args.args[1])
+        self.assertEqual(len(report['problems']), 0)
         self.assertEqual(len(report['unverified']), 2)
+    @patch.object(checker, 'send_email', return_value='test-message-id')
+    @patch.object(checker, 'fetch', return_value={})
+    @patch.object(checker, 'check_link', return_value={'url': 'https://example.com', 'state': 'ok', 'status': 200})
+    def test_explicit_dry_run_does_not_send_success_email(self, check, fetch, send):
+        report = checker.lambda_handler({'dry_run': True}, None)
+        send.assert_not_called()
+        self.assertTrue(report['dry_run'])
+
     @patch.object(checker.socket, 'getaddrinfo', return_value=[(2, 1, 6, '', ('127.0.0.1', 443))])
     def test_private_address_rejected(self, dns):
         with self.assertRaises(ValueError):

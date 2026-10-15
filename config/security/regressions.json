@@ -1,0 +1,57 @@
+{
+  "tenancy": [
+    "test/requests/signup_workspace_test.rb",
+    "test/models/workspace_scoping_test.rb",
+    "test/channels/workspace_context_test.rb"
+  ],
+  "memberships": [
+    "test/requests/workspace_memberships_test.rb",
+    "test/requests/admin_security_test.rb",
+    "test/requests/issue_authorization_test.rb"
+  ],
+  "invitations_offboarding": [
+    "test/requests/workspace_invitations_test.rb",
+    "test/requests/workspace_offboarding_test.rb",
+    "test/services/workspace_invitation_concurrency_test.rb"
+  ],
+  "sessions": [
+    "test/requests/session_revocation_test.rb",
+    "test/channels/application_cable/connection_test.rb"
+  ],
+  "mfa_support": [
+    "test/requests/privileged_mfa_test.rb",
+    "test/requests/support_access_grants_test.rb"
+  ],
+  "browser_api": [
+    "test/requests/browser_api_protections_test.rb",
+    "test/requests/release_status_test.rb",
+    "test/requests/mobile_api_v1_test.rb"
+  ],
+  "private_files_pdf": [
+    "test/requests/private_files_test.rb",
+    "test/services/pdf_sandbox_test.rb",
+    "test/services/pdf_execution_process_test.rb",
+    "test/services/pdf_publication_access_test.rb",
+    "test/services/pdf_operation_recovery_test.rb"
+  ],
+  "abuse_limits": [
+    "test/middleware/request_resource_limits_test.rb",
+    "test/middleware/rack_attack_test.rb",
+    "test/services/abuse_prevention_test.rb",
+    "test/services/upload_admission_concurrency_test.rb"
+  ],
+  "secrets": [
+    "test/services/integration_secrets_test.rb",
+    "test/services/integration_ownership_test.rb",
+    "test/requests/workspace_integrations_test.rb",
+    "test/requests/access_and_vault_regressions_test.rb"
+  ],
+  "privacy": [
+    "test/requests/privacy_requests_test.rb",
+    "test/requests/privacy_request_management_test.rb",
+    "test/jobs/privacy_request_maintenance_job_test.rb"
+  ],
+  "recovery": [
+    "test/recovery/toolkit_test.rb"
+  ]
+}

@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { responseHandlers } = vi.hoisted(() => ({ responseHandlers: [] }));
+const { responseHandlers, errorHandlers } = vi.hoisted(() => ({ responseHandlers: [], errorHandlers: [] }));
 vi.mock("axios", () => ({
   default: {
     create: () => ({
       interceptors: {
         request: { use: vi.fn() },
-        response: { use: (success) => responseHandlers.push(success) },
+        response: { use: (success, failure) => { responseHandlers.push(success); errorHandlers.push(failure); } },
       },
     }),
   },
@@ -30,4 +30,13 @@ describe("browser session CSRF rotation", () => {
     responseHandlers[0]({ headers: {} });
     expect(document.querySelector('meta[name="csrf-token"]').content).toBe("previous-session-token");
   });
+});
+
+it("shows quota guidance while preserving status, retry headers and the error code", async () => {
+  const error = { config: { skipAuthRetry: true }, response: { status: 429, headers: { "retry-after": "30" },
+    data: { error: "resource_limit_exceeded", message: "PDF processors are busy. Try again shortly." } } };
+  await expect(errorHandlers[0](error)).rejects.toBe(error);
+  expect(error.response.data.error).toBe("PDF processors are busy. Try again shortly.");
+  expect(error.response.data.code).toBe("resource_limit_exceeded");
+  expect(error.response.headers["retry-after"]).toBe("30");
 });

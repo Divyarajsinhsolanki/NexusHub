@@ -89,7 +89,7 @@ module Chat
       raise InvalidTransition, "This call has ended" unless call_session.live?
       raise InvalidTransition, "You were removed from this call" if participant.removed_at?
       raise InvalidTransition, "This call was declined" if participant.call_declined?
-      if participant.call_left? && !call_session.conversation.conversation_participants.exists?(user_id: user.id)
+      if participant.call_left? && !call_session.conversation.conversation_participants.active.exists?(user_id: user.id)
         raise InvalidTransition, "You no longer have access to this group call"
       end
 
@@ -147,7 +147,7 @@ module Chat
         if !by_link && participant.call_declined?
           raise InvalidTransition, "This call was declined"
         end
-        if !by_link && participant.call_left? && !call_session.conversation.conversation_participants.exists?(user_id: user.id)
+        if !by_link && participant.call_left? && !call_session.conversation.conversation_participants.active.exists?(user_id: user.id)
           raise InvalidTransition, "You no longer have access to this group call"
         end
         ensure_admitted!(call_session, participant)
@@ -352,7 +352,7 @@ module Chat
     end
 
     def notify_missed_call(call_session, call_participant)
-      membership = call_session.conversation.conversation_participants.find_by(user_id: call_participant.user_id)
+      membership = call_session.conversation.conversation_participants.active.find_by(user_id: call_participant.user_id)
       return if membership&.muted?
 
       notification = Notification.create(
@@ -374,7 +374,7 @@ module Chat
     def notify_call_ended(call_session)
       action = call_session.call_type == "video" ? "ended_video_call" : "ended_audio_call"
       call_session.call_participants.includes(:user).where.not(user_id: user.id).find_each do |participant|
-        membership = call_session.conversation.conversation_participants.find_by(user_id: participant.user_id)
+        membership = call_session.conversation.conversation_participants.active.find_by(user_id: participant.user_id)
         next if membership&.muted?
 
         Notification.find_or_create_by!(

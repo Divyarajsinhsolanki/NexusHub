@@ -1,6 +1,6 @@
 namespace :app do
   desc "Prepare the database and seed all required application data"
-  task bootstrap: ["db:prepare", "app:seed"]
+  task bootstrap: ["recovery:migration_preflight", "db:prepare", "app:seed"]
 
   desc "Seed baseline, portfolio, and optional synthetic demo data"
   task seed: :environment do

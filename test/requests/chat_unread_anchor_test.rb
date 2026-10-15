@@ -13,10 +13,12 @@ class ChatUnreadAnchorTest < ActionDispatch::IntegrationTest
     @conversation.messages.create!(user: @user, body: "My reply")
     @unread = @conversation.messages.create!(user: @other, body: "First unread")
     post "/api/login", params: { auth: { email: @user.email, password: "Password!42" } }
+    complete_test_mfa
     assert_response :success
   end
   test "summary identifies the first incoming unread without changing read state" do
-    get "/api/v1/conversations/#{@conversation.id}/summary"
+    native, = MobileSession.issue_for!(user: @user)
+    get "/api/v1/conversations/#{@conversation.id}/summary", headers: { "Authorization" => "Bearer #{MobileAccessToken.issue(native)[:token]}" }
     assert_response :success
     payload = response.parsed_body["data"] || response.parsed_body
     assert_equal @unread.id, payload["first_unread_message_id"]

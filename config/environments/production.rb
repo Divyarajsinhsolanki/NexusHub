@@ -33,7 +33,7 @@ Rails.application.configure do
 
   # Keep every persistent user upload off Render's ephemeral filesystem.
   # ACTIVE_STORAGE_SERVICE can still override this for another configured cloud service.
-  config.active_storage.service = ENV.fetch("ACTIVE_STORAGE_SERVICE", "cloudinary").to_sym
+  config.active_storage.service = ENV.fetch("ACTIVE_STORAGE_SERVICE", "private_cloudinary").to_sym
   config.active_storage.variant_processor = :mini_magick
 
   # Mount Action Cable outside main process or domain.
@@ -71,7 +71,7 @@ Rails.application.configure do
   # config.cache_store = :mem_cache_store
 
   config.active_job.queue_adapter = :sidekiq
-  config.active_job.queue_name_prefix = "nexus_hub_production"
+  config.active_job.queue_name_prefix = "nexus_hub_#{ENV.fetch("DEPLOYMENT_TIER", "production")}"
 
   config.action_mailer.perform_caching = false
   # Password reset delivery is synchronous through Devise (deliver_now), so it
@@ -151,12 +151,16 @@ Rails.application.configure do
    .filter_map { |value| host_from_value.call(value) }
    .uniq
 
-  config.hosts += allowed_hosts
+  raise "Configure APP_DOMAIN, BASE_URL or ALLOWED_HOSTS for production host protection" if allowed_hosts.empty?
+  config.hosts = allowed_hosts
 
   cable_origins = allowed_hosts.flat_map do |host|
     ["https://#{host}"]
   end.uniq
-  config.action_cable.url = "#{app_protocol == "https" ? "wss" : "ws"}://#{app_host}/cable"
+  app_authority = app_host + (app_uri.port == app_uri.default_port ? "" : ":#{app_uri.port}")
+  cable_origins << "#{app_protocol}://#{app_authority}"
+  cable_origins.uniq!
+  config.action_cable.url = "#{app_protocol == "https" ? "wss" : "ws"}://#{app_authority}/cable"
   config.action_cable.allowed_request_origins = cable_origins if cable_origins.any?
 
   # Skip DNS rebinding protection for the default health check endpoint.

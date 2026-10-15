@@ -4,7 +4,7 @@ class EncryptExistingVaultContents < ActiveRecord::Migration[7.1]
       model.unscoped.find_each do |record|
         next if record.encrypted_attribute?(:content)
 
-        record.update_columns(content: record.content)
+        record.update_columns(content: record.read_attribute_before_type_cast(:content))
       end
     end
   end

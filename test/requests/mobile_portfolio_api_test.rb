@@ -111,6 +111,7 @@ class MobilePortfolioApiTest < ActionDispatch::IntegrationTest
     post "/api/v1/auth/login", params: {
       auth: { email: user.email, password: PASSWORD, device_name: "Portfolio test" }
     }
+    complete_test_mfa native: true
     assert_response :success
     response.parsed_body.dig("data", "access_token")
   end

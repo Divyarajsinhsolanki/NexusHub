@@ -1,0 +1,51 @@
+name: Security regression contract
+on:
+  workflow_call:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  security-contract:
+    name: Security regression contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd="pg_isready -U postgres" --health-interval=5s
+          --health-timeout=5s --health-retries=10
+    env:
+      RAILS_ENV: test
+      DB_HOST: localhost
+      ACTIVE_STORAGE_SERVICE: local
+      SECRET_KEY_BASE: security-ci-signing-key
+      DEVISE_JWT_SECRET_KEY: security-ci-jwt-key
+      RECOVERY_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: yarn
+      - name: Install JavaScript dependencies
+        run: yarn install --frozen-lockfile
+      - name: Install runtime test dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client-16 gnupg bubblewrap qpdf ghostscript poppler-utils imagemagick libvips-tools
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          echo '/usr/lib/postgresql/16/bin' >> "$GITHUB_PATH"
+      - name: Prepare isolated test database
+        run: bundle exec rails db:prepare
+      - name: Run release policy adversarial tests
+        run: bundle exec ruby -Itest -e 'Dir["test/release_security/*_test.rb"].sort.each { |path| require_relative path }'
+      - name: Run all mandatory security regression packages without skips
+        run: bin/security-regressions

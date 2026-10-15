@@ -524,7 +524,7 @@ const MobileDrawer = ({ open, onClose, onLogout, user, hasAdminRole }) => {
           <RailLink item={{ to: "/profile", label: "Profile", icon: FiUsers }} onNavigate={onClose} />
           <RailLink item={{ to: "/settings", label: "Settings", icon: FiSettings }} onNavigate={onClose} />
           {hasAdminRole ? <RailLink item={{ to: "/admin", label: "Admin", icon: FiSliders }} onNavigate={onClose} /> : null}
-          {canAccessWorkspacePath(user, "/admin/login-as-user") ? <RailLink item={{ to: "/admin/login-as-user", label: "View as user", icon: FiUsers }} onNavigate={onClose} /> : null}
+          {canAccessWorkspacePath(user, "/admin/login-as-user") ? <RailLink item={{ to: "/admin/login-as-user", label: "Support access", icon: FiUsers }} onNavigate={onClose} /> : null}
           {canAccessWorkspacePath(user, "/admin/portfolio") ? <RailLink item={{ to: "/admin/portfolio", label: "Portfolio admin", icon: FiSliders }} onNavigate={onClose} /> : null}
           <RailLink item={{ to: "/notifications", label: "Notifications", icon: FiBell }} onNavigate={onClose} />
           <button type="button" className="nexus-mobile-account-action" onClick={onLogout}><FiLogOut />Sign out</button>
@@ -704,7 +704,7 @@ const Navbar = () => {
             <Link to="/profile" role="menuitem"><FiUsers />Profile</Link>
             <Link to="/settings" role="menuitem"><FiSettings />Settings</Link>
             {hasAdminRole ? <Link to="/admin" role="menuitem"><FiSliders />Admin console</Link> : null}
-            {canAccessWorkspacePath(user, "/admin/login-as-user") ? <Link to="/admin/login-as-user" role="menuitem"><FiUsers />View as user</Link> : null}
+            {canAccessWorkspacePath(user, "/admin/login-as-user") ? <Link to="/admin/login-as-user" role="menuitem"><FiUsers />Support access</Link> : null}
             {canAccessWorkspacePath(user, "/admin/portfolio") ? <Link to="/admin/portfolio" role="menuitem"><FiSliders />Portfolio admin</Link> : null}
             <button type="button" onClick={handleLogout} role="menuitem"><FiLogOut />Sign out</button>
           </div>

@@ -1,5 +1,7 @@
 class Api::BaseController < ApplicationController
   include SessionCookieAuthentication
+  include PrivilegedSessionSecurity
+  include AuthenticatedResourceLimits
 
   # Cookie credentials require a real CSRF check; bearer-only native requests do not.
   protect_from_forgery with: :exception, unless: :bearer_only_request?
@@ -9,8 +11,11 @@ class Api::BaseController < ApplicationController
   # Legacy API controllers share this base class. Normalize expected client
   # input/resource errors here so they do not reach ApplicationController's
   # catch-all handler, which re-raises them as 500 responses.
+  rescue_from Integrations::SecretBox::Unavailable, ActiveRecord::Encryption::Errors::Base do
+    render json: { error: "Integration credentials are unavailable. Ask a workspace administrator to check the connection." }, status: :service_unavailable
+  end
   rescue_from ActiveRecord::RecordNotFound, with: :render_api_not_found
-  rescue_from ActionController::ParameterMissing, with: :render_api_invalid_request
+  rescue_from ActionController::ParameterMissing, PrivateFiles::InvalidUpload, with: :render_api_invalid_request
   rescue_from ActionController::BadRequest, Tasks::Access::InvalidAssignment, with: :render_api_invalid_request
   rescue_from ActiveRecord::StaleObjectError do
     render json: { error: 'This record changed. Refresh and try again.' }, status: :conflict
@@ -21,15 +26,21 @@ class Api::BaseController < ApplicationController
 
   before_action :set_request_context
   before_action :authenticate_user!
+  before_action :require_privileged_mfa!
   before_action :enforce_demo_read_only!
+  before_action :enforce_authenticated_resource_limits!
   before_action :set_cache_headers, if: :cacheable_api_request?
 
   def authenticate_user!
     @current_user = authentication_user
     Current.user = @current_user
-    Current.workspace = @current_user&.workspace
+    Current.membership = @current_user&.membership_for
+    Current.workspace = Current.membership&.active? ? @current_user.workspace : nil
 
-    return if @current_user
+    return if @current_user && @current_user.workspace_access?
+    if @current_user
+      return render json: { error: "workspace_membership_inactive" }, status: :forbidden
+    end
 
     log_application_warning('Unauthorized API access attempt')
     handle_unauthorized
@@ -45,6 +56,7 @@ class Api::BaseController < ApplicationController
   end
 
   def current_user
+    return @current_user if request.path_info.start_with?("/api/v1/")
     @current_user || devise_session_user
   end
 
@@ -59,12 +71,14 @@ class Api::BaseController < ApplicationController
   private
 
   def bearer_only_request?
+    return true if request.path_info.start_with?("/api/v1/")
     request.authorization.to_s.match?(/\ABearer /i) &&
       cookies[:access_token].blank? && cookies[:refresh_token].blank? &&
       !request.env["warden"]&.authenticated?(:user)
   end
 
   def authentication_user
+    return bearer_token_user if request.path_info.start_with?("/api/v1/")
     return bearer_token_user if request.authorization.present?
     return jwt_cookie_user if cookies[:access_token].present? || cookies[:refresh_token].present?
 
@@ -97,7 +111,8 @@ class Api::BaseController < ApplicationController
 
       effective_user = session.effective_user
       return unless effective_user.id == payload[:user_id].to_i
-      return if session.user.locked? || effective_user.locked?
+      return unless session.user.workspace_access? && effective_user.workspace_access?
+      return unless session.workspace_id == session.user.workspace_id && effective_user.workspace_id == session.workspace_id
 
       @current_mobile_session = session
       @authenticated_mobile_user = session.user
@@ -198,6 +213,7 @@ class Api::BaseController < ApplicationController
     page = 1 if page < 1
     per = (params[:per_page] || per_page || 25).to_i
     per = 25 if per < 1
+    per = [per, 100].min
 
     paginated_scope = scope.respond_to?(:page) ? scope : Kaminari.paginate_array(Array(scope))
     paginated = paginated_scope.page(page).per(per)

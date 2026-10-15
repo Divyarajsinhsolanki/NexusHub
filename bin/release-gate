@@ -1,0 +1,15 @@
+#!/usr/bin/env ruby
+require_relative '../lib/release_security/gate'
+begin
+  target = ARGV.fetch(0)
+  sha, status = Open3.capture2('git', 'rev-parse', 'HEAD')
+  raise ReleaseSecurity::Rejected, 'Cannot identify the source commit.' unless status.success?
+  dirty, status = Open3.capture2('git', 'status', '--porcelain', '--untracked-files=normal')
+  raise ReleaseSecurity::Rejected, 'Commit all source changes before deploying; the worktree must be clean.' unless status.success? && dirty.empty?
+  client = ReleaseSecurity::GitHubClient.new(token: ENV['GH_TOKEN'] || ENV['GITHUB_TOKEN'])
+  gate = ReleaseSecurity::Gate.new(repository: ENV.fetch('GITHUB_REPOSITORY'), sha: sha.strip, client:)
+  puts JSON.generate(gate.verify!(target:))
+rescue StandardError => error
+  warn(error.is_a?(ReleaseSecurity::Rejected) ? error.message : 'Release evidence verification failed; release blocked.')
+  exit 1
+end

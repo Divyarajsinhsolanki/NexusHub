@@ -4,7 +4,11 @@ class Workspace < ApplicationRecord
   BILLING_STATUSES = %w[trialing active past_due canceled].freeze
 
   # Remove project-owned operations before their owners during workspace removal.
+  has_many :workspace_integrations, dependent: :destroy
   has_one :billing_subscription, dependent: :restrict_with_error
+  has_many :workspace_invitations, dependent: :destroy
+  has_many :workspace_access_events, dependent: :destroy
+  has_many :workspace_memberships, dependent: :destroy
   has_many :projects, dependent: :destroy
   has_many :users, dependent: :destroy
   has_many :teams, dependent: :destroy
@@ -16,6 +20,7 @@ class Workspace < ApplicationRecord
   has_many :pdf_document_artifacts, dependent: :destroy
 
   validates :name, :slug, :kind, presence: true
+  validates :name, length: { maximum: 120 }, on: :create
   validates :plan_key, :billing_status, presence: true
   validates :slug, uniqueness: true
   validates :kind, inclusion: { in: KINDS }

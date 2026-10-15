@@ -1,5 +1,6 @@
 class PdfDocumentOperation < ApplicationRecord
   include WorkspaceScoped
+  include PdfOperationCapacity
 
   STATUSES = %w[queued processing completed failed].freeze
   PROCESSING_LEASE_KEY = "_processing_lease".freeze

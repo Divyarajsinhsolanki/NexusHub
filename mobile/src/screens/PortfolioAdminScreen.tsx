@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as DocumentPicker from 'expo-document-picker';
-import { Image } from 'expo-image';
+import { PrivateImage as Image } from '../components/PrivateImage';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { ArrowDown, ArrowLeft, ArrowUp, Camera, ChevronRight, FileText, ImagePlus, Pencil, Plus, Trash2, X, type LucideIcon } from 'lucide-react-native';

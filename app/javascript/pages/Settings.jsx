@@ -1,4 +1,8 @@
+import PrivacyRequestQueue from "../components/settings/PrivacyRequestQueue";
+import WorkspaceIntegrations from "../components/settings/WorkspaceIntegrations";
 import BillingSettings from "../components/settings/BillingSettings";
+import MfaSecurity from "../components/settings/MfaSecurity";
+import SupportAccess from "../components/settings/SupportAccess";
 import AccountLifecycle from "../components/settings/AccountLifecycle";
 import React, { useContext, useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
@@ -110,8 +114,8 @@ const planPriceLabel = (plan) => {
 
 const Settings = () => {
   const location = useLocation();
-  const [selectedTab, setSelectedTab] = useState(() => new URLSearchParams(location.search).get("tab") === "home" ? 5 : 0);
-  useEffect(() => { if (new URLSearchParams(location.search).get("tab") === "home") setSelectedTab(5); }, [location.search]);
+  const [selectedTab, setSelectedTab] = useState(() => new URLSearchParams(location.search).get("tab") === "home" ? 5 : new URLSearchParams(location.search).get("tab") === "security" ? 4 : 0);
+  useEffect(() => { if (new URLSearchParams(location.search).get("tab") === "home") setSelectedTab(5); else if (new URLSearchParams(location.search).get("tab") === "security") setSelectedTab(4); }, [location.search]);
   const { user, setUser } = useContext(AuthContext);
   const initialColor = COLOR_MAP[user?.color_theme] || user?.color_theme || "#3b82f6";
   const defaultNotificationPrefs = {
@@ -150,7 +154,7 @@ const Settings = () => {
   const plans = workspaceSaas.plans || [];
   const nextPlan = plans.find((plan) => plan.key === currentPlan.next_plan_key);
   const limitRows = [
-    { key: "seats", label: "Seats", icon: Users, used: usage.seats, limit: limits.seats },
+    { key: "seats", label: "Seats including pending invites", icon: Users, used: (usage.seats || 0) + (usage.reserved_seats || 0), limit: limits.seats },
     { key: "projects", label: "Projects", icon: Boxes, used: usage.projects, limit: limits.projects },
     { key: "pdf_documents", label: "PDF documents", icon: FileText, used: usage.pdf_documents, limit: limits.pdf_documents },
     { key: "storage_bytes", label: "Storage", icon: HardDrive, used: usage.storage_bytes, limit: limits.storage_bytes, format: formatBytes },
@@ -631,6 +635,15 @@ const Settings = () => {
                   </div>
                 </div>
 
+                <MfaSecurity />
+                <WorkspaceIntegrations />
+                <section className="rounded-xl border border-default p-6 space-y-3">
+                  <h3 className="text-lg font-semibold">Privacy and your data</h3>
+                  <p><a href="/legal" className="underline">Privacy notice and terms</a> · <a href="/privacy-requests" className="underline">Submit or track a privacy rights request</a></p>
+                  <p>Use account controls for your personal export and verified account deletion. Requests can also be submitted without an active workspace account.</p>
+                </section>
+                <PrivacyRequestQueue />
+                <SupportAccess />
                 <AccountLifecycle />
               </Tab.Panel>
               <Tab.Panel className="p-6 focus:outline-none"><HomeShortcutSettings /></Tab.Panel>

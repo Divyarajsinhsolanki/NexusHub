@@ -2,12 +2,7 @@ class Api::V1::ImpersonationsController < Api::V1::BaseController
   before_action :require_owner_session!
 
   def create
-    target = authenticated_mobile_user.workspace.users.find(params.require(:user_id))
-    return render_error(code: "invalid_impersonation", message: "Choose another active user.", status: :unprocessable_entity) if target == authenticated_mobile_user || target.locked? || target.site_admin?
-
-    current_mobile_session.update!(impersonated_user: target)
-    log_impersonation("started", target)
-    render_access(target)
+    render_error(code: "impersonation_disabled", message: "Use an owner-approved, read-only support grant.", status: :gone)
   end
 
   def destroy

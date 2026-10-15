@@ -17,8 +17,8 @@ module SaasQuota
       case self
       when User
         limit = workspace.seat_limit_override || plan[:seat_limit]
-        used = User.where(workspace_id: workspace_id).where.not(status: "locked").count
-        increment = locked? ? 0 : 1
+        used = WorkspaceSeats.used(workspace) + WorkspaceSeats.reserved(workspace)
+        increment = locked? || deleted_at? || (!new_record? && !membership_for&.active?) ? 0 : 1
       when Project
         limit = plan[:project_limit]
         used = Project.unscoped.where(workspace_id: workspace_id).count

@@ -13,6 +13,7 @@ class ProjectDeploymentsRequestTest < ActionDispatch::IntegrationTest
     @baseline = @software.entries.create!(project: @project, project_environment: @environment, expected_version: '3.3.12', source: 'manual')
     Current.reset_all
     post '/api/login', params: { auth: { email: @user.email, password: 'Password!42' } }
+    complete_test_mfa
     assert_response :success
   end
 

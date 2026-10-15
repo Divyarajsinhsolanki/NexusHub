@@ -162,7 +162,7 @@ module PdfDocuments
         Dir.mktmpdir("pdf-thumbnail") do |directory|
           prefix = File.join(directory, "thumbnail")
           _, _, status = Command.capture3(["pdftoppm", "-cropbox", "-f", "1", "-singlefile", "-scale-to", "360", "-png",
-                                          source.path, prefix], timeout: 30)
+                                          source.path, prefix], timeout: 30, sandbox: true)
           image_path = "#{prefix}.png"
           return unless status.success? && File.file?(image_path)
 
@@ -274,6 +274,7 @@ module PdfDocuments
     def self.lock_quota_scope!(user)
       user.workspace&.lock!
       user.lock!
+      raise ArgumentError, "Workspace access removed" unless user.workspace_access?
     end
 
     def self.upload_pdf!(path, filename)
@@ -337,6 +338,6 @@ module PdfDocuments
       end
     end
 
-    private_class_method :with_uploaded_pdf, :attach_version!, :prune_old_versions!, :lock_quota_scope!
+    private_class_method :with_uploaded_pdf, :attach_version!, :prune_old_versions!
   end
 end

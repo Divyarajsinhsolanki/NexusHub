@@ -70,7 +70,8 @@ class TaskSheetService
     story_estimation_difference
   ].freeze
 
-  def initialize(sheet_name, spreadsheet_id)
+  def initialize(sheet_name, spreadsheet_id, workspace: Current.workspace)
+    @workspace = workspace
     @sheet_name = sheet_name
     @spreadsheet_id = spreadsheet_id
     @service = Google::Apis::SheetsV4::SheetsService.new
@@ -125,14 +126,7 @@ class TaskSheetService
   private
 
   def authorize
-    scopes = ['https://www.googleapis.com/auth/spreadsheets']
-    Google::Auth::ServiceAccountCredentials.make_creds(
-      json_key_io: File.open(Rails.root.join('config/google_service_account.json')),
-      scope: scopes
-    ).tap(&:fetch_access_token!)
-  rescue StandardError => e
-    log_sheet_error('Google Sheets read/write authorization failed', exception: e)
-    raise
+    Integrations::GoogleAuthorization.call(workspace: @workspace)
   end
 
   def read_sheet

@@ -12,6 +12,7 @@ class ProjectOperationsRequestTest < ActionDispatch::IntegrationTest
     @environment = ProjectEnvironment.create!(project: @project, name: "Production")
     Current.reset_all
     post "/api/login", params: { auth: { email: @user.email, password: "Password!42" } }
+    complete_test_mfa
     assert_response :success
   end
 
@@ -21,6 +22,7 @@ class ProjectOperationsRequestTest < ActionDispatch::IntegrationTest
 
   test "mobile operations routes preserve secrets revisions and project permissions" do
     post "/api/v1/auth/login", params: { auth: { email: @user.email, password: "Password!42" }, device: { name: "Operations test" } }
+    complete_test_mfa native: true
     assert_response :success
     headers = { "Authorization" => "Bearer #{response.parsed_body.dig('data', 'access_token')}" }
     get "/api/v1/projects/#{@project.id}/operations", headers: headers

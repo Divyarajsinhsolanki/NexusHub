@@ -68,6 +68,7 @@ class MobileApiV1Test < ActionDispatch::IntegrationTest
     post "/api/v1/auth/login",
       params: { auth: { email: @user.email, password: PASSWORD, device_name: "Android app" } },
       headers: { "Origin" => "null", "Accept" => "application/json" }
+      complete_test_mfa native: true
 
     assert_response :success
     assert response.parsed_body.dig("data", "access_token").present?
@@ -487,54 +488,22 @@ class MobileApiV1Test < ActionDispatch::IntegrationTest
     assert_includes payload.fetch("url"), "token="
   end
 
-  test "owner impersonation is workspace scoped and returns to the authenticated owner" do
+  test "legacy impersonation is disabled for web and native clients" do
     @user.roles = [Role.find_or_create_by!(name: "owner")]
-    teammate = create_user(@workspace, "teammate@example.com", "Team")
-    login = mobile_login
-    token = login.fetch("access_token")
-
-    post "/api/v1/impersonation", params: { user_id: teammate.id }, headers: bearer_headers(token)
-    assert_response :success
-    impersonated_token = response.parsed_body.dig("data", "access_token")
-    assert_equal teammate.id, response.parsed_body.dig("data", "user", "id")
-    assert response.parsed_body.dig("data", "impersonating")
-
-    get "/api/v1/me", headers: bearer_headers(impersonated_token)
-    assert_response :success
-    assert_equal teammate.id, response.parsed_body.dig("data", "id")
-
-    delete "/api/v1/impersonation", headers: bearer_headers(impersonated_token)
-    assert_response :success
-    assert_equal @user.id, response.parsed_body.dig("data", "user", "id")
-
-    post "/api/v1/impersonation", params: { user_id: @other_user.id }, headers: bearer_headers(response.parsed_body.dig("data", "access_token"))
-    assert_response :not_found
-  end
-
-  test "web and mobile impersonation reject admins and protected targets" do
-    @user.roles = [Role.find_or_create_by!(name: "admin")]
     teammate = create_user(@workspace, "support-target@example.com", "Target")
     token = mobile_login.fetch("access_token")
-    post "/api/v1/impersonation", params: { user_id: teammate.id }, headers: bearer_headers(token)
-    assert_response :forbidden
-
-    post "/api/login", params: { email: @user.email, password: PASSWORD }, as: :json
+    assert_no_difference "MobileSession.count" do
+      post "/api/v1/impersonation", params: { user_id: teammate.id }, headers: bearer_headers(token)
+    end
+    assert_response :gone
+    assert_equal "impersonation_disabled", response.parsed_body.dig("error", "code")
+    get "/api/v1/me", headers: bearer_headers(token)
     assert_response :success
+    assert_equal @user.id, response.parsed_body.dig("data", "id")
+    post "/api/login", params: { auth: { email: @user.email, password: PASSWORD } }, as: :json
+    complete_test_mfa
     post "/api/admin/impersonate", params: { user_id: teammate.id }, as: :json
-    assert_response :forbidden
-
-    @user.roles = [Role.find_or_create_by!(name: "owner")]
-    token = mobile_login.fetch("access_token")
-    teammate.update!(site_admin: true)
-    post "/api/v1/impersonation", params: { user_id: teammate.id }, headers: bearer_headers(token)
-    assert_response :unprocessable_entity
-    post "/api/v1/impersonation", params: { user_id: @user.id }, headers: bearer_headers(token)
-    assert_response :unprocessable_entity
-
-    post "/api/admin/impersonate", params: { user_id: teammate.id }, as: :json
-    assert_response :forbidden
-    post "/api/admin/impersonate", params: { user_id: @user.id }, as: :json
-    assert_response :forbidden
+    assert_response :gone
   end
 
   test "legacy v1 resources are normalized and invalid direct uploads return standard errors" do
@@ -570,6 +539,7 @@ class MobileApiV1Test < ActionDispatch::IntegrationTest
     post "/api/v1/auth/login", params: {
       auth: { email: @user.email, password: PASSWORD, device_name: "Test device" }
     }
+    complete_test_mfa native: true
     assert_response :success
     response.parsed_body.fetch("data")
   end

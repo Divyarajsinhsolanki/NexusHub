@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const apiMocks = vi.hoisted(() => ({
   sendMessage: vi.fn(),
   muteConversation: vi.fn(),
+  unmuteConversation: vi.fn(),
   editChatMessage: vi.fn(),
   deleteChatMessage: vi.fn(),
   fetchConversations: vi.fn(),
@@ -72,7 +73,7 @@ vi.mock("../components/api", () => ({
   removeMessageReaction: vi.fn(),
   sendMessage: apiMocks.sendMessage,
   startDirectConversation: vi.fn(),
-  unmuteConversation: vi.fn(),
+  unmuteConversation: apiMocks.unmuteConversation,
   updateConversation: apiMocks.updateConversation,
   updateConversationReceipt: apiMocks.updateConversationReceipt,
   updatePresence: apiMocks.updatePresence,
@@ -239,7 +240,8 @@ describe("mobile chat performance behavior", () => {
     await screen.findByText("Initial message");
     expect(apiMocks.getUsers).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByTitle("Conversation details"));
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Conversation details" }));
     fireEvent.click(await screen.findByRole("button", { name: "Add" }));
     expect(await screen.findByText("Mira Shah")).toBeTruthy();
     expect(apiMocks.getUsers).toHaveBeenCalledTimes(1);
@@ -335,10 +337,12 @@ describe("chat composer and keyboard controls", () => {
   it("inserts mention and task triggers from the composer toolbar", async () => {
     renderChat();
     const composer = await screen.findByRole("textbox", { name: "Message" });
+    fireEvent.click(screen.getByRole("button", { name: "More composer actions" }));
     fireEvent.click(screen.getByRole("button", { name: "Mention a teammate" }));
     expect(composer.value).toBe("@");
     await waitFor(() => expect(apiMocks.getUsers).toHaveBeenCalledTimes(1));
     fireEvent.change(composer, { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "More composer actions" }));
     fireEvent.click(screen.getByRole("button", { name: "Link a task" }));
     expect(composer.value).toBe("#");
     await waitFor(() => expect(apiMocks.getTasks).toHaveBeenCalledTimes(1));
@@ -462,6 +466,7 @@ describe("conversation drafts", () => {
   it("searches unloaded history and opens surrounding context without marking it read", async () => {
     apiMocks.fetchConversationMessages.mockResolvedValue({ data: { data: [{ ...conversation.messages[0], id: 9, body: "Older budget" }], meta: { has_more: false } } });
     renderChat();
+    fireEvent.click(await screen.findByRole("button", { name: "More actions" }));
     fireEvent.click(await screen.findByRole("button", { name: "Search in conversation" }));
     const search = screen.getByRole("textbox", { name: "Search messages in this conversation" });
     fireEvent.change(search, { target: { value: "budget" } });
@@ -564,4 +569,33 @@ it('opens a labeled message actions menu and closes it with Escape', async () =>
   expect(within(menu).getByText('Add reaction')).toBeTruthy();
   fireEvent.keyDown(document, { key: 'Escape' });
   expect(menu.getAttribute('data-open')).toBe('false');
+});
+
+
+it("keeps secondary tools behind More and restores Call focus with Escape", async () => {
+  renderChat();
+  await screen.findByRole("textbox", { name: "Message" });
+  expect(screen.queryByRole("button", { name: "Shared media" })).toBeNull();
+  const call = screen.getByRole("button", { name: "Call", exact: true });
+  fireEvent.click(call);
+  expect(screen.getByRole("button", { name: "Start voice call" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Start video call" })).toBeTruthy();
+  fireEvent.keyDown(document.activeElement, { key: "Escape" });
+  expect(document.activeElement).toBe(call);
+  expect(screen.queryByRole("button", { name: "Start voice call" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+  for (const name of ["Search in conversation", "Shared media", "Shared files", "Pinned messages", "Scheduled messages", "Conversation details"]) {
+    expect(screen.getByRole("button", { name })).toBeTruthy();
+  }
+});
+
+it("unmutes a conversation from More without opening mute-duration choices", async () => {
+  apiMocks.fetchConversation.mockResolvedValue({ data: { ...conversation, muted: true } });
+  apiMocks.unmuteConversation.mockResolvedValue({ data: { ...conversation, muted: false } });
+  renderChat();
+  await screen.findByRole("textbox", { name: "Message" });
+  fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+  fireEvent.click(screen.getByRole("button", { name: "Unmute conversation" }));
+  await waitFor(() => expect(apiMocks.unmuteConversation).toHaveBeenCalledWith(1));
+  expect(screen.queryByText("Mute notifications for…")).toBeNull();
 });

@@ -54,7 +54,7 @@ class Api::PdfDocumentsController < Api::BaseController
   end
 
   def create
-    document = PdfDocuments::Manager.create_from_upload!(
+    document = PdfDocuments::Execution.upload(
       user: current_user,
       upload: params[:file] || params[:pdf],
       title: params[:title]

@@ -1,4 +1,5 @@
-require "hexapdf"
+require "json"
+require "rbconfig"
 
 module PdfDocuments
   class Inspector
@@ -6,26 +7,20 @@ module PdfDocuments
 
     def self.call(path, password: nil)
       raise ArgumentError, "PDF file was not created" unless File.file?(path)
-      raise ArgumentError, "PDF file is empty" if File.zero?(path)
-      raise ArgumentError, "PDF must be 50MB or smaller" if File.size(path) > PdfDocument::MAX_UPLOAD_SIZE
-
-      File.open(path, "rb") do |file|
-        raise ArgumentError, "File does not have a valid PDF header" unless file.read(4) == "%PDF"
-      end
-
-      options = password.present? ? { decryption_opts: { password: password } } : {}
-      document = HexaPDF::Document.open(path, **options)
-      encrypted = document.encrypted?
-      page_count = document.pages.count
-      raise ArgumentError, "PDF must contain at least one page" if page_count.zero?
-
-      Result.new(page_count:, encrypted:, byte_size: File.size(path))
-    rescue HexaPDF::EncryptionError
-      raise if password.present?
-
-      Result.new(page_count: nil, encrypted: true, byte_size: File.size(path))
-    rescue HexaPDF::Error => e
-      raise ArgumentError, "PDF is corrupted or unreadable: #{e.message}"
+      size = File.size(path)
+      raise ArgumentError, "PDF file is empty" if size.zero?
+      raise ArgumentError, "PDF must be 50MB or smaller" if size > PdfDocument::MAX_UPLOAD_SIZE
+      File.open(path, "rb") { |file| raise ArgumentError, "File does not have a valid PDF header" unless file.read(4) == "%PDF" }
+      output, _, status = Command.capture3(
+        [RbConfig.ruby, Rails.root.join("script/pdf_inspect.rb").to_s, File.expand_path(path)],
+        timeout: 30, max_output_bytes: 8192, input_data: JSON.generate(password:), sandbox: true)
+      result = JSON.parse(output)
+      raise ArgumentError, result["error"] || "PDF inspection failed" unless status.success?
+      Result.new(page_count: result.fetch("page_count"), encrypted: result.fetch("encrypted"), byte_size: size)
+    rescue Timeout::Error
+      raise ArgumentError, "PDF inspection timed out. Try a smaller document."
+    rescue JSON::ParserError, KeyError
+      raise ArgumentError, "PDF inspection failed in the isolated parser."
     end
   end
 end

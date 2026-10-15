@@ -1,0 +1,5 @@
+# Run in a separate worker service with dedicated CPU/memory and writable tmpfs.
+:concurrency: 1
+:timeout: 320
+:queues:
+  - nexus_hub_<%= ENV.fetch("DEPLOYMENT_TIER", "production") %>_pdf

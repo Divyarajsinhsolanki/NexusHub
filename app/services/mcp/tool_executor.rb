@@ -15,6 +15,7 @@ module Mcp
     end
 
     def call(name, arguments = {})
+      raise ToolError, "Active workspace membership is required." unless @user.workspace_access?(@token.workspace) && @token.user_id == @user.id && @token.revoked_at.nil? && (@token.expires_at.nil? || @token.expires_at > Time.current)
       args = arguments.to_h.with_indifferent_access
 
       case name
@@ -556,7 +557,7 @@ module Mcp
       sprint.project.authorize_edit!(user)
       tasks = Task.where(sprint_id: sprint.id).order(:developer_id, :start_date)
 
-      service = TaskSheetService.new(sprint.name, sprint.project.sheet_id)
+      service = TaskSheetService.new(sprint.name, sprint.project.sheet_id, workspace: sprint.workspace)
       service.export_tasks(tasks, title: sprint_sheet_title(sprint))
       audit = audit_mcp_action!(
         "export_sprint_tasks",
@@ -580,7 +581,7 @@ module Mcp
     rescue ActiveRecord::RecordNotFound
       raise ToolError, "Sprint #{args[:sprint_id]} was not found in this workspace."
     rescue StandardError => e
-      raise ToolError, "Sprint task export failed: #{e.message}"
+      raise ToolError, "Sprint task export failed. Check this workspace connection and spreadsheet access."
     end
 
     def list_tasks(args)
@@ -1712,9 +1713,9 @@ module Mcp
 
     def ensure_project_write_allowed!
       ensure_write_allowed!
-      return if user.owner? || user.project_manager?
+      return if WorkspaceAuthorization.allowed?(user, "projects.manage")
 
-      raise ToolError, "Project create/update requires owner or project_manager role."
+      raise ToolError, "Project management permission is required."
     end
 
     def ensure_repo_write_allowed!

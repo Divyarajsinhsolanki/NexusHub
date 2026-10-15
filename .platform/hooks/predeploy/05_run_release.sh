@@ -15,5 +15,5 @@ if [ "${RAILS_SKIP_MIGRATIONS:-false}" = "true" ]; then
   exit 0
 fi
 
-echo "Running application bootstrap..."
+echo "Running guarded application bootstrap; a fresh offsite recovery receipt is required for existing production databases."
 sudo -u webapp -E bundle exec rails app:bootstrap

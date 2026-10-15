@@ -9,6 +9,8 @@ import zipfile
 REGION = 'ap-south-1'
 NAME = 'nexus-portfolio-link-checker'
 EMAIL = 'solanki.divyarajsinhp@gmail.com'
+SENDER_EMAIL = 'noreply@divyarajsinh.com'
+SENDER_IDENTITY = 'divyarajsinh.com'
 HERE = pathlib.Path(__file__).resolve().parent
 
 
@@ -33,13 +35,13 @@ def main():
     account = aws('sts', 'get-caller-identity')['Account']
     function_arn = f'arn:aws:lambda:{REGION}:{account}:function:{NAME}'
     log_arn = f'arn:aws:logs:{REGION}:{account}:log-group:/aws/lambda/{NAME}:*'
-    identity = aws('sesv2', 'get-email-identity', '--email-identity', EMAIL)
-    email_resources = [f'arn:aws:ses:{REGION}:{account}:identity/{EMAIL}']
+    identity = aws('sesv2', 'get-email-identity', '--email-identity', SENDER_IDENTITY)
+    email_resources = [f'arn:aws:ses:{REGION}:{account}:identity/{SENDER_IDENTITY}']
     if identity.get('ConfigurationSetName'):
         email_resources.append(f'arn:aws:ses:{REGION}:{account}:configuration-set/{identity["ConfigurationSetName"]}')
     execution = role(NAME + '-execution', 'lambda.amazonaws.com', {'Version': '2012-10-17', 'Statement': [
         {'Effect': 'Allow', 'Action': ['logs:CreateLogStream', 'logs:PutLogEvents'], 'Resource': log_arn},
-        {'Effect': 'Allow', 'Action': 'ses:SendEmail', 'Resource': email_resources, 'Condition': {'StringEquals': {'ses:FromAddress': EMAIL}, 'ForAllValues:StringEquals': {'ses:Recipients': [EMAIL]}}}
+        {'Effect': 'Allow', 'Action': 'ses:SendEmail', 'Resource': email_resources, 'Condition': {'StringEquals': {'ses:FromAddress': SENDER_EMAIL}, 'ForAllValues:StringEquals': {'ses:Recipients': [EMAIL]}}}
     ]})
     try:
         aws('logs', 'create-log-group', '--log-group-name', '/aws/lambda/' + NAME)
@@ -47,7 +49,7 @@ def main():
         if 'ResourceAlreadyExistsException' not in str(error):
             raise
     aws('logs', 'put-retention-policy', '--log-group-name', '/aws/lambda/' + NAME, '--retention-in-days', '7')
-    environment = json.dumps({'Variables': {'PORTFOLIO_BASE_URL': 'https://divyarajsinh.com', 'ALERT_EMAIL': EMAIL, 'SENDER_EMAIL': EMAIL}})
+    environment = json.dumps({'Variables': {'PORTFOLIO_BASE_URL': 'https://divyarajsinh.com', 'ALERT_EMAIL': EMAIL, 'SENDER_EMAIL': SENDER_EMAIL}})
     with tempfile.TemporaryDirectory() as directory:
         archive = pathlib.Path(directory) / 'function.zip'
         with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as bundle:
@@ -60,7 +62,7 @@ def main():
         else:
             for attempt in range(6):
                 try:
-                    aws('lambda', 'create-function', '--function-name', NAME, '--runtime', 'python3.12', '--handler', 'lambda_function.lambda_handler', '--memory-size', '128', '--timeout', '180', '--architectures', 'arm64', '--environment', environment, '--role', execution, '--zip-file', 'fileb://' + str(archive), '--description', 'Daily public portfolio links; SES alerts at 09:00 Asia/Kolkata')
+                    aws('lambda', 'create-function', '--function-name', NAME, '--runtime', 'python3.12', '--handler', 'lambda_function.lambda_handler', '--memory-size', '128', '--timeout', '180', '--architectures', 'arm64', '--environment', environment, '--role', execution, '--zip-file', 'fileb://' + str(archive), '--description', 'Daily public portfolio links; SES reports at 09:00 Asia/Kolkata')
                     break
                 except RuntimeError as error:
                     if 'cannot be assumed' not in str(error) or attempt == 5:
@@ -80,8 +82,8 @@ def main():
     schedule_role = role(NAME + '-scheduler', 'scheduler.amazonaws.com', {'Version': '2012-10-17', 'Statement': [{'Effect': 'Allow', 'Action': 'lambda:InvokeFunction', 'Resource': function_arn}]})
     schedule = aws('scheduler', 'get-schedule', '--name', NAME, allow_missing=True)
     time.sleep(10)
-    aws('scheduler', 'update-schedule' if schedule else 'create-schedule', '--name', NAME, '--schedule-expression', 'cron(0 9 * * ? *)', '--schedule-expression-timezone', 'Asia/Kolkata', '--flexible-time-window', '{"Mode":"OFF"}', '--state', 'ENABLED', '--target', json.dumps({'Arn': function_arn, 'RoleArn': schedule_role, 'Input': '{}', 'RetryPolicy': {'MaximumEventAgeInSeconds': 3600, 'MaximumRetryAttempts': 0}}), '--description', 'Portfolio links daily 09:00 IST; failures/unverified links emailed')
-    print(json.dumps({'function': function_arn, 'function_url': url['FunctionUrl'], 'schedule': '09:00 Asia/Kolkata', 'email': EMAIL}))
+    aws('scheduler', 'update-schedule' if schedule else 'create-schedule', '--name', NAME, '--schedule-expression', 'cron(0 9 * * ? *)', '--schedule-expression-timezone', 'Asia/Kolkata', '--flexible-time-window', '{"Mode":"OFF"}', '--state', 'ENABLED', '--target', json.dumps({'Arn': function_arn, 'RoleArn': schedule_role, 'Input': '{}', 'RetryPolicy': {'MaximumEventAgeInSeconds': 3600, 'MaximumRetryAttempts': 0}}), '--description', 'Portfolio links daily 09:00 IST; success/failure reports emailed')
+    print(json.dumps({'function': function_arn, 'function_url': url['FunctionUrl'], 'schedule': '09:00 Asia/Kolkata', 'email': EMAIL, 'sender': SENDER_EMAIL}))
 
 if __name__ == '__main__':
     main()

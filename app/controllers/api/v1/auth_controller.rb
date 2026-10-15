@@ -1,5 +1,6 @@
 class Api::V1::AuthController < Api::V1::BaseController
   skip_before_action :authenticate_user!, only: [:login, :google, :demo, :signup, :confirm, :refresh, :logout]
+  skip_before_action :require_privileged_mfa!, only: [:login, :google, :demo, :signup, :confirm, :refresh, :logout]
   skip_before_action :enforce_demo_read_only!, only: [:login, :google, :demo, :signup, :confirm, :refresh, :logout]
 
   def login
@@ -10,9 +11,13 @@ class Api::V1::AuthController < Api::V1::BaseController
     return render_error(code: "email_unverified", message: "Verify your email before signing in.", status: :unauthorized) unless user.confirmed?
     return render_error(code: "account_locked", message: "This account is locked.", status: :forbidden) if user.locked?
 
+    return render_error(code: "workspace_membership_inactive", message: "Active workspace membership is required.", status: :forbidden) unless user.workspace_access?
+
     Current.user = user
     Current.workspace = user.workspace
     session, refresh_token = MobileSession.issue_for!(user: user, device_name: credentials[:device_name])
+    session.update!(primary_verified_at: Time.current)
+    @current_mobile_session = session
     render_session(user, session, refresh_token)
   end
 
@@ -23,9 +28,13 @@ class Api::V1::AuthController < Api::V1::BaseController
     user = find_or_create_google_user!(payload)
     return render_error(code: "account_locked", message: "This account is locked.", status: :forbidden) if user.locked?
 
+    return render_error(code: "workspace_membership_inactive", message: "Active workspace membership is required.", status: :forbidden) unless user.workspace_access?
+
     Current.user = user
     Current.workspace = user.workspace
     session, refresh_token = MobileSession.issue_for!(user: user, device_name: params[:device_name])
+    session.update!(primary_verified_at: Time.current)
+    @current_mobile_session = session
     render_session(user, session, refresh_token)
   rescue ActiveRecord::RecordInvalid => error
     render_error(code: "provider_signup_failed", message: "The Google account could not be added.", details: error.record.errors.full_messages, status: :unprocessable_entity)
@@ -40,9 +49,13 @@ class Api::V1::AuthController < Api::V1::BaseController
     user = workspace&.users&.find_by(demo_account: true)
     return render_error(code: "demo_unavailable", message: "The demo workspace is not ready.", status: :service_unavailable) unless user
 
+    return render_error(code: "workspace_membership_inactive", message: "Active workspace membership is required.", status: :forbidden) unless user.workspace_access?
+
     Current.user = user
     Current.workspace = workspace
     session, refresh_token = MobileSession.issue_for!(user: user, device_name: params[:device_name])
+    session.update!(primary_verified_at: Time.current)
+    @current_mobile_session = session
     render_session(user, session, refresh_token)
   end
 
@@ -78,6 +91,8 @@ class Api::V1::AuthController < Api::V1::BaseController
 
     user.update!(status: "active") unless user.active?
     session, refresh_token = MobileSession.issue_for!(user: user, device_name: params[:device_name])
+    session.update!(primary_verified_at: Time.current)
+    @current_mobile_session = session
     render_session(user, session, refresh_token)
   end
 
@@ -85,7 +100,7 @@ class Api::V1::AuthController < Api::V1::BaseController
     raw_token = params[:refresh_token].to_s
     session = MobileSession.find_by_token(raw_token)
 
-    return invalid_refresh_token unless session
+    return invalid_refresh_token unless session && session.user.workspace_access? && session.effective_user.workspace_access?(session.workspace)
 
     next_refresh_token = session.rotate!(raw_token)
     return invalid_refresh_token unless next_refresh_token
@@ -95,6 +110,8 @@ class Api::V1::AuthController < Api::V1::BaseController
       session.revoke!
       return render_error(code: "account_locked", message: "This account is locked.", status: :forbidden)
     end
+
+    return render_error(code: "workspace_membership_inactive", message: "Active workspace membership is required.", status: :forbidden) unless user.workspace_access?
 
     Current.user = user
     Current.workspace = user.workspace
@@ -110,6 +127,7 @@ class Api::V1::AuthController < Api::V1::BaseController
   private
 
   def render_session(user, session, refresh_token)
+    @current_mobile_session = session
     access = MobileAccessToken.issue(session)
 
     render_data(

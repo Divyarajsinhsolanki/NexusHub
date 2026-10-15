@@ -12,6 +12,7 @@ class NotificationReplyTest < ActionDispatch::IntegrationTest
     @notice = Notification.create!(recipient: @user, actor: @sender, action: 'chat_message', notifiable: @target,
       metadata: { conversation_id: @conversation.id, message_id: @target.id })
     post '/api/v1/auth/login', params: { auth: { email: @user.email, password: 'Password!42', device_name: 'Reply phone' } }
+    complete_test_mfa native: true
     assert_response :success
     @headers = { 'Authorization' => "Bearer #{response.parsed_body.dig('data', 'access_token')}", 'Accept' => 'application/json' }
   end

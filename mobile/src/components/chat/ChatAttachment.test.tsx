@@ -5,7 +5,7 @@ jest.mock('expo', () => ({ useEvent: () => ({ status: 'readyToPlay' }) }));
 jest.mock('../../theme', () => ({ useAppTheme: () => ({ text: '#111111', primary: '#008060', surfaceMuted: '#eeeeee' }) }));
 jest.mock('expo-router', () => ({ useFocusEffect: () => undefined }));
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: require('react-native').View }));
-jest.mock('../../api/client', () => ({ absoluteAssetUrl: (path: string) => `https://example.com${path}` }));
+jest.mock('../../api/client', () => ({ API_URL: 'https://example.com/api/v1', absoluteAssetUrl: (path: string) => path?.startsWith('http') ? path : `https://example.com${path}` }));
 
 test('images open a full-screen viewer and close again', async () => {
   const screen = await render(<ChatAttachment file={{ filename: 'photo.jpg', url: '/photo.jpg' }} mine={false} />);

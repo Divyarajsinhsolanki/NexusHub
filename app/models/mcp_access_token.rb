@@ -37,7 +37,12 @@ class McpAccessToken < ApplicationRecord
     return if raw_token.blank?
 
     token = active.includes(:user, :workspace).find_by(token_digest: digest(raw_token.to_s))
-    token&.touch(:last_used_at)
+    return unless token && token.user.workspace_access?(token.workspace)
+
+    return if (token.scopes & %w[system:admin db:read repo:write]).any?
+    return if PrivilegedMfa.required?(token.user) || token.user.mfa_enabled_at
+
+    token.touch(:last_used_at)
     token
   end
 

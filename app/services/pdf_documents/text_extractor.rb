@@ -7,10 +7,10 @@ module PdfDocuments
     MAX_INDEX_BYTES = 1.megabyte
 
     def self.call(path, max_bytes:, truncate: false, timeout: 90)
-      stdout, stderr, status = Command.capture3(["pdftotext", "-layout", "-enc", "UTF-8", path, "-"], timeout:)
+      stdout, stderr, status = Command.capture3(["pdftotext", "-layout", "-enc", "UTF-8", path, "-"], timeout:, sandbox: true)
       raise ArgumentError, "Text extraction failed." unless status.success?
 
-      text = stdout.encode("UTF-8", invalid: :replace, undef: :replace, replace: "")
+      text = stdout.force_encoding(Encoding::UTF_8).scrub("")
       return text if text.bytesize <= max_bytes
       raise ArgumentError, "Extracted text is too large." unless truncate
 

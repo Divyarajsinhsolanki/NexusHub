@@ -3,7 +3,7 @@ source "https://rubygems.org"
 ruby "3.3.12"
 
 # Rails framework
-gem "rails", "~> 8.1.3"
+gem "rails", "~> 8.1.3", ">= 8.1.3.1"
 
 # Database adapter
 gem "pg"
@@ -55,7 +55,7 @@ gem "googleauth", ">= 1.17.1"
 # Security and compatibility pins
 gem "addressable", ">= 2.9.0"
 gem "erb", ">= 6.0.4"
-gem "json", ">= 2.19.2"
+gem "json", "~> 2.21", ">= 2.21.2"
 gem "loofah", ">= 2.25.2"
 gem "crass", ">= 1.0.7"
 gem "rails-html-sanitizer", ">= 1.7.1"
@@ -88,3 +88,9 @@ group :test do
 end
 
 gem "aws-sdk-bedrockruntime", "~> 1.85"
+
+gem "rotp", "~> 6.3"
+
+# Security fixes for mail parsing and the Vite development proxy.
+gem "mail", ">= 2.9.1"
+gem "rack-proxy", "~> 1.0", ">= 1.0.3"

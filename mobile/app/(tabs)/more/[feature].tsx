@@ -1,3 +1,4 @@
+import { WorkspaceAccessScreen } from '@/src/screens/WorkspaceAccessScreen';
 import { PeoplePhotoActions } from '@/src/components/PeoplePhotoActions';
 import { PlanningScreen } from '@/src/screens/PlanningScreen';
 import { VaultScreen } from '@/src/screens/VaultScreen';
@@ -35,22 +36,24 @@ import { LearningGoalsScreen } from '@/src/screens/LearningGoalsScreen';
 
 const configs: Record<string, { title: string; subtitle: string; path: string; wrapper: string; primary: string; secondary: string[]; fields: EntityField[]; permission?: string }> = {
   skills: { title: 'Skills', subtitle: 'Your capabilities and proficiency', path: '/user_skills', wrapper: 'user_skill', primary: 'name', secondary: ['proficiency_label', 'endorsements_count'], fields: [{ key: 'name', label: 'Skill name' }, { key: 'proficiency', label: 'Proficiency', options: ['beginner', 'intermediate', 'advanced', 'expert'], required: true }] },
-  people: { title: 'People', subtitle: 'Workspace directory and availability', path: '/users', wrapper: 'user', primary: 'full_name', secondary: ['job_title', 'email'], fields: [{ key: 'first_name', label: 'First name', required: true }, { key: 'last_name', label: 'Last name' }, { key: 'email', label: 'Email', keyboardType: 'email-address', required: true }, { key: 'job_title', label: 'Job title' }, { key: 'password', label: 'Temporary password', required: true, secure: true, createOnly: true }, { key: 'password_confirmation', label: 'Confirm password', required: true, secure: true, createOnly: true }], permission: 'users.manage' },
+  people: { title: 'People', subtitle: 'Workspace directory and availability', path: '/users', wrapper: 'user', primary: 'full_name', secondary: ['job_title', 'email'], fields: [{ key: 'first_name', label: 'First name', required: true }, { key: 'last_name', label: 'Last name' }, { key: 'email', label: 'Email', keyboardType: 'email-address', required: true }, { key: 'job_title', label: 'Job title' }], permission: 'users.manage' },
   vault: { title: 'Vault', subtitle: 'Private notes and references', path: '/items', wrapper: 'item', primary: 'title', secondary: ['category', 'content'], fields: [{ key: 'title', label: 'Title' }, { key: 'category', label: 'Category' }, { key: 'content', label: 'Content', multiline: true }] },
 };
 
 export default function MoreFeatureScreen() {
   const { feature } = useLocalSearchParams<{ feature: string }>();
   const { user } = useAuth();
+  const theme = useAppTheme();
   const departments = useQuery({ queryKey: ['departments', 'people-picker'], queryFn: endpoints.departments, enabled: feature === 'people' });
   const roles = useQuery({ queryKey: ['people-roles'], queryFn: () => endpoints.rawResource<string[]>('/roles'), enabled: feature === 'people' && Boolean(user?.roles?.some(role => role === 'admin' || role === 'owner')) });
   const peopleProjects = useQuery({ queryKey: ['projects', 'people-picker'], queryFn: endpoints.projects, enabled: feature === 'people' && Boolean(user?.permissions?.includes('users.create')) });
   const baseConfig = configs[feature];
   const config = feature === 'people' ? { ...baseConfig, fields: [...baseConfig.fields, ...(roles.data ? [{key:'role_names',recordKey:'roles',label:'Roles',multiple:true,options:roles.data}] : []), {key:'project_ids',label:'Projects',multiple:true,createOnly:true,options:(peopleProjects.data || []).map(item=>({label:item.name,value:String(item.id)}))}, {key:'department_id',label:'Department',options:[{label:'No department',value:''},...(departments.data?.data || []).map(item => ({label:item.name,value:String(item.id)}))]}, {key:'phone_number',label:'Phone',keyboardType:'phone-pad' as const}, {key:'bio',label:'Bio',multiline:true}, {key:'date_of_birth',label:'Date of birth (YYYY-MM-DD)'}] } : baseConfig;
   const router = useRouter();
+  if (feature === 'invitations') return <WorkspaceAccessScreen />;
   if (feature === 'skills') return <SkillsScreen />;
   if (feature === 'vault') return <VaultScreen />;
-  if (config) return <EntityCollectionScreen {...config} renderEditFooter={feature === "people" ? record => <PeoplePhotoActions userId={record.id} /> : undefined} onRecordPress={feature === 'people' ? record => router.push(`/profile/${record.id}` as never) : undefined} canCreate={feature === "people" ? Boolean(user?.permissions?.includes("users.create")) : !config.permission || Boolean(user?.permissions?.includes(config.permission))} canWrite={!config.permission || Boolean(user?.permissions?.includes(config.permission))} />;
+  if (config) return <EntityCollectionScreen {...config} allowDelete={feature !== "people"} toolbar={feature === "people" && user?.permissions?.includes("invitations.manage") ? <Pressable accessibilityRole="button" onPress={() => router.push("/(tabs)/more/invitations")} style={{padding:16}}><Text style={{color:theme.primary,fontWeight:"700"}}>Invitations and offboarding</Text></Pressable> : undefined} renderEditFooter={feature === "people" ? record => <PeoplePhotoActions userId={record.id} /> : undefined} onRecordPress={feature === 'people' ? record => router.push(`/profile/${record.id}` as never) : undefined} canCreate={feature === "people" ? false : !config.permission || Boolean(user?.permissions?.includes(config.permission))} canWrite={!config.permission || Boolean(user?.permissions?.includes(config.permission))} />;
   if (feature === 'teams') return <TeamsScreen />;
   if (feature === 'departments') return <DepartmentsScreen />;
   if (feature === 'goals') return <LearningGoalsScreen />;

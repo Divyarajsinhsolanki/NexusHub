@@ -1,0 +1,20 @@
+#!/usr/bin/env ruby
+require 'json'
+require 'digest'
+require 'fileutils'
+require 'open3'
+Dir.chdir(File.expand_path('..', __dir__))
+catalog = JSON.parse(File.read('config/security/regressions.json'))
+abort 'Security catalog must contain nonempty test packages.' unless catalog.is_a?(Hash) && !catalog.empty? &&
+  catalog.values.all? { |group| group.is_a?(Array) && !group.empty? && group.all? { |path| path.is_a?(String) } }
+files = catalog.values.flatten.uniq
+abort 'Security catalog has missing tests.' unless files.all? { |file| file.start_with?('test/') && File.file?(file) }
+if ARGV == ['--list']
+  puts files
+  exit
+end
+abort 'Usage: bin/security-regressions [--list]' unless ARGV.empty?
+abort 'Use RAILS_ENV=test and provide RECOVERY_TEST_DATABASE_URL for the isolated recovery test.' unless ENV.fetch('RAILS_ENV', 'test') == 'test' && ENV['RECOVERY_TEST_DATABASE_URL']
+# Reporter makes skipped or zero-test security runs fail rather than pass green.
+env = { 'RAILS_ENV' => 'test', 'SECURITY_REGRESSION_RUN' => '1' }
+exec(env, 'bundle', 'exec', 'rails', 'test', *files)

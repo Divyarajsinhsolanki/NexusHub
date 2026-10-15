@@ -30,6 +30,15 @@ api.interceptors.response.use(
   },
   async error => {
     const { config, response } = error;
+    // Keep actionable quota/retry guidance visible to existing form consumers.
+    if ([413, 429, 503].includes(response?.status) && typeof response?.data?.message === "string") {
+      response.data.code ||= response.data.error;
+      response.data.error = response.data.message;
+    }
+
+    if (response?.status === 403 && ['mfa_required','mfa_step_up_required'].includes(response?.data?.error)) {
+      window.dispatchEvent(new Event('nexus-mfa-required'));
+    }
 
     // NEW GUARD CLAUSE
     if (config?.skipAuthRetry || config?.url.includes("/refresh")) {
@@ -422,3 +431,12 @@ export const pinChatMessage = (conversationId, messageId, pinned) => api.patch(`
 export const fetchScheduledMessages = (conversationId, before) => readChat(`/conversations/${conversationId}/scheduled_messages`, before ? { before_id: before } : {});
 export const scheduleChatMessage = (conversationId, form) => api.post(`/conversations/${conversationId}/scheduled_messages`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
 export const cancelScheduledMessage = (conversationId, id) => api.delete(`/conversations/${conversationId}/scheduled_messages/${id}`);
+
+export const fetchWorkspaceInvitations = () => api.get('/workspace_invitations');
+export const createWorkspaceInvitation = (value) => api.post('/workspace_invitations', { workspace_invitation: value });
+export const resendWorkspaceInvitation = (id) => api.post(`/workspace_invitations/${id}/resend`);
+export const revokeWorkspaceInvitation = (id) => api.post(`/workspace_invitations/${id}/revoke`);
+export const previewWorkspaceInvitation = (token) => api.post('/workspace_invitations/preview', { invitation_token: token });
+export const acceptWorkspaceInvitation = (token, account) => api.post('/workspace_invitations/accept', { invitation_token: token, account });
+export const previewWorkspaceOffboarding = (id) => api.get(`/workspace_memberships/${id}/offboarding`);
+export const offboardWorkspaceMember = (id, value) => api.post(`/workspace_memberships/${id}/offboarding`, { offboarding: value });

@@ -258,6 +258,7 @@ module PdfDocuments
           next @user.pdf_document_artifacts.find(@operation_record.result.fetch("artifact_id"))
         end
         @operation_record&.assert_processing_lease!
+        Manager.lock_quota_scope!(@user)
         generated = @user.pdf_document_artifacts.create!(workspace: @user.workspace,
           pdf_document: @document, pdf_document_operation: @operation_record, kind:, expires_at: 24.hours.from_now)
         generated.file.attach(blob)
@@ -327,7 +328,7 @@ module PdfDocuments
     end
 
     def run_command(command, timeout:)
-      Command.capture3(command, timeout:)
+      Command.capture3(command, timeout:, sandbox: true)
     rescue Timeout::Error
       raise ArgumentError, "PDF operation timed out. Try a smaller document."
     end

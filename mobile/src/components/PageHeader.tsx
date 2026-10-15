@@ -3,13 +3,13 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { useAppTheme } from '../theme';
 
-export function PageHeader({ title, subtitle, action, leading }: { title: string; subtitle?: string; action?: ReactNode; leading?: ReactNode }) {
+export function PageHeader({ title, subtitle, action, leading, compact = false }: { title: string; subtitle?: string; action?: ReactNode; leading?: ReactNode; compact?: boolean }) {
   const theme = useAppTheme();
   return (
-    <View style={[styles.header, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
+    <View style={[styles.header, compact && styles.compactHeader, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
       {leading ? <View style={styles.accessory}>{leading}</View> : null}
       <View style={styles.copy}>
-        <Text accessibilityRole="header" adjustsFontSizeToFit minimumFontScale={0.82} numberOfLines={1} style={[styles.title, { color: theme.text }]}>
+        <Text accessibilityRole="header" adjustsFontSizeToFit minimumFontScale={0.82} numberOfLines={1} style={[styles.title, compact && styles.compactTitle, { color: theme.text }]}>
           {title}
         </Text>
         {subtitle ? <Text numberOfLines={2} style={[styles.subtitle, { color: theme.textMuted }]}>{subtitle}</Text> : null}
@@ -29,6 +29,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
+  compactHeader: { minHeight: 60, paddingVertical: 8 },
+  compactTitle: { fontSize: 18, fontWeight: '700' },
   copy: { flex: 1, minWidth: 0, paddingHorizontal: 8 },
   accessory: { flexShrink: 0 },
   title: { fontSize: 21, fontWeight: '800', letterSpacing: 0 },

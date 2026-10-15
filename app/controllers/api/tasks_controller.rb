@@ -66,7 +66,7 @@ class Api::TasksController < Api::BaseController
       'Backlog sheet import started',
       payload: { project_id: project&.id, sheet_name: 'Backlog', spreadsheet_id: project&.sheet_id }
     )
-    service = TaskSheetService.new('Backlog', project&.sheet_id)
+    service = TaskSheetService.new('Backlog', project&.sheet_id, workspace: current_user.workspace)
     service.import_tasks(sprint_id: nil, project_id: project&.id, created_by_id: current_user.id)
     log_sheet_event(
       :info,
@@ -74,7 +74,7 @@ class Api::TasksController < Api::BaseController
       payload: { project_id: project&.id, sheet_name: 'Backlog', spreadsheet_id: project&.sheet_id }
     )
     head :no_content
-  rescue ActiveRecord::RecordNotFound, Project::Forbidden
+  rescue ActiveRecord::RecordNotFound, Project::Forbidden, Integrations::SecretBox::Unavailable
     raise
   rescue StandardError => e
     log_sheet_event(
@@ -83,7 +83,7 @@ class Api::TasksController < Api::BaseController
       exception: e,
       payload: { project_id: project&.id || params[:project_id], sheet_name: 'Backlog', spreadsheet_id: project&.sheet_id }
     )
-    render json: { error: e.message }, status: :unprocessable_entity
+    render json: { error: "Google Sheets operation failed. Check this workspace connection and spreadsheet access." }, status: :unprocessable_entity
   end
 
   private

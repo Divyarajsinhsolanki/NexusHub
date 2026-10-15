@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
-timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
-destination="/backups/${PGDATABASE}-${timestamp}.sql.gz"
-
-pg_dump --no-owner --no-privileges | gzip > "${destination}"
-find /backups -type f -name "*.sql.gz" -mtime "+${BACKUP_RETENTION_DAYS:-14}" -delete
-echo "Database backup written to ${destination}"
+cd "$(dirname "$(readlink -f "$0")")/.."
+if [ "${BACKUP_UPLOAD_MODE:-}" = active_storage ]; then
+  exec bundle exec rails recovery:backup
+fi
+exec bin/recovery backup

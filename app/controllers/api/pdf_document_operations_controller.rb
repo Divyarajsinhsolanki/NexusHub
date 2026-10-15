@@ -21,8 +21,11 @@ class Api::PdfDocumentOperationsController < Api::BaseController
     parameters = operation_parameters
     raise ArgumentError, "Operation parameters are too large." if parameters.to_json.bytesize > 1.megabyte
 
+    assets = params[:assets].is_a?(ActionController::Parameters) ? params[:assets].to_unsafe_h : (params[:assets] || {})
+    raise ArgumentError, "Image uploads must be an object with at most 20 files." unless assets.is_a?(Hash) && assets.size <= 20
     asynchronous = PdfDocuments::OperationRunner::ASYNC_KINDS.include?(kind)
     operation = PdfDocumentOperation.transaction do
+      current_user.workspace.lock!
       document&.lock!
       validate_base_version!(document, base_version_id) if document
       parameters["source_versions"] = capture_merge_sources!(parameters) if kind == "merge"
@@ -48,11 +51,7 @@ class Api::PdfDocumentOperationsController < Api::BaseController
       PdfDocumentOperationJob.perform_later(operation.id)
       render json: serialize_operation(operation), status: :accepted
     else
-      PdfDocuments::OperationRunner.new(operation).run!(
-        password: params[:password],
-        asset: params[:asset],
-        assets: params[:assets].is_a?(ActionController::Parameters) ? params[:assets].to_unsafe_h : (params[:assets] || {})
-      )
+      PdfDocuments::Execution.operation(operation, password: params[:password], asset: params[:asset], assets:)
       render json: serialize_operation(operation.reload), status: :created
     end
   rescue PdfDocuments::Manager::StaleVersion => e

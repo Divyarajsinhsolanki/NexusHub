@@ -14,7 +14,7 @@ class WebSession < ApplicationRecord
     return unless payload.present? && payload[:type] == type && payload[:web_session_id].present?
 
     session = active.includes(:user).find_by(id: payload[:web_session_id], user_id: payload[:user_id])
-    return unless session && !session.user.locked?
+    return unless session && session.user.workspace_access?
     return unless ActiveSupport::SecurityUtils.secure_compare(session.password_fingerprint, fingerprint(session.user))
 
     session

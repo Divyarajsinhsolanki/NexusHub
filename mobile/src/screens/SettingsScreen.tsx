@@ -1,3 +1,4 @@
+import {MfaSecurityScreen} from './MfaSecurityScreen';
 import { BillingSettings } from "../components/BillingSettings";
 import { AccountLifecycle } from "../components/AccountLifecycle";
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -264,6 +265,8 @@ export function SettingsScreen() {
 
       {section === 'billing' ? <BillingSettings /> : null}
       {section === 'security' ? <>
+      <MfaSecurityScreen />
+      <PrimaryButton label="Privacy rights request" onPress={() => { void Linking.openURL(`${API_URL.replace(/\/api\/v1$/, '')}/privacy-requests`).catch(() => Alert.alert('Unable to open privacy requests', 'Please try again or open the website in your browser.')); }} />
       <PrimaryButton label="Privacy and terms" onPress={() => { void Linking.openURL(`${API_URL.replace(/\/api\/v1$/, '')}/legal`).catch(() => Alert.alert('Unable to open legal information', 'Please try again or open the website in your browser.')); }} />
       <Text style={[styles.sectionTitle, { color: theme.text }]}>Account security</Text>
       <Pressable accessibilityRole="button" accessibilityLabel="Device sessions" onPress={() => router.push('/more/profile')} style={[styles.settingsLink, { backgroundColor: theme.surface, borderColor: theme.border }]}>

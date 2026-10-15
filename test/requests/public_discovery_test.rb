@@ -31,7 +31,7 @@ class PublicDiscoveryTest < ActionDispatch::IntegrationTest
     get "/"
     assert_response :success
     assert_select 'meta[name="nexus-portfolio-enabled"][content="false"]', count: 1
-    assert_select "title", text: "Nexus Hub | Workspace Login"
+    assert_select "title", text: "Workspace Login | Nexus Hub"
 
     get "/sitemap.xml"
     assert_response :success

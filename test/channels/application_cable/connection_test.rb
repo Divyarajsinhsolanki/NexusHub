@@ -9,6 +9,17 @@ class ApplicationCable::ConnectionTest < ActionCable::Connection::TestCase
     @session, = MobileSession.issue_for!(user: @user)
   end
 
+  test "privileged realtime connections require a verified MFA session" do
+    Current.set(workspace: @user.workspace) { @user.roles = [Role.find_by!(name: "owner")] }
+    assert_reject_connection { connect params: { token: cable_token } }
+    @user.update!(mfa_enabled_at: Time.current)
+    @session.update!(mfa_verified_at: Time.current)
+    connect params: { token: cable_token }
+    assert connection.session_valid?
+    @session.update!(mfa_verified_at: nil)
+    assert_not connection.session_valid?
+  end
+
   test "mobile connections are identified by the authenticated device" do
     connect params: { token: cable_token }
     assert_equal @user, connection.current_user
@@ -56,5 +67,15 @@ class ApplicationCable::ConnectionTest < ActionCable::Connection::TestCase
 
   def cable_token
     JwtService.encode({ user_id: @user.id, mobile_session_id: @session.id, type: "cable_access" })
+  end
+end
+
+class ApplicationCable::ConnectionTest
+  test "membership suspension rejects new sockets and invalidates connected commands" do
+    connect params: { token: cable_token }
+    assert connection.session_valid?
+    @user.membership_for.update!(status: "suspended")
+    assert_not connection.session_valid?
+    assert_reject_connection { connect params: { token: cable_token } }
   end
 end

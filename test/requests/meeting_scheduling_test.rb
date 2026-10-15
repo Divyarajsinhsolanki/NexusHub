@@ -103,5 +103,6 @@ class MeetingSchedulingTest < ActionDispatch::IntegrationTest
   end
   def login(user)
     post '/api/login',params:{auth:{email:user.email,password:'Password!42'}};assert_response :success
+    complete_test_mfa
   end
 end

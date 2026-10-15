@@ -12,6 +12,7 @@ class TeamProfileImagesTest < ActionDispatch::IntegrationTest
     user_skill = @user.user_skills.create!(skill: skill, proficiency: "expert")
     SkillEndorsement.create!(user_skill: user_skill, endorser: @endorser, team: @team)
     post "/api/login", params: { auth: { email: @user.email, password: "Password!42" } }
+    complete_test_mfa
     assert_response :success
   end
   test "insights include profile pictures for experts and both endorsement participants" do

@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { firebaseEnabled } from "../firebaseFlags";
 import { toast } from "react-hot-toast";
 import { COLOR_MAP, toRgb, lightenColor, darkenColor } from '/utils/theme';
+import MfaSecurity from "../components/settings/MfaSecurity";
 import PageLoader from "../components/ui/PageLoader";
 import { logoutDestination } from "../config/features";
 import { safeReturnPath } from "../utils/safeReturnPath";
@@ -17,9 +18,17 @@ export const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  const [mfaStepUp, setMfaStepUp] = useState(false);
   const [initializing, setInitializing] = useState(true);
   const navigate = useNavigate();
   const refreshTimer = useRef();
+
+  useEffect(() => {
+    if (!user?.id) { setMfaStepUp(false); return; }
+    const requireMfa = () => { if (user.mfa?.required || user.mfa?.enabled) setMfaStepUp(true); };
+    window.addEventListener('nexus-mfa-required', requireMfa);
+    return () => window.removeEventListener('nexus-mfa-required', requireMfa);
+  }, [user?.id, user?.mfa?.required, user?.mfa?.enabled]);
 
   useEffect(() => {
     const raw = user?.color_theme;
@@ -66,6 +75,7 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     if (!user?.id) return;
+    if (user.mfa && (user.mfa.required || user.mfa.enabled) && !user.mfa.verified) return;
     const subscription = subscribeToSession();
     let active = true;
     const checkSession = async () => {
@@ -101,7 +111,7 @@ export function AuthProvider({ children }) {
       window.removeEventListener("focus", checkSession);
       document.removeEventListener("visibilitychange", checkSession);
     };
-  }, [user?.id, navigate]);
+  }, [user?.id, user?.mfa?.verified, navigate]);
 
   // Clear timer on unmount
   useEffect(() => () => clearTimeout(refreshTimer.current), []);
@@ -152,7 +162,7 @@ export function AuthProvider({ children }) {
     setUser(data.user);
     scheduleRefresh(data.exp);
     navigate(safeReturnPath(returnTo) || workspaceLandingPath(data.user));
-    toast.success("Logged in successfully");
+    toast.success(data.user?.mfa && (data.user.mfa.required || data.user.mfa.enabled) && !data.user.mfa.verified ? "Complete MFA to finish signing in." : "Logged in successfully");
   };
 
   const handleSignup = async (payload) => {
@@ -179,7 +189,7 @@ export function AuthProvider({ children }) {
       setUser(data.user);
       scheduleRefresh(data.exp);
       navigate(safeReturnPath(returnTo) || workspaceLandingPath(data.user));
-      toast.success("Logged in successfully");
+      toast.success(data.user?.mfa && (data.user.mfa.required || data.user.mfa.enabled) && !data.user.mfa.verified ? "Complete MFA to finish signing in." : "Logged in successfully");
     } catch (error) {
       console.error("Google login failed:", error);
       throw error;
@@ -196,6 +206,7 @@ export function AuthProvider({ children }) {
 
   const handleLogout = async () => {
     await api.delete("/logout");
+    setMfaStepUp(false);
     clearChatDrafts();
     setUser(null);
     clearTimeout(refreshTimer.current);
@@ -212,11 +223,12 @@ export function AuthProvider({ children }) {
     handleGoogleLogin,
     handleDemoLogin,
     handleLogout,
+    completeMfa: () => setMfaStepUp(false),
   };
 
   return (
     <AuthContext.Provider value={value}>
-      {initializing ? <PageLoader title="Authenticating" message="Checking your session…" /> : children}
+      {initializing ? <PageLoader title="Authenticating" message="Checking your session…" /> : (user && (mfaStepUp || (user.mfa && (user.mfa.required || user.mfa.enabled) && !user.mfa.verified))) ? <MfaSecurity gate /> : children}
     </AuthContext.Provider>
   );
 }

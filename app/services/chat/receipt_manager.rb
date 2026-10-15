@@ -13,7 +13,7 @@ module Chat
       raise InvalidReceipt, "Unsupported receipt state" unless STATES.include?(normalized_state)
 
       message = conversation.messages.find(message_id)
-      membership = conversation.conversation_participants.find_by!(user_id: user.id)
+      membership = conversation.conversation_participants.active.find_by!(user_id: user.id)
       changed = false
       now = Time.current
 
@@ -52,7 +52,7 @@ module Chat
 
     def mark_latest(conversation:, state: "read")
       latest_message_id = conversation.messages.maximum(:id)
-      return conversation.conversation_participants.find_by!(user_id: user.id) unless latest_message_id
+      return conversation.conversation_participants.active.find_by!(user_id: user.id) unless latest_message_id
 
       update(conversation: conversation, message_id: latest_message_id, state: state)
     end

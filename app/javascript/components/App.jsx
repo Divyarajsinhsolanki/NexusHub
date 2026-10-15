@@ -22,6 +22,7 @@ import { getRouteLayout } from "./shell/routeLayout";
 
 const Admin = lazy(() => import("../components/Admin/Admin"));
 const AdminImpersonation = lazy(() => import("../pages/AdminImpersonation"));
+const AcceptWorkspaceInvitation = lazy(() => import("../pages/AcceptWorkspaceInvitation"));
 const AuthPage = lazy(() => import("../pages/AuthPage"));
 const Planning = lazy(() => import("../pages/Planning"));
 const Chat = lazy(() => import("../pages/Chat"));
@@ -31,6 +32,7 @@ const DepartmentDetails = lazy(() => import("../pages/DepartmentDetails"));
 const Departments = lazy(() => import("../pages/Departments"));
 const IssueTracker = lazy(() => import("../pages/IssueTracker"));
 const KnowledgeDashboard = lazy(() => import("../pages/KnowledgeDashboard"));
+const PrivacyRequests = lazy(() => import("../pages/PrivacyRequests"));
 const Legal = lazy(() => import("../pages/Legal"));
 const MetaverseLanding = lazy(() => import("../pages/MetaverseLanding"));
 const Notifications = lazy(() => import("../pages/Notifications"));
@@ -74,8 +76,10 @@ const AppRoutes = () => {
             <Route path="/" element={portfolioEnabled ? <PublicPortfolio /> : <AuthPage mode="login" />} />
             <Route path="/contact" element={portfolioEnabled ? <Contact /> : <Navigate to="/login" replace />} />
             <Route path="/legal" element={<Legal />} />
+            <Route path="/privacy-requests" element={<PrivacyRequests />} />
             <Route path="/metaverse-landing" element={portfolioEnabled ? <MetaverseLanding /> : <Navigate to="/login" replace />} />
             <Route path="/login" element={<AuthPage mode="login" />} />
+            <Route path="/invitations/accept" element={<AcceptWorkspaceInvitation />} />
             <Route path="/signup" element={<AuthPage mode="signup" />} />
             <Route path="/forgot-password" element={<AuthPage mode="forgot-password" />} />
             <Route path="/reset-password" element={<ResetPassword />} />
@@ -247,7 +251,7 @@ const AppRoutes = () => {
             <Route
               path="/admin/login-as-user"
               element={
-                <PrivateRoute ownerOnly>
+                <PrivateRoute>
                   <AdminImpersonation />
                 </PrivateRoute>
               }
@@ -306,8 +310,8 @@ const AppShell = () => {
   const isImmersiveRoute = location.pathname.startsWith("/knowledge") || location.pathname.startsWith("/meet/") || isProjectMetaverseRoute || isPdfRoute;
   const isChatRoute = location.pathname.startsWith("/chat");
   const portfolioPublicRoutes = portfolioEnabled ? ["/contact", "/metaverse-landing"] : [];
-  const isPublicRoute = ["/", "/legal", ...portfolioPublicRoutes].includes(location.pathname);
-  const isAuthRoute = ["/login", "/signup", "/forgot-password", "/reset-password"].includes(location.pathname);
+  const isPublicRoute = ["/", "/legal", "/privacy-requests", ...portfolioPublicRoutes].includes(location.pathname);
+  const isAuthRoute = ["/login", "/signup", "/forgot-password", "/reset-password", "/invitations/accept"].includes(location.pathname);
   const routeLayout = getRouteLayout(location.pathname);
   const isChatThreadRoute = routeLayout.mobileChrome === "thread";
   const isMobileImmersiveRoute = ["thread", "immersive"].includes(routeLayout.mobileChrome);

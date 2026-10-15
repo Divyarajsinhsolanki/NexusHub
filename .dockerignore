@@ -35,3 +35,21 @@
 /app/assets/builds/*
 !/app/assets/builds/.keep
 /public/assets
+
+# Retired public upload locations must never enter application images.
+/public/uploads/
+/public/documents/
+/public/temp_uploads/
+
+# Tenant integration credentials are provisioned outside application images.
+/config/google_service_account*.json
+/config/*service-account*.json
+
+# Recovery data and escrow exports never belong in application images.
+/backups/
+/recovery-artifacts/
+/**/*.dump
+/**/*.tar.gpg
+/**/*.asc
+
+/.release-revision

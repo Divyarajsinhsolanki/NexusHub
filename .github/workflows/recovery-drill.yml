@@ -1,0 +1,58 @@
+name: Synthetic recovery drill
+on:
+  workflow_call:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 3 1 * *'
+  push:
+    paths:
+      - 'lib/recovery/**'
+      - 'lib/tasks/recovery.rake'
+      - 'bin/recovery*'
+      - 'script/recovery*'
+      - 'test/recovery/**'
+      - 'Dockerfile.backup'
+      - 'docker-compose.staging.yml'
+      - '.github/workflows/recovery-drill.yml'
+permissions:
+  contents: read
+jobs:
+  synthetic-restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s --health-timeout=5s --health-retries=10
+    env:
+      RECOVERY_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost/postgres
+      DRILL_REPORT_DIRECTORY: recovery-artifacts/ci-drill
+      RAILS_ENV: test
+      ACTIVE_STORAGE_SERVICE: local
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+      - name: Install matching PostgreSQL tools and GPG
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client-16 gnupg
+          echo '/usr/lib/postgresql/16/bin' >> "$GITHUB_PATH"
+      - name: Test recovery guardrails and real PostgreSQL round trip
+        run: bundle exec ruby test/recovery/toolkit_test.rb
+      - name: Restore synthetic application, files and encryption; rehearse migration failure
+        run: bundle exec ruby bin/recovery-drill
+      - name: Upload synthetic evidence only
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: synthetic-recovery-report
+          path: recovery-artifacts/ci-drill/restore.json
+          retention-days: 90

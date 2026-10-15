@@ -31,7 +31,7 @@ class AppEventLogger
 
       AppLoggers.fetch(channel).public_send(level, entry.to_json)
     rescue StandardError => e
-      Rails.logger.error("[AppEventLogger] Failed to write #{channel} log: #{e.class} #{e.message}")
+      Rails.logger.error("[AppEventLogger] Failed to write #{channel} log: #{e.class}")
     end
 
     def exception_payload(exception)
@@ -39,7 +39,7 @@ class AppEventLogger
 
       {
         error_class: exception.class.name,
-        error_message: exception.message,
+        error_message: "[REDACTED]",
         backtrace: Array(exception.backtrace).first(15)
       }
     end
@@ -49,7 +49,7 @@ class AppEventLogger
 
       source = payload.is_a?(ActionController::Parameters) ? payload.to_unsafe_h : payload
       source = { value: source } unless source.is_a?(Hash)
-      sanitize_value(source)
+      ActiveSupport::ParameterFilter.new(Rails.application.config.filter_parameters + [:row, :rows]).filter(sanitize_value(source))
     end
 
     def sanitize_value(value)

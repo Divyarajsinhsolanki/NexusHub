@@ -1,0 +1,16 @@
+[Unit]
+Description=Nexus encrypted offsite database and uploads backup
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=webapp
+Group=webapp
+WorkingDirectory=/var/app/current
+EnvironmentFile=/etc/nexus/backup.env
+ExecStart=/bin/bash /var/app/current/scripts/run_recovery_backup.sh
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+TimeoutStartSec=2h

@@ -7,6 +7,7 @@ class NotificationCursorTest < ActionDispatch::IntegrationTest
     @post = Post.create!(user: @user, message: "Notice source")
     @notices = 45.times.map { Notification.create!(recipient: @user, actor: @user, action: "commented", notifiable: @post) }
     post "/api/login", params: { auth: { email: @user.email, password: "Password!42" } }
+    complete_test_mfa
     assert_response :success
   end
   test "web unread cursor does not skip records after reads and new arrivals" do
@@ -28,6 +29,7 @@ class NotificationCursorTest < ActionDispatch::IntegrationTest
   end
   test "mobile unread cursor remains stable when records are marked read" do
     post "/api/v1/auth/login", params: { auth: { email: @user.email, password: "Password!42", device_name: "Cursor test" } }
+    complete_test_mfa native: true
     assert_response :success
     headers = { "Authorization" => "Bearer #{response.parsed_body.fetch("data").fetch("access_token")}", "Accept" => "application/json" }
     get "/api/v1/notifications", params: { cursor: true, status: "unread" }, headers: headers

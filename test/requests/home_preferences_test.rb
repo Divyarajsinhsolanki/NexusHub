@@ -7,6 +7,7 @@ class HomePreferencesTest < ActionDispatch::IntegrationTest
     @user = create_test_user(workspace: @workspace, email: "shortcuts@example.test")
     @other = create_test_user(workspace: @workspace, email: "other-shortcuts@example.test")
     post "/api/login", params: { auth: { email: @user.email, password: "Password!42" } }
+    complete_test_mfa
     assert_response :success
   end
 
@@ -17,6 +18,7 @@ class HomePreferencesTest < ActionDispatch::IntegrationTest
     assert_equal ["projects", "chat"], @user.home_preferences["shortcut_ids"]
     assert_equal %w[chat knowledge pdf-master], @other.reload.home_preferences["shortcut_ids"]
     post "/api/login", params: { auth: { email: @user.email, password: "Password!42" } }
+    complete_test_mfa
     assert_response :success
     assert_equal @user.home_preferences, response.parsed_body.dig("user", "home_preferences")
   end

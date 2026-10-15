@@ -34,7 +34,19 @@ class ProjectUser < ApplicationRecord
     only_integer: true
   }
 
+  around_save :require_active_workspace_member, if: -> { status != "removed" && (new_record? || will_save_change_to_status? || will_save_change_to_user_id?) }
+
   private
+
+  def require_active_workspace_member
+    workspace.with_lock do
+      unless user.workspace_access?(workspace)
+        errors.add(:user, "must have active workspace access")
+        raise ActiveRecord::RecordInvalid, self
+      end
+      yield
+    end
+  end
 
   def notify_user
     actor_id = Current.user&.id

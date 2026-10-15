@@ -1,13 +1,23 @@
 name: CI
 
 on:
+  workflow_call:
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      build_mobile_preview:
+        description: Also queue external EAS preview builds after checks
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:16
@@ -46,6 +56,12 @@ jobs:
       - name: Install JavaScript dependencies
         run: yarn install --frozen-lockfile
 
+      - name: Install PDF isolation dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y bubblewrap qpdf ghostscript poppler-utils imagemagick libvips-tools
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
       - name: Prepare database
         run: bin/rails db:prepare
 
@@ -58,21 +74,39 @@ jobs:
       - name: Build Vite production assets
         env:
           RAILS_ENV: production
+          ACTIVE_STORAGE_SERVICE: local
+          SMTP_ADDRESS: smtp.example.invalid
+          SMTP_USERNAME: fixture
+          SMTP_PASSWORD: fixture
+          MAILER_SENDER: ci@example.invalid
+          BASE_URL: https://example.invalid
+          REDIS_URL: redis://localhost:6379/15
         run: bin/vite build
 
       - name: Precompile Rails assets
         env:
           RAILS_ENV: production
+          ACTIVE_STORAGE_SERVICE: local
+          SMTP_ADDRESS: smtp.example.invalid
+          SMTP_USERNAME: fixture
+          SMTP_PASSWORD: fixture
+          MAILER_SENDER: ci@example.invalid
+          BASE_URL: https://example.invalid
+          REDIS_URL: redis://localhost:6379/15
         run: bin/rails assets:precompile
 
       - name: Run Brakeman
-        run: bundle exec brakeman --no-pager --quiet -i config/brakeman.ignore
+        run: bundle exec brakeman --no-pager --quiet --skip-files mobile/node_modules/ -i config/brakeman.ignore
+
+      - name: Audit production web dependencies
+        run: bin/audit-web-dependencies
 
       - name: Audit Ruby dependencies
         run: bundle exec bundler-audit check --update
 
   mobile:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: mobile
@@ -107,9 +141,34 @@ jobs:
       - name: Audit critical mobile dependencies
         run: npm audit --audit-level=critical
 
+  secrets:
+    uses: ./.github/workflows/secret-scan.yml
+
+  recovery:
+    uses: ./.github/workflows/recovery-drill.yml
+
+  security:
+    uses: ./.github/workflows/security-regressions.yml
+
+  release-ready:
+    name: Release readiness
+    if: always()
+    needs: [verify, mobile, recovery, security, secrets]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every check to succeed
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          results = json.loads(os.environ['RESULTS'])
+          assert results and all(value['result'] == 'success' for value in results.values()), 'Release blocked: a required job failed, was cancelled or skipped'
+          PY
+
   eas-preview:
-    if: github.event_name == 'workflow_dispatch'
-    needs: [verify, mobile]
+    if: github.event_name == 'workflow_dispatch' && github.workflow == 'CI' && inputs.build_mobile_preview
+    needs: [release-ready]
     runs-on: ubuntu-latest
     defaults:
       run:

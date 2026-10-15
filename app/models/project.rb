@@ -30,7 +30,7 @@ class Project < ApplicationRecord
   validates :name, presence: true
 
   def self.accessible_to(user)
-    return none unless user
+    return none unless user&.workspace_access?
 
     workspace_projects = where(workspace_id: user.workspace_id)
     return workspace_projects if user.owner? || user.admin?
@@ -40,7 +40,7 @@ class Project < ApplicationRecord
   end
 
   def editable_by?(user)
-    return false unless user && workspace_id == user.workspace_id && !user.demo_account?
+    return false unless user&.workspace_access?(workspace) && !user.demo_account?
     return true if user.owner? || user.admin? || owner_id == user.id
 
     project_users.where(user_id: user.id, status: 'active').where.not(role: 'viewer').exists?

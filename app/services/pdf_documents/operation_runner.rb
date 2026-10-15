@@ -34,13 +34,13 @@ module PdfDocuments
       @staged_blobs = []
     end
 
-    def run!(password: nil, asset: nil, assets: {})
+    def run!(password: nil, asset: nil, assets: {}, execution_token: nil)
       unavailable = @operation.with_lock do
         if %w[completed failed].include?(@operation.status) ||
             (@operation.status == "processing" && @operation.processing_lease_expires_at > Time.current)
           true
         else
-          @operation.processing_lease_token = SecureRandom.uuid
+          @operation.processing_lease_token = execution_token || SecureRandom.uuid
           @operation.update!(status: "processing", progress: 15, started_at: Time.current,
             completed_at: nil, error_message: nil, parameters: @operation.parameters.merge(
               PdfDocumentOperation::PROCESSING_LEASE_KEY => lease_parameters

@@ -175,7 +175,8 @@ module Saas
         workspace_id = workspace.id
 
         {
-          seats: User.where(workspace_id: workspace_id).where.not(status: "locked").count,
+          seats: WorkspaceSeats.used(workspace),
+          reserved_seats: WorkspaceSeats.reserved(workspace),
           projects: Project.unscoped.where(workspace_id: workspace_id).count,
           teams: Team.unscoped.where(workspace_id: workspace_id).count,
           pdf_documents: PdfDocument.unscoped.where(workspace_id: workspace_id).count,

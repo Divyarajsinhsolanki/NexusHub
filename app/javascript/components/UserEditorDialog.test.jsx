@@ -14,3 +14,14 @@ it('shows labeled details and editable workspace role checkboxes', () => {
   fireEvent.click(screen.getByRole('checkbox', { name: 'owner' }));
   expect(toggle).toHaveBeenCalledWith('owner');
 });
+
+it('lets owners select workspace suspension separately from preserved roles', () => {
+  const change = vi.fn();
+  render(<UserEditorDialog mode="edit" value={{ roles: ['member'], membership_status: 'active' }} roles={['member']} departments={[]} onChange={change} onRoleToggle={vi.fn()} onClose={vi.fn()} onSubmit={vi.fn()} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Access' }));
+  const access = screen.getByRole('combobox', { name: 'Workspace access' });
+  fireEvent.change(access, { target: { value: 'suspended' } });
+  expect(change).toHaveBeenCalledOnce();
+  expect(screen.getByRole('checkbox', { name: 'member' }).checked).toBe(true);
+  expect(screen.getByText(/Their data and assigned roles are kept/)).toBeTruthy();
+});

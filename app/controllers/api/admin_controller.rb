@@ -76,6 +76,8 @@ class Api::AdminController < Api::BaseController
     return reject_managed_record if managed_record?(record)
     record.save!
     render json: serialize_record(record)
+  rescue ActiveRecord::RecordInvalid => error
+    render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
   end
   
   def update
@@ -85,6 +87,8 @@ class Api::AdminController < Api::BaseController
     return reject_managed_record if managed_record?(record)
     record.save!
     render json: serialize_record(record)
+  rescue ActiveRecord::RecordInvalid => error
+    render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
   end
 
   def destroy
@@ -133,8 +137,9 @@ class Api::AdminController < Api::BaseController
 
   def record_mutation_allowed?(record)
     # Role changes must use the dedicated owner-authorized user endpoints.
-    return false if @model == Role
+    return false if @model == Role || (@model == User && action_name == "create")
     return true unless record.is_a?(User)
+    return false if record.is_a?(User) && record.workspace_id != current_user.workspace_id
     return true if current_user.site_admin?
 
     return current_user.owner? || current_user.admin? if record.new_record?
@@ -152,8 +157,6 @@ class Api::AdminController < Api::BaseController
   end
 
   def admin_user_scope
-    return User.all if current_user.site_admin?
-
     User.where(workspace_id: current_user.workspace_id)
   end
 
@@ -166,12 +169,19 @@ class Api::AdminController < Api::BaseController
   end
 
   def admin_model_names
-    names = Rails.cache.fetch("api_admin_model_names_v5_security", expires_in: 12.hours) do
+    names = Rails.cache.fetch("api_admin_model_names_v9_privacy", expires_in: 12.hours) do
       Rails.application.eager_load!
 
       not_needed_tables = %w[
         ApplicationRecord
+        PrivacyRequest
+        PrivacyRequestEvent
+        WorkspaceIntegration
         UserRole
+        WorkspaceMembership
+        WorkspaceInvitation
+        WorkspaceAccessEvent
+        SupportAccessGrant
         WebSession
         MobileDevice
         MobileSession
@@ -231,7 +241,7 @@ class Api::AdminController < Api::BaseController
   def record_params
     scalar_columns = @model.columns.reject { |column| json_column?(column) }.map { |column| column.name.to_sym }
     scalar_columns -= protected_admin_columns + %i[id workspace_id created_at updated_at]
-    json_columns = @model.columns.select { |column| json_column?(column) }.map { |column| { column.name.to_sym => {} } }
+    json_columns = @model.columns.select { |column| json_column?(column) && !protected_admin_columns.include?(column.name.to_sym) }.map { |column| { column.name.to_sym => {} } }
 
     params.require(:record).permit(*scalar_columns, *json_columns)
   end
@@ -250,7 +260,7 @@ class Api::AdminController < Api::BaseController
       confirmation_token
       encrypted_keka_api_key
       encrypted_keka_api_key_iv
-    ] + User::PUBLIC_JSON_EXCLUDED_ATTRIBUTES.map(&:to_sym)
+    ] + (User::PUBLIC_JSON_EXCLUDED_ATTRIBUTES + User::MFA_PRIVATE_ATTRIBUTES).map(&:to_sym)
   end
 
   def hidden_admin_column?(column)
@@ -263,7 +273,7 @@ class Api::AdminController < Api::BaseController
     raw_filters = params[:filters]
     return unless raw_filters.is_a?(ActionController::Parameters)
 
-    raw_filters.permit(@model.column_names.map(&:to_sym)).reject { |_, value| value == "" }
+    raw_filters.permit(@model.columns.reject { |column| hidden_admin_column?(column) }.map { |column| column.name.to_sym }).reject { |_, value| value == "" }
   end
 
   def json_column?(column)
@@ -271,7 +281,7 @@ class Api::AdminController < Api::BaseController
   end
 
   def authorize_admin_access!
-    return if current_user&.site_admin? || current_user&.roles&.any? { |role| role.name.in?(%w[owner admin]) }
+    return if WorkspaceAuthorization.allowed?(current_user, "admin.manage")
 
     head :forbidden
   end

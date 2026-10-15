@@ -4019,3 +4019,6 @@ a.member-profile-contact:hover { color: var(--theme-color); }
 .nexus-post-input-surface .nexus-post-submit { min-height: 30px; padding: 0.3rem 0.55rem; font-size: 0.7rem; }
 .nexus-post-input-surface .nexus-post-submit { min-width: 70px; }
 .nexus-home-composer .nexus-post-dropzone.is-dragging .nexus-post-input-surface { border-color: var(--theme-color); }
+
+/* Chat owns its internal spacing beneath the shared header and navigation. */
+.nexus-workspace-shell.shell-app-chat .shell-main-stage.shell-main-stage-chat { padding: 0; }

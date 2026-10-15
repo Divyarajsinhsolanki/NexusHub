@@ -21,12 +21,13 @@ module Keka
         leave_balances: client.leave_balances(@user.keka_employee_id)
       }
 
+      payload = Integrations::Redactor.call(payload, known_secrets: [api_key])
       @user.update!(keka_profile_data: payload, keka_last_synced_at: Time.current)
       payload
     rescue SyncError
       raise
     rescue StandardError => e
-      raise SyncError, e.message
+      raise SyncError, "Keka synchronization failed. Check the saved connection."
     end
 
     private

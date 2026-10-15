@@ -1,3 +1,4 @@
+import { usePrivateAssetUrl } from '../../api/usePrivateAssetUrl';
 import { useEvent } from 'expo';
 import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
@@ -11,12 +12,13 @@ import { useAppTheme } from '../../theme';
 
 export function ChatAttachment({ file, mine }: { file: Record<string, unknown>; mine: boolean }) {
   const theme = useAppTheme();
-  const { filename, url, kind } = attachmentMedia(file);
+  const { filename, url: originalUrl, kind } = attachmentMedia(file);
   const [failed, setFailed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
   const [play, setPlay] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const url = usePrivateAssetUrl(originalUrl, attempt);
   useEffect(() => { setFailed(false); setPlay(false); setExpanded(false); setLoading(true); }, [url]);
   const open = () => { if (url) void Linking.openURL(url).catch(() => Alert.alert('Unable to open attachment', 'Please try again.')); };
   const retry = () => { setFailed(false); setLoading(true); setAttempt((value) => value + 1); };
@@ -24,11 +26,11 @@ export function ChatAttachment({ file, mine }: { file: Record<string, unknown>; 
   return <View style={styles.attachment}>
     {url && kind === 'image' && !failed ? <>
       <Pressable accessibilityLabel={`View ${filename}`} accessibilityRole="button" onPress={() => setExpanded(true)} style={styles.media}>
-        <Image key={`${url}:${attempt}`} accessibilityLabel={filename} cachePolicy={attempt ? 'none' : 'disk'} contentFit="contain" onError={() => { setFailed(true); setLoading(false); }} onLoad={() => setLoading(false)} source={{ uri: url }} style={styles.media} />
+        <Image key={`${url}:${attempt}`} accessibilityLabel={filename} cachePolicy="none" contentFit="contain" onError={() => { setFailed(true); setLoading(false); }} onLoad={() => setLoading(false)} source={{ uri: url }} style={styles.media} />
         {loading ? <ActivityIndicator accessibilityLabel="Loading image" style={StyleSheet.absoluteFill} color={theme.primary} /> : null}
       </Pressable>
       <Modal animationType="fade" onRequestClose={() => setExpanded(false)} visible={expanded}>
-        <SafeAreaView style={styles.viewer}><View style={styles.viewerHeader}><Text numberOfLines={1} style={styles.viewerTitle}>{filename}</Text><Pressable accessibilityLabel="Close image" accessibilityRole="button" onPress={() => setExpanded(false)} style={styles.icon}><X color="#ffffff" size={24} /></Pressable></View><Image accessibilityLabel={`Full image ${filename}`} contentFit="contain" onError={() => { setExpanded(false); setFailed(true); }} source={{ uri: url }} style={styles.fullImage} /></SafeAreaView>
+        <SafeAreaView style={styles.viewer}><View style={styles.viewerHeader}><Text numberOfLines={1} style={styles.viewerTitle}>{filename}</Text><Pressable accessibilityLabel="Close image" accessibilityRole="button" onPress={() => setExpanded(false)} style={styles.icon}><X color="#ffffff" size={24} /></Pressable></View><Image accessibilityLabel={`Full image ${filename}`} cachePolicy="none" contentFit="contain" onError={() => { setExpanded(false); setFailed(true); }} source={{ uri: url }} style={styles.fullImage} /></SafeAreaView>
       </Modal>
     </> : url && kind === 'video' && !failed ? play
       ? <InlineVideo key={`${url}:${attempt}`} url={url} onError={() => { setFailed(true); setPlay(false); }} />

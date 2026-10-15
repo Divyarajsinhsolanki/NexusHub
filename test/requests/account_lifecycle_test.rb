@@ -8,6 +8,7 @@ class AccountLifecycleTest < ActionDispatch::IntegrationTest
     @user = create_test_user(workspace: @workspace, email: 'account-life@example.test')
     @successor = create_test_user(workspace: @workspace, email: 'account-successor@example.test')
     post '/api/v1/auth/login', params: { auth: { email: @user.email, password: 'Password!42' } }
+    complete_test_mfa native: true
     @headers = { 'Authorization' => "Bearer #{response.parsed_body.dig('data', 'access_token')}", 'Accept' => 'application/json' }
   end
 
@@ -37,6 +38,7 @@ class AccountLifecycleTest < ActionDispatch::IntegrationTest
     assert_equal 1, AccountDeletionRequest.find_by!(user: @user).verification_attempts
     travel 16.minutes do
       post '/api/v1/auth/login', params: { auth: { email: @user.email, password: 'Password!42' } }
+      complete_test_mfa native: true
       @headers['Authorization'] = "Bearer #{response.parsed_body.dig('data', 'access_token')}"
       schedule
       assert_response :unprocessable_entity
@@ -182,6 +184,7 @@ class AccountLifecycleTest < ActionDispatch::IntegrationTest
   test 'the last site administrator cannot abandon administrative ownership' do
     Current.workspace = @workspace
     @user.update!(site_admin: true)
+    enroll_test_mfa(@user, headers: @headers, native: true)
     send_code
     schedule(successor_id: @successor.id)
     assert_response :unprocessable_entity

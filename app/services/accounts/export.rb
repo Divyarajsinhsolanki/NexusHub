@@ -18,7 +18,7 @@ module Accounts
     def self.call(user)
       profile = user.attributes.slice(*%w[id first_name last_name email job_title bio phone_number date_of_birth social_links created_at])
       payload = { format_version: 1, exported_at: Time.current.iso8601, profile: profile,
-        note: 'Contains your personal records and temporary download links for your uploads. Shared workspace records and other members’ private data are excluded.' }
+        note: 'Contains your personal records and temporary download links for your uploads. Sign in to the same account to download files. Shared workspace records and other members’ private data are excluded.' }
       COLLECTIONS.each do |association, fields|
         payload[association] = user.public_send(association).map do |record|
           value = record.attributes.slice(*fields)
@@ -35,7 +35,7 @@ module Accounts
       options = Rails.application.routes.default_url_options.merge(host: ENV.fetch('BASE_URL', 'http://localhost:3000'))
       payload[:department_comments] = DepartmentComment.where(author_id:user.id).map { |record| record.attributes.slice('id','department_entry_id','body','created_at') }
       payload[:department_requests] = DepartmentJoinRequest.where(user_id:user.id).map { |record| record.attributes.slice('id','department_id','source_department_id','reason','status','created_at') }
-      payload[:uploads] = attachments.map do |attachment|
+      payload[:uploads] = attachments.select { |attachment| PrivateFiles::Access.allowed?(attachment.blob, user) }.map do |attachment|
         blob = attachment.blob
         { filename: blob.filename.to_s, content_type: blob.content_type, byte_size: blob.byte_size,
           record_type: attachment.record_type, record_id: attachment.record_id,

@@ -10,8 +10,10 @@ class WorkLogRegressionsTest < ActionDispatch::IntegrationTest
     @log.tags = [@tag]
     Current.reset_all
     post '/api/login', params: { auth: { email: @user.email, password: 'Password!42' } }
+    complete_test_mfa
     assert_response :success
     post '/api/v1/auth/login', params: { auth: { email: @user.email, password: 'Password!42', device_name: 'Regression tests' } }
+    complete_test_mfa native: true
     assert_response :success
     @headers = { 'Authorization' => "Bearer #{response.parsed_body.dig('data', 'access_token')}" }
   end

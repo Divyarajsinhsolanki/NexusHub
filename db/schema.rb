@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2027_09_01_000000) do
+ActiveRecord::Schema[8.1].define(version: 2027_09_09_000000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -50,6 +50,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_09_01_000000) do
     t.string "key", null: false
     t.text "metadata"
     t.string "service_name", null: false
+    t.index "(((NULLIF(metadata, ''::text))::jsonb ->> 'workspace_id'::text)), created_at", name: "index_blobs_on_upload_workspace_and_created_at", where: "(((NULLIF(metadata, ''::text))::jsonb ->> 'mobile_upload'::text) = 'true'::text)"
     t.index ["key"], name: "index_active_storage_blobs_on_key", unique: true
   end
 
@@ -165,7 +166,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_09_01_000000) do
     t.string "status", default: "ringing", null: false
     t.datetime "updated_at", null: false
     t.bigint "workspace_id", null: false
-    t.index ["conversation_id"], name: "idx_one_live_call_per_conversation", unique: true, where: "((status)::text = ANY ((ARRAY['ringing'::character varying, 'active'::character varying])::text[]))"
+    t.index ["conversation_id"], name: "idx_one_live_call_per_conversation", unique: true, where: "((status)::text = ANY (ARRAY[('ringing'::character varying)::text, ('active'::character varying)::text]))"
     t.index ["conversation_id"], name: "index_call_sessions_on_conversation_id"
     t.index ["host_id"], name: "index_call_sessions_on_host_id"
     t.index ["initiator_id"], name: "index_call_sessions_on_initiator_id"
@@ -207,6 +208,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_09_01_000000) do
     t.bigint "last_read_message_id"
     t.datetime "muted_at"
     t.datetime "muted_until"
+    t.datetime "removed_at"
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.bigint "workspace_id", null: false
@@ -617,6 +619,8 @@ ActiveRecord::Schema[8.1].define(version: 2027_09_01_000000) do
     t.datetime "expires_at", null: false
     t.bigint "impersonated_user_id"
     t.datetime "last_used_at"
+    t.datetime "mfa_verified_at"
+    t.datetime "primary_verified_at"
     t.string "refresh_token_digest", null: false
     t.datetime "revoked_at"
     t.datetime "updated_at", null: false
@@ -724,6 +728,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_09_01_000000) do
     t.index ["status", "created_at"], name: "index_pdf_document_operations_on_status_and_created_at"
     t.index ["user_id", "created_at"], name: "index_pdf_document_operations_on_user_id_and_created_at"
     t.index ["user_id"], name: "index_pdf_document_operations_on_user_id"
+    t.index ["workspace_id", "status", "user_id"], name: "index_pdf_operations_on_workspace_status_user"
     t.index ["workspace_id"], name: "index_pdf_document_operations_on_workspace_id"
   end
 
@@ -847,6 +852,34 @@ ActiveRecord::Schema[8.1].define(version: 2027_09_01_000000) do
     t.index ["created_at"], name: "index_posts_on_created_at"
     t.index ["user_id"], name: "index_posts_on_user_id"
     t.index ["workspace_id"], name: "index_posts_on_workspace_id"
+  end
+
+  create_table "privacy_request_events", force: :cascade do |t|
+    t.string "action", null: false
+    t.bigint "actor_id"
+    t.datetime "created_at", null: false
+    t.bigint "privacy_request_id", null: false
+    t.string "status", null: false
+    t.datetime "updated_at", null: false
+    t.index ["actor_id"], name: "index_privacy_request_events_on_actor_id"
+    t.index ["privacy_request_id"], name: "index_privacy_request_events_on_privacy_request_id"
+  end
+
+  create_table "privacy_requests", force: :cascade do |t|
+    t.datetime "closed_at"
+    t.datetime "created_at", null: false
+    t.datetime "email_verified_at"
+    t.datetime "identity_verified_at"
+    t.integer "lock_version", default: 0, null: false
+    t.text "payload_ciphertext"
+    t.datetime "redacted_at"
+    t.string "reference", null: false
+    t.string "request_type", null: false
+    t.string "status", default: "pending_verification", null: false
+    t.datetime "target_response_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["reference"], name: "index_privacy_requests_on_reference", unique: true
+    t.index ["status", "target_response_at"], name: "index_privacy_requests_on_status_and_target_response_at"
   end
 
   create_table "project_deployment_series", force: :cascade do |t|
@@ -1158,6 +1191,22 @@ ActiveRecord::Schema[8.1].define(version: 2027_09_01_000000) do
     t.index ["workspace_id"], name: "index_sprints_on_workspace_id"
   end
 
+  create_table "support_access_grants", force: :cascade do |t|
+    t.bigint "approved_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "expires_at", null: false
+    t.text "reason", null: false
+    t.jsonb "resources", default: [], null: false
+    t.datetime "revoked_at"
+    t.bigint "support_user_id"
+    t.datetime "updated_at", null: false
+    t.bigint "workspace_id", null: false
+    t.index ["approved_by_id"], name: "index_support_access_grants_on_approved_by_id"
+    t.index ["support_user_id", "expires_at"], name: "index_support_access_grants_on_support_user_id_and_expires_at"
+    t.index ["support_user_id"], name: "index_support_access_grants_on_support_user_id"
+    t.index ["workspace_id"], name: "index_support_access_grants_on_workspace_id"
+  end
+
   create_table "task_logs", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.integer "created_by"
@@ -1324,9 +1373,18 @@ ActiveRecord::Schema[8.1].define(version: 2027_09_01_000000) do
     t.string "keka_employee_id"
     t.datetime "keka_last_synced_at"
     t.jsonb "keka_profile_data", default: {}, null: false
+    t.text "keka_secret_ciphertext"
     t.string "landing_page", default: "posts"
     t.string "last_name"
     t.datetime "last_seen_at"
+    t.datetime "mfa_enabled_at"
+    t.integer "mfa_failed_attempts", default: 0, null: false
+    t.bigint "mfa_last_otp_at"
+    t.datetime "mfa_locked_until"
+    t.datetime "mfa_pending_expires_at"
+    t.text "mfa_pending_secret_ciphertext"
+    t.jsonb "mfa_recovery_digests", default: [], null: false
+    t.text "mfa_secret_ciphertext"
     t.jsonb "notification_preferences", default: {"digest"=>false, "update"=>true, "assigned"=>true, "commented"=>true}, null: false
     t.string "phone_number"
     t.jsonb "push_notification_settings", default: {}, null: false
@@ -1343,17 +1401,20 @@ ActiveRecord::Schema[8.1].define(version: 2027_09_01_000000) do
     t.index ["confirmation_token"], name: "index_users_on_confirmation_token", unique: true
     t.index ["department_id"], name: "index_users_on_department_id"
     t.index ["email"], name: "index_users_on_email", unique: true
+    t.index ["id", "workspace_id"], name: "index_users_for_workspace_membership", unique: true
     t.index ["last_seen_at"], name: "index_users_on_last_seen_at"
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
     t.index ["workspace_id", "created_at"], name: "index_users_on_workspace_id_and_created_at"
     t.index ["workspace_id"], name: "index_users_on_workspace_id"
-    t.check_constraint "department_role::text = ANY (ARRAY['member'::character varying, 'manager'::character varying]::text[])", name: "users_department_role_valid"
+    t.check_constraint "department_role::text = ANY (ARRAY['member'::character varying::text, 'manager'::character varying::text])", name: "users_department_role_valid"
   end
 
   create_table "web_sessions", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.datetime "expires_at", null: false
+    t.datetime "mfa_verified_at"
     t.string "password_fingerprint", null: false
+    t.datetime "primary_verified_at"
     t.datetime "revoked_at"
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
@@ -1444,6 +1505,74 @@ ActiveRecord::Schema[8.1].define(version: 2027_09_01_000000) do
     t.bigint "workspace_id", null: false
     t.index ["workspace_id", "name"], name: "index_work_tags_on_workspace_id_and_name", unique: true
     t.index ["workspace_id"], name: "index_work_tags_on_workspace_id"
+  end
+
+  create_table "workspace_access_events", force: :cascade do |t|
+    t.string "action", null: false
+    t.bigint "actor_id"
+    t.datetime "created_at", null: false
+    t.jsonb "details", default: {}, null: false
+    t.bigint "subject_id"
+    t.datetime "updated_at", null: false
+    t.bigint "workspace_id", null: false
+    t.index ["actor_id"], name: "index_workspace_access_events_on_actor_id"
+    t.index ["subject_id"], name: "index_workspace_access_events_on_subject_id"
+    t.index ["workspace_id", "created_at"], name: "index_workspace_access_events_on_workspace_id_and_created_at"
+    t.index ["workspace_id"], name: "index_workspace_access_events_on_workspace_id"
+  end
+
+  create_table "workspace_integrations", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "provider", null: false
+    t.jsonb "public_settings", default: {}, null: false
+    t.datetime "revoked_at"
+    t.text "secret_ciphertext"
+    t.datetime "updated_at", null: false
+    t.bigint "workspace_id", null: false
+    t.index ["workspace_id", "provider"], name: "index_workspace_integrations_on_workspace_id_and_provider", unique: true
+    t.index ["workspace_id"], name: "index_workspace_integrations_on_workspace_id"
+    t.check_constraint "provider::text = ANY (ARRAY['google_sheets'::character varying::text, 'slack'::character varying::text])", name: "workspace_integrations_provider"
+  end
+
+  create_table "workspace_invitations", force: :cascade do |t|
+    t.datetime "accepted_at"
+    t.bigint "accepted_user_id"
+    t.datetime "created_at", null: false
+    t.string "delivery_status", default: "queued", null: false
+    t.bigint "department_id"
+    t.string "email", null: false
+    t.datetime "expires_at", null: false
+    t.bigint "invited_by_id", null: false
+    t.datetime "last_sent_at"
+    t.jsonb "project_ids", default: [], null: false
+    t.datetime "revoked_at"
+    t.jsonb "role_names", default: ["member"], null: false
+    t.string "status", default: "pending", null: false
+    t.string "token_digest", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "workspace_id", null: false
+    t.index ["accepted_user_id"], name: "index_workspace_invitations_on_accepted_user_id"
+    t.index ["department_id"], name: "index_workspace_invitations_on_department_id"
+    t.index ["invited_by_id"], name: "index_workspace_invitations_on_invited_by_id"
+    t.index ["token_digest"], name: "index_workspace_invitations_on_token_digest", unique: true
+    t.index ["workspace_id", "email"], name: "index_pending_workspace_invitation_email", unique: true, where: "((status)::text = 'pending'::text)"
+    t.index ["workspace_id"], name: "index_workspace_invitations_on_workspace_id"
+    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying::text, 'accepted'::character varying::text, 'revoked'::character varying::text, 'expired'::character varying::text])", name: "workspace_invitation_status"
+  end
+
+  create_table "workspace_memberships", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "offboarded_at"
+    t.bigint "offboarded_by_id"
+    t.string "status", default: "active", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.bigint "workspace_id", null: false
+    t.index ["offboarded_by_id"], name: "index_workspace_memberships_on_offboarded_by_id"
+    t.index ["user_id", "workspace_id"], name: "index_workspace_memberships_on_user_id_and_workspace_id", unique: true
+    t.index ["user_id"], name: "index_workspace_memberships_on_user_id", unique: true
+    t.index ["workspace_id"], name: "index_workspace_memberships_on_workspace_id"
+    t.check_constraint "status::text = ANY (ARRAY['active'::character varying::text, 'suspended'::character varying::text])", name: "workspace_membership_status"
   end
 
   create_table "workspaces", force: :cascade do |t|
@@ -1580,6 +1709,8 @@ ActiveRecord::Schema[8.1].define(version: 2027_09_01_000000) do
   add_foreign_key "post_likes", "workspaces"
   add_foreign_key "posts", "users"
   add_foreign_key "posts", "workspaces"
+  add_foreign_key "privacy_request_events", "privacy_requests"
+  add_foreign_key "privacy_request_events", "users", column: "actor_id", on_delete: :nullify
   add_foreign_key "project_deployment_series", "project_environments"
   add_foreign_key "project_deployment_series", "projects"
   add_foreign_key "project_deployment_series", "users", column: "owner_id"
@@ -1630,6 +1761,10 @@ ActiveRecord::Schema[8.1].define(version: 2027_09_01_000000) do
   add_foreign_key "skills", "workspaces"
   add_foreign_key "sprints", "projects"
   add_foreign_key "sprints", "workspaces"
+  add_foreign_key "support_access_grants", "users", column: "approved_by_id", on_delete: :nullify
+  add_foreign_key "support_access_grants", "users", column: "support_user_id", on_delete: :nullify
+  add_foreign_key "support_access_grants", "users", column: ["approved_by_id", "workspace_id"], primary_key: ["id", "workspace_id"], name: "fk_support_approver_workspace"
+  add_foreign_key "support_access_grants", "workspaces"
   add_foreign_key "task_logs", "tasks"
   add_foreign_key "task_logs", "users", column: "developer_id"
   add_foreign_key "task_logs", "workspaces"
@@ -1648,6 +1783,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_09_01_000000) do
   add_foreign_key "topics", "workspaces"
   add_foreign_key "user_roles", "roles"
   add_foreign_key "user_roles", "users"
+  add_foreign_key "user_roles", "workspace_memberships", column: ["user_id", "workspace_id"], primary_key: ["user_id", "workspace_id"], name: "fk_user_roles_workspace_membership", on_delete: :cascade
   add_foreign_key "user_roles", "workspaces"
   add_foreign_key "user_skills", "skills"
   add_foreign_key "user_skills", "users"
@@ -1667,4 +1803,16 @@ ActiveRecord::Schema[8.1].define(version: 2027_09_01_000000) do
   add_foreign_key "work_notes", "workspaces"
   add_foreign_key "work_priorities", "workspaces"
   add_foreign_key "work_tags", "workspaces"
+  add_foreign_key "workspace_access_events", "users", column: "actor_id", on_delete: :nullify
+  add_foreign_key "workspace_access_events", "users", column: "subject_id", on_delete: :nullify
+  add_foreign_key "workspace_access_events", "workspaces"
+  add_foreign_key "workspace_integrations", "workspaces"
+  add_foreign_key "workspace_invitations", "departments", on_delete: :nullify
+  add_foreign_key "workspace_invitations", "users", column: "accepted_user_id", on_delete: :nullify
+  add_foreign_key "workspace_invitations", "users", column: "invited_by_id"
+  add_foreign_key "workspace_invitations", "workspaces"
+  add_foreign_key "workspace_memberships", "users"
+  add_foreign_key "workspace_memberships", "users", column: "offboarded_by_id", on_delete: :nullify
+  add_foreign_key "workspace_memberships", "users", column: ["user_id", "workspace_id"], primary_key: ["id", "workspace_id"], name: "fk_membership_home_workspace", on_delete: :cascade
+  add_foreign_key "workspace_memberships", "workspaces"
 end

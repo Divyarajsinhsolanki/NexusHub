@@ -10,7 +10,7 @@ class Api::SheetsController < Api::BaseController
       'Sheet data fetch started',
       payload: { project_id: project&.id, sheet_name: sheet_name, spreadsheet_id: project&.sheet_id }
     )
-    reader = GoogleSheetsReader.new(sheet_name, project&.sheet_id)
+    reader = GoogleSheetsReader.new(sheet_name, project&.sheet_id, workspace: current_user.workspace)
     rows = reader.read_data
     log_sheet_event(
       :info,
@@ -18,7 +18,7 @@ class Api::SheetsController < Api::BaseController
       payload: { project_id: project&.id, sheet_name: sheet_name, spreadsheet_id: project&.sheet_id, row_count: rows.size }
     )
     render json: { rows: rows }
-  rescue ActiveRecord::RecordNotFound, Project::Forbidden
+  rescue ActiveRecord::RecordNotFound, Project::Forbidden, Integrations::SecretBox::Unavailable
     raise
   rescue StandardError => e
     log_sheet_event(

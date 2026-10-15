@@ -10,6 +10,7 @@ class IssueAuthorizationTest < ActionDispatch::IntegrationTest
     @issue = @project.issues.create!(title: "Confidential issue", status: "New", severity: "High")
     Current.reset_all
     post "/api/login", params: { auth: { email: @user.email, password: "Password!42" } }
+    complete_test_mfa
     assert_response :success
   end
 
@@ -41,6 +42,7 @@ class IssueAuthorizationTest < ActionDispatch::IntegrationTest
 
   test "workspace owners retain issue access" do
     UserRole.create!(workspace: @workspace, user: @user, role: Role.find_by!(name: "owner"))
+    enroll_test_mfa(@user)
     get "/api/issues", params: { project_id: @project.id }
     assert_response :success
   end

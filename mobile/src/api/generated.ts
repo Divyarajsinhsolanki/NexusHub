@@ -4,6 +4,199 @@
  */
 
 export interface paths {
+    "/privacy_requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Public intake, including former employees. Records an encrypted request and queues email verification; never discloses account existence or performs account deletion. Rate limited by IP and email. */
+        post: operations["submitPrivacyRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/privacy_requests/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Explicitly verifies a single-use signed email link; expires after 24 hours. Returns a separate private tracking token. Mailbox verification alone does not authorize disclosure or deletion. */
+        post: operations["verifyPrivacyRequestEmail"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/privacy_requests/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Private capability-token lookup. Returns status, review target and operator response only; no original submission, email or internal notes. Tracking links expire after 30 days. Do not log or persist tokens. */
+        post: operations["trackPrivacyRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mfa": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Available to restricted password-authenticated sessions before MFA completion. */
+        get: operations["mfaStatus"];
+        put?: never;
+        post?: never;
+        /** @description Current password and recent MFA required. Privileged accounts cannot disable MFA. */
+        delete: operations["disableMfa"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mfa/setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Authenticator setup. Secrets and recovery codes are returned only when newly created; never cache them. Verification rejects replay and locks after five failures. */
+        post: operations["mfaSetup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mfa/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Authenticator confirm. Secrets and recovery codes are returned only when newly created; never cache them. Verification rejects replay and locks after five failures. */
+        post: operations["mfaConfirm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mfa/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Authenticator verify. Secrets and recovery codes are returned only when newly created; never cache them. Verification rejects replay and locks after five failures. */
+        post: operations["mfaVerify"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mfa/recovery": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Authenticator recovery. Secrets and recovery codes are returned only when newly created; never cache them. Verification rejects replay and locks after five failures. */
+        post: operations["mfaRecovery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/support_access_grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Owners see company approvals; support administrators see grants assigned to them. Recent MFA required. */
+        get: operations["supportAccessGrants"];
+        put?: never;
+        /** @description Company owner approves a specific active platform administrator with MFA for read-only access; recent MFA required. */
+        post: operations["approveSupportAccess"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/support_access_grants/{id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Company owner revokes the grant immediately; recent MFA required. */
+        post: operations["revokeSupportAccess"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/support_access_grants/{id}/inspect_records": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /** @description Assigned support administrator only; active grant and recent MFA required. Returns up to 100 explicitly scoped summary records with audited reads, no files or secrets. */
+        get: operations["inspectSupportRecords"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/billing": {
         parameters: {
             query?: never;
@@ -1204,6 +1397,152 @@ export interface paths {
         patch: operations["updateLearningCheckpoint"];
         trace?: never;
     };
+    "/workspace_invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Owners and admins can list invitations in their company; raw tokens are never returned. */
+        get: operations["listWorkspaceInvitations"];
+        put?: never;
+        /** @description Creates a seven-day email invitation and reserves a seat. Admins cannot grant owner. */
+        post: operations["inviteWorkspaceMember"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspace_invitations/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Previews a valid invitation using the secret email-link token; does not consume it. */
+        post: operations["previewWorkspaceInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspace_invitations/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Single-use token proves mailbox access. New users choose a password. Suspended same-company accounts require their existing password; different-company accounts cannot move. */
+        post: operations["acceptWorkspaceInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspace_invitations/{id}/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Rotates the token and expiry; the old link stops working. One-minute cooldown. */
+        post: operations["resendWorkspaceInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspace_invitations/{id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Invalidates a pending invitation and releases its reserved seat. */
+        post: operations["revokeWorkspaceInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspace_memberships/{id}/offboarding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        /** @description Owner-only preview of retained data and required ownership transfer. */
+        get: operations["previewWorkspaceOffboarding"];
+        put?: never;
+        /** @description Owner-only, idempotent access removal. Preserves history, revokes credentials and removes project/team/chat access; ownership transfers require an active successor. Media cleanup is reported separately. */
+        post: operations["offboardWorkspaceMember"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspace_memberships": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Lists memberships in the authenticated account's company. Requires active membership. */
+        get: operations["listWorkspaceMemberships"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspace_memberships/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** @description Workspace owner only. Role and suspension changes preserve at least one active owner. */
+        patch: operations["updateWorkspaceMembership"];
+        trace?: never;
+    };
     "/users": {
         parameters: {
             query?: never;
@@ -1213,6 +1552,10 @@ export interface paths {
         };
         get: operations["listWorkspaceUsers"];
         put?: never;
+        /**
+         * @deprecated
+         * @description Employee password provisioning is disabled. Use workspace invitations instead.
+         */
         post: operations["createWorkspaceUser"];
         delete?: never;
         options?: never;
@@ -2412,6 +2755,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /**
+         * @deprecated
+         * @description Employee impersonation is disabled. Use owner-approved read-only support access grants.
+         */
         post: operations["startImpersonation"];
         delete: operations["stopImpersonation"];
         options?: never;
@@ -2483,6 +2830,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspace_integrations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Owner/admin metadata only. Credentials are never returned. */
+        get: operations["listWorkspaceIntegrations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspace_integrations/{provider}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: "google_sheets" | "slack";
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Replaces an encrypted workspace credential. Requires recent MFA. */
+        put: operations["replaceWorkspaceIntegration"];
+        post?: never;
+        /** @description Revokes this workspace connection and removes its stored credential. Requires recent MFA. */
+        delete: operations["revokeWorkspaceIntegration"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/uploads": {
         parameters: {
             query?: never;
@@ -2493,6 +2877,42 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["createDirectUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/uploads/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Send raw bytes with bearer authentication within 15 minutes of reservation. Size and MD5 must match. */
+        put: operations["uploadReservedBytes"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/file_access": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Returns a five-minute download URL, bound to the current mobile session and reauthorized on every read. */
+        post: operations["createPrivateFileTicket"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2938,7 +3358,26 @@ export interface components {
             participant_token: string;
             call_session: components["schemas"]["CallSession"];
         };
+        WorkspaceMembership: {
+            id: number;
+            workspace_id: number;
+            user_id?: number;
+            name?: string;
+            /** Format: date-time */
+            offboarded_at?: string | null;
+            /** @enum {string} */
+            status: "active" | "suspended";
+            roles: string[];
+        };
+        MfaStatus: {
+            required: boolean;
+            enabled: boolean;
+            verified: boolean;
+            recent: boolean;
+        };
         User: {
+            mfa?: components["schemas"]["MfaStatus"];
+            site_admin?: boolean;
             id: number;
             /** Format: email */
             email: string;
@@ -2949,6 +3388,7 @@ export interface components {
             profile_picture?: string | null;
             demo_account?: boolean;
             roles: string[];
+            workspace_membership?: components["schemas"]["WorkspaceMembership"];
             permissions: string[];
             features: {
                 [key: string]: boolean;
@@ -3126,6 +3566,266 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    submitPrivacyRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    privacy_request: {
+                        /** Format: email */
+                        email: string;
+                        name?: string;
+                        country?: string;
+                        details: string;
+                        /** @enum {string} */
+                        request_type: "access" | "correction" | "erasure" | "portability" | "restriction" | "objection" | "consent_withdrawal" | "complaint" | "other";
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description Request recorded; verification email queued. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            422: components["responses"]["Error"];
+            429: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+        };
+    };
+    verifyPrivacyRequestEmail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    token: string;
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            422: components["responses"]["Error"];
+        };
+    };
+    trackPrivacyRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    token: string;
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            422: components["responses"]["Error"];
+        };
+    };
+    mfaStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            401: components["responses"]["Error"];
+        };
+    };
+    disableMfa: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** Format: password */
+                    password: string;
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            422: components["responses"]["Error"];
+        };
+    };
+    mfaSetup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    password?: string;
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            401: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+        };
+    };
+    mfaConfirm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    otp_code?: string;
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            401: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+        };
+    };
+    mfaVerify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    otp_code?: string;
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            401: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+        };
+    };
+    mfaRecovery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    password?: string;
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            401: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+        };
+    };
+    supportAccessGrants: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            403: components["responses"]["Error"];
+        };
+    };
+    approveSupportAccess: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    support_access_grant: {
+                        /** Format: email */
+                        support_email: string;
+                        reason: string;
+                        /** @default 30 */
+                        duration_minutes?: number;
+                        resources: ("projects" | "teams" | "departments")[];
+                    };
+                };
+            };
+        };
+        responses: {
+            201: components["responses"]["GenericSuccess"];
+            403: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+        };
+    };
+    revokeSupportAccess: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+        };
+    };
+    inspectSupportRecords: {
+        parameters: {
+            query: {
+                resource: "projects" | "teams" | "departments";
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+        };
+    };
     billingStatus: {
         parameters: {
             query?: never;
@@ -4818,6 +5518,232 @@ export interface operations {
             200: components["responses"]["GenericSuccess"];
         };
     };
+    listWorkspaceInvitations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+        };
+    };
+    inviteWorkspaceMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    workspace_invitation: {
+                        /** Format: email */
+                        email: string;
+                        role_names?: ("owner" | "admin" | "member" | "project_manager" | "team_leader")[];
+                        project_ids?: number[];
+                        department_id?: number | null;
+                    };
+                };
+            };
+        };
+        responses: {
+            201: components["responses"]["GenericSuccess"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+        };
+    };
+    previewWorkspaceInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    invitation_token: string;
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            422: components["responses"]["Error"];
+        };
+    };
+    acceptWorkspaceInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    invitation_token: string;
+                    account: {
+                        first_name?: string;
+                        last_name?: string;
+                        job_title?: string;
+                        password?: string;
+                        password_confirmation?: string;
+                        current_password?: string;
+                    };
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            422: components["responses"]["Error"];
+        };
+    };
+    resendWorkspaceInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+        };
+    };
+    revokeWorkspaceInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+        };
+    };
+    previewWorkspaceOffboarding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+        };
+    };
+    offboardWorkspaceMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    offboarding: {
+                        /** @enum {string} */
+                        confirmation: "OFFBOARD";
+                        successor_id?: number | null;
+                    };
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+        };
+    };
+    listWorkspaceMemberships: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Company memberships */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["WorkspaceMembership"][];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+        };
+    };
+    updateWorkspaceMembership: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    workspace_membership: {
+                        /** @enum {string} */
+                        status?: "active" | "suspended";
+                        role_names?: ("owner" | "admin" | "member" | "project_manager" | "team_leader")[];
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description Updated membership */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["WorkspaceMembership"];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+        };
+    };
     listWorkspaceUsers: {
         parameters: {
             query?: never;
@@ -4839,7 +5765,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            201: components["responses"]["GenericSuccess"];
+            410: components["responses"]["Error"];
         };
     };
     listDepartmentEntries: {
@@ -6512,8 +7438,8 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            200: components["responses"]["GenericSuccess"];
             403: components["responses"]["Error"];
+            410: components["responses"]["Error"];
         };
     };
     stopImpersonation: {
@@ -6596,6 +7522,50 @@ export interface operations {
             403: components["responses"]["Error"];
         };
     };
+    listWorkspaceIntegrations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            403: components["responses"]["Error"];
+        };
+    };
+    replaceWorkspaceIntegration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: "google_sheets" | "slack";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            403: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+        };
+    };
+    revokeWorkspaceIntegration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: "google_sheets" | "slack";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            403: components["responses"]["Error"];
+        };
+    };
     createDirectUpload: {
         parameters: {
             query?: never;
@@ -6606,6 +7576,41 @@ export interface operations {
         requestBody?: never;
         responses: {
             201: components["responses"]["GenericSuccess"];
+        };
+    };
+    uploadReservedBytes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Upload verified */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+        };
+    };
+    createPrivateFileTicket: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GenericSuccess"];
+            404: components["responses"]["Error"];
         };
     };
     listPdfDocuments: {

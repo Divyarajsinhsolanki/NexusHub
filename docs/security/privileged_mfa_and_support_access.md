@@ -1,0 +1,31 @@
+# Privileged MFA and controlled support access
+
+## Required authenticator verification
+
+Owners, workspace admins and platform admins must enroll an authenticator. Demo accounts are exempt and remain read-only. Other employees can opt in from **Settings → Security**. Browser and native password/Google sign-in create a restricted session: a privileged or enrolled account can read its own session/MFA status, complete MFA or sign out, but cannot call protected workspace APIs or connect realtime until verification succeeds. Existing password-only sessions also require MFA; no user is silently treated as enrolled.
+
+The UI shows an authenticator setup key for manual entry into a time-based Nexus Hub account. Setup expires after ten minutes. Initial setup requires a primary-factor sign-in within ten minutes or the current password. Confirmation with a valid six-digit code enables MFA and displays ten recovery codes once. Save them securely outside the account. Secrets are encrypted using a purpose-specific key derived from the Rails application key generator; recovery codes are stored only as SHA-256 digests. Never change or lose the production Rails encryption/signing key without a planned recovery/rotation procedure.
+
+ROTP supplies time-based authenticator verification and timestamp-based replay protection: https://github.com/mdp/rotp. Each accepted code is consumed under a user row lock. Codes from the current step or up to thirty seconds behind are accepted only if newer than the last accepted timestamp. Five failed confirmation/verification attempts lock verification for fifteen minutes; IP throttling also applies. Keep clocks synchronized.
+
+MFA verification belongs to the individual server-side web/mobile session. Refreshing credentials preserves the verification timestamp and cannot extend it. Sensitive company management mutations and all support-grant actions require MFA within ten minutes. Reverify from Settings → Security when an action reports `mfa_step_up_required`. Privileged users cannot disable MFA.
+
+A recovery code is single-use and revokes other web/mobile sessions and MCP tokens. Enabling, disabling or regenerating recovery codes also revokes other sessions/tokens. Replacing recovery codes requires a recent verified session and current password. Revoked credentials never become usable again when MFA is disabled. Each new login requires its own second factor. Privileged/enrolled accounts and tokens with raw `system:admin`, `db:read` or `repo:write` scopes cannot use MCP bearer credentials in this release; use a separate nonprivileged integration identity with explicit workspace access until delegated MFA-bound integration credentials are implemented.
+
+If every factor and recovery code is lost, there is deliberately no password-only or support-grant reset endpoint. Escalate through an independently verified operator process with two-person approval, a recorded case and revocation of all credentials; retain the audit evidence. An operator reset must clear secrets, pending setup, recovery digests and timestamps, forcing fresh enrollment. This manual operator procedure is not automated by the application.
+
+## Controlled support access
+
+Broad employee impersonation is disabled. `POST /api/admin/impersonate` and native `POST /api/v1/impersonation` return 410. Existing native impersonation sessions are revoked by the migration. Platform admin generic user management is confined to that admin's home company; the support path does not grant ordinary cross-company API access.
+
+Owners use **Settings → Security → Controlled support access** (native **More → Support access**) to approve a specific active platform administrator who has MFA enabled. Each approval requires a reason/ticket reference, a duration of five to sixty minutes and selected resources: projects, teams and/or departments. The support administrator must authenticate under their own identity and verify MFA within ten minutes. Grants cannot be self-created by support staff for another company.
+
+The dedicated inspect endpoint returns at most one hundred records from the approved company with a fixed field allowlist: IDs, names, timestamps and project status. It never issues an employee session or returns private messages, files, descriptions, integration credentials or password/MFA fields. Other resource names and ordinary foreign-company API access remain forbidden. Every inspection rechecks grant expiry/revocation, the owner's active ownership and the support administrator's active membership, platform role and MFA enrollment. Reads and revocation serialize against the same grant row; after revocation commits, later inspections fail.
+
+Approvals, inspections and revocations are recorded in workspace access events. Cross-company inspections store `actor_user_id` in event details alongside the grant/support/approver IDs; the tenant-bound actor association remains empty. A grant's support user is an intentional external reference, identified as `approved_external_reference_rows` by the tenancy audit. The approver's tenant is enforced by a composite foreign key. Grant history survives deletion of either identity, and missing identities make grants inactive.
+
+## Rollout and verification
+
+Run `bundle exec rails db:migrate` for migrations `20270905000000` and `20270906000000`. Back up first, drain old workers, pause privileged writes and deploy app/workers together. Keep the production Rails key stable. Existing users, companies and memberships are retained. Privileged operators will need to finish enrollment at their next request; announce the change and save recovery codes before resuming privileged work. No production deployment or real support access was performed during local verification.
+
+Security regression coverage includes restricted bootstrap sessions, encrypted setup, recovery hashing/consumption, TOTP replay, lockouts, setup expiry, sensitive-action freshness, native cookie fallback rejection, legacy impersonation retirement, support identity/resource scope, expiry, current owner/support authority, immediate revocation and audited reads. Existing membership/admin/invitation tests explicitly finish MFA through production endpoints instead of bypassing the policy.

@@ -1,0 +1,9 @@
+#!/usr/bin/env ruby
+require_relative '../lib/release_security/smoke'
+begin
+  ReleaseSecurity::Smoke.new(base_url: ENV.fetch('RELEASE_BASE_URL'), sha: ENV.fetch('RELEASE_SHA'), target: ENV.fetch('RELEASE_TARGET')).verify!
+  puts 'Read-only release smoke checks passed for the expected revision and tier.'
+rescue StandardError => error
+  warn(error.is_a?(ReleaseSecurity::Rejected) ? error.message : 'Release smoke checks unavailable; deployment is not verified.')
+  exit 1
+end

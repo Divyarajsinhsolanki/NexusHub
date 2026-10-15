@@ -158,6 +158,7 @@ class PortfolioAuthorizationTest < ActionDispatch::IntegrationTest
     post "/api/login", params: {
       auth: { email: user.email, password: "Password!42" }
     }
+    complete_test_mfa
     assert_response :success
   end
 end

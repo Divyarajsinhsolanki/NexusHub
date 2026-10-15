@@ -53,10 +53,13 @@ class IssueNotifier
     uri = URI(slack_webhook)
 
     with_slack_retries do
-      response = Net::HTTP.post(uri, payload.to_json, { "Content-Type" => "application/json" })
+      request = Net::HTTP::Post.new(uri)
+      request["Content-Type"] = "application/json"
+      request.body = payload.to_json
+      response = Net::HTTP.start(uri.hostname, uri.port, use_ssl: true, open_timeout: 5, read_timeout: 10) { |http| http.request(request) }
       next if response.is_a?(Net::HTTPSuccess)
 
-      raise "Slack webhook returned #{response.code}: #{response.body.to_s.first(200)}"
+      raise "Slack webhook delivery failed (HTTP #{response.code.to_i})."
     end
   end
 
@@ -101,7 +104,12 @@ class IssueNotifier
   end
 
   def slack_webhook
-    ENV["SLACK_WEBHOOK_URL"].to_s
+    return @slack_webhook if defined?(@slack_webhook)
+    connection = WorkspaceIntegration.in_workspace(issue.workspace).find_by(provider: "slack", revoked_at: nil)
+    @slack_webhook = connection&.secret
+  rescue Integrations::SecretBox::Unavailable
+    AppEventLogger.warn(:application_errors, source: self.class.name, message: "Workspace Slack credential unavailable", payload: { workspace_id: issue.workspace_id })
+    @slack_webhook = nil
   end
 
   def status_color(status)

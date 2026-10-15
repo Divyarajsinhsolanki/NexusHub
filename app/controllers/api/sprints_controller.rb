@@ -76,7 +76,7 @@ class Api::SprintsController < Api::BaseController
       'Sprint task import started',
       payload: { project_id: sprint.project_id, sprint_id: sprint.id, sheet_name: sprint.name, spreadsheet_id: sprint.project.sheet_id }
     )
-    service = TaskSheetService.new(sprint.name, sprint.project.sheet_id)
+    service = TaskSheetService.new(sprint.name, sprint.project.sheet_id, workspace: sprint.workspace)
     service.import_tasks(sprint_id: sprint.id, project_id: sprint.project_id, created_by_id: current_user.id)
     log_sheet_event(
       :info,
@@ -84,7 +84,7 @@ class Api::SprintsController < Api::BaseController
       payload: { project_id: sprint.project_id, sprint_id: sprint.id, sheet_name: sprint.name, spreadsheet_id: sprint.project.sheet_id }
     )
     head :no_content
-  rescue ActiveRecord::RecordNotFound, Project::Forbidden
+  rescue ActiveRecord::RecordNotFound, Project::Forbidden, Integrations::SecretBox::Unavailable
     raise
   rescue StandardError => e
     log_sheet_event(
@@ -93,7 +93,7 @@ class Api::SprintsController < Api::BaseController
       exception: e,
       payload: { sprint_id: sprint&.id || params[:id], project_id: sprint&.project_id, sheet_name: sprint&.name, spreadsheet_id: sprint&.project&.sheet_id }
     )
-    render json: { error: e.message }, status: :unprocessable_entity
+    render json: { error: "Google Sheets operation failed. Check this workspace connection and spreadsheet access." }, status: :unprocessable_entity
   end
 
   def export_tasks
@@ -104,7 +104,7 @@ class Api::SprintsController < Api::BaseController
       'Sprint task export started',
       payload: { project_id: sprint.project_id, sprint_id: sprint.id, sheet_name: sprint.name, spreadsheet_id: sprint.project.sheet_id, task_count: tasks.size }
     )
-    service = TaskSheetService.new(sprint.name, sprint.project.sheet_id)
+    service = TaskSheetService.new(sprint.name, sprint.project.sheet_id, workspace: sprint.workspace)
     service.export_tasks(tasks, title: sprint_sheet_title(sprint))
     log_sheet_event(
       :info,
@@ -112,7 +112,7 @@ class Api::SprintsController < Api::BaseController
       payload: { project_id: sprint.project_id, sprint_id: sprint.id, sheet_name: sprint.name, spreadsheet_id: sprint.project.sheet_id, task_count: tasks.size }
     )
     head :no_content
-  rescue ActiveRecord::RecordNotFound, Project::Forbidden
+  rescue ActiveRecord::RecordNotFound, Project::Forbidden, Integrations::SecretBox::Unavailable
     raise
   rescue StandardError => e
     log_sheet_event(
@@ -121,7 +121,7 @@ class Api::SprintsController < Api::BaseController
       exception: e,
       payload: { sprint_id: sprint&.id || params[:id], project_id: sprint&.project_id, sheet_name: sprint&.name, spreadsheet_id: sprint&.project&.sheet_id }
     )
-    render json: { error: e.message }, status: :unprocessable_entity
+    render json: { error: "Google Sheets operation failed. Check this workspace connection and spreadsheet access." }, status: :unprocessable_entity
   end
 
   def export_logs
@@ -133,7 +133,7 @@ class Api::SprintsController < Api::BaseController
       'Sprint log export started',
       payload: { project_id: sprint.project_id, sprint_id: sprint.id, sheet_name: sheet_name, spreadsheet_id: sprint.project.sheet_id, log_count: logs.size }
     )
-    service = SchedulerSheetService.new(sheet_name, sprint.project.sheet_id)
+    service = SchedulerSheetService.new(sheet_name, sprint.project.sheet_id, workspace: sprint.workspace)
     service.export_logs(logs)
     log_sheet_event(
       :info,
@@ -141,7 +141,7 @@ class Api::SprintsController < Api::BaseController
       payload: { project_id: sprint.project_id, sprint_id: sprint.id, sheet_name: sheet_name, spreadsheet_id: sprint.project.sheet_id, log_count: logs.size }
     )
     head :no_content
-  rescue ActiveRecord::RecordNotFound, Project::Forbidden
+  rescue ActiveRecord::RecordNotFound, Project::Forbidden, Integrations::SecretBox::Unavailable
     raise
   rescue StandardError => e
     log_sheet_event(
@@ -150,7 +150,7 @@ class Api::SprintsController < Api::BaseController
       exception: e,
       payload: { sprint_id: sprint&.id || params[:id], project_id: sprint&.project_id, sheet_name: sheet_name, spreadsheet_id: sprint&.project&.sheet_id }
     )
-    render json: { error: e.message }, status: :unprocessable_entity
+    render json: { error: "Google Sheets operation failed. Check this workspace connection and spreadsheet access." }, status: :unprocessable_entity
   end
 
   private

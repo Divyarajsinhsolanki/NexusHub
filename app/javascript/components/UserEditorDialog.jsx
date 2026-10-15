@@ -7,7 +7,7 @@ const labels = { first_name: 'First name', last_name: 'Last name', email: 'Email
 const landingPages = ['home', 'demo', 'calendar', 'posts', 'profile', 'vault', 'knowledge', 'worklog', 'projects', 'teams', 'pdf', 'users', 'departments', 'chat', 'notifications'];
 const roleLabel = (role) => role.replaceAll('_', ' ');
 
-export default function UserEditorDialog({ mode, value, roles, departments, projects = [], onChange, onRoleToggle, onProjectToggle, onClose, onSubmit, busy }) {
+export default function UserEditorDialog({ mode, value, roles, departments, projects = [], onChange, onRoleToggle, onProjectToggle, onClose, onSubmit, busy, offboarded = false }) {
   const [tab, setTab] = useState('details');
   const creating = mode === 'create';
   const selectedRoles = creating ? value.role_names : value.roles;
@@ -37,6 +37,7 @@ export default function UserEditorDialog({ mode, value, roles, departments, proj
               </>}
             </section>
             <section hidden={tab !== 'access'}>
+              {!creating && <div><label className="text-sm font-semibold text-gray-900" htmlFor="membership_status">Workspace access</label><select id="membership_status" name="membership_status" value={value.membership_status || "active"} onChange={onChange} className={inputClass}><option value="active" disabled={offboarded}>Active</option><option value="suspended">Suspended</option></select><p className="mt-2 text-xs text-gray-500">{offboarded ? "This employee was offboarded. Send a new invitation to restore access." : "Suspending access signs this user out of the workspace. Their data and assigned roles are kept."}</p></div>}
               <fieldset><legend className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900"><ShieldCheck size={17} />Workspace roles</legend><div className="grid gap-2 sm:grid-cols-2">{roles.map((role) => <label key={role} className="flex min-h-11 cursor-pointer items-center gap-3 border-b border-gray-100 py-2 text-sm capitalize"><input type="checkbox" checked={selectedRoles.includes(role)} onChange={() => onRoleToggle(role)} className="h-4 w-4 rounded border-gray-300 accent-emerald-700" />{roleLabel(role)}</label>)}</div></fieldset>
               {creating && <fieldset className="mt-6"><legend className="mb-3 text-sm font-semibold text-gray-900">Projects <span className="ml-2 font-normal text-gray-500">{value.project_ids.length} selected</span></legend>{projects.length ? projects.map((project) => <label key={project.id} className="flex cursor-pointer items-start gap-3 border-b border-gray-100 py-3 text-sm"><input type="checkbox" checked={value.project_ids.includes(project.id)} onChange={() => onProjectToggle(project.id)} className="mt-1 h-4 w-4 accent-emerald-700" /><span className="min-w-0 break-words">{project.name}</span></label>) : <p className="text-sm text-gray-500">No projects available</p>}</fieldset>}
             </section>

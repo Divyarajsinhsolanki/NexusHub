@@ -1,0 +1,8 @@
+# Exact historical findings only. See docs/security/security_regressions_and_release_gates.md.
+# Docker build-only fixed Keka placeholder (not inherited by the final runtime image).
+dbae8447560be880cc35700feceabbff528d8ef3:Dockerfile:generic-api-key:56
+40435db6735595016dd1876e48091c6314c319fb:Dockerfile:generic-api-key:56
+# Historical browser Firebase API identifier; deliberately public, not a server credential.
+ae7394e4d7797680e0f012a2cabc0c1d1b4a9d6d:app/javascript/firebaseConfig.js:gcp-api-key:5
+# Historical commented Devise example, not an active assignment; runtime key policy forbids this value.
+4a967d69ca87628b09b6685f74bca054219960d5:config/initializers/devise.rb:generic-api-key:17

@@ -17,6 +17,8 @@ Rails.application.config.filter_parameters += [
   :salt,
   :certificate,
   :otp,
+  :recovery_code,
+  :provisioning_uri,
   :verification_code,
   :ssn,
   :recaptcha,
@@ -29,3 +31,9 @@ Rails.application.config.filter_parameters += [
   :license_key,
   :dotenv_content
 ]
+
+Rails.application.config.filter_parameters += [:ticket, :signed_blob_id]
+
+Rails.application.config.filter_parameters += [:credential, :private_key, :webhook, :service_account, :secret_ciphertext]
+
+Rails.application.config.filter_parameters += [:privacy_request, :tracking_token]

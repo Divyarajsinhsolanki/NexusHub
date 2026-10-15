@@ -12,5 +12,5 @@ class ScheduledMeeting < ApplicationRecord
   validate do
     errors.add(:ends_at, 'must be after start and within 24 hours') if starts_at && ends_at && (ends_at <= starts_at || ends_at > starts_at + 24.hours)
   end
-  scope :accessible_to, ->(user) {where(organizer_id: user.id).or(where(id: MeetingInvitation.where(user_id: user.id).select(:scheduled_meeting_id)))}
+  scope :accessible_to, ->(user) { user&.workspace_access? ? where(workspace_id: user.workspace_id).where(organizer_id: user.id).or(where(id: MeetingInvitation.where(user_id: user.id).select(:scheduled_meeting_id))).where(workspace_id: user.workspace_id) : none }
 end

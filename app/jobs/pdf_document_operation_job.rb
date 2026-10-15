@@ -1,12 +1,18 @@
 class PdfDocumentOperationJob < ApplicationJob
-  queue_as :default
+  queue_as :pdf
 
   def perform(operation_id)
     operation = PdfDocumentOperation.unscoped.find_by(id: operation_id)
     return unless operation
+    unless operation.user.workspace_access?(operation.workspace)
+      operation.update!(status: "failed", progress: 100, completed_at: Time.current, error_message: "Workspace access removed") if operation.status.in?(%w[queued processing])
+      return
+    end
     Current.user = operation.user
     Current.workspace = operation.workspace
-    PdfDocuments::OperationRunner.new(operation).run!
+    PdfDocuments::Execution.operation(operation, defer_when_busy: true)
+  rescue AbusePrevention::LimitExceeded
+    self.class.set(wait: 30.seconds).perform_later(operation_id)
   rescue PdfDocumentOperation::LostProcessingLease
     # A newer worker owns publication; the old delivery is safe to acknowledge.
     nil

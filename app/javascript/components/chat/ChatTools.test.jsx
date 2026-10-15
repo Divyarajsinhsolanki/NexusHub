@@ -4,7 +4,12 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ fetchConversationMessages: vi.fn(), fetchScheduledMessages: vi.fn(), scheduleChatMessage: vi.fn(), cancelScheduledMessage: vi.fn(), pinChatMessage: vi.fn() }));
 vi.mock('../api', () => mocks);
-import ChatTools from './ChatTools';
+import ChatToolsDialog from './ChatTools';
+import ChatMenu from './ChatMenu';
+function ChatTools(props) {
+  const [mode, setMode] = React.useState(null);
+  return <><ChatMenu label="More actions" icon="…">{close => [['media', 'Shared media'], ['files', 'Shared files'], ['pins', 'Pinned messages'], ['scheduled', 'Scheduled messages']].map(([value, label]) => <button key={value} onClick={() => { close(); setMode(value); }}>{label}</button>)}</ChatMenu><ChatToolsDialog {...props} mode={mode} onModeChange={setMode} /></>;
+}
 beforeEach(() => {
   vi.clearAllMocks();
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
@@ -18,6 +23,7 @@ it('opens pinned messages and supports unpinning', async () => {
   mocks.fetchConversationMessages.mockResolvedValue({ data: { data: [{ id: 10, body: 'Keep this', user_name: 'Author' }], meta: {} } });
   mocks.pinChatMessage.mockResolvedValue({});
   render(<ChatTools {...props()} />);
+  fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
   fireEvent.click(screen.getByRole('button', { name: 'Pinned messages' }));
   expect(await screen.findByText('Keep this')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Unpin' }));
@@ -36,6 +42,7 @@ it('schedules a draft with a timezone-aware instant and retries without duplicat
   mocks.scheduleChatMessage.mockRejectedValueOnce(new Error('network')).mockResolvedValueOnce({});
   const options = props();
   render(<ChatTools {...options} />);
+  fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
   fireEvent.click(screen.getByRole('button', { name: 'Scheduled messages' }));
   await waitFor(() => expect(mocks.fetchScheduledMessages).toHaveBeenCalled());
   fireEvent.change(screen.getByLabelText('Scheduled send date and time'), { target: { value: '2030-01-01T09:00' } });
@@ -56,6 +63,7 @@ it('loads the shared media gallery with pagination and opens message context', a
   mocks.fetchConversationMessages.mockResolvedValueOnce({ data: { data: [{ id: 12, body: 'Photo', attachments: [{ id: 1, filename: 'photo.png', content_type: 'image/png', url: '/photo' }] }], meta: { has_more: true, next_before_id: 12 } } }).mockResolvedValueOnce({ data: { data: [{ id: 9, body: 'Older photo' }], meta: {} } });
   const options = props();
   render(<ChatTools {...options} unreadId={9} onJumpUnread={options.onOpen} />);
+  fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
   fireEvent.click(screen.getByRole('button', { name: 'Shared media' }));
   expect(await screen.findByAltText('photo.png')).toBeTruthy();
   expect(mocks.fetchConversationMessages).toHaveBeenCalledWith(7, { limit: 50, attachments: 'media' });

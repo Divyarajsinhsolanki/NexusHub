@@ -2,8 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { fetchConversationMessages, fetchScheduledMessages, scheduleChatMessage, cancelScheduledMessage, pinChatMessage } from '../api';
 import { prepareChatUpload } from '../../utils/chatUploads';
 
-export default function ChatTools({ conversationId, thread, onCloseThread, onReply, onOpen, draft, onScheduled, readOnly, unreadId, onJumpUnread }) {
-  const [mode, setMode] = useState(null);
+export default function ChatTools({ conversationId, thread, onCloseThread, onReply, onOpen, draft, onScheduled, readOnly, unreadId, onJumpUnread, mode = null, onModeChange }) {
+  const setMode = value => onModeChange?.(value);
   const [rows, setRows] = useState([]);
   const [meta, setMeta] = useState({});
   const [error, setError] = useState('');
@@ -58,7 +58,7 @@ export default function ChatTools({ conversationId, thread, onCloseThread, onRep
     });
   };
   return <>
-    <div className="chat-tools-toolbar">{unreadId > 0 && <button type="button" onClick={onJumpUnread}>Jump to unread</button>}<button type="button" onClick={() => setMode('media')}>Shared media</button><button type="button" onClick={() => setMode('files')}>Shared files</button><button type="button" onClick={() => setMode('pins')}>Pinned messages</button><button type="button" onClick={() => setMode('scheduled')}>Scheduled messages</button></div>
+    {unreadId > 0 && <div className="chat-unread-context"><button type="button" onClick={onJumpUnread}>Jump to unread</button></div>}
     <dialog ref={dialog} className="chat-tools-dialog" onCancel={close} onClose={() => { if (selectedMode) close(); }}>
       <header><h2>{selectedMode === 'thread' ? 'Reply thread' : selectedMode === 'pins' ? 'Pinned messages' : selectedMode === 'media' ? 'Shared media' : selectedMode === 'files' ? 'Shared files' : 'Scheduled messages'}</h2><button type="button" aria-label="Close chat tools" onClick={close}>×</button></header>
       {error && <p role="alert">{error} <button disabled={busy} onClick={() => load()}>Retry</button></p>}

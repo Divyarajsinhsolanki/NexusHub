@@ -34,6 +34,7 @@ class SignupWorkspaceTest < ActionDispatch::IntegrationTest
   test "signup isolates the new owner even when the browser is signed into another company" do
     existing = create_test_user(workspace: @regular_workspace, email: "existing-company@example.test")
     post "/api/login", params: { auth: { email: existing.email, password: "Password!42" } }
+    complete_test_mfa
     assert_response :success
     post "/api/signup", params: { auth: { company_name: "New Company", first_name: "New", last_name: "Owner", email: "new-company@example.test", password: "Password!42" } }
     assert_response :created
@@ -63,9 +64,56 @@ class SignupWorkspaceTest < ActionDispatch::IntegrationTest
     project = Project.create!(workspace: first.workspace, owner: first, name: "Confidential")
     second.confirm
     post "/api/v1/auth/login", params: { auth: { email: second.email, password: "Password!42" } }
+    complete_test_mfa native: true
     assert_response :success
     token = response.parsed_body.dig("data", "access_token")
     get "/api/v1/projects/#{project.id}", headers: { "Authorization" => "Bearer #{token}" }
     assert_response :not_found
   end
+  test "duplicate email and invalid company names never leave partial tenants on either signup API" do
+    existing = create_test_user(workspace: @regular_workspace, email: "duplicate-signup@example.test")
+    ["/api/signup", "/api/v1/auth/signup"].each do |path|
+      [{ email: existing.email, company_name: "Duplicate" },
+       { email: "long-name-#{path.include?('v1') ? 'mobile' : 'web'}@example.test", company_name: "X" * 121 },
+       { email: "invalid-mobile@example.test", company_name: "Invalid", password: "short" }].each do |attributes|
+        assert_no_difference ["Workspace.count", "User.count", "UserRole.unscoped.count"] do
+          post path, params: { auth: { first_name: "New", last_name: "Owner", password: "Password!42" }.merge(attributes) }
+        end
+        assert_response :unprocessable_entity
+      end
+    end
+    assert_equal @regular_workspace, existing.reload.workspace
+    assert_not existing.owner?
+  end
+
+  test "new web company owners cannot list read update or delete another company's projects" do
+    owners = ["alpha", "beta"].map do |name|
+      post "/api/signup", params: { auth: { company_name: "Same Company", first_name: name, last_name: "Owner", email: "#{name}@isolation.example", password: "Password!42", workspace_id: @regular_workspace.id, site_admin: true, roles: ["site_admin"] } }
+      assert_response :created
+      user = User.find_by!(email: "#{name}@isolation.example")
+      user.confirm
+      assert_not user.site_admin?
+      user
+    end
+    source = Project.create!(workspace: owners.first.workspace, owner: owners.first, name: "Alpha confidential")
+    post "/api/login", params: { auth: { email: owners.last.email, password: "Password!42" } }
+    complete_test_mfa
+    assert_response :success
+
+    get "/api/projects", params: { workspace_id: owners.first.workspace_id }, headers: { "X-Workspace-Id" => owners.first.workspace_id.to_s }
+    assert_response :success
+    assert_empty response.parsed_body.fetch("data")
+    get "/api/projects/#{source.id}"
+    assert_response :not_found
+    patch "/api/projects/#{source.id}", params: { project: { name: "Stolen" } }
+    assert_response :not_found
+    delete "/api/projects/#{source.id}"
+    assert_response :not_found
+    assert_equal "Alpha confidential", source.reload.name
+
+    post "/api/projects", params: { project: { name: "Beta project", workspace_id: owners.first.workspace_id } }
+    assert_response :created
+    assert_equal owners.last.workspace_id, Project.unscoped.find(response.parsed_body.fetch("id")).workspace_id
+  end
+
 end

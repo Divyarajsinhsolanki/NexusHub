@@ -1,0 +1,86 @@
+#!/usr/bin/env ruby
+# Repeatable synthetic application drill. Requires an explicitly supplied local
+# PostgreSQL admin URL. Never imports production data or contacts providers.
+require_relative '../lib/recovery/toolkit'
+
+abort 'Set RECOVERY_TEST_DATABASE_URL to a disposable PostgreSQL server/admin account.' unless ENV['RECOVERY_TEST_DATABASE_URL']
+repo = File.expand_path('..', __dir__)
+env = ENV.to_h.merge('BACKUP_DATABASE_URL' => ENV.fetch('RECOVERY_TEST_DATABASE_URL'))
+require 'stringio'
+tool = Recovery::Toolkit.new(env, out: StringIO.new)
+values = tool.database_env
+abort 'Synthetic drills run only against localhost; use an isolated container port for remote tooling.' unless %w[localhost 127.0.0.1 ::1].include?(values['PGHOST'])
+admin = tool.connect(values.merge('PGDATABASE' => 'postgres'))
+nonce = SecureRandom.hex(6)
+source_name, restore_name = "nexus_restore_source#{nonce}", "nexus_restore_drill#{nonce}"
+report_directory = File.expand_path(ENV.fetch('DRILL_REPORT_DIRECTORY', File.join(repo, 'recovery-artifacts', "drill-#{nonce}")))
+abort 'Use a new report directory.' if File.exist?(report_directory)
+FileUtils.mkdir_p(report_directory, mode: 0700)
+tool.define_singleton_method(:command) do |*args, env: {}|
+  output, errors, status = Open3.capture3(env, *args)
+  unless status.success?
+    File.write(File.join(report_directory, 'synthetic-failure.log'), output + "\n" + errors, mode: 'w', perm: 0600)
+    raise Recovery::Error, "Synthetic subprocess failed; inspect the protected synthetic-failure.log."
+  end
+  output
+end
+begin
+  Dir.mktmpdir('synthetic-recovery-') do |work|
+    env.merge!('RAILS_ENV' => 'test', 'DEPLOYMENT_TIER' => 'restore', 'MIGRATION_REHEARSAL' => 'true',
+      'SECRET_KEY_BASE' => SecureRandom.hex(64), 'DEVISE_JWT_SECRET_KEY' => SecureRandom.hex(64),
+      'INTEGRATION_ENCRYPTION_KEYS' => { 'fixture' => SecureRandom.hex(32) }.to_json, 'INTEGRATION_ENCRYPTION_ACTIVE_KEY_ID' => 'fixture',
+      'PROJECT_OPERATIONS_ENCRYPTION_KEY' => SecureRandom.hex(32), 'BACKUP_KEYSET_ID' => 'synthetic-fixture-only',
+      'APP_REVISION' => ENV.fetch('APP_REVISION', 'synthetic-current-checkout'), 'BACKUP_LOCAL_ONLY' => 'true',
+      'BACKUP_DIRECTORY' => File.join(work, 'backups'), 'BACKUP_UPLOAD_MODE' => 'active_storage',
+      'LOCAL_STORAGE_ROOT' => File.join(work, 'files'))
+    uri = URI.parse(ENV.fetch('RECOVERY_TEST_DATABASE_URL')); uri.path = "/#{source_name}"
+    env['DATABASE_URL'] = env['BACKUP_DATABASE_URL'] = uri.to_s
+    admin.exec("CREATE DATABASE #{PG::Connection.quote_ident(source_name)} TEMPLATE template0")
+    home = File.join(work, 'keygen'); Dir.mkdir(home, 0700)
+    tool.command('gpg', '--batch', '--homedir', home, '--pinentry-mode', 'loopback', '--passphrase', '', '--quick-generate-key', 'Synthetic drill <drill@example.invalid>', 'rsa2048', 'encr', '1d')
+    public_key, private_key = File.join(work, 'public.asc'), File.join(work, 'private.asc')
+    File.write(public_key, tool.command('gpg', '--batch', '--homedir', home, '--armor', '--export'), perm: 0600)
+    File.write(private_key, tool.command('gpg', '--batch', '--homedir', home, '--armor', '--export-secret-keys'), perm: 0600)
+    tool.command('gpgconf', '--homedir', home, '--kill', 'gpg-agent')
+    env['BACKUP_PUBLIC_KEY_FILE'] = public_key
+    Dir.chdir(repo) do
+      tool.command('bundle', 'exec', 'rails', 'db:schema:load', env: env)
+      tool.command('bundle', 'exec', 'rails', 'runner', 'script/recovery_fixture.rb', env: env)
+      tool.command('bundle', 'exec', 'rails', 'recovery:backup', env: env)
+      uri.path = "/#{restore_name}"
+      env.merge!('RESTORE_DATABASE_URL' => uri.to_s, 'RESTORE_CONFIRM_DATABASE' => restore_name,
+        'RESTORE_PRIVATE_KEY_FILE' => private_key, 'RESTORE_UPLOAD_DESTINATION' => File.join(work, 'restored-files'),
+        'RESTORE_REPORT_PATH' => File.join(report_directory, 'restore.json'))
+      receipt_path = File.join(env['BACKUP_DIRECTORY'], 'latest.json')
+      receipt = tool.read_receipt(receipt_path)
+      tool.restore(receipt_path, local_file: File.join(env['BACKUP_DIRECTORY'], receipt.fetch('file')))
+      env['DATABASE_URL'] = uri.to_s
+      env['LOCAL_STORAGE_ROOT'] = env['RESTORE_UPLOAD_DESTINATION']
+      wrong_keys = env.merge('INTEGRATION_ENCRYPTION_KEYS' => { 'fixture' => SecureRandom.hex(32) }.to_json)
+      _output, _errors, failed_key = Open3.capture3(wrong_keys, 'bundle', 'exec', 'rails', 'recovery:verify')
+      abort 'A wrong application key unexpectedly passed verification.' if failed_key.success?
+      evidence = JSON.parse(File.read(env['RESTORE_REPORT_PATH']))
+      abort 'Failed decryption was marked successful.' if evidence['application_checks_verified']
+      evidence['wrong_application_key_rejected'] = true
+      tool.atomic_json(env['RESTORE_REPORT_PATH'], evidence)
+      tool.command('bundle', 'exec', 'rails', 'recovery:verify', env: env)
+      tool.command('bundle', 'exec', 'rails', 'db:migrate', env: env)
+      tool.command('bundle', 'exec', 'rails', 'recovery:verify', env: env)
+      tool.command('bundle', 'exec', 'rails', 'runner', 'script/recovery_guard_drill.rb', env: env)
+      tool.command('bundle', 'exec', 'rails', 'runner', 'script/recovery_migration_drill.rb', env: env)
+      report = JSON.parse(File.read(env['RESTORE_REPORT_PATH']))
+      report.merge!('synthetic_only' => true, 'offsite_exercised' => false)
+      tool.atomic_json(env['RESTORE_REPORT_PATH'], report)
+      puts "Synthetic database/files/decryption/migration drill passed. Report: #{File.join(report_directory, 'restore.json')}"
+    end
+  end
+rescue StandardError => error
+  warn "Synthetic recovery drill failed (#{error.class}); protected diagnostics: #{report_directory}"
+  exit 1
+ensure
+  [source_name, restore_name].each do |name|
+    admin.exec_params('SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()', [name])
+    admin.exec("DROP DATABASE IF EXISTS #{PG::Connection.quote_ident(name)}")
+  end
+  admin.close
+end

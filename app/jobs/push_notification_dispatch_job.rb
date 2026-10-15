@@ -4,7 +4,7 @@ class PushNotificationDispatchJob < ApplicationJob
 
   def perform(notification_id, aggregate_since = nil)
     notification = Notification.unscoped.find_by(id: notification_id)
-    return unless notification
+    return unless notification && notification.recipient.workspace_access?(notification.workspace)
 
     # Sidekiq has no request workspace. Resolve scoped associations only inside
     # the notification's workspace, and restore the previous context afterward.

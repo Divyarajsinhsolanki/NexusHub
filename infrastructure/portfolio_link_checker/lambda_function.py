@@ -1,4 +1,4 @@
-"""Read public portfolio links; send one SES email when checks need attention."""
+"""Read public portfolio links; send one SES report after each scheduled/direct run."""
 import concurrent.futures
 import datetime
 import ipaddress
@@ -81,7 +81,7 @@ def send_email(subject, body):
 
 def lambda_handler(event, context):
     event = event or {}
-    # Function URL is a read-only dry run; only Scheduler/direct invocation sends alerts.
+    # Function URL is a read-only dry run; only Scheduler/direct invocation sends reports.
     dry_run = bool(event.get('dry_run')) or 'requestContext' in event
     timestamp = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=5, minutes=30))).strftime('%Y-%m-%d %H:%M:%S IST')
     results = []
@@ -96,12 +96,26 @@ def lambda_handler(event, context):
     message_id = None
     if event.get('test_email') and not dry_run:
         message_id = send_email('Portfolio link checker: setup test', f'Daily checks are configured for 9:00 AM IST.\nRecipient: {os.environ["ALERT_EMAIL"]}\nThis is a setup test, not a failure alert.\nChecked: {timestamp}')
-    elif problems and not dry_run:
-        lines = [f'Portfolio link check: {timestamp}', f'Checked {len(results)} links; {len(problems)} need attention.', '', 'UNVERIFIED means access blocked/login/rate limit; it does not prove the link is broken.', '']
-        for result in problems:
-            lines.append(f'{result["state"].upper()}: {result["url"]} — {result.get("status", result.get("error"))}')
-        message_id = send_email('Portfolio links need attention', '\n'.join(lines))
-    report = {'checked_at': timestamp, 'checked': len(results), 'problems': problems, 'unverified': unverified, 'email_message_id': message_id, 'dry_run': dry_run}
+    elif not dry_run:
+        passed = len(results) - len(problems) - len(unverified)
+        if problems:
+            subject = 'Portfolio links need attention'
+        elif unverified:
+            subject = 'Portfolio link check complete: no confirmed failures'
+        else:
+            subject = 'Portfolio link check successful'
+        lines = [
+            f'Portfolio link check: {timestamp}',
+            f'Checked {len(results)} links: {passed} passed, {len(problems)} failed, {len(unverified)} unverified.',
+            '',
+            'UNVERIFIED means access blocked/login/rate limit; it does not prove the link is broken.',
+            ''
+        ]
+        for result in results:
+            detail = result.get('status', result.get('error', ''))
+            lines.append(f'{result["state"].upper()}: {result["url"]} — {detail}')
+        message_id = send_email(subject, '\n'.join(lines))
+    report = {'checked_at': timestamp, 'checked': len(results), 'passed': len(results) - len(problems) - len(unverified), 'problems': problems, 'unverified': unverified, 'email_message_id': message_id, 'dry_run': dry_run}
     print(json.dumps(report))
     if 'requestContext' in event:
         return {'statusCode': 200, 'headers': {'Content-Type': 'application/json'}, 'body': json.dumps(report)}

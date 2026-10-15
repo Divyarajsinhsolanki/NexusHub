@@ -13,6 +13,7 @@ class ChatMessageLifecycleTest < ActionDispatch::IntegrationTest
     [@user, @other].each { |user| @conversation.conversation_participants.create!(user: user) }
     @message = @conversation.messages.create!(user: @user, body: "Original")
     post "/api/login", params: { auth: { email: @user.email, password: "Password!42" } }
+    complete_test_mfa
     assert_response :success
   end
 
@@ -26,6 +27,7 @@ class ChatMessageLifecycleTest < ActionDispatch::IntegrationTest
     end
     travel_to(@message.created_at + 15.minutes, with_usec: true) do
       post "/api/login", params: { auth: { email: @user.email, password: "Password!42" } }
+      complete_test_mfa
       patch message_path, params: { message: { body: "Too late" } }
       assert_response :forbidden
       delete message_path
@@ -35,14 +37,18 @@ class ChatMessageLifecycleTest < ActionDispatch::IntegrationTest
 
   test "other members and users outside the workspace cannot change a message" do
     post "/api/login", params: { auth: { email: @other.email, password: "Password!42" } }
+    complete_test_mfa
     patch message_path, params: { message: { body: "Not mine" } }
     assert_response :forbidden
     foreign_workspace = Workspace.create!(name: "Other", slug: "other-chat", kind: "private")
     Current.workspace = foreign_workspace
     outsider = create_test_user(workspace: foreign_workspace, email: "outsider@example.test")
     post "/api/login", params: { auth: { email: outsider.email, password: "Password!42" } }
+    complete_test_mfa
+    outsider_mobile, = MobileSession.issue_for!(user: outsider)
+    outsider_headers = { "Authorization" => "Bearer #{MobileAccessToken.issue(outsider_mobile)[:token]}" }
     [message_path, "/api/v1/conversations/#{@conversation.id}/messages/#{@message.id}"].each do |path|
-      patch path, params: { message: { body: "Not ours" } }
+      patch path, params: { message: { body: "Not ours" } }, headers: outsider_headers
       assert_response :not_found
     end
   end
@@ -132,6 +138,7 @@ class ChatMessageLifecycleTest < ActionDispatch::IntegrationTest
   test "native bearer client shares message lifecycle receipts and reactions with web" do
     mobile = open_session
     mobile.post "/api/v1/auth/login", params: { auth: { email: @other.email, password: "Password!42", device_name: "Chat test" } }
+    complete_test_mfa native: true
     assert_equal 200, mobile.response.status
     token = mobile.response.parsed_body.dig("data", "access_token")
     headers = { "Authorization" => "Bearer #{token}", "Accept" => "application/json" }
@@ -167,7 +174,9 @@ class ChatMessageLifecycleTest < ActionDispatch::IntegrationTest
       get "#{message_path}/link_preview", params: { url: url }
       assert_response :success
       assert_equal "Example", response.parsed_body["title"]
-      get "/api/v1/conversations/#{@conversation.id}/messages/#{@message.id}/link_preview", params: { url: url }
+      native_session, = MobileSession.issue_for!(user: @user)
+      native_headers = { "Authorization" => "Bearer #{MobileAccessToken.issue(native_session)[:token]}" }
+      get "/api/v1/conversations/#{@conversation.id}/messages/#{@message.id}/link_preview", params: { url: url }, headers: native_headers
       assert_response :success
       assert_equal "Example", response.parsed_body.dig("data", "title")
     end

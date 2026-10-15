@@ -14,6 +14,7 @@ class ProjectModuleRegressionsTest < ActionDispatch::IntegrationTest
     @vault = @project.project_vault_items.create!(title: 'Private credential', category: 'Credential', content: 'synthetic-only')
     Current.reset_all
     post '/api/login', params: { auth: { email: @member.email, password: 'Password!42' } }
+    complete_test_mfa
     assert_response :success
   end
 
@@ -115,6 +116,7 @@ class ProjectModuleRegressionsTest < ActionDispatch::IntegrationTest
 
   def mobile_token
     post '/api/v1/auth/login', params: { auth: { email: @member.email, password: 'Password!42' } }
+    complete_test_mfa native: true
     assert_response :success
     response.parsed_body.dig('data', 'access_token')
   end

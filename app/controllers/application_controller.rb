@@ -4,11 +4,21 @@ class ApplicationController < ActionController::Base
   before_action :set_current_user
   before_action :set_current_request_context
   before_action :enforce_demo_read_only_request!
+  after_action :prevent_private_browser_caching
   after_action :finish_current_request
   rescue_from StandardError, with: :notify_unhandled_exception
   helper_method :public_portfolio_page?
 
   private
+
+  def valid_request_origin?
+    return true if BrowserSecurity.browser_origins.include?(request.origin)
+    super
+  end
+
+  def prevent_private_browser_caching
+    response.set_header("Cache-Control", "no-store") if response.media_type == "text/html"
+  end
 
   def public_portfolio_page?
     PortfolioAccess.enabled? && %w[/ /contact /legal].include?(request.path)
@@ -47,14 +57,15 @@ class ApplicationController < ActionController::Base
   end
 
   def set_current_user
-    Current.user = current_user || user_from_access_cookie
-    Current.workspace = Current.user&.workspace
+    Current.user = request.path_info.start_with?("/api/v1/") ? nil : (current_user || user_from_access_cookie)
+    Current.membership = Current.user&.membership_for
+    Current.workspace = Current.membership&.active? ? Current.user.workspace : nil
   end
 
   def set_current_request_context
     Current.request_id = request.request_id
     @request_started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    @visitor_id = find_or_assign_visitor_id
+    @visitor_id = request.path_info.start_with?("/api/v1/") ? nil : find_or_assign_visitor_id
   end
 
   def finish_current_request

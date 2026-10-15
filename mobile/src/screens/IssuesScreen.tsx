@@ -1,7 +1,7 @@
 import { canEditProject } from '../utils/projectAccess';
 import { Picker } from '@react-native-picker/picker';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Image } from 'expo-image';
+import { PrivateImage as Image } from '../components/PrivateImage';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { AlertTriangle, ArrowDownToLine, ArrowLeft, Camera, FileSpreadsheet, ImagePlus, Pencil, Plus, Trash2, X } from 'lucide-react-native';

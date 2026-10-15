@@ -12,6 +12,7 @@ class AccessAndVaultRegressionsTest < ActionDispatch::IntegrationTest
     @goal = @user.learning_goals.create!(title: 'Personal goal')
     Current.reset_all
     post '/api/login', params: { auth: { email: @user.email, password: 'Password!42' } }
+    complete_test_mfa
     assert_response :success
   end
 
@@ -54,6 +55,7 @@ class AccessAndVaultRegressionsTest < ActionDispatch::IntegrationTest
     assert_equal true, response.parsed_body['can_access']
     assert_equal true, response.parsed_body['can_manage']
     post '/api/v1/auth/login', params: { auth: { email: @user.email, password: 'Password!42', device_name: 'Access tests' } }
+    complete_test_mfa native: true
     token = response.parsed_body.dig('data', 'access_token')
     get "/api/v1/projects/#{@project.id}", headers: { 'Authorization' => "Bearer #{token}" }
     assert_response :success
@@ -80,10 +82,10 @@ class AccessAndVaultRegressionsTest < ActionDispatch::IntegrationTest
     assert_equal [project_id], response.parsed_body['items'].map { |row| row['id'] }
   end
 
-  test 'legacy vault contents are readable and backfill is idempotent' do
+  test 'legacy vault plaintext fails closed until explicit idempotent backfill' do
     record = in_workspace { @user.items.create!(title: 'Legacy', content: 'old-secret') }
     Item.connection.execute("UPDATE items SET content = 'legacy-secret' WHERE id = #{record.id.to_i}")
-    assert_equal 'legacy-secret', record.reload.content
+    assert_raises(ActiveRecord::Encryption::Errors::Decryption) { record.reload.content }
     require Rails.root.join('db/migrate/20270823000000_encrypt_existing_vault_contents')
     2.times { EncryptExistingVaultContents.new.up }
     raw = Item.connection.select_value("SELECT content FROM items WHERE id = #{record.id.to_i}")

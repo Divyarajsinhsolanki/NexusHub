@@ -85,7 +85,7 @@ class SecurityHardeningTest < ActionDispatch::IntegrationTest
     post "/api/users/presence", headers: { "X-CSRF-Token" => csrf }
     assert_response :success
     post "/api/users/presence", headers: { "X-CSRF-Token" => csrf, "Origin" => "https://evil.example" }
-    assert_response :unprocessable_entity
+    assert_response :forbidden
   ensure
     ActionController::Base.allow_forgery_protection = previous
   end
@@ -107,12 +107,14 @@ class SecurityHardeningTest < ActionDispatch::IntegrationTest
     get "/login"
     csrf = Nokogiri::HTML(response.body).at_css('meta[name="csrf-token"]')["content"]
     post "/api/login", params: { auth: { email: @user.email, password: "Password!42" } }, headers: { "X-CSRF-Token" => csrf }
+    complete_test_mfa
     assert_response :success
     csrf = response.headers.fetch("X-CSRF-Token")
     delete "/api/logout", headers: { "X-CSRF-Token" => csrf }
     assert_response :success
     csrf = response.headers.fetch("X-CSRF-Token")
     post "/api/login", params: { auth: { email: @user.email, password: "Password!42" } }, headers: { "X-CSRF-Token" => csrf }
+    complete_test_mfa
     assert_response :success
   ensure
     ActionController::Base.allow_forgery_protection = previous
@@ -132,6 +134,7 @@ class SecurityHardeningTest < ActionDispatch::IntegrationTest
 
   def login
     post "/api/login", params: { auth: { email: @user.email, password: "Password!42" } }
+    complete_test_mfa
     assert_response :success
   end
 end

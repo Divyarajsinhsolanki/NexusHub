@@ -1,6 +1,7 @@
 Sidekiq.configure_server do |config|
   config.redis = { url: ENV.fetch("REDIS_URL", "redis://localhost:6379/1") }
   config.on(:startup) do
+    next if ENV["DEPLOYMENT_TIER"] == "restore"
     # Persist schedules in Redis and recover database-backed reminders on every
     # worker restart. Active Job supplies the environment-specific queue prefix.
     Sidekiq::Cron::Job.load_from_hash(BackgroundSchedules.definitions)

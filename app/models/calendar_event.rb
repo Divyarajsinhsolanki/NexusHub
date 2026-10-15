@@ -64,7 +64,7 @@ class CalendarEvent < ApplicationRecord
   }
 
   def self.accessible_to(user)
-    return none unless user
+    return none unless user&.workspace_access?
 
     project_ids = Project.accessible_to(user).select(:id)
     where(user_id: user.id, visibility: 'personal')

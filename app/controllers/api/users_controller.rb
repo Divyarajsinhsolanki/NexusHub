@@ -23,49 +23,33 @@ class Api::UsersController < Api::BaseController
 
   # POST /api/users.json
   def create
-    requested_role_names = normalized_role_names(params.dig(:user, :role_names))
-    requested_project_ids = normalized_project_ids(params.dig(:user, :project_ids))
-
-    validation_errors = []
-    validation_errors.concat(role_selection_errors(requested_role_names))
-    validation_errors.concat(project_selection_errors(requested_project_ids))
-
-    if validation_errors.any?
-      return render json: { errors: validation_errors.uniq }, status: :unprocessable_entity
-    end
-
-    @user = current_user.workspace.users.new(create_user_params)
-
-    User.transaction do
-      @user.save!
-      assign_roles!(@user, requested_role_names) unless requested_role_names.nil?
-      assign_projects!(@user, requested_project_ids) unless requested_project_ids.nil?
-    end
-
-    render json: serialize_user(@user.reload), status: :created
-  rescue ActiveRecord::RecordInvalid => e
-    errors = @user&.errors&.full_messages.presence || e.record.errors.full_messages.presence || [e.message]
-    render json: { errors: errors.uniq }, status: :unprocessable_entity
+    render json: { error: "invitation_required", errors: ["Invite this employee through Workspace Invitations. Employees choose their own passwords."] }, status: :gone
   end
 
   # PATCH /api/users/:id.json
   def update
-    role_names = params[:user].delete(:role_names) if params[:user]
+    attributes = params.require(:user)
+    requested_roles = attributes.key?(:role_names) ? normalized_role_names(attributes[:role_names]) : nil
+    errors = role_selection_errors(requested_roles)
+    return render json: { errors: errors }, status: :unprocessable_entity if errors.any?
 
-    if @user.update(user_params)
-      assign_roles!(@user, role_names) if role_names
-      Chat::Broadcaster.broadcast_profile_updated(@user)
-      render json: serialize_user(@user)
-    else
-      render json: { errors: @user.errors.full_messages }, status: :unprocessable_entity
+    User.transaction do
+      @user.update!(user_params)
+      WorkspaceMemberManagement.update!(@user.membership_for, role_names: requested_roles, status: attributes[:membership_status])
     end
+    Chat::Broadcaster.broadcast_profile_updated(@user.reload)
+    render json: serialize_user(@user)
+  rescue ActiveRecord::RecordInvalid => error
+    render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
   end
 
   # DELETE /api/users/:id.json
   def destroy
-    @user.destroy!
+    @user.workspace.with_lock do
+      @user.destroy!
+    end
     head :no_content
-  rescue ActiveRecord::RecordNotDestroyed => error
+  rescue ActiveRecord::RecordNotDestroyed, ActiveRecord::RecordInvalid => error
     render json: { errors: error.record.errors.full_messages.presence || ['User could not be deleted'] }, status: :unprocessable_entity
   end
 
@@ -180,9 +164,7 @@ class Api::UsersController < Api::BaseController
   end
 
   def assign_roles!(user, role_names)
-    target_role_names = role_names.presence || ['member']
-    user.roles = Role.where(name: target_role_names)
-    user.remove_instance_variable(:@role_names) if user.instance_variable_defined?(:@role_names)
+    WorkspaceMemberManagement.update!(user.membership_for, role_names: role_names.presence || ["member"])
   end
 
   def assign_projects!(user, project_ids)
@@ -218,7 +200,9 @@ class Api::UsersController < Api::BaseController
       cover_photo: user.cover_photo.attached? ?
         rails_blob_url(user.cover_photo, only_path: true) : nil,
       avatar_color: user.avatar_color,
-      roles: user.role_names.sort,
+      roles: user.membership_for&.role_names || [],
+      workspace_membership: membership_payload(user),
+      permissions: WorkspaceAuthorization.permissions(user),
       landing_page: user.landing_page,
       home_preferences: user.home_preferences,
       phone_number: user.phone_number,
@@ -236,10 +220,10 @@ class Api::UsersController < Api::BaseController
   end
 
   def authorize_user_creation!
-    head :forbidden unless current_user&.owner? || current_user&.admin?
+    head :forbidden unless WorkspaceAuthorization.allowed?(current_user, "users.create")
   end
 
   def authorize_owner!
-    head :forbidden unless current_user&.owner?
+    head :forbidden unless WorkspaceAuthorization.allowed?(current_user, "users.manage")
   end
 end

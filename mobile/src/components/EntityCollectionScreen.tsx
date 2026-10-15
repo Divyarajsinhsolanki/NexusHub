@@ -31,6 +31,7 @@ type Props = {
   secondary?: string[];
   canWrite?: boolean;
   canCreate?: boolean;
+  allowDelete?: boolean;
   params?: Record<string, unknown>;
   defaults?: Record<string, unknown>;
   toolbar?: ReactNode;
@@ -39,7 +40,7 @@ type Props = {
   renderEditFooter?: (record: EntityRecord) => ReactNode;
 };
 
-export function EntityCollectionScreen({ title, subtitle, path, wrapper, fields, primary, secondary = [], canWrite = true, canCreate = canWrite, params = {}, defaults = {}, toolbar, renderRecord, onRecordPress, renderEditFooter }: Props) {
+export function EntityCollectionScreen({ title, subtitle, path, wrapper, fields, primary, secondary = [], canWrite = true, canCreate = canWrite, allowDelete = true, params = {}, defaults = {}, toolbar, renderRecord, onRecordPress, renderEditFooter }: Props) {
   const theme = useAppTheme();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -60,7 +61,7 @@ export function EntityCollectionScreen({ title, subtitle, path, wrapper, fields,
   const administrative = path.startsWith('/admin/');
   const adminPermissions = (record: EntityRecord) => record.admin_permissions as { update?: boolean; destroy?: boolean; password_reset?: boolean } | undefined;
   const canEdit = (record: EntityRecord) => writable && (!administrative || adminPermissions(record)?.update === true);
-  const canDelete = (record: EntityRecord) => writable && (!administrative || adminPermissions(record)?.destroy === true);
+  const canDelete = (record: EntityRecord) => allowDelete && writable && (!administrative || adminPermissions(record)?.destroy === true);
   const canResetPassword = (record: EntityRecord) => writable && administrative && adminPermissions(record)?.password_reset === true;
   const canOpen = (record: EntityRecord) => canEdit(record) || canResetPassword(record);
   const creatable = allowedToCreate && (!administrative || (query.data?.raw as { permissions?: { create?: boolean } } | undefined)?.permissions?.create === true);

@@ -7,7 +7,7 @@ module Operations
     end
 
     def membership
-      return unless user && project.workspace_id == user.workspace_id
+      return unless user&.workspace_access?(project.workspace)
 
       @membership ||= project.project_users.find_by(user_id: user.id, status: "active")
     end

@@ -8,6 +8,208 @@ servers:
 security:
   - bearerAuth: []
 paths:
+  /privacy_requests:
+    post:
+      operationId: submitPrivacyRequest
+      security: []
+      description: Public intake, including former employees. Records an encrypted request and queues email verification; never discloses account existence or performs account deletion. Rate limited by IP and email.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [privacy_request]
+              properties:
+                privacy_request:
+                  type: object
+                  required: [email, request_type, details]
+                  properties:
+                    email: { type: string, format: email, maxLength: 254 }
+                    name: { type: string, maxLength: 120 }
+                    country: { type: string, maxLength: 100 }
+                    details: { type: string, minLength: 1, maxLength: 4000 }
+                    request_type:
+                      type: string
+                      enum: [access, correction, erasure, portability, restriction, objection, consent_withdrawal, complaint, other]
+      responses:
+        "202": { description: Request recorded; verification email queued. }
+        "422": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+  /privacy_requests/verify:
+    post:
+      operationId: verifyPrivacyRequestEmail
+      security: []
+      description: Explicitly verifies a single-use signed email link; expires after 24 hours. Returns a separate private tracking token. Mailbox verification alone does not authorize disclosure or deletion.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "422": { $ref: "#/components/responses/Error" }
+  /privacy_requests/status:
+    post:
+      operationId: trackPrivacyRequest
+      security: []
+      description: Private capability-token lookup. Returns status, review target and operator response only; no original submission, email or internal notes. Tracking links expire after 30 days. Do not log or persist tokens.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "422": { $ref: "#/components/responses/Error" }
+  /mfa:
+    get:
+      operationId: mfaStatus
+      description: Available to restricted password-authenticated sessions before MFA completion.
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "401": { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: disableMfa
+      description: Current password and recent MFA required. Privileged accounts cannot disable MFA.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password: { type: string, format: password }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "422": { $ref: "#/components/responses/Error" }
+  /mfa/setup:
+    post:
+      operationId: mfaSetup
+      description: Authenticator setup. Secrets and recovery codes are returned only when newly created; never cache them. Verification rejects replay and locks after five failures.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                password: { type: string, writeOnly: true }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "401": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /mfa/confirm:
+    post:
+      operationId: mfaConfirm
+      description: Authenticator confirm. Secrets and recovery codes are returned only when newly created; never cache them. Verification rejects replay and locks after five failures.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                otp_code: { type: string, writeOnly: true }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "401": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /mfa/verify:
+    post:
+      operationId: mfaVerify
+      description: Authenticator verify. Secrets and recovery codes are returned only when newly created; never cache them. Verification rejects replay and locks after five failures.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                otp_code: { type: string, writeOnly: true }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "401": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /mfa/recovery:
+    post:
+      operationId: mfaRecovery
+      description: Authenticator recovery. Secrets and recovery codes are returned only when newly created; never cache them. Verification rejects replay and locks after five failures.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                password: { type: string, writeOnly: true }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "401": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /support_access_grants:
+    get:
+      operationId: supportAccessGrants
+      description: Owners see company approvals; support administrators see grants assigned to them. Recent MFA required.
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: approveSupportAccess
+      description: Company owner approves a specific active platform administrator with MFA for read-only access; recent MFA required.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [support_access_grant]
+              properties:
+                support_access_grant:
+                  type: object
+                  required: [support_email, reason, resources]
+                  properties:
+                    support_email: { type: string, format: email }
+                    reason: { type: string, minLength: 10, maxLength: 1000 }
+                    duration_minutes: { type: integer, minimum: 5, maximum: 60, default: 30 }
+                    resources:
+                      type: array
+                      minItems: 1
+                      items: { type: string, enum: [projects, teams, departments] }
+      responses:
+        "201": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /support_access_grants/{id}/revoke:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      operationId: revokeSupportAccess
+      description: Company owner revokes the grant immediately; recent MFA required.
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /support_access_grants/{id}/inspect_records:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      operationId: inspectSupportRecords
+      description: Assigned support administrator only; active grant and recent MFA required. Returns up to 100 explicitly scoped summary records with audited reads, no files or secrets.
+      parameters:
+        - name: resource
+          in: query
+          required: true
+          schema: { type: string, enum: [projects, teams, departments] }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
   /billing:
     get:
       operationId: billingStatus
@@ -1137,6 +1339,204 @@ paths:
       operationId: deleteLearningCheckpoint
       responses:
         "200": { $ref: "#/components/responses/GenericSuccess" }
+  /workspace_invitations:
+    get:
+      operationId: listWorkspaceInvitations
+      description: Owners and admins can list invitations in their company; raw tokens are never returned.
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: inviteWorkspaceMember
+      description: Creates a seven-day email invitation and reserves a seat. Admins cannot grant owner.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [workspace_invitation]
+              properties:
+                workspace_invitation:
+                  type: object
+                  required: [email]
+                  properties:
+                    email: { type: string, format: email }
+                    role_names:
+                      type: array
+                      items: { type: string, enum: [owner, admin, member, project_manager, team_leader] }
+                    project_ids:
+                      type: array
+                      items: { type: integer }
+                    department_id: { type: [integer, "null"] }
+      responses:
+        "201": { $ref: "#/components/responses/GenericSuccess" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /workspace_invitations/preview:
+    post:
+      operationId: previewWorkspaceInvitation
+      security: []
+      description: Previews a valid invitation using the secret email-link token; does not consume it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [invitation_token]
+              properties:
+                invitation_token: { type: string }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "422": { $ref: "#/components/responses/Error" }
+  /workspace_invitations/accept:
+    post:
+      operationId: acceptWorkspaceInvitation
+      security: []
+      description: Single-use token proves mailbox access. New users choose a password. Suspended same-company accounts require their existing password; different-company accounts cannot move.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [invitation_token, account]
+              properties:
+                invitation_token: { type: string }
+                account:
+                  type: object
+                  properties:
+                    first_name: { type: string }
+                    last_name: { type: string }
+                    job_title: { type: string }
+                    password: { type: string, minLength: 8, writeOnly: true }
+                    password_confirmation: { type: string, writeOnly: true }
+                    current_password: { type: string, writeOnly: true }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "422": { $ref: "#/components/responses/Error" }
+  /workspace_invitations/{id}/resend:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+    post:
+      operationId: resendWorkspaceInvitation
+      description: Rotates the token and expiry; the old link stops working. One-minute cooldown.
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /workspace_invitations/{id}/revoke:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+    post:
+      operationId: revokeWorkspaceInvitation
+      description: Invalidates a pending invitation and releases its reserved seat.
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /workspace_memberships/{id}/offboarding:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+    get:
+      operationId: previewWorkspaceOffboarding
+      description: Owner-only preview of retained data and required ownership transfer.
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: offboardWorkspaceMember
+      description: Owner-only, idempotent access removal. Preserves history, revokes credentials and removes project/team/chat access; ownership transfers require an active successor. Media cleanup is reported separately.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [offboarding]
+              properties:
+                offboarding:
+                  type: object
+                  required: [confirmation]
+                  properties:
+                    confirmation: { type: string, enum: [OFFBOARD] }
+                    successor_id: { type: [integer, "null"] }
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /workspace_memberships:
+    get:
+      operationId: listWorkspaceMemberships
+      description: Lists memberships in the authenticated account's company. Requires active membership.
+      responses:
+        "200":
+          description: Company memberships
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/WorkspaceMembership" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /workspace_memberships/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+    patch:
+      operationId: updateWorkspaceMembership
+      description: Workspace owner only. Role and suspension changes preserve at least one active owner.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [workspace_membership]
+              properties:
+                workspace_membership:
+                  type: object
+                  properties:
+                    status: { type: string, enum: [active, suspended] }
+                    role_names:
+                      type: array
+                      items: { type: string, enum: [owner, admin, member, project_manager, team_leader] }
+      responses:
+        "200":
+          description: Updated membership
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/WorkspaceMembership" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
   /users:
     get:
       operationId: listWorkspaceUsers
@@ -1144,8 +1544,10 @@ paths:
         "200": { $ref: "#/components/responses/GenericSuccess" }
     post:
       operationId: createWorkspaceUser
+      deprecated: true
+      description: Employee password provisioning is disabled. Use workspace invitations instead.
       responses:
-        "201": { $ref: "#/components/responses/GenericSuccess" }
+        "410": { $ref: "#/components/responses/Error" }
   /departments/{department_id}/entries:
     parameters:
       - name: department_id
@@ -2340,8 +2742,10 @@ paths:
   /impersonation:
     post:
       operationId: startImpersonation
+      deprecated: true
+      description: Employee impersonation is disabled. Use owner-approved read-only support access grants.
       responses:
-        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "410": { $ref: "#/components/responses/Error" }
         "403": { $ref: "#/components/responses/Error" }
     delete:
       operationId: stopImpersonation
@@ -2387,12 +2791,58 @@ paths:
       responses:
         "200": { $ref: "#/components/responses/GenericSuccess" }
         "403": { $ref: "#/components/responses/Error" }
+  /workspace_integrations:
+    get:
+      operationId: listWorkspaceIntegrations
+      description: Owner/admin metadata only. Credentials are never returned.
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+  /workspace_integrations/{provider}:
+    parameters:
+      - name: provider
+        in: path
+        required: true
+        schema: { type: string, enum: [google_sheets, slack] }
+    put:
+      operationId: replaceWorkspaceIntegration
+      description: Replaces an encrypted workspace credential. Requires recent MFA.
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: revokeWorkspaceIntegration
+      description: Revokes this workspace connection and removes its stored credential. Requires recent MFA.
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "403": { $ref: "#/components/responses/Error" }
   /uploads:
     post:
       operationId: createDirectUpload
       responses:
         "201":
           $ref: "#/components/responses/GenericSuccess"
+  /uploads/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    put:
+      operationId: uploadReservedBytes
+      description: Send raw bytes with bearer authentication within 15 minutes of reservation. Size and MD5 must match.
+      responses:
+        "200": { description: Upload verified }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /file_access:
+    post:
+      operationId: createPrivateFileTicket
+      description: Returns a five-minute download URL, bound to the current mobile session and reauthorized on every read.
+      responses:
+        "200": { $ref: "#/components/responses/GenericSuccess" }
+        "404": { $ref: "#/components/responses/Error" }
   /pdf_documents:
     get:
       operationId: listPdfDocuments
@@ -2818,10 +3268,33 @@ components:
         participant_token: { type: string }
         call_session:
           $ref: "#/components/schemas/CallSession"
+    WorkspaceMembership:
+      type: object
+      required: [id, workspace_id, status, roles]
+      properties:
+        id: { type: integer }
+        workspace_id: { type: integer }
+        user_id: { type: integer }
+        name: { type: string }
+        offboarded_at: { type: [string, "null"], format: date-time }
+        status: { type: string, enum: [active, suspended] }
+        roles:
+          type: array
+          items: { type: string }
+    MfaStatus:
+      type: object
+      required: [required, enabled, verified, recent]
+      properties:
+        required: { type: boolean }
+        enabled: { type: boolean }
+        verified: { type: boolean }
+        recent: { type: boolean }
     User:
       type: object
       required: [id, email, first_name, last_name, full_name, roles, workspace, permissions, features]
       properties:
+        mfa: { $ref: "#/components/schemas/MfaStatus" }
+        site_admin: { type: boolean }
         id: { type: integer }
         email: { type: string, format: email }
         first_name: { type: string }
@@ -2833,6 +3306,8 @@ components:
         roles:
           type: array
           items: { type: string }
+        workspace_membership:
+          $ref: "#/components/schemas/WorkspaceMembership"
         permissions:
           type: array
           items: { type: string }

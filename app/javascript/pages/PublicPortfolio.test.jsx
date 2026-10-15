@@ -82,9 +82,9 @@ describe("PublicPortfolio", () => {
     expect(html).toContain("Engineering achievements");
     expect(html).toContain("Skills");
     expect(html).toContain("Flagship Case Study");
-    expect(html).toContain("Feature Map");
+    expect(html).toContain("Product walkthrough");
     expect(html).toContain(
-      "A large product, organized for a fast technical review.",
+      "Choose a product area to inspect its interface and purpose.",
     );
     expect(html).toContain("Project Delivery");
     expect(html).toContain("Planning and Focus");
@@ -133,48 +133,86 @@ describe("PublicPortfolio", () => {
     ).toBe("false");
   });
 
-  it("moves gallery controls one card at a time without skipping the middle feature", () => {
+  it("selects product areas without launching a demo and opens the matching screen", async () => {
+    const login = vi.fn().mockResolvedValue(undefined);
+    render(portfolio(login));
+    const selector = screen.getByRole("group", { name: "Product areas" });
+    const buttons = within(selector).getAllByRole("button");
+    expect(buttons[0].getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(within(selector).getByRole("button", { name: /Documents/ }));
+    expect(screen.getByRole("heading", { name: "PDF Master Workflows" })).toBeTruthy();
+    expect(login).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Open live screen" }));
+    await waitFor(() => expect(login).toHaveBeenCalledWith("/pdf-master"));
+  });
+
+  it("shows saved screenshots and review notes, and handles failed images", async () => {
+    fetchPortfolio.mockResolvedValueOnce({ data: { projects: [{ title: "Nexus Hub", features: [
+      { id: 2, position: 2, category: "Documents", title: "PDF tools", summary: "Document workflows", screenshot_url: "/pdf.webp", demo_path: "/pdf-master" },
+      { id: 1, position: 1, category: "Planning", title: "Sprint planning", summary: "Plan delivery", screenshot_url: "/planning.webp", alt_text: "Sprint board", review_notes: "Workspace authorization", demo_path: "/projects" },
+    ] }] } });
+    render(portfolio());
+    const image = await screen.findByRole("img", { name: "Sprint board" });
+    expect(image.getAttribute("src")).toBe("/planning.webp");
+    expect(screen.getByText("Workspace authorization", { selector: ".pf-review-note" })).toBeTruthy();
+    fireEvent.error(image);
+    expect(screen.getByText("Screenshot unavailable for Sprint planning.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Documents/ }));
+    expect(screen.getByRole("img", { name: "PDF tools" }).getAttribute("src")).toBe("/pdf.webp");
+  });
+
+  it("presents expandable engineering details and selectable architecture", () => {
     const { container } = render(portfolio());
-    const gallery = container.querySelector("[data-portfolio-gallery]");
-    const viewport = gallery.querySelector("[data-gallery-viewport]");
-    const track = gallery.querySelector("[data-gallery-track]");
-    const dimension = (element, name, value) =>
-      Object.defineProperty(element, name, { configurable: true, value });
-    gallery.dataset.galleryPinned = "true";
-    gallery.getBoundingClientRect = () => ({ top: 1900 });
-    dimension(gallery, "offsetHeight", 1800);
-    dimension(viewport, "clientWidth", 1000);
-    dimension(track, "scrollWidth", 2000);
-    [...track.children].forEach((card, index) => {
-      dimension(card, "offsetWidth", 360);
-      dimension(card, "offsetLeft", index * 384);
-    });
-    const originalHeight = window.innerHeight;
-    dimension(window, "innerHeight", 800);
-    const scroll = vi.spyOn(window, "scrollTo").mockImplementation(() => {});
-    try {
-      fireEvent.click(screen.getByRole("button", { name: "Next feature" }));
-      expect(scroll).toHaveBeenLastCalledWith({
-        top: 2284,
-        behavior: "smooth",
-      });
-      gallery.style.setProperty("--gallery-shift", "-384px");
-      gallery.style.setProperty("--gallery-progress", "0.384");
-      fireEvent.click(screen.getByRole("button", { name: "Next feature" }));
-      expect(scroll).toHaveBeenLastCalledWith({
-        top: 2668,
-        behavior: "smooth",
-      });
-      gallery.style.setProperty("--gallery-shift", "-768px");
-      gallery.style.setProperty("--gallery-progress", "0.768");
-      fireEvent.click(screen.getByRole("button", { name: "Previous feature" }));
-      expect(scroll).toHaveBeenLastCalledWith({
-        top: 2284,
-        behavior: "smooth",
-      });
-    } finally {
-      dimension(window, "innerHeight", originalHeight);
-    }
+    const decisions = screen.getByText("Decisions", { selector: "summary" });
+    expect(decisions.parentElement.open).toBe(false);
+    fireEvent.click(decisions);
+    expect(decisions.parentElement.open).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: /The engine/ }));
+    expect(screen.getByRole("button", { name: /The engine/ }).getAttribute("aria-pressed")).toBe("true");
+    expect(container.querySelector("#portfolio-layer-detail").textContent).toContain("workspace authorization");
+    const sections = [...container.querySelectorAll("main > section")].map((section) => section.id);
+    expect(sections).toEqual(["top", "case-study", "features", "decisions", "architecture", "about", "contact"]);
+  });
+
+  it("keeps controls keyboard accessible and honors reduced-motion navigation", async () => {
+    const user = (await import("@testing-library/user-event")).default.setup();
+    vi.stubGlobal("matchMedia", vi.fn((query) => ({ matches: query.includes("prefers-reduced-motion"), addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+    render(portfolio());
+    const documents = screen.getByRole("button", { name: /Documents/ });
+    documents.focus();
+    await user.keyboard("{Enter}");
+    expect(documents.getAttribute("aria-pressed")).toBe("true");
+    const summary = screen.getByText("Constraints", { selector: "summary" });
+    summary.focus();
+    expect(summary.tagName).toBe("SUMMARY");
+    // Native summary activation is supplied by browsers, not jsdom keyboard defaults.
+    fireEvent.click(summary);
+    expect(summary.parentElement.open).toBe(true);
+    fireEvent.click(screen.getByRole("link", { name: /Explore my work/ }));
+    expect(document.getElementById("case-study").scrollIntoView).toHaveBeenCalledWith({ behavior: "instant", block: "start" });
+  });
+
+  it("uses saved résumé links and avoids inventing project details when data is missing", async () => {
+    fetchPortfolio.mockResolvedValueOnce({ data: { profile: { resume_url: "/resume.pdf" }, projects: [{ title: "Independent project", features: [], case_study: {} }] } });
+    render(portfolio());
+    const resume = await screen.findByRole("link", { name: /View résumé/ });
+    expect(resume.getAttribute("href")).toBe("/resume.pdf");
+    expect(screen.getByRole("status").textContent).toContain("No product walkthroughs are available yet");
+    expect(screen.queryByText("Constraints", { selector: "summary" })).toBeNull();
+    expect(screen.queryByText("Single-server PostgreSQL and Redis reduce cost now but can move to managed AWS services later")).toBeNull();
+  });
+
+  it("offers chapter navigation and a motion pause control without hiding work", () => {
+    render(portfolio());
+    const chapters = screen.getByRole("navigation", { name: "Scroll chapters" });
+    expect(within(chapters).getAllByRole("link")).toHaveLength(7);
+    fireEvent.click(within(chapters).getByRole("link", { name: "Architecture" }));
+    expect(document.getElementById("architecture").scrollIntoView).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Pause visual motion" }));
+    expect(screen.getByRole("button", { name: "Resume visual motion" }).getAttribute("aria-pressed")).toBe("true");
+    expect(document.querySelector(".pf-page").dataset.reducedMotion).toBe("true");
+    expect(document.querySelector(".pf-product-video").tagName).toBe("IMG");
+    expect(screen.getByRole("button", { name: "Explore Nexus Hub" })).toBeTruthy();
   });
 
   it("prevents duplicate demo launches, announces errors, and allows a feature retry", async () => {
@@ -195,7 +233,7 @@ describe("PublicPortfolio", () => {
       name: "Starting demo…",
     });
     expect(loadingButton.disabled).toBe(true);
-    const feature = container.querySelectorAll(".pf-feature-hitarea")[3];
+    const feature = screen.getByRole("button", { name: "Open live screen" });
     expect(feature.disabled).toBe(true);
     fireEvent.click(feature);
     expect(handleDemoLogin).toHaveBeenCalledOnce();
@@ -213,6 +251,7 @@ describe("PublicPortfolio", () => {
     fireEvent.click(screen.getByRole("button", { name: "Dismiss demo error" }));
     expect(screen.queryByRole("alert")).toBeNull();
 
+    fireEvent.click(screen.getByRole("button", { name: /Knowledge/ }));
     fireEvent.click(feature);
     await waitFor(() =>
       expect(handleDemoLogin).toHaveBeenLastCalledWith("/knowledge"),

@@ -1,3 +1,4 @@
+import ChatMenu from "../components/chat/ChatMenu";
 import MessageActionsPopover from "../components/chat/MessageActionsPopover";
 import ChatTools from "../components/chat/ChatTools";
 import { pinChatMessage } from "../components/api";
@@ -18,6 +19,8 @@ import {
   FiArrowUpRight,
   FiAtSign,
   FiBellOff,
+  FiBookmark,
+  FiClock,
   FiCheck,
   FiCopy,
   FiDownload,
@@ -1112,7 +1115,6 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   const messageListRef = useRef(null);
   const fileInputRef = useRef(null);
   const composerTextareaRef = useRef(null);
-  const threadActionsRef = useRef(null);
   const typingHeartbeatRef = useRef(0);
   const remoteTypingTimersRef = useRef(new Map());
   const typingTimeoutRef = useRef(null);
@@ -1164,6 +1166,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
 
   const [messageBody, setMessageBody] = useState("");
   const [replyTo, setReplyTo] = useState(null);
+  const [chatToolMode, setChatToolMode] = useState(null);
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [attachments, setAttachments] = useState([]);
   const [threadTarget, setThreadTarget] = useState(null);
@@ -1190,7 +1193,6 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   currentConversationIdRef.current = conversationId;
   const [typingUsers, setTypingUsers] = useState({});
   const [showInfo, setShowInfo] = useState(false);
-  const [isThreadActionsOpen, setIsThreadActionsOpen] = useState(false);
   const [cableStatus, setCableStatus] = useState("connected");
   const [composerSelection, setComposerSelection] = useState({ start: 0, end: 0 });
   const [activeMentionIndex, setActiveMentionIndex] = useState(0);
@@ -1251,6 +1253,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     setSendError("");
     setReplyTo(null);
     setEmojiPickerOpen(false);
+    setChatToolMode(null);
   }, [conversationId]);
 
   const saveCurrentDraft = useCallback(() => {
@@ -1301,17 +1304,14 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   }, [saveCurrentDraft]);
 
   useEffect(() => {
-    if ((!showInfo && !isThreadActionsOpen) || isAddMembersOpen || isNewChatModalOpen) return undefined;
+    if (!showInfo || isAddMembersOpen || isNewChatModalOpen) return undefined;
     const onKeyDown = (event) => {
       if (event.key !== "Escape") return;
-      if (isThreadActionsOpen) {
-        setIsThreadActionsOpen(false);
-        threadActionsRef.current?.querySelector("button")?.focus();
-      } else setShowInfo(false);
+      setShowInfo(false);
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [showInfo, isThreadActionsOpen, isAddMembersOpen, isNewChatModalOpen]);
+  }, [showInfo, isAddMembersOpen, isNewChatModalOpen]);
 
   useEffect(() => {
     if (embedded) setEmbeddedConversationId(initialConversationId);
@@ -1488,7 +1488,6 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       setCallCredentials(null);
       setActiveConversation(null);
       setShowInfo(false);
-      setIsThreadActionsOpen(false);
       if (embedded) {
         setEmbeddedConversationId(null);
       } else {
@@ -2065,17 +2064,6 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     if (isNewChatModalOpen) loadUsers();
   }, [isNewChatModalOpen, loadUsers]);
 
-  useEffect(() => {
-    if (!isThreadActionsOpen) return undefined;
-
-    const handlePointerDown = (event) => {
-      if (!threadActionsRef.current || threadActionsRef.current.contains(event.target)) return;
-      setIsThreadActionsOpen(false);
-    };
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, [isThreadActionsOpen]);
 
   useEffect(() => {
     if (!incomingCall) return undefined;
@@ -2145,12 +2133,10 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       loadConversation(conversationId);
       setThreadSearchQuery("");
       setIsThreadSearchOpen(false);
-      setIsThreadActionsOpen(false);
     } else {
       setActiveConversation(null);
       setMessagePageMeta(null);
       setIsConversationLoading(false);
-      setIsThreadActionsOpen(false);
     }
   }, [conversationId, loadConversation]);
 
@@ -3447,11 +3433,12 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                 <FiEdit className="h-4 w-4" />
               </button>
             </div>
-            <p className="chat-inbox-subtitle">A space for every conversation.</p>
-            <QuickMeetingButton />
-            <button type="button" onClick={()=>setShowScheduledMeetings(true)} className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-semibold dark:border-zinc-700">Scheduled meetings</button>
+            <div className="chat-inbox-utilities"><ChatMenu label="More inbox actions" icon={<FiMoreVertical />}>{close => <>
+              <QuickMeetingButton />
+              <button type="button" onClick={() => { close(); setShowScheduledMeetings(true); }}><FiVideo />Scheduled meetings</button>
+              <button type="button" onClick={() => { close(); setShowCallHistory(true); }}><FiPhone />Call history</button>
+            </>}</ChatMenu></div>
             {showScheduledMeetings && <ScheduledMeetings user={user} meetingId={scheduledMeetingId} onClose={()=>setShowScheduledMeetings(false)} />}
-            <button type="button" onClick={() => setShowCallHistory(true)} className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-600 dark:border-zinc-700 dark:text-zinc-300">Call history</button>
             {showCallHistory && <CallHistory onClose={() => setShowCallHistory(false)} onCallback={handleHistoryCallback} />}
 
             <div className="chat-inbox-search">
@@ -3606,7 +3593,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
 
         <main className={`nexus-chat-thread relative z-10 flex min-h-0 min-w-0 flex-1 flex-col ${!conversationId ? "hidden md:flex" : "flex"}`}>
           {showThreadLoadingState ? (
-            <div className="relative flex flex-1 items-center justify-center p-6 md:p-10">
+            <div className="chat-loading-state relative flex flex-1 items-center justify-center p-6 md:p-10">
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(125,211,252,0.22),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.6),rgba(248,250,252,0.72))] dark:bg-[linear-gradient(180deg,rgba(9,9,11,0.72),rgba(17,24,39,0.82))]" />
               <div className="relative z-10 w-full max-w-xl rounded-[32px] border border-white/80 bg-white/78 p-8 shadow-[0_30px_70px_-40px_rgba(15,23,42,0.8)] backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-950/78">
                 <div className="flex items-center gap-4">
@@ -3699,117 +3686,25 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                     </div>
                   </div>
 
-                  <div className="chat-header-actions flex shrink-0 items-center gap-1 sm:gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleStartCall("audio")}
-                      disabled={isCallConnecting || Boolean(visibleCall)}
-                      className="chat-icon-button"
-                      title="Start voice call"
-                      aria-label="Start voice call"
-                    >
-                      <FiPhone className="h-4.5 w-4.5" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleStartCall("video")}
-                      disabled={isCallConnecting || Boolean(visibleCall)}
-                      className="chat-icon-button hidden sm:flex"
-                      title="Start video call"
-                      aria-label="Start video call"
-                    >
-                      <FiVideo className="h-4.5 w-4.5" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsThreadSearchOpen((previous) => !previous);
-                        if (isThreadSearchOpen) setThreadSearchQuery("");
-                      }}
-                      className="chat-icon-button hidden sm:flex"
-                      aria-expanded={isThreadSearchOpen}
-                      title="Search in conversation"
-                      aria-label="Search in conversation"
-                    >
-                      <FiSearch className="h-4.5 w-4.5" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setShowInfo((previous) => !previous)}
-                      className="chat-icon-button hidden sm:flex"
-                      aria-expanded={showInfo}
-                      title="Conversation details"
-                      aria-label="Conversation details"
-                    >
-                      <FiInfo className="h-4.5 w-4.5" />
-                    </button>
-
-                    <div ref={threadActionsRef} className="relative">
-                      <button
-                        type="button"
-                        onClick={() => setIsThreadActionsOpen((previous) => !previous)}
-                        className="chat-icon-button"
-                        aria-expanded={isThreadActionsOpen}
-                        title="More actions"
-                        aria-label="More actions"
-                      >
-                        <FiMoreVertical className="h-4.5 w-4.5" />
-                      </button>
-
-                      {isThreadActionsOpen && (
-                        <div className="absolute right-0 top-12 z-40 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 text-slate-700 shadow-xl dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-100">
-                          <button
-                            type="button"
-                            onClick={() => { setIsThreadActionsOpen(false); handleStartCall("video"); }}
-                            disabled={isCallConnecting || Boolean(visibleCall)}
-                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium hover:bg-slate-50 disabled:opacity-40 sm:hidden dark:hover:bg-zinc-800"
-                          >
-                            <FiVideo className="h-4 w-4" />Video call
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { setIsThreadActionsOpen(false); setIsThreadSearchOpen(true); }}
-                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium hover:bg-slate-50 sm:hidden dark:hover:bg-zinc-800"
-                          >
-                            <FiSearch className="h-4 w-4" />Search messages
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { setIsThreadActionsOpen(false); setShowInfo(true); }}
-                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium hover:bg-slate-50 sm:hidden dark:hover:bg-zinc-800"
-                          >
-                            <FiInfo className="h-4 w-4" />Conversation details
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsThreadActionsOpen(false);
-                              handleHideConversation(activeConversation);
-                            }}
-                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium hover:bg-slate-50 dark:hover:bg-zinc-800"
-                          >
-                            <FiTrash2 className="h-4 w-4" />
-                            Hide for me
-                          </button>
-                          {activeConversation.can_delete_for_everyone && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setIsThreadActionsOpen(false);
-                                handleDeleteConversationForEveryone(activeConversation);
-                              }}
-                              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-semibold text-red-600 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/30"
-                            >
-                              <FiTrash2 className="h-4 w-4" />
-                              Delete for everyone
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                  <div className="chat-header-actions flex shrink-0 items-center gap-1">
+                    <ChatMenu label="Call" icon={<FiPhone />}>
+                      {close => <>
+                        {visibleCall && <button type="button" disabled={isCallConnecting} onClick={() => { close(); handleJoinCall(visibleCall); }}><FiPhoneCall />Join active call</button>}
+                        <button type="button" disabled={isCallConnecting || Boolean(visibleCall)} onClick={() => { close(); handleStartCall("audio"); }}><FiPhone />Start voice call</button>
+                        <button type="button" disabled={isCallConnecting || Boolean(visibleCall)} onClick={() => { close(); handleStartCall("video"); }}><FiVideo />Start video call</button>
+                      </>}
+                    </ChatMenu>
+                    <ChatMenu label="More actions" icon={<FiMoreVertical />}>
+                      {close => <>
+                        <button type="button" onClick={() => { close(); setIsThreadSearchOpen(true); }}><FiSearch />Search in conversation</button>
+                        {[["media", "Shared media", FiImage], ["files", "Shared files", FiFileText], ["pins", "Pinned messages", FiBookmark], ["scheduled", "Scheduled messages", FiClock]].map(([mode, label, Icon]) => <button type="button" key={mode} onClick={() => { close(); setChatToolMode(mode); }}><Icon />{label}</button>)}
+                        <button type="button" onClick={() => { close(); setShowInfo(true); }}><FiInfo />Conversation details</button>
+                        <hr />
+                        <button type="button" onClick={() => { close(); activeConversation.muted ? handleUnmuteConversation(activeConversation) : handleMuteConversation(activeConversation); }}><FiBellOff />{activeConversation.muted ? "Unmute conversation" : "Mute conversation"}</button>
+                        <button type="button" onClick={() => { close(); handleHideConversation(activeConversation); }}><FiTrash2 />Hide for me</button>
+                        {activeConversation.can_delete_for_everyone && <button type="button" className="chat-menu-danger" onClick={() => { close(); handleDeleteConversationForEveryone(activeConversation); }}><FiTrash2 />Delete for everyone</button>}
+                      </>}
+                    </ChatMenu>
                   </div>
                 </div>
 
@@ -3924,7 +3819,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                     <button type="button" onClick={() => setEditingMessage(null)}>Cancel</button></div>
                   </form>}
                   {contextMessages && <button className="chat-context-return" onClick={() => { setContextMessages(null); setContextTarget(null); isAtLatestMessagesRef.current = true; scrollMessagesToBottom(80); }}>Viewing message context · Back to latest</button>}
-                  <ChatTools unreadId={Number(unreadAnchor?.conversationId) === Number(conversationId) ? unreadAnchor?.id : null} onJumpUnread={() => openMessageContext(unreadAnchor.id)} key={conversationId} conversationId={conversationId} thread={threadTarget} onCloseThread={() => setThreadTarget(null)} onReply={handleReply} onOpen={openMessageContext} readOnly={user?.demo_account} draft={{ body: messageBody, attachments, replyTo, clientId: pendingSendRef.current?.clientId }} onScheduled={handleScheduled} />
+                  <ChatTools mode={chatToolMode} onModeChange={setChatToolMode} unreadId={Number(unreadAnchor?.conversationId) === Number(conversationId) ? unreadAnchor?.id : null} onJumpUnread={() => openMessageContext(unreadAnchor.id)} key={conversationId} conversationId={conversationId} thread={threadTarget} onCloseThread={() => setThreadTarget(null)} onReply={handleReply} onOpen={openMessageContext} readOnly={user?.demo_account} draft={{ body: messageBody, attachments, replyTo, clientId: pendingSendRef.current?.clientId }} onScheduled={handleScheduled} />
                   <div
                     ref={messageListRef}
                     onScroll={handleMessageListScroll}
@@ -4192,8 +4087,10 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                           <div className="chat-composer-tools">
                             <div className="relative"><button type="button" className="chat-icon-button" disabled={isSending} title="Choose emoji" aria-label="Choose emoji" aria-expanded={emojiPickerOpen} onClick={() => setEmojiPickerOpen((open) => !open)}><FiSmile /></button>{emojiPickerOpen && <div role="dialog" aria-label="Emoji picker" className="absolute bottom-full left-0 z-30 mb-2 grid w-64 grid-cols-6 gap-1 rounded-lg border bg-white p-2 shadow-lg dark:bg-zinc-900" onKeyDown={(event) => { if (event.key === "Escape") setEmojiPickerOpen(false); }}>{REACTION_EMOJIS.map((emoji) => <button type="button" key={emoji} aria-label={`Insert ${emoji}`} className="p-2 text-xl hover:bg-slate-100 dark:hover:bg-zinc-800" onClick={() => { insertComposerText(emoji); setEmojiPickerOpen(false); }}>{emoji}</button>)}</div>}</div>
                             <button type="button" className="chat-icon-button" disabled={isSending} title="Add attachments" aria-label="Add attachments" onClick={() => fileInputRef.current?.click()}><FiPaperclip /></button>
-                            <button type="button" className="chat-icon-button" disabled={isSending} title="Mention a teammate" aria-label="Mention a teammate" onClick={() => insertComposerText("@")}><FiAtSign /></button>
-                            <button type="button" className="chat-icon-button" disabled={isSending} title="Link a task" aria-label="Link a task" onClick={() => insertComposerText("#")}><FiHash /></button>
+                            <ChatMenu label="More composer actions" icon={<FiPlus />} placement="chat-menu-up">{close => <>
+                              <button type="button" disabled={isSending} onClick={() => { close(false); insertComposerText("@"); }}><FiAtSign />Mention a teammate</button>
+                              <button type="button" disabled={isSending} onClick={() => { close(false); insertComposerText("#"); }}><FiHash />Link a task</button>
+                            </>}</ChatMenu>
                             <span className="chat-composer-divider" />
                             <span className="chat-composer-hint"><kbd>Enter</kbd> to send</span>
                           </div>

@@ -37,7 +37,7 @@ const groups: Array<{ title: string; items: MenuItem[] }> = [
     { slug: 'settings', label: 'Settings', detail: 'Appearance and notifications', icon: Settings },
     { slug: 'admin', label: 'Administration', detail: 'Users, records, and portfolio', icon: Shield, feature: 'admin' },
     { slug: 'portfolio-admin', label: 'Portfolio admin', detail: 'Profile, projects, media, and tour steps', icon: Images, feature: 'portfolio_admin' },
-    { slug: 'impersonation', label: 'View as user', detail: 'Audited owner support access', icon: ScanEye, permission: 'impersonation.manage' },
+    { slug: 'impersonation', label: 'Support access', detail: 'Expiring read-only support grants', icon: ScanEye, permission: 'support.manage' },
     { slug: 'website', label: 'Nexus Hub web', detail: 'Portfolio, legal, demo, and metaverse', icon: ExternalLink },
   ] },
 ];

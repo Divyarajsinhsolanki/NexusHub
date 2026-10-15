@@ -9,6 +9,8 @@ class Message < ApplicationRecord
   has_many_attached :attachments
   has_many :message_reactions, dependent: :destroy
 
+  validates :body, length: { maximum: 20_000 }
+  validate :attachment_resource_limits
   validate :body_or_attachment_present
   validate :reply_belongs_to_conversation
   validates :message_type, inclusion: { in: %w[message system] }
@@ -20,6 +22,11 @@ class Message < ApplicationRecord
   after_destroy_commit :refresh_conversation_last_message
 
   private
+
+  def attachment_resource_limits
+    return unless attachments.attached?
+    errors.add(:attachments, "are limited to 10 files and 100MB per message") if attachments.size > 10 || attachments.sum { |file| file.blob.byte_size } > 100.megabytes
+  end
 
   def reply_belongs_to_conversation
     return unless reply_to

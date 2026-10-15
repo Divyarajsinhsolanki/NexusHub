@@ -7,8 +7,8 @@ class McpControllerTest < ActionDispatch::IntegrationTest
     @user = create_test_user(workspace: @workspace, email: "mcp-owner@example.test")
     @foreign_user = create_test_user(workspace: @foreign_workspace, email: "mcp-foreign@example.test")
 
-    owner_role = Role.find_or_create_by!(name: "owner")
-    UserRole.create!(workspace: @workspace, user: @user, role: owner_role)
+    # MCP uses a nonprivileged integration identity with project ownership.
+    Current.set(workspace: @workspace) { @user.roles = [Role.find_by!(name: "member")] }
 
     Current.user = @user
     Current.workspace = @workspace
@@ -177,14 +177,16 @@ class McpControllerTest < ActionDispatch::IntegrationTest
     )
 
     initializers = []
+    credential_workspaces = []
     exports = []
     fake_service = Object.new
     fake_service.define_singleton_method(:export_tasks) do |tasks, title: nil|
       exports << { tasks: tasks.to_a, title: title }
     end
 
-    factory = lambda do |sheet_name, spreadsheet_id|
+    factory = lambda do |sheet_name, spreadsheet_id, workspace:|
       initializers << { sheet_name: sheet_name, spreadsheet_id: spreadsheet_id }
+      credential_workspaces << workspace.id
       fake_service
     end
 
@@ -207,6 +209,7 @@ class McpControllerTest < ActionDispatch::IntegrationTest
     assert_equal "J1", payload.fetch("sheet_name")
     assert_equal 1, payload.fetch("task_count")
     assert_equal [{ sheet_name: "J1", spreadsheet_id: "sheet-test-123" }], initializers
+    assert_equal [@workspace.id], credential_workspaces
     assert_equal [task.id], exports.first.fetch(:tasks).map(&:id)
     assert_match(/J1 : 06\/01\/2026 - 06\/05\/2026/, exports.first.fetch(:title))
   end
@@ -405,49 +408,14 @@ class McpControllerTest < ActionDispatch::IntegrationTest
     assert_equal @workspace.id, workspace.fetch("id")
   end
 
-  test "repo patch tool is disabled unless explicitly enabled" do
-    _record, raw_repo_token = McpAccessToken.issue!(
-      user: @user,
-      name: "repo-write",
-      scopes: %w[app:read app:write repo:read repo:write]
-    )
-
-    with_env("MCP_ENABLE_CODE_TOOLS" => "false") do
-      post "/mcp",
-        params: rpc_payload("tools/call", { name: "repo_apply_patch", arguments: { patch: "diff --git a/README.md b/README.md\n" } }).to_json,
-        headers: json_headers.merge("Authorization" => "Bearer #{raw_repo_token}")
+  test "raw database and repository mutation credentials cannot bypass privileged MFA" do
+    %w[db:read repo:write system:admin].each do |scope|
+      _, raw = McpAccessToken.issue!(user: @user, name: "restricted-#{scope}", scopes: ["app:read", scope])
+      with_env("MCP_ENABLE_DB_TOOLS" => "true", "MCP_ENABLE_CODE_TOOLS" => "true", "MCP_ENABLE_RAILS_RUNTIME_TOOLS" => "true") do
+        post "/mcp", params: rpc_payload("initialize").to_json, headers: json_headers.merge("Authorization" => "Bearer #{raw}")
+      end
+      assert_response :unauthorized
     end
-
-    assert_response :success
-    payload = JSON.parse(response.body).dig("result")
-    assert_equal true, payload.fetch("isError")
-    assert_match(/Repository code tools are disabled/, payload.dig("structuredContent", "error"))
-  end
-
-  test "db query requires db scope and env flag then runs read only sql" do
-    post_rpc("tools/call", { name: "db_query", arguments: { sql: "SELECT 1 AS one" } })
-
-    assert_response :success
-    blocked = JSON.parse(response.body).dig("result")
-    assert_equal true, blocked.fetch("isError")
-    assert_match(/does not allow database reads/, blocked.dig("structuredContent", "error"))
-
-    _record, raw_db_token = McpAccessToken.issue!(
-      user: @user,
-      name: "db-read",
-      scopes: %w[app:read repo:read db:read]
-    )
-
-    with_env("MCP_ENABLE_DB_TOOLS" => "true") do
-      post "/mcp",
-        params: rpc_payload("tools/call", { name: "db_query", arguments: { sql: "SELECT 1 AS one" } }).to_json,
-        headers: json_headers.merge("Authorization" => "Bearer #{raw_db_token}")
-    end
-
-    assert_response :success
-    payload = JSON.parse(response.body).dig("result", "structuredContent")
-    assert_equal ["one"], payload.fetch("columns")
-    assert_equal [{ "one" => 1 }], payload.fetch("rows")
   end
 
   test "rails runtime tools require system admin scope and env flag" do
@@ -488,50 +456,10 @@ class McpControllerTest < ActionDispatch::IntegrationTest
     assert_not File.exist?(Rails.root.join("mcp_preview.txt"))
   end
 
-  test "repo write file creates and overwrites with sha guard" do
-    _record, raw_repo_token = McpAccessToken.issue!(
-      user: @user,
-      name: "repo-write-file",
-      scopes: %w[app:read app:write repo:read repo:write]
-    )
-    path = "tmp_mcp_write_test.txt"
-    full_path = Rails.root.join(path)
-    FileUtils.rm_f(full_path)
-
-    begin
-      with_env("MCP_ENABLE_CODE_TOOLS" => "true") do
-        post "/mcp",
-          params: rpc_payload("tools/call", { name: "repo_write_file", arguments: { path: path, content: "first\n" } }).to_json,
-          headers: json_headers.merge("Authorization" => "Bearer #{raw_repo_token}")
-      end
-
-      assert_response :success
-      created = JSON.parse(response.body).dig("result", "structuredContent")
-      assert_equal true, created.fetch("written")
-      assert_equal true, created.fetch("created")
-      assert_equal "first\n", File.read(full_path)
-
-      post "/mcp",
-        params: rpc_payload("tools/call", { name: "repo_read_file", arguments: { path: path } }).to_json,
-        headers: json_headers.merge("Authorization" => "Bearer #{raw_repo_token}")
-
-      assert_response :success
-      sha = JSON.parse(response.body).dig("result", "structuredContent", "sha256")
-
-      with_env("MCP_ENABLE_CODE_TOOLS" => "true") do
-        post "/mcp",
-          params: rpc_payload("tools/call", { name: "repo_write_file", arguments: { path: path, content: "second\n", expected_sha256: sha } }).to_json,
-          headers: json_headers.merge("Authorization" => "Bearer #{raw_repo_token}")
-      end
-
-      assert_response :success
-      updated = JSON.parse(response.body).dig("result", "structuredContent")
-      assert_equal true, updated.fetch("written")
-      assert_equal false, updated.fetch("created")
-      assert_equal "second\n", File.read(full_path)
-    ensure
-      FileUtils.rm_f(full_path)
-    end
+  test "workspace privileged accounts cannot use a password-only MCP credential" do
+    Current.set(workspace: @workspace) { @user.roles = [Role.find_by!(name: "owner")] }
+    post_rpc("initialize")
+    assert_response :unauthorized
   end
 
   test "workspace autopilot apply writes an audit log for approved actions" do

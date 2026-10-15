@@ -34,6 +34,7 @@ class BillingTest < ActionDispatch::IntegrationTest
     Current.set(user: @owner, workspace: @workspace) { @owner.roles = [Role.find_by!(name: "owner")] }
     @session, = MobileSession.issue_for!(user: @owner)
     @headers = { "Authorization" => "Bearer #{MobileAccessToken.issue(@session)[:token]}" }
+    enroll_test_mfa(@owner, headers: @headers, native: true)
   end
 
   teardown { ENV.replace(@previous_env) }

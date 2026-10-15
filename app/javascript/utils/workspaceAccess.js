@@ -1,11 +1,22 @@
 import { portfolioEnabled } from "../config/features";
 
-export const hasWorkspaceRole = (user, names) => user?.roles?.some((role) => names.includes(typeof role === "string" ? role : role.name)) || false;
+export const hasWorkspaceRole = (user, names) => (!user?.workspace_membership || user.workspace_membership.status === "active") && user?.roles?.some((role) => names.includes(typeof role === "string" ? role : role.name)) || false;
+const legacyPermissions = {
+  "invitations.manage": ["owner", "admin"], "offboarding.manage": ["owner"],
+  "users.create": ["owner", "admin"], "users.manage": ["owner"],
+  "memberships.manage": ["owner"], "support.manage": ["owner"],
+  "admin.manage": ["owner", "admin"],
+};
+export const hasWorkspacePermission = (user, permission) => {
+  if (!user || (user.workspace_membership && user.workspace_membership.status !== "active")) return false;
+  if (Array.isArray(user.permissions)) return user.permissions.includes(permission);
+  return hasWorkspaceRole(user, legacyPermissions[permission] || []);
+};
 export const canAccessWorkspacePath = (user, path) => {
-  if (!user) return false;
-  if (path === "/admin/portfolio") return portfolioEnabled && Boolean(user.site_admin);
-  if (path === "/admin/login-as-user") return hasWorkspaceRole(user, ["owner"]);
-  if (path === "/admin") return Boolean(user.site_admin) || hasWorkspaceRole(user, ["owner", "admin"]);
+  if (!user || (user.workspace_membership && user.workspace_membership.status !== "active")) return false;
+  if (path === "/admin/portfolio") return portfolioEnabled && (Array.isArray(user.permissions) ? user.permissions.includes("portfolio.manage") : Boolean(user.site_admin));
+  if (path === "/admin/login-as-user") return hasWorkspacePermission(user, "support.manage") || hasWorkspacePermission(user, "support.inspect") || Boolean(user.site_admin && !Array.isArray(user.permissions));
+  if (path === "/admin") return hasWorkspacePermission(user, "admin.manage") || (!Array.isArray(user.permissions) && Boolean(user.site_admin));
   return true;
 };
 

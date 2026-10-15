@@ -2,7 +2,7 @@ namespace :storage do
   desc "Copy Active Storage blobs between services and update their service_name after verification"
   task migrate_service: :environment do
     source = ENV.fetch("SOURCE", "local")
-    destination = ENV.fetch("DESTINATION", "cloudinary")
+    destination = ENV.fetch("DESTINATION", "private_cloudinary")
     dry_run = ActiveModel::Type::Boolean.new.cast(ENV["DRY_RUN"])
 
     result = ActiveStorageBlobMigrator.new(

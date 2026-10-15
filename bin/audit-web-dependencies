@@ -1,0 +1,10 @@
+#!/usr/bin/env ruby
+require_relative '../lib/release_security/dependency_audit'
+begin
+  output, _errors, status = Open3.capture3('yarn', 'audit', '--groups', 'dependencies', '--json')
+  counts = ReleaseSecurity::DependencyAudit.verify!(output, status.exitstatus)
+  puts JSON.generate(web_dependency_audit: counts)
+rescue StandardError => error
+  warn(error.is_a?(ReleaseSecurity::Rejected) ? error.message : 'Web dependency audit could not run; release blocked.')
+  exit 1
+end

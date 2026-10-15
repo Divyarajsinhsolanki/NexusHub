@@ -126,5 +126,13 @@
   "/reset-password": {
     "title": "Reset Password",
     "description": "Reset Password in Nexus Hub. Manage your workspace and collaborate with your team."
+  },
+  "/invitations/accept": {
+    "title": "Accept Invitation",
+    "description": "Join your company workspace through a private invitation."
+  },
+  "/privacy-requests": {
+    "title": "Privacy rights requests",
+    "description": "Submit a privacy rights request and privately track the operator\u2019s response."
   }
 }

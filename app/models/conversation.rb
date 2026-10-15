@@ -6,7 +6,8 @@ class Conversation < ApplicationRecord
   belongs_to :creator, class_name: "User"
   belongs_to :last_message, class_name: "Message", optional: true
   has_many :conversation_participants, dependent: :destroy
-  has_many :participants, through: :conversation_participants, source: :user
+  has_many :active_conversation_participants, -> { active }, class_name: "ConversationParticipant"
+  has_many :participants, through: :active_conversation_participants, source: :user
   has_many :scheduled_chat_messages, dependent: :destroy
   has_many :messages, dependent: :destroy
   has_many :call_sessions, dependent: :destroy
@@ -16,7 +17,7 @@ class Conversation < ApplicationRecord
 
   before_destroy :clear_last_message_reference
 
-  scope :for_user_including_hidden, ->(user) { joins(:conversation_participants).where(conversation_participants: { user_id: user.id }).distinct }
+  scope :for_user_including_hidden, ->(user) { user&.workspace_access? ? where(workspace_id: user.workspace_id).joins(:conversation_participants).where(conversation_participants: { user_id: user.id, removed_at: nil }).distinct : none }
   scope :for_user, ->(user) { for_user_including_hidden(user).where(conversation_participants: { hidden_at: nil }) }
 
   def direct?

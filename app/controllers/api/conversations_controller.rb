@@ -96,8 +96,8 @@ class Api::ConversationsController < Api::BaseController
     end
 
     requested_ids = Array(params[:participant_ids]).map(&:to_i).uniq
-    requested_ids -= @conversation.participant_ids
-    users = current_user.workspace.users.where(id: requested_ids).to_a
+    requested_ids -= @conversation.active_conversation_participants.pluck(:user_id)
+    users = current_user.workspace.users.where(id: requested_ids).select(&:workspace_access?)
 
     if users.length != requested_ids.length
       render json: { error: "invalid_participants", message: "Every participant must belong to this workspace" }, status: :unprocessable_entity
@@ -106,7 +106,7 @@ class Api::ConversationsController < Api::BaseController
 
     invited_calls = Conversation.transaction do
       users.each do |user|
-        @conversation.conversation_participants.create!(workspace: @conversation.workspace, user: user)
+        @conversation.conversation_participants.find_or_initialize_by(user: user).tap { |membership| membership.workspace = @conversation.workspace; membership.removed_at = nil; membership.save! }
         @conversation.messages.create!(user: current_user, message_type: 'system', body: "#{current_user.full_name} added #{user.full_name}")
       end
       invite_users_to_live_calls(users)

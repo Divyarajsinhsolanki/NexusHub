@@ -11,6 +11,7 @@ class ChatProductivityTest < ActionDispatch::IntegrationTest
     [@user, @other].each { |user| @conversation.conversation_participants.create!(user: user) }
     @root = @conversation.messages.create!(user: @user, body: 'Root')
     post '/api/login', params: { auth: { email: @user.email, password: 'Password!42' } }
+    complete_test_mfa
     assert_response :success
   end
   test 'pin listing and paginated threads stay in their conversation' do
@@ -81,11 +82,13 @@ class ChatProductivityTest < ActionDispatch::IntegrationTest
     assert_response :created
     id = response.parsed_body['id']
     post '/api/login', params: { auth: { email: @other.email, password: 'Password!42' } }
+    complete_test_mfa
     get "#{base}/scheduled_messages"
     assert_empty response.parsed_body['data']
     delete "#{base}/scheduled_messages/#{id}"
     assert_response :not_found
     post '/api/login', params: { auth: { email: @user.email, password: 'Password!42' } }
+    complete_test_mfa
     delete "#{base}/scheduled_messages/#{id}"
     assert_response :no_content
     travel 2.hours do
@@ -109,6 +112,7 @@ class ChatProductivityTest < ActionDispatch::IntegrationTest
   test 'native bearer clients share pins threads and schedules' do
     native = open_session
     native.post '/api/v1/auth/login', params: { auth: { email: @user.email, password: 'Password!42', device_name: 'Tools' } }
+    complete_test_mfa native: true
     assert_equal 200, native.response.status
     headers = { 'Authorization' => "Bearer #{native.response.parsed_body.dig('data', 'access_token')}", 'Accept' => 'application/json' }
     path = "/api/v1/conversations/#{@conversation.id}"

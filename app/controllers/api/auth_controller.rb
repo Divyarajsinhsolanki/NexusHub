@@ -5,6 +5,7 @@ require 'open-uri'
 class Api::AuthController < Api::BaseController
   include Rails.application.routes.url_helpers
   skip_before_action :authenticate_user!, only: [:login, :signup, :refresh, :logout]
+  skip_before_action :require_privileged_mfa!, only: [:login, :signup, :refresh, :logout]
   skip_before_action :enforce_demo_read_only!, only: [:login, :signup, :refresh, :logout]
   after_action :expose_csrf_token, only: [:login, :logout]
 
@@ -70,10 +71,15 @@ class Api::AuthController < Api::BaseController
 
     return render json: { error: "Account locked" }, status: :unauthorized if user.locked?
 
+    return render json: { error: "workspace_membership_inactive" }, status: :forbidden unless user.workspace_access?
+
     Current.workspace = user.workspace
     clear_jwt_cookies!
     reset_session
-    set_jwt_cookie!(user)
+    login_session = WebSession.issue_for!(user)
+    login_session.update!(primary_verified_at: Time.current)
+    set_jwt_cookie!(user, web_session: login_session)
+    @security_web_session = login_session
     render json: {
       message: "Login successful",
       user: authentication_user_payload(user),

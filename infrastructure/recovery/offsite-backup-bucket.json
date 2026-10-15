@@ -1,0 +1,294 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Deploy in the separate recovery AWS account. Encrypted versioned locked backups; never applied automatically.",
+  "Parameters": {
+    "WriterPrincipalArn": {
+      "Type": "String",
+      "Description": "Explicit source backup-writer role ARN"
+    },
+    "RestorePrincipalArn": {
+      "Type": "String",
+      "Description": "Separate recovery-reader role ARN"
+    },
+    "BackupPrefix": {
+      "Type": "String",
+      "Default": "nexus/production",
+      "AllowedPattern": "[A-Za-z0-9][A-Za-z0-9/_-]*"
+    }
+  },
+  "Resources": {
+    "BackupKey": {
+      "Type": "AWS::KMS::Key",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Properties": {
+        "EnableKeyRotation": true,
+        "KeyPolicy": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "AccountAdministration",
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": {
+                  "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:root"
+                }
+              },
+              "Action": "kms:*",
+              "Resource": "*"
+            },
+            {
+              "Sid": "BackupWriter",
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": {
+                  "Ref": "WriterPrincipalArn"
+                }
+              },
+              "Action": [
+                "kms:GenerateDataKey",
+                "kms:Encrypt",
+                "kms:Decrypt"
+              ],
+              "Resource": "*",
+              "Condition": {
+                "StringEquals": {
+                  "kms:ViaService": {
+                    "Fn::Sub": "s3.${AWS::Region}.${AWS::URLSuffix}"
+                  }
+                }
+              }
+            },
+            {
+              "Sid": "RecoveryReader",
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": {
+                  "Ref": "RestorePrincipalArn"
+                }
+              },
+              "Action": [
+                "kms:Decrypt",
+                "kms:DescribeKey"
+              ],
+              "Resource": "*",
+              "Condition": {
+                "StringEquals": {
+                  "kms:ViaService": {
+                    "Fn::Sub": "s3.${AWS::Region}.${AWS::URLSuffix}"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "BackupBucket": {
+      "Type": "AWS::S3::Bucket",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Properties": {
+        "VersioningConfiguration": {
+          "Status": "Enabled"
+        },
+        "ObjectLockEnabled": true,
+        "ObjectLockConfiguration": {
+          "ObjectLockEnabled": "Enabled",
+          "Rule": {
+            "DefaultRetention": {
+              "Mode": "COMPLIANCE",
+              "Days": 35
+            }
+          }
+        },
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "aws:kms",
+                "KMSMasterKeyID": {
+                  "Fn::GetAtt": [
+                    "BackupKey",
+                    "Arn"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "IgnorePublicAcls": true,
+          "BlockPublicPolicy": true,
+          "RestrictPublicBuckets": true
+        },
+        "OwnershipControls": {
+          "Rules": [
+            {
+              "ObjectOwnership": "BucketOwnerEnforced"
+            }
+          ]
+        },
+        "LifecycleConfiguration": {
+          "Rules": [
+            {
+              "Id": "ExpireAfterRecoveryWindow",
+              "Status": "Enabled",
+              "ExpirationInDays": 90,
+              "NoncurrentVersionExpiration": {
+                "NoncurrentDays": 90
+              },
+              "AbortIncompleteMultipartUpload": {
+                "DaysAfterInitiation": 7
+              }
+            }
+          ]
+        }
+      }
+    },
+    "BackupBucketPolicy": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "Bucket": {
+          "Ref": "BackupBucket"
+        },
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "RequireTLS",
+              "Effect": "Deny",
+              "Principal": "*",
+              "Action": "s3:*",
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "BackupBucket",
+                    "Arn"
+                  ]
+                },
+                {
+                  "Fn::Sub": "${BackupBucket.Arn}/*"
+                }
+              ],
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false"
+                }
+              }
+            },
+            {
+              "Sid": "WriterConfigurationRead",
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": {
+                  "Ref": "WriterPrincipalArn"
+                }
+              },
+              "Action": [
+                "s3:GetBucketVersioning",
+                "s3:GetBucketObjectLockConfiguration"
+              ],
+              "Resource": {
+                "Fn::GetAtt": [
+                  "BackupBucket",
+                  "Arn"
+                ]
+              }
+            },
+            {
+              "Sid": "WriterAppendAndVerify",
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": {
+                  "Ref": "WriterPrincipalArn"
+                }
+              },
+              "Action": [
+                "s3:PutObject",
+                "s3:PutObjectRetention",
+                "s3:GetObjectVersion",
+                "s3:GetObjectRetention"
+              ],
+              "Resource": {
+                "Fn::Sub": "${BackupBucket.Arn}/${BackupPrefix}/*"
+              }
+            },
+            {
+              "Sid": "WriterCannotDelete",
+              "Effect": "Deny",
+              "Principal": {
+                "AWS": {
+                  "Ref": "WriterPrincipalArn"
+                }
+              },
+              "Action": [
+                "s3:DeleteObject",
+                "s3:DeleteObjectVersion",
+                "s3:BypassGovernanceRetention"
+              ],
+              "Resource": {
+                "Fn::Sub": "${BackupBucket.Arn}/*"
+              }
+            },
+            {
+              "Sid": "ReaderRetrieveVersion",
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": {
+                  "Ref": "RestorePrincipalArn"
+                }
+              },
+              "Action": [
+                "s3:GetObject",
+                "s3:GetObjectVersion"
+              ],
+              "Resource": {
+                "Fn::Sub": "${BackupBucket.Arn}/${BackupPrefix}/*"
+              }
+            },
+            {
+              "Sid": "ReaderListVersions",
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": {
+                  "Ref": "RestorePrincipalArn"
+                }
+              },
+              "Action": [
+                "s3:ListBucketVersions"
+              ],
+              "Resource": {
+                "Fn::GetAtt": [
+                  "BackupBucket",
+                  "Arn"
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "Bucket": {
+      "Value": {
+        "Ref": "BackupBucket"
+      }
+    },
+    "KmsKeyArn": {
+      "Value": {
+        "Fn::GetAtt": [
+          "BackupKey",
+          "Arn"
+        ]
+      }
+    },
+    "ExpectedOwner": {
+      "Value": {
+        "Ref": "AWS::AccountId"
+      }
+    }
+  }
+}

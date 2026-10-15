@@ -1,5 +1,9 @@
 Rails.application.routes.draw do
   devise_for :users, controllers: { confirmations: 'users/confirmations' }
+  # Preserve existing blob URLs, but authorize every delivery instead of redirecting
+  # to a reusable provider URL. Engine disk and transformation routes are retired.
+  get "/rails/active_storage/blobs/:delivery/:signed_id/*filename", to: "api/private_files#show", constraints: { delivery: /redirect|proxy/ }
+  match "/rails/active_storage/*path", to: "api/private_file_routes#retired", via: :all
   mount ActiveStorage::Engine => "/rails/active_storage"
   mount ActionCable.server => "/cable"
 
@@ -20,7 +24,7 @@ Rails.application.routes.draw do
   post "/mcp", to: "mcp#handle"
   match "/mcp", to: "mcp#preflight", via: :options
 
-  # Legacy PDF reads remain available until their existing 24-hour tokens expire.
+  # Legacy URL helpers remain for compatibility; PrivateFileProtection retires unowned tokens.
   get  "/download_pdf", to: "pdfs#download"
   match "/pdf_file/:token", to: "pdfs#status", via: :head
   get  "/pdf_file/:token", to: "pdfs#show", as: :pdf_file
@@ -29,6 +33,18 @@ Rails.application.routes.draw do
   # React now handles the /sheet route. Data is provided via the API below.
 
   namespace :api do
+    get "release_status", to: "release_status#show"
+    resources :privacy_requests, only: [:create] do
+      collection do
+        post :verify
+        post :status
+      end
+    end
+    resources :privacy_request_management, only: [:index, :update]
+    get "workspace_integrations", to: "workspace_integrations#index"
+    put "workspace_integrations/:provider", to: "workspace_integrations#update"
+    delete "workspace_integrations/:provider", to: "workspace_integrations#destroy"
+    get "csrf", to: "csrf#show"
     get "billing", to: "/api/billing#show"
     post "billing/checkout", to: "/api/billing#checkout"
     post "billing/refresh", to: "/api/billing#refresh"
@@ -40,6 +56,9 @@ Rails.application.routes.draw do
     post 'account/deletion', to: '/api/account#schedule'
     delete 'account/deletion', to: '/api/account#cancel'
     namespace :v1 do
+      post 'privacy_requests', to: '/api/privacy_requests#create'
+      post 'privacy_requests/verify', to: '/api/privacy_requests#verify'
+      post 'privacy_requests/status', to: '/api/privacy_requests#status'
     get "billing", to: "/api/billing#show"
     post "billing/checkout", to: "/api/billing#checkout"
     post "billing/refresh", to: "/api/billing#refresh"
@@ -69,6 +88,8 @@ Rails.application.routes.draw do
       delete "mobile_device", to: "mobile_devices#destroy"
       post "realtime/token", to: "realtime#token"
       post "uploads", to: "uploads#create"
+      put "uploads/:id", to: "uploads#update"
+      post "file_access", to: "file_access#create"
       get "mobile_config", to: "mobile_config#show"
       get "portfolio", to: "portfolio#show"
       get "demo/manifest", to: "demo#manifest"
@@ -80,6 +101,9 @@ Rails.application.routes.draw do
       get :activity, to: "/api/activity#index"
       get :search, to: "/api/search#index"
       get :daily_momentum, to: "/api/daily_momentum#show"
+      get "workspace_integrations", to: "/api/workspace_integrations#index"
+      put "workspace_integrations/:provider", to: "/api/workspace_integrations#update"
+      delete "workspace_integrations/:provider", to: "/api/workspace_integrations#destroy"
       post "keka/credentials", to: "/api/keka#credentials"
       get "keka/profile", to: "/api/keka#profile"
       post "keka/refresh", to: "/api/keka#refresh"
@@ -198,6 +222,25 @@ Rails.application.routes.draw do
           patch :update_role
         end
       end
+      resource :mfa, controller: "mfa", only: [:show, :destroy] do
+        post :setup
+        post :confirm
+        post :verify
+        post :recovery
+      end
+      resources :support_access_grants, only: [:index, :create] do
+        post :revoke, on: :member
+        get :inspect_records, on: :member
+      end
+      resources :workspace_invitations, controller: "/api/v1/workspace_invitations", only: [:index, :create] do
+        post :preview, on: :collection
+        post :accept, on: :collection
+        post :resend, on: :member
+        post :revoke, on: :member
+      end
+      get "workspace_memberships/:workspace_membership_id/offboarding", to: "/api/v1/workspace_offboardings#preview"
+      post "workspace_memberships/:workspace_membership_id/offboarding", to: "/api/v1/workspace_offboardings#create"
+      resources :workspace_memberships, controller: "/api/workspace_memberships", only: [:index, :update]
       resources :roles, controller: "/api/roles", only: [:index]
 
       resources :items, controller: "/api/items", only: [:index, :create, :update, :destroy]
@@ -546,6 +589,25 @@ Rails.application.routes.draw do
     end
     resources :pdf_document_operations, only: %i[index create show]
 
+    resource :mfa, controller: "mfa", only: [:show, :destroy] do
+      post :setup
+      post :confirm
+      post :verify
+      post :recovery
+    end
+    resources :support_access_grants, only: [:index, :create] do
+      post :revoke, on: :member
+      get :inspect_records, on: :member
+    end
+    resources :workspace_invitations, only: [:index, :create] do
+      post :preview, on: :collection
+      post :accept, on: :collection
+      post :resend, on: :member
+      post :revoke, on: :member
+    end
+    get "workspace_memberships/:workspace_membership_id/offboarding", to: "workspace_offboardings#preview"
+    post "workspace_memberships/:workspace_membership_id/offboarding", to: "workspace_offboardings#create"
+    resources :workspace_memberships, only: [:index, :update]
     resources :roles, only: [:index]
 
     resources :work_categories, only: [:index, :create, :update, :destroy]

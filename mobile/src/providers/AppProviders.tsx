@@ -4,6 +4,7 @@ import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client
 import { PropsWithChildren, useEffect, useState } from 'react';
 import { AppState, Platform } from 'react-native';
 
+import {NativeMfaGate} from '../screens/MfaSecurityScreen';
 import { AuthProvider } from '../auth/AuthProvider';
 import {
   createMobileQueryClient,
@@ -47,11 +48,11 @@ export function AppProviders({ children }: PropsWithChildren) {
       }}>
       <AuthProvider>
         <AppThemeProvider>
-          <RealtimeProvider>
+          <NativeMfaGate><RealtimeProvider>
             <MobileCacheWarmup />
             <MobileRealtimeSync />
             {children}
-          </RealtimeProvider>
+          </RealtimeProvider></NativeMfaGate>
         </AppThemeProvider>
       </AuthProvider>
     </PersistQueryClientProvider>

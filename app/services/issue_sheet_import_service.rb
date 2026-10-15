@@ -27,7 +27,7 @@ class IssueSheetImportService
 
   def call
     log_sheet_info('Issue sheet import started')
-    rows = GoogleSheetsReader.new(@sheet_name, @spreadsheet_id).read_data
+    rows = GoogleSheetsReader.new(@sheet_name, @spreadsheet_id, workspace: @project.workspace).read_data
     if rows.blank?
       summary = { created: 0, updated: 0, skipped: 0, total: 0 }
       log_sheet_info('Issue sheet import completed', summary: summary)

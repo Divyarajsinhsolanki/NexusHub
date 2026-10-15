@@ -28,7 +28,7 @@ const rect = (top, height, width = 1200) => ({
 });
 const setDimension = (element, name, value) =>
   Object.defineProperty(element, name, { configurable: true, value });
-const applyLayout = (root, layoutDependsOnPinned) => {
+const applyLayout = (root) => {
   [
     ["top", 0, 900],
     ["about", 1000, 900],
@@ -44,27 +44,14 @@ const applyLayout = (root, layoutDependsOnPinned) => {
     () => rect(100, 100);
   root.querySelector("[data-testid='later-reveal']").getBoundingClientRect =
     () => rect(1200, 100);
-  setDimension(
-    root.querySelector("[data-gallery-viewport]"),
-    "clientWidth",
-    1000,
-  );
-  const track = root.querySelector("[data-gallery-track]");
-  if (layoutDependsOnPinned) {
-    Object.defineProperty(track, "scrollWidth", {
-      configurable: true,
-      get: () =>
-        root.querySelector("[data-portfolio-gallery]").dataset.galleryPinned ===
-        "true"
-          ? 1800
-          : 1000,
-    });
-  } else setDimension(track, "scrollWidth", 1800);
+  root.querySelector("[data-scroll-scene]").getBoundingClientRect = () => rect(1900, 1600);
+  root.querySelector("[data-kinetic]").getBoundingClientRect = () => rect(3500, 200);
+
 };
 
-function Harness({ layoutDependsOnPinned = false }) {
+function Harness({ motionEnabled = true }) {
   const rootRef = useRef(null);
-  const { activeSection, reducedMotion } = usePortfolioMotion(rootRef);
+  const { activeSection, reducedMotion } = usePortfolioMotion(rootRef, [], motionEnabled);
   return (
     <div
       data-testid="root"
@@ -72,7 +59,7 @@ function Harness({ layoutDependsOnPinned = false }) {
       style={{ "--pointer-x": "0.25" }}
       ref={(node) => {
         rootRef.current = node;
-        if (node) applyLayout(node, layoutDependsOnPinned);
+        if (node) applyLayout(node);
       }}
     >
       <output data-testid="state">
@@ -85,14 +72,13 @@ function Harness({ layoutDependsOnPinned = false }) {
         </p>
       </section>
       <section id="about" data-portfolio-section>
-        <p data-testid="later-reveal" data-reveal>
+        <p data-testid="later-reveal" data-reveal data-parallax="0.1">
           About
         </p>
       </section>
-      <section id="features" data-portfolio-section data-portfolio-gallery>
-        <div data-gallery-viewport>
-          <div data-gallery-track>Projects</div>
-        </div>
+      <section id="features" data-portfolio-section>
+        <div data-scroll-scene data-testid="cinema">Product walkthrough</div>
+        <div data-kinetic data-testid="ribbon">Build</div>
       </section>
       <section id="contact" data-portfolio-section>
         Contact
@@ -190,21 +176,9 @@ afterEach(() => {
 });
 
 describe("usePortfolioMotion", () => {
-  it("enables the horizontal CSS layout before measuring its initial overflow", () => {
-    const { container } = render(<Harness layoutDependsOnPinned />);
-    const gallery = container.querySelector("[data-portfolio-gallery]");
-    expect(gallery.dataset.galleryPinned).toBe("true");
-    expect(gallery.style.getPropertyValue("--gallery-distance")).toBe("800px");
-    scrollPosition = 2300;
-    fireEvent.scroll(window);
-    flushFrame();
-    expect(gallery.style.getPropertyValue("--gallery-shift")).toBe("-400px");
-  });
-
-  it("batches native scrolling into gallery motion, section navigation, and pointer depth", () => {
+  it("batches native scrolling into section navigation, and pointer depth", () => {
     const { container } = render(<Harness />);
     const root = screen.getByTestId("root");
-    const gallery = container.querySelector("[data-portfolio-gallery]");
     expect(root.dataset.motion).toBe("ready");
     expect(
       screen.getByTestId("first-reveal").classList.contains("is-visible"),
@@ -212,7 +186,6 @@ describe("usePortfolioMotion", () => {
     expect(
       screen.getByTestId("later-reveal").classList.contains("is-visible"),
     ).toBe(false);
-    expect(gallery.dataset.galleryPinned).toBe("true");
     expect(screen.getByTestId("state").textContent).toBe("top:false");
 
     scrollPosition = 2300;
@@ -228,8 +201,6 @@ describe("usePortfolioMotion", () => {
     );
     expect(frames.size).toBe(1);
     flushFrame();
-    expect(gallery.style.getPropertyValue("--gallery-progress")).toBe("0.5");
-    expect(gallery.style.getPropertyValue("--gallery-shift")).toBe("-400px");
     expect(root.style.getPropertyValue("--page-progress")).toBe(
       String(2300 / 3800),
     );
@@ -252,7 +223,6 @@ describe("usePortfolioMotion", () => {
 
   it("responds to reduced motion and viewport changes without concealing content", () => {
     const { container } = render(<Harness />);
-    const gallery = container.querySelector("[data-portfolio-gallery]");
     const scene = container.querySelector("[data-hero-scene]");
     scrollPosition = 2300;
     fireEvent.scroll(window);
@@ -262,28 +232,50 @@ describe("usePortfolioMotion", () => {
     changeMedia("(prefers-reduced-motion: reduce)", true);
     flushFrame();
     expect(screen.getByTestId("state").textContent).toBe("features:true");
-    expect(gallery.dataset.galleryPinned).toBe("false");
-    expect(gallery.style.getPropertyValue("--gallery-shift")).toBe("0px");
     expect(scene.style.getPropertyValue("--scene-scroll")).toBe("0");
     expect(
       screen.getByTestId("later-reveal").classList.contains("is-visible"),
     ).toBe(true);
 
-    changeMedia("(min-width: 901px)", false);
     changeMedia("(prefers-reduced-motion: reduce)", false);
     flushFrame();
-    expect(gallery.dataset.galleryPinned).toBe("false");
-    changeMedia("(min-width: 901px)", true);
     flushFrame();
-    expect(gallery.dataset.galleryPinned).toBe("true");
-    expect(gallery.style.getPropertyValue("--gallery-shift")).toBe("-400px");
+  });
+
+  it("drives parallax, cinematic progress and kinetic ribbons, then stops requesting frames", () => {
+    const { unmount } = render(<Harness />);
+    const layer = screen.getByTestId("later-reveal");
+    const initial = layer.style.getPropertyValue("--parallax-y");
+    scrollPosition = 2300;
+    fireEvent.scroll(window);
+    flushFrame();
+    expect(layer.style.getPropertyValue("--parallax-y")).not.toBe(initial);
+    expect(Number(screen.getByTestId("cinema").style.getPropertyValue("--cinema-progress"))).toBeGreaterThan(0);
+    expect(screen.getByTestId("ribbon").style.getPropertyValue("--ribbon-skew")).not.toBe("0deg");
+    for (let index = 0; index < 120 && frames.size; index += 1) flushFrame();
+    expect(frames.size).toBe(0);
+    expect(screen.getByTestId("ribbon").style.getPropertyValue("--ribbon-skew")).toBe("0deg");
+    unmount();
+    expect(layer.style.getPropertyValue("--parallax-y")).toBe("");
+  });
+
+  it("resets decorative transforms and stops kinetic frames when motion is paused", () => {
+    const { rerender } = render(<Harness />);
+    scrollPosition = 2300;
+    fireEvent.scroll(window);
+    flushFrame();
+    rerender(<Harness motionEnabled={false} />);
+    expect(screen.getByTestId("root").dataset.reducedMotion).toBe("true");
+    expect(screen.getByTestId("later-reveal").style.getPropertyValue("--parallax-y")).toBe("0px");
+    expect(screen.getByTestId("cinema").style.getPropertyValue("--cinema-progress")).toBe("1");
+    expect(screen.getByTestId("ribbon").style.getPropertyValue("--ribbon-skew")).toBe("0deg");
+    expect(frames.size).toBe(0);
   });
 
   it("shows all content without observers and restores owned DOM state on cleanup", () => {
     vi.stubGlobal("IntersectionObserver", undefined);
     const { container, unmount } = render(<Harness />);
     const root = screen.getByTestId("root");
-    const gallery = container.querySelector("[data-portfolio-gallery]");
     expect(
       screen.getByTestId("later-reveal").classList.contains("is-visible"),
     ).toBe(true);
@@ -294,7 +286,6 @@ describe("usePortfolioMotion", () => {
     expect(root.dataset.motion).toBe("pending");
     expect(root.style.getPropertyValue("--pointer-x")).toBe("0.25");
     expect(root.style.getPropertyValue("--page-progress")).toBe("");
-    expect(gallery.hasAttribute("data-gallery-pinned")).toBe(false);
     expect(resizeObservers[0].disconnect).toHaveBeenCalledOnce();
     mediaQueries.forEach((media) => expect(media.listeners.size).toBe(0));
     fireEvent.scroll(window);

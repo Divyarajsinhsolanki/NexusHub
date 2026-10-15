@@ -23,6 +23,7 @@ class ProfileKekaTest < ActionDispatch::IntegrationTest
     post "/api/login", params: {
       auth: { email: user.email, password: "Password!42" }
     }
+    complete_test_mfa
     assert_response :success
 
     get "/api/view_profile"
@@ -31,5 +32,13 @@ class ProfileKekaTest < ActionDispatch::IntegrationTest
     payload = JSON.parse(response.body)
     assert_equal user.id, payload.dig("user", "id")
     assert_not payload.dig("keka", "connected")
+
+    user.update!(keka_api_key: "saved-personal-secret", keka_profile_data: {
+      api_key: "saved-personal-secret", description: "echo saved-personal-secret", employee_name: "Employee"
+    })
+    get "/api/keka/profile"
+    assert_response :success
+    refute_includes response.body, "saved-personal-secret"
+    assert_equal "Employee", response.parsed_body.dig("keka", "data", "employee_name")
   end
 end

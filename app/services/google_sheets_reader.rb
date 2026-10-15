@@ -6,7 +6,8 @@ class GoogleSheetsReader
 
   SHEET_READ_RANGE = 'A1:ZZ'.freeze
 
-  def initialize(sheet_name, spreadsheet_id)
+  def initialize(sheet_name, spreadsheet_id, workspace: Current.workspace)
+    @workspace = workspace
     @sheet_name = sheet_name
     @spreadsheet_id = spreadsheet_id
     @service = Google::Apis::SheetsV4::SheetsService.new
@@ -30,16 +31,7 @@ class GoogleSheetsReader
   private
 
   def authorize
-    scopes = ['https://www.googleapis.com/auth/spreadsheets.readonly']
-    authorizer = Google::Auth::ServiceAccountCredentials.make_creds(
-      json_key_io: File.open(Rails.root.join('config/google_service_account.json')),
-      scope: scopes
-    )
-    authorizer.fetch_access_token!
-    authorizer
-  rescue StandardError => e
-    log_sheet_error('Google Sheets readonly authorization failed', exception: e)
-    raise
+    Integrations::GoogleAuthorization.call(workspace: @workspace, readonly: true)
   end
 
   def ensure_spreadsheet_id!
@@ -47,6 +39,6 @@ class GoogleSheetsReader
 
     @service.get_spreadsheet(@spreadsheet_id, fields: 'spreadsheetId')
   rescue Google::Apis::ClientError => e
-    raise ArgumentError, "Spreadsheet ID is invalid or inaccessible: #{e.message}"
+    raise ArgumentError, "Spreadsheet ID is invalid or inaccessible."
   end
 end

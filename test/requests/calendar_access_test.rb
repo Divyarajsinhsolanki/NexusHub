@@ -12,6 +12,7 @@ class CalendarAccessTest < ActionDispatch::IntegrationTest
     @reminder = @event.event_reminders.create!(channel: "email", minutes_before: 10)
     Current.reset_all
     post "/api/login", params: { auth: { email: @user.email, password: "Password!42" } }
+    complete_test_mfa
     assert_response :success
   end
   test "invited and removed memberships cannot list export or access shared events and reminders" do

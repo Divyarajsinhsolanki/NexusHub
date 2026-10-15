@@ -114,7 +114,7 @@ class Api::ProjectsController < Api::BaseController
 
   def authorize_manager!
     return if @project&.manageable_by?(current_user)
-    allowed = current_user&.owner? || current_user&.admin? || current_user&.project_manager?
+    allowed = WorkspaceAuthorization.allowed?(current_user, "projects.manage")
     return if allowed
 
     log_project_event(:warn, 'Project management authorization failed')

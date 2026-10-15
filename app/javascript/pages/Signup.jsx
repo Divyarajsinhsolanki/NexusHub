@@ -51,11 +51,12 @@ const Signup = ({ switchToLogin, embedded = false }) => {
     }
 
     try {
-      await submitForm("/api/signup", "POST", submissionData);
+      const result = await submitForm("/api/signup", "POST", submissionData);
       if (returnTo) window.sessionStorage.setItem("post_auth_return_to", returnTo);
       if (switchToLogin) switchToLogin();
       else navigate("/", { state: { mode: "login" } });
-      toast.success("Account created. Please log in.");
+      if (result.confirmation_email_sent === false) toast.error(result.message || "Account created, but verification email delivery failed. Contact support before signing in.");
+      else toast.success(result.message || "Workspace created. Check your email to verify your account before signing in.");
     } catch (err) {
       const msg = err.response?.data?.errors?.join(", ") || "Signup failed. Please try again.";
       setError(msg);
@@ -68,8 +69,8 @@ const Signup = ({ switchToLogin, embedded = false }) => {
   return (
     <Layout>
       {loading && <SpinnerOverlay />}
-            <h2 className="mb-2 font-bold">Create your account</h2>
-            <p className="mb-6 text-sm text-shell-muted">A fresh start for you and your team.</p>
+            <h2 className="mb-2 font-bold">Create your company workspace</h2>
+            <p className="mb-6 text-sm text-shell-muted">A private workspace for your company. Verify your email to get started.</p>
 
             <form onSubmit={handleSubmit} className="space-y-4" encType="multipart/form-data" aria-busy={loading}>
               <div>
@@ -156,6 +157,7 @@ const Signup = ({ switchToLogin, embedded = false }) => {
                 />
               </div>
 
+              <p className="text-sm text-muted">Review our <a href="/legal#terms" className="underline">terms</a> and <a href="/legal#privacy" className="underline">privacy notice</a> before creating an account.</p>
               <button
                 type="submit"
                 disabled={loading}

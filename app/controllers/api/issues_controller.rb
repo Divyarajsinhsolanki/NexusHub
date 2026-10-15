@@ -78,6 +78,8 @@ class Api::IssuesController < Api::BaseController
     )
 
     render json: summary.merge(sheet_name: sheet_name)
+  rescue Integrations::SecretBox::Unavailable
+    raise
   rescue StandardError => e
     log_sheet_event(
       :error,

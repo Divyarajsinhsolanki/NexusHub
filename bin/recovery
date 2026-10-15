@@ -1,0 +1,21 @@
+#!/usr/bin/env ruby
+require 'bundler/setup' if File.exist?(File.expand_path('../Gemfile', __dir__))
+require_relative '../lib/recovery/toolkit'
+
+tool = Recovery::Toolkit.new
+begin
+  case ARGV.shift
+  when 'backup' then tool.backup
+  when 'check'
+    tool.check(ARGV.fetch(0), maximum_age: Integer(ENV.fetch('BACKUP_MAX_AGE_SECONDS', '93600')))
+    puts 'Fresh verified offsite backup receipt.'
+  when 'restore'
+    tool.restore(ARGV.fetch(0), local_file: ENV['RESTORE_LOCAL_FILE'])
+  else
+    abort 'Usage: bin/recovery backup | check RECEIPT | restore RECEIPT'
+  end
+rescue StandardError => error
+  # libpq and cloud SDK exception messages may include credentials or payloads.
+  warn(error.is_a?(Recovery::Error) ? error.message : "Recovery failed (#{error.class}); no credentials or payloads are printed.")
+  exit 1
+end

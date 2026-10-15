@@ -14,6 +14,12 @@ export type ApiMeta = {
 export type ApiEnvelope<T> = { data: T; meta?: ApiMeta };
 export type EntityRecord = Record<string, unknown> & { id: number };
 
+export type WorkspaceMembership = { id: number; workspace_id: number; user_id?: number; name?: string; status: 'active' | 'suspended'; roles: string[]; offboarded_at?: string | null };
+
+export type WorkspaceInvitation = { id: number; email: string; status: 'pending' | 'expired' | 'accepted' | 'revoked'; roles: string[]; expires_at: string; delivery_status: 'queued' | 'sent' | 'failed'; department_id?: number | null; project_ids: number[] };
+export type InvitationPreview = { email: string; workspace_name: string; roles: string[]; expires_at: string; existing_account: boolean; other_workspace: boolean };
+export type OffboardingPreview = { user_id: number; name: string; needs_transfer: boolean; already_offboarded: boolean; cleanup_status?: string | null; retained: string; successors: { id: number; name: string }[] };
+export type OffboardingReceipt = { offboarded: boolean; receipt_id: number; cleanup_status: string; retained: boolean };
 export type Workspace = { id: number; name: string; slug: string };
 
 export type UserPreferences = {
@@ -46,6 +52,8 @@ export type PushNotificationSettings = {
 };
 
 export type User = {
+  site_admin?: boolean;
+  mfa?: {required:boolean;enabled:boolean;verified:boolean;recent:boolean};
   id: number;
   email: string;
   first_name: string;
@@ -60,6 +68,7 @@ export type User = {
   demo_account?: boolean;
   roles: string[];
   workspace: Workspace;
+  workspace_membership?: WorkspaceMembership;
   preferences?: UserPreferences;
   push_notification_settings?: PushNotificationSettings;
   permissions?: string[];
@@ -178,6 +187,7 @@ export type DemoTourGroup = {
 
 export type DemoManifest = {
   workspace: Workspace;
+  workspace_membership?: WorkspaceMembership;
   duration: string;
   total_steps: number;
   recommended_route?: string | null;

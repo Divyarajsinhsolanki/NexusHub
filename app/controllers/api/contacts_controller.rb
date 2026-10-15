@@ -2,7 +2,10 @@ require 'json'
 require 'net/http'
 
 class Api::ContactsController < ApplicationController
-  skip_before_action :verify_authenticity_token
+  protect_from_forgery with: :exception, unless: -> { request.path_info.start_with?("/api/v1/") }
+  rescue_from ActionController::InvalidAuthenticityToken do
+    render json: { error: "Invalid authenticity token" }, status: :unprocessable_entity
+  end
 
   def create
     unless valid_captcha?
@@ -30,12 +33,11 @@ class Api::ContactsController < ApplicationController
     return false if token.blank? || secret.blank?
 
     uri = URI('https://www.google.com/recaptcha/api/siteverify')
-    response = Net::HTTP.post_form(
-      uri,
-      secret: secret,
-      response: token,
-      remoteip: request.remote_ip
-    )
+    verification = Net::HTTP::Post.new(uri)
+    verification.set_form_data(secret: secret, response: token, remoteip: request.remote_ip)
+    response = Net::HTTP.start(uri.host, uri.port, use_ssl: true, open_timeout: 3, read_timeout: 5) do |http|
+      http.request(verification)
+    end
     result = JSON.parse(response.body)
 
     result['success'] == true &&
