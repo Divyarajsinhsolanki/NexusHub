@@ -14,6 +14,7 @@ dnf install -y \
   poppler-utils \
   ghostscript \
   qpdf \
+  bubblewrap \
   tar \
   xz
 
