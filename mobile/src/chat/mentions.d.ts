@@ -7,3 +7,5 @@ export function getTaskReferenceKey(task?: Entity): string;
 export function getComposerEntityQuery(text: string, selectionStart: number): ComposerEntity | null;
 export function applyComposerEntity(text: string, entity: ComposerEntity, replacement: string): { value: string; selectionStart: number; selectionEnd: number };
 export function tokenizeChatMessage(text: string, lookups?: MentionLookups): { kind: string; text: string; user?: Entity; task?: Entity }[];
+
+export function getMentionedUserIds(text: string, lookups?: MentionLookups, activeEntity?: ComposerEntity | null): Set<string>;

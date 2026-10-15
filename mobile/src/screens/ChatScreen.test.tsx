@@ -260,3 +260,43 @@ test('offers the existing active call from the compact call menu', async () => {
   expect(mockPush).toHaveBeenCalledWith('/call/42?type=video');
   await screen.unmount(); client.clear();
 });
+
+test('opens call history for the current conversation from More', async () => {
+ mockPush.mockClear();
+ const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, gcTime: Infinity, retry: false } } });
+ client.setQueryData(mobileQueryKeys.conversation(7), { id: 7, title: 'Group chat', participants: [], conversation_type: 'group' });
+ client.setQueryData(mobileQueryKeys.messages(7), { pageParams: [undefined], pages: [{ data: [] }] });
+ const screen = await render(<QueryClientProvider client={client}><ChatRoute /></QueryClientProvider>);
+ await fireEvent.press(screen.getByRole('button', { name: 'More conversation actions' }));
+ await fireEvent.press(screen.getByRole('button', { name: 'Call history' }));
+ expect(mockPush).toHaveBeenCalledWith('/inbox/calls?conversationId=7');
+ await screen.unmount(); client.clear();
+});
+
+test('excludes tagged users from subsequent mentions and restores them after removal', async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, gcTime: Infinity, retry: false } } });
+  client.setQueryData(mobileQueryKeys.conversation(7), { id: 7, title: 'Mentions', participants: [{ id: 2, name: 'Alice', email: 'alice@example.com' }, { id: 3, name: 'Bob', email: 'bob@example.com' }] });
+  client.setQueryData(mobileQueryKeys.messages(7), { pageParams: [undefined], pages: [{ data: [] }] });
+  const screen = await render(<QueryClientProvider client={client}><ChatRoute /></QueryClientProvider>);
+  const composer = screen.getByPlaceholderText('Message');
+  await fireEvent.changeText(composer, '@');
+  await fireEvent.press(screen.getByRole('button', { name: 'Insert @alice' }));
+  await fireEvent.changeText(composer, '@alice @');
+  expect(screen.queryByRole('button', { name: 'Insert @alice' })).toBeNull();
+  expect(screen.getByRole('button', { name: 'Insert @bob' })).toBeTruthy();
+  await fireEvent.changeText(composer, '@');
+  expect(screen.getByRole('button', { name: 'Insert @alice' })).toBeTruthy();
+  await screen.unmount(); client.clear();
+});
+
+test('renders message timestamps outside the message body', async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, gcTime: Infinity, retry: false } } });
+  client.setQueryData(mobileQueryKeys.conversation(7), { id: 7, title: 'Times', participants: [] });
+  client.setQueryData(mobileQueryKeys.messages(7), { pageParams: [undefined], pages: [{ data: [{ id: 10, body: 'Separate timestamp', user_id: 2, user_name: 'Alice', created_at: '2026-10-06T00:00:00Z' }] }] });
+  const screen = await render(<QueryClientProvider client={client}><ChatRoute /></QueryClientProvider>);
+  expect(screen.getByText('Separate timestamp')).toBeTruthy();
+  const timestamp = screen.getAllByText(/\d{1,2}:\d{2}/).find(node => node.props.style?.some?.((style: any) => style?.fontSize === 10));
+  expect(timestamp).toBeTruthy();
+  expect(timestamp?.props.style).toEqual(expect.arrayContaining([expect.objectContaining({ marginTop: 4, fontSize: 10 })]));
+  await screen.unmount(); client.clear();
+});

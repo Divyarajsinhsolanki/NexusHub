@@ -25,3 +25,12 @@ it('paginates and calls back with the original record while retaining errors for
 it('formats zero and hour durations',()=>{
  expect(formatCallDuration(0)).toBe('0m 0s');expect(formatCallDuration(3661)).toBe('1h 1m 1s');
 });
+
+it('requests only the selected conversation on every page', async () => {
+ fetchCallHistory.mockImplementation(page => Promise.resolve({ data: { data: [ {...row, id: page} ], meta: { next_page: page === 1 ? 2 : null } } }));
+ render(<CallHistory conversationId={7} onClose={vi.fn()} onCallback={vi.fn()} />);
+ await screen.findByText('Ada');
+ expect(fetchCallHistory).toHaveBeenCalledWith(1, 7);
+ fireEvent.click(screen.getByRole('button', { name: 'Load older calls' }));
+ await waitFor(() => expect(fetchCallHistory).toHaveBeenCalledWith(2, 7));
+});

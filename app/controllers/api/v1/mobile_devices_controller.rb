@@ -1,5 +1,7 @@
 class Api::V1::MobileDevicesController < Api::V1::BaseController
   def upsert
+    return render_error(code: "impersonation_forbidden", message: "Push registration is unavailable during support access.", status: :forbidden) if current_mobile_session.impersonating?
+
     attributes = params.require(:device).permit(
       :expo_push_token,
       :platform,
@@ -14,6 +16,7 @@ class Api::V1::MobileDevicesController < Api::V1::BaseController
     device.assign_attributes(
       attributes.merge(
         user: current_user,
+        mobile_session: current_mobile_session,
         workspace: current_user.workspace,
         active: true,
         disabled_at: nil,

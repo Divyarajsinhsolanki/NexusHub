@@ -78,6 +78,29 @@ class CallHistoryTest < ActionDispatch::IntegrationTest
     assert_equal @call.id, last.fetch('data').first.fetch('id')
     assert_nil last.dig('meta', 'next_page')
   end
+  test 'filters individual and group history before pagination on web and mobile' do
+    group = Conversation.create!(workspace: @workspace, creator: @user, conversation_type: 'group', title: 'History group')
+    [@user, @other].each { |user| group.conversation_participants.create!(workspace: @workspace, user: user) }
+    call = group.call_sessions.create!(workspace: @workspace, initiator: @user, call_type: 'audio', status: 'ended', livekit_room_name: 'history-group-room')
+    call.call_participants.create!(workspace: @workspace, user: @user, status: 'left')
+    login(@user)
+    session, = MobileSession.issue_for!(user: @user)
+    mobile_headers = { 'Authorization' => "Bearer #{MobileAccessToken.issue(session)[:token]}" }
+    ['/api/calls', '/api/v1/calls'].each do |path|
+      [@conversation, group].each do |conversation|
+        get path, params: { conversation_id: conversation.id, per_page: 1 }, headers: path.include?('/v1/') ? mobile_headers : {}
+        assert_response :success
+        body = JSON.parse(response.body)
+        assert_equal [conversation.id], body.fetch('data').map { |row| row.fetch('conversation_id') }
+        assert_equal 1, body.dig('meta', 'total_count')
+        assert_nil body.dig('meta', 'next_page')
+      end
+    end
+    login(@outsider)
+    get '/api/calls', params: { conversation_id: group.id }
+    assert_response :not_found
+  end
+
   private
 
   def login(user)

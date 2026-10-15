@@ -76,6 +76,8 @@ class AccountLifecycleTest < ActionDispatch::IntegrationTest
   end
 
   test 'completion removes personal data and sessions but preserves anonymous shared history' do
+    session = @user.mobile_sessions.order(:id).last
+    MobileDevice.create!(workspace: @workspace, user: @user, mobile_session: session, platform: "android", expo_push_token: "ExponentPushToken[delete-bound-device]")
     Current.workspace = @workspace
     conversation = Conversation.create!(creator: @successor, conversation_type: 'group', title: 'Shared chat')
     conversation.conversation_participants.create!(user: @user)

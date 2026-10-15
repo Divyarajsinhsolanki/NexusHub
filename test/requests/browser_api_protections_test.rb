@@ -81,6 +81,9 @@ class BrowserApiProtectionsTest < ActionDispatch::IntegrationTest
     get "/login"
     csp=response.headers["Content-Security-Policy"]
     assert_includes csp,"default-src 'self'"
+    scripts = csp.split(';').find { |directive| directive.strip.start_with?('script-src ') }
+    assert_includes scripts, "https://apis.google.com"
+    refute_includes scripts, "https://*.google.com"
     assert_includes csp,"worker-src 'self' blob:"
     refute_includes csp.split(';').find{|directive|directive.strip.start_with?('script-src')},"unsafe-inline"
     refute_includes csp,"unsafe-eval"

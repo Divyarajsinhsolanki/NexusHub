@@ -11,7 +11,7 @@ module SaasQuota
   private
 
   def enforce_workspace_capacity
-    return yield if workspace.nil? || workspace.demo?
+    return yield if workspace.nil? || workspace.demo? || (is_a?(User) && system_bot? && locked?)
     workspace.with_lock do
       plan = Saas::PlanCatalog.find(Saas::PlanCatalog.effective_plan_key(workspace))
       case self

@@ -1,0 +1,7 @@
+<%= email_heading 'Verify your privacy request', eyebrow: 'Privacy request', intro: 'A privacy request was submitted using this email address. Verify your email within 24 hours to open private tracking.' %>
+<%= email_details 'Reference' => @request.reference, 'Verification link expires' => 'In 24 hours' %>
+<%= email_button 'Verify email', @url %>
+<p>Email verification does not authorize disclosure or deletion. We may need additional identity or representative-authority checks.</p>
+<p>After verifying, return to your request using the private tracking link below, valid for 30 days.</p>
+<%= email_button 'Track your request', @tracking_url %>
+<%= email_note 'Do not forward these private links. If you did not submit this request, ignore this message. No account action has been taken.' %>

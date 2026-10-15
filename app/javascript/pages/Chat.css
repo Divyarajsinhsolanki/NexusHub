@@ -385,3 +385,31 @@
 @media (max-width: 767px) {
   .nexus-chat-page .chat-thread-header { padding-top: max(8px, env(safe-area-inset-top)); }
 }
+.chat-group-profile { margin-top: 20px; text-align: left; }
+.chat-group-profile h4 { font-size: 12px; font-weight: 650; margin-bottom: 8px; }
+.chat-group-description { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--chat-muted); font-size: 13px; margin-bottom: 12px; }
+.chat-group-profile form { display: grid; gap: 12px; }
+.chat-group-profile label { display: grid; gap: 6px; font-size: 12px; color: var(--chat-text); }
+.chat-group-profile textarea { width: 100%; padding: 10px; border: 1px solid var(--chat-border); border-radius: 8px; background: var(--chat-panel); color: var(--chat-text); resize: vertical; }
+.chat-group-profile input[type="file"] { width: 100%; min-width: 0; font-size: 12px; }
+.chat-group-profile small { color: var(--chat-muted); font-size: 11px; }
+.chat-group-profile .chat-group-permission { display: flex; align-items: flex-start; gap: 8px; line-height: 1.5; }
+.chat-group-permission input { margin-top: 3px; flex-shrink: 0; }
+.chat-group-profile button { min-height: 44px; }
+.chat-group-profile [role="alert"] { color: #dc2626; font-size: 12px; }
+
+/* Keep message metadata visually separate from the message itself. */
+.nexus-chat-page .nx-chat-message-meta { display: flex; justify-content: flex-end; margin-top: 4px; }
+.nexus-chat-page .nx-chat-inline-meta { margin-left: 0; font-size: 10px; line-height: 14px; color: var(--chat-muted); }
+.chat-system-time { display: block; margin-top: 3px; font-size: 10px; line-height: 14px; }
+.nexus-chat-page .chat-user-mention { color: #1d4ed8; background: #eff6ff; border-color: #bfdbfe; }
+.nexus-chat-page .chat-user-mention:hover { background: #dbeafe; }
+.dark .nexus-chat-page .chat-user-mention { color: #93c5fd; background: #172554; border-color: #1e40af; }
+.dark .nexus-chat-page .chat-user-mention:hover { background: #1e3a8a; }
+.chat-bulk-actions { margin-top: 12px; padding: 10px; border: 1px solid var(--chat-border); border-radius: 10px; font-size: 12px; background: var(--chat-muted-panel); }
+.chat-bulk-actions button { min-height: 44px; padding: 6px 8px; color: var(--chat-accent); border-radius: 6px; }
+.chat-bulk-actions button:hover { background: var(--chat-accent-soft); }
+.chat-bulk-actions button:disabled { opacity: .45; }
+.chat-bulk-actions [role="alert"] { color: #dc2626; }
+.chat-selection-checkbox { flex: 0 0 44px; width: 44px; min-height: 44px; display: grid; place-items: center; color: var(--chat-accent); border: 1px solid var(--chat-border); border-radius: 6px; }
+.chat-selection-checkbox[aria-checked="true"] { background: var(--chat-accent-soft); border-color: var(--chat-accent); }

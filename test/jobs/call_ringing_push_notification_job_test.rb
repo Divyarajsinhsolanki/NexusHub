@@ -1,4 +1,5 @@
 require "test_helper"
+require "minitest/mock"
 
 class CallRingingPushNotificationJobTest < ActiveJob::TestCase
   setup do
@@ -39,4 +40,31 @@ class CallRingingPushNotificationJobTest < ActiveJob::TestCase
 
     assert_nil result
   end
+  test "ringing dispatch restores workspace context in background workers" do
+    Current.reset_all
+    entries = []
+    dispatcher = Object.new
+    dispatcher.define_singleton_method(:call) { |batch| entries.concat(batch) }
+    PushNotifications::DeliveryDispatcher.stub(:new, -> { dispatcher }) do
+      CallRingingPushNotificationJob.perform_now(@call.id, @recipient.id)
+    end
+    assert_equal 1, entries.size
+    assert_equal @call.id, entries.first.last.dig(:data, :call_id)
+    assert_nil Current.workspace
+  end
+
+  test "removed conversation members do not receive ringing pushes" do
+    @conversation.conversation_participants.find_by!(user: @recipient).update!(removed_at: Time.current)
+    assert_no_difference "PushDelivery.count" do
+      CallRingingPushNotificationJob.perform_now(@call.id, @recipient.id)
+    end
+  end
+
+  test "legacy call payloads respect hidden previews" do
+    @recipient.update!(push_notification_settings: { previews: false })
+    payload = CallRingingPushNotificationJob.new.send(:push_message, @call, @device, @recipient)
+    assert_equal "You have an incoming call", payload[:body]
+    assert_nil payload.dig(:data, :initiator_name)
+  end
+
 end

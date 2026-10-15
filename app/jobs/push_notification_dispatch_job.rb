@@ -49,7 +49,7 @@ class PushNotificationDispatchJob < ApplicationJob
     message = notification.notifiable
     return false unless message && !message.deleted_at?
     membership = ConversationParticipant.unscoped.find_by(conversation_id: message.conversation_id, user_id: notification.recipient_id, workspace_id: notification.workspace_id)
-    membership.present? && !membership.muted?
+    membership.present? && membership.removed_at.nil? && !membership.muted?
   end
 
   def latest_group_notification?(notification)

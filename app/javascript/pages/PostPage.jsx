@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useContext, useMemo, useRef } from "react";
-import { Link } from "react-router-dom";
-import { fetchPostFeed, fetchCalendarEvents, SchedulerAPI, fetchProjects, getUsers } from "../components/api";
+import { Link, useLocation } from "react-router-dom";
+import { fetchPost, fetchPostFeed, fetchCalendarEvents, SchedulerAPI, fetchProjects, getUsers } from "../components/api";
 import { AuthContext } from "../context/AuthContext";
 import PostForm from "../components/PostForm";
 import PostList from "../components/PostList";
@@ -88,6 +88,8 @@ const ProjectItem = ({ project }) => (
 
 const PostPage = () => {
   const { user } = useContext(AuthContext);
+  const location = useLocation();
+  const sharedPostId = new URLSearchParams(location.search).get("post_id");
   const homePreferences = normalizeHomePreferences(user?.home_preferences);
   const shortcuts = homePreferences.shortcut_ids.map(id => HOME_SHORTCUTS.find(link => link.id === id));
   const [posts, setPosts] = useState([]);
@@ -108,6 +110,7 @@ const PostPage = () => {
   const [feedFilter, setFeedFilter] = useState('all');
   const [feedSort, setFeedSort] = useState('newest');
   const postFormRef = useRef(null);
+  const feedRequest = useRef(0);
 
   const handleQuickPost = useCallback(() => {
     if (postFormRef.current) {
@@ -138,10 +141,14 @@ const PostPage = () => {
   }, []);
 
   const refreshPosts = useCallback(async ({ initial = false } = {}) => {
+    const requestId = ++feedRequest.current;
     if (initial) setIsLoading(true);
     setFeedError('');
     try {
-      const { data, meta } = await fetchPostFeed({ page: 1, per_page: 20 });
+      const { data, meta } = sharedPostId
+        ? await fetchPost(sharedPostId).then(response => ({ data: [response.data], meta: {} }))
+        : await fetchPostFeed({ page: 1, per_page: 20 });
+      if (requestId !== feedRequest.current) return;
       const sortedPosts = (Array.isArray(data) ? data : []).sort(
         (a, b) => new Date(b.created_at) - new Date(a.created_at)
       );
@@ -149,20 +156,24 @@ const PostPage = () => {
       setNextPage(meta?.next_page || null);
       applyPostStats(sortedPosts, meta?.total_count);
     } catch (error) {
+      if (requestId !== feedRequest.current) return;
       console.error("Error fetching posts:", error);
-      setFeedError('Updates could not be loaded. Check your connection and try again.');
-      if (initial) setPosts([]);
+      setFeedError(sharedPostId ? 'This post is unavailable or you do not have access to its workspace.' : 'Updates could not be loaded. Check your connection and try again.');
+      setPosts([]);
+      setNextPage(null);
     } finally {
-      setIsLoading(false);
+      if (requestId === feedRequest.current) setIsLoading(false);
     }
-  }, [applyPostStats]);
+  }, [applyPostStats, sharedPostId]);
 
   const loadMorePosts = useCallback(async () => {
     if (!nextPage || isLoadingMore) return;
+    const requestId = feedRequest.current;
     setIsLoadingMore(true);
     setFeedError('');
     try {
       const { data, meta } = await fetchPostFeed({ page: nextPage, per_page: 20 });
+      if (requestId !== feedRequest.current) return;
       setPosts((currentPosts) => {
         const postById = new Map(currentPosts.map((post) => [post.id, post]));
         (Array.isArray(data) ? data : []).forEach((post) => postById.set(post.id, post));
@@ -173,6 +184,7 @@ const PostPage = () => {
       }
       setNextPage(meta?.next_page || null);
     } catch (error) {
+      if (requestId !== feedRequest.current) return;
       console.error('Error loading more posts:', error);
       setFeedError('More updates could not be loaded. Please try again.');
     } finally {
@@ -182,6 +194,7 @@ const PostPage = () => {
 
   useEffect(() => {
     refreshPosts({ initial: true });
+    return () => { feedRequest.current += 1; };
   }, [refreshPosts]);
 
   const handlePostCreated = useCallback((createdPost) => {
@@ -438,6 +451,8 @@ const PostPage = () => {
                 {visiblePosts.length} loaded result{visiblePosts.length === 1 ? '' : 's'}
               </p>
             </section>
+
+            {sharedPostId && <Link to="/home" className="text-sm text-[var(--theme-color)]">Back to all updates</Link>}
 
             {feedError && (
               <div className="nexus-updates-error" role="alert">

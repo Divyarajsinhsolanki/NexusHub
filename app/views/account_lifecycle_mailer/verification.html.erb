@@ -1,0 +1,8 @@
+<%= email_heading 'Verify your deletion request', eyebrow: 'Account security', intro: 'Use this code to confirm that you requested account deletion.' %>
+<div style="padding:24px;text-align:center;border:1px solid #bfdbfe;border-radius:10px;background:#eff6ff;">
+  <div style="font-size:11px;font-weight:700;color:#64748b;letter-spacing:1px;">VERIFICATION CODE</div>
+  <div style="margin-top:10px;font-family:Consolas,monospace;font-size:32px;font-weight:700;letter-spacing:6px;color:#1d4ed8;"><%= @code %></div>
+  <p style="margin:10px 0 0;font-size:12px;color:#526079;">Expires in 15 minutes. Do not share this code.</p>
+</div>
+<p>After confirmation, you have seven days to cancel from Settings on web or mobile. Ownership transfers take effect immediately and are not undone by cancelling deletion.</p>
+<%= email_note 'If you did not request this, ignore this email; your account will not be deleted.' %>

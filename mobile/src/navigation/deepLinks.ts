@@ -29,6 +29,7 @@ export function normalizeMobileDeepLink(deepLink: unknown) {
   if (aliases[destination.pathname]) return `${aliases[destination.pathname]}${destination.search}${destination.hash}`;
   if (/^\/departments\/\d+$/.test(destination.pathname)) return `/more${destination.pathname}${destination.search}${destination.hash}`;
 
+  if (['/posts', '/home'].includes(destination.pathname) && /^\d+$/.test(destination.searchParams.get('post_id') || '')) return `/inbox/post/${destination.searchParams.get('post_id')}`;
   if (destination.pathname === '/posts' && /^#post-\d+$/.test(destination.hash)) return `/inbox/post/${destination.hash.slice(6)}`;
   if (/^\/projects\/\d+\/issues$/.test(destination.pathname) && destination.searchParams.has('issue_id')) {
     destination.searchParams.set('issueId', destination.searchParams.get('issue_id')!);

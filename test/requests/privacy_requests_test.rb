@@ -107,9 +107,11 @@ class PrivacyRequestsTest < ActionDispatch::IntegrationTest
     record = create_request
     mail = PrivacyRequestMailer.verification(record.id)
     assert_equal [@input[:email]], mail.to
-    assert_includes mail.body.to_s, '/privacy-requests#verify='
-    assert_includes mail.body.to_s, '/privacy-requests#track='
-    refute_includes mail.body.to_s, @input[:details]
+    [mail.text_part, mail.html_part].each do |part|
+      assert_includes part.body.decoded, '/privacy-requests#verify='
+      assert_includes part.body.decoded, '/privacy-requests#track='
+      refute_includes part.body.decoded, @input[:details]
+    end
   end
 
   private

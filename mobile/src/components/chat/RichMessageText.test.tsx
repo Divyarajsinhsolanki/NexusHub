@@ -23,3 +23,13 @@ test('highlights ordinary URLs and opens them without trailing punctuation', asy
   expect(open).toHaveBeenCalledWith('https://example.com/page');
   open.mockRestore();
 });
+
+test('uses blue mentions for received and sent messages', async () => {
+  const lookups = { usersByHandle: { sam: { id: 2, name: 'Sam' } } };
+  const screen = await render(<Text><RichMessageText text="@sam" lookups={lookups} color="#ffffff" outgoing /></Text>);
+  expect(screen.getByText('@Sam').props.style.color).toBe('#1d4ed8');
+  expect(screen.getByText('@Sam').props.style.backgroundColor).toBe('#dbeafe');
+  await screen.rerender(<Text><RichMessageText text="@sam" lookups={lookups} color="#000000" /></Text>);
+  expect(screen.getByText('@Sam').props.style.color).toBe('#1d4ed8');
+  await screen.unmount();
+});

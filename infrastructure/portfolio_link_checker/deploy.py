@@ -54,6 +54,7 @@ def main():
         archive = pathlib.Path(directory) / 'function.zip'
         with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as bundle:
             bundle.write(HERE / 'lambda_function.py', 'lambda_function.py')
+            bundle.write(HERE.parent / 'email_templates.py', 'email_templates.py')
         existing = aws('lambda', 'get-function', '--function-name', NAME, allow_missing=True)
         if existing:
             aws('lambda', 'update-function-code', '--function-name', NAME, '--zip-file', 'fileb://' + str(archive))

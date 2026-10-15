@@ -2101,6 +2101,7 @@ export interface paths {
         delete: operations["hideConversation"];
         options?: never;
         head?: never;
+        /** @description Group managers can rename the group and control member editing. When enabled, active members can update only the photo and description. Photo uploads must be JPEG, PNG, GIF or WebP, at most 5 MB. */
         patch: operations["updateConversation"];
         trace?: never;
     };
@@ -3182,6 +3183,26 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        HomeData: {
+            /** Format: date */
+            as_of_date: string;
+            summary: {
+                open_tasks: number;
+                due_today: number;
+                overdue_tasks: number;
+                active_projects: number;
+                work_minutes_today: number;
+                unread_notifications: number;
+            };
+            tasks: components["schemas"]["Task"][];
+        };
+        GroupInfoUpdate: {
+            title?: string;
+            description?: string;
+            /** @default false */
+            members_can_edit_group_info: boolean;
+            remove_group_photo?: boolean;
+        };
         ChatMessage: {
             id: number;
             client_id?: string | null;
@@ -4202,14 +4223,27 @@ export interface operations {
     };
     getHome: {
         parameters: {
-            query?: never;
+            query?: {
+                task_filter?: "all_open" | "due_today" | "overdue";
+            };
             header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            200: components["responses"]["GenericSuccess"];
+            /** @description Assigned task preview and unfiltered daily counts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["HomeData"];
+                    };
+                };
+            };
+            422: components["responses"]["Error"];
         };
     };
     listActivity: {
@@ -6506,7 +6540,20 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": {
+                    conversation: components["schemas"]["GroupInfoUpdate"];
+                };
+                "multipart/form-data": {
+                    "conversation[description]"?: string;
+                    "conversation[members_can_edit_group_info]"?: boolean;
+                    "conversation[remove_group_photo]"?: boolean;
+                    /** Format: binary */
+                    "conversation[group_photo]"?: string;
+                };
+            };
+        };
         responses: {
             200: components["responses"]["GenericSuccess"];
         };
@@ -7092,6 +7139,8 @@ export interface operations {
     listCallHistory: {
         parameters: {
             query?: {
+                /** @description Limit history to an accessible individual or group conversation. Only the authenticated user's calls are returned. */
+                conversation_id?: number;
                 page?: number;
                 per_page?: number;
             };
@@ -7114,6 +7163,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
         };
     };
     joinCall: {

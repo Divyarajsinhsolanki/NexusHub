@@ -1,0 +1,11 @@
+Hi PDF,
+
+This is a reminder for your calendar event.
+
+Title: Release planning
+Starts at: October 15, 2026 at 02:40 PM
+Reminder lead time: 15 minutes before
+Description: Review the release checklist.
+Location / Link: https://example.test/meeting
+
+Please open your calendar to review details.

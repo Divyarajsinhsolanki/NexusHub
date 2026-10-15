@@ -1,10 +1,11 @@
+import { Avatar } from '@/src/components/Avatar';
 import { ChatActionSheet, ChatSheetAction } from "@/src/components/chat/ChatActionSheet";
 import { ChatToolsSheet, type ChatToolMode } from "@/src/components/chat/ChatToolsSheet";
 import { SwipeToReply } from "@/src/components/chat/SwipeToReply";
 import { MessageActionsSheet } from "@/src/components/chat/MessageActionsSheet";
 import { MessageLinkPreview } from "@/src/components/chat/MessageLinkPreview";
 import { RichMessageText } from '@/src/components/chat/RichMessageText';
-import { getUserMentionAliases, getTaskReferenceKey, getPreferredUserMentionHandle, getComposerEntityQuery, applyComposerEntity, type MentionLookups } from '@/src/chat/mentions';
+import { getMentionedUserIds, getUserMentionAliases, getTaskReferenceKey, getPreferredUserMentionHandle, getComposerEntityQuery, applyComposerEntity, type MentionLookups } from '@/src/chat/mentions';
 import * as Sentry from '@sentry/react-native';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as DocumentPicker from 'expo-document-picker';
@@ -220,8 +221,9 @@ function ChatScreen({ conversationId }: { conversationId: number }) {
     return { usersByHandle, tasksByKey };
   }, [people.data, linkedTasks.data, conversation.data?.participants]);
   const composerEntity = getComposerEntityQuery(body, composerCaret);
+  const mentionedIds = getMentionedUserIds(body, mentionLookups, composerEntity);
   const suggestions = composerEntity ? (composerEntity.trigger === '@'
-    ? normalizedParticipants(conversation.data?.participants).map(participant => ({ ...(people.data || []).find(person => Number(person.id) === Number(participant.id)), ...participant })).filter(person => Number(person.id) !== Number(user?.id) && getUserMentionAliases(person).some(alias => alias.includes(composerEntity.query.toLowerCase()))).map(person => ({ key: String(person.id), label: String(person.name || ('full_name' in person && person.full_name) || ('email' in person && person.email) || 'Member'), value: '@' + getPreferredUserMentionHandle(person) }))
+    ? normalizedParticipants(conversation.data?.participants).map(participant => ({ ...(people.data || []).find(person => Number(person.id) === Number(participant.id)), ...participant })).filter(person => Number(person.id) !== Number(user?.id) && !mentionedIds.has(String(person.id)) && getUserMentionAliases(person).some(alias => alias.includes(composerEntity.query.toLowerCase()))).map(person => ({ key: String(person.id), label: String(person.name || ('full_name' in person && person.full_name) || ('email' in person && person.email) || 'Member'), value: '@' + getPreferredUserMentionHandle(person) }))
     : (linkedTasks.data || []).filter(task => task.task_id && (String(task.task_id) + ' ' + task.title).toLowerCase().includes(composerEntity.query.toLowerCase())).map(task => ({ key: String(task.id), label: '#' + task.task_id + ' · ' + task.title, value: '#' + task.task_id }))).slice(0, 6) : [];
   const chooseSuggestion = (replacement: string) => {
     if (!composerEntity) return;
@@ -661,7 +663,7 @@ function ChatScreen({ conversationId }: { conversationId: number }) {
   const subtitle = typingNames.length ? (typingNames.length === 1 ? `${typingNames[0]} is typing…` : 'Several people are typing…') : connection === 'connected' ? conversation.data?.conversation_type === 'group' ? `${participants.length} members` : participants.some((participant) => participant.id !== user?.id && isParticipantOnline(participant, presenceNow)) ? 'Online' : undefined : 'Reconnecting…';
   const back = () => router.canGoBack() ? router.back() : router.replace('/inbox' as never);
 
-  return <Screen header={<PageHeader compact leading={<IconButton label="Back" onPress={back}><ArrowLeft color={theme.text} size={22} /></IconButton>} title={conversation.data?.title || 'Conversation'} subtitle={subtitle} action={<View style={styles.headerActions}>{writable ? <IconButton label={conversation.data?.active_call ? 'Join active call' : 'Call'} onPress={() => setCallMenuOpen(true)}><Phone color={conversation.data?.active_call ? theme.success : theme.text} size={20} /></IconButton> : null}<IconButton label="More conversation actions" onPress={() => setMenuOpen(true)}><MoreHorizontal color={theme.text} size={22} /></IconButton></View>} />}>
+  return <Screen header={<PageHeader compact leading={<View style={{ flexDirection: 'row', alignItems: 'center' }}><IconButton label="Back" onPress={back}><ArrowLeft color={theme.text} size={22} /></IconButton>{conversation.data?.conversation_type === 'group' ? <Avatar name={conversation.data.title || 'Group'} uri={conversation.data.group_photo_url} size={36} /> : null}</View>} title={conversation.data?.title || 'Conversation'} subtitle={subtitle} action={<View style={styles.headerActions}>{writable ? <IconButton label={conversation.data?.active_call ? 'Join active call' : 'Call'} onPress={() => setCallMenuOpen(true)}><Phone color={conversation.data?.active_call ? theme.success : theme.text} size={20} /></IconButton> : null}<IconButton label="More conversation actions" onPress={() => setMenuOpen(true)}><MoreHorizontal color={theme.text} size={22} /></IconButton></View>} />}>
     {unreadStartId ? <Pressable accessibilityRole="button" onPress={() => { void openContext(unreadStartId); }} style={{ minHeight: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.surfaceMuted }}><Text style={{ color: theme.primary, fontWeight: '600', fontSize: 12 }}>Jump to unread</Text></Pressable> : null}
     <ChatToolsSheet mode={toolMode} conversationId={conversationId} onClose={() => setToolMode(null)} onReply={message => { setReplyTo(message); composerInput.current?.focus(); }} onOpen={openContext} onSchedule={scheduleCurrent} draftLabel={body || (attachments.length ? `${attachments.length} attachment(s)` : '')} canSchedule={!!(body.trim() || attachments.length) && !send.isPending} readOnly={!writable} />
     {searchOpen ? <View style={{ padding: 10, gap: 8 }}><TextInput accessibilityLabel="Search conversation" placeholder="Search all messages and filenames" placeholderTextColor={theme.textMuted} value={searchText} onChangeText={setSearchText} style={[styles.input, { flex: undefined, color: theme.text, backgroundColor: theme.surfaceMuted }]} /><Pressable accessibilityRole="button" onPress={() => { setSearchText(''); setSearchOpen(false); }}><Text style={{ color: theme.primary }}>Close search</Text></Pressable></View> : null}
@@ -682,6 +684,7 @@ function ChatScreen({ conversationId }: { conversationId: number }) {
     <ChatActionSheet title="Conversation options" visible={menuOpen} onClose={() => setMenuOpen(false)}>
       <ChatSheetAction label="Search conversation" onPress={() => { setMenuOpen(false); setSearchOpen(true); }}><Search color={theme.text} size={20} /></ChatSheetAction>
       {([{ kind: 'media', label: 'Shared media' }, { kind: 'files', label: 'Shared files' }, { kind: 'pins', label: 'Pinned messages' }, { kind: 'scheduled', label: 'Scheduled messages' }] as const).map(tool => <ChatSheetAction key={tool.kind} label={tool.label} onPress={() => { setMenuOpen(false); setToolMode({ kind: tool.kind }); }} />)}
+      <ChatSheetAction label="Call history" onPress={() => { setMenuOpen(false); router.push(`/inbox/calls?conversationId=${conversationId}` as never); }}><Phone color={theme.text} size={20} /></ChatSheetAction>
       <View style={{ height: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: theme.border, marginBottom: 8 }} />
       <ChatSheetAction label="Conversation details" onPress={() => { setMenuOpen(false); setDetailsOpen(true); }}><UsersRound color={theme.text} size={20} /></ChatSheetAction>
     </ChatActionSheet>
@@ -694,16 +697,16 @@ const MessageBubble = memo(function MessageBubble({ conversationId, mentionLooku
   const theme = useAppTheme();
   const reactions = reactionEntries(message.reactions);
   const react = () => onLongPress(message);
-  if (message.message_type === 'system') return <Text accessibilityRole="text" style={{ color: theme.textMuted, fontSize: 12, paddingVertical: 8, textAlign: 'center' }}>{message.body} · {message.edited_at && !message.deleted_at ? 'Edited · ' : ''}{formatTime(message.created_at)}</Text>;
+  if (message.message_type === 'system') return <View style={{ paddingVertical: 8, alignItems: 'center' }}><Text style={{ color: theme.textMuted, fontSize: 12, textAlign: 'center' }}>{message.body}</Text><Text style={[styles.messageMeta, { color: theme.textMuted, alignSelf: 'center' }]}>{message.edited_at && !message.deleted_at ? 'Edited · ' : ''}{formatTime(message.created_at)}</Text></View>;
   return <SwipeToReply enabled={Boolean(onReply && message.id > 0 && !message.deleted_at)} onReply={() => onReply?.(message)}><View style={[styles.bubbleRow, mine && styles.mineRow]}>
     <Pressable accessibilityHint={message.id > 0 ? 'Long press for actions or swipe right to reply' : undefined} accessibilityActions={onReply && message.id > 0 && !message.deleted_at ? [{ name: 'reply', label: 'Reply to message' }] : undefined} onAccessibilityAction={event => { if (event.nativeEvent.actionName === 'reply') onReply?.(message); }} accessibilityLabel={message.deleted_at ? 'Message deleted' : message.send_state === 'failed' ? 'Message failed to send' : receiptLabel ? `Message. ${receiptLabel}` : 'Message'} delayLongPress={350} onLongPress={react} style={[styles.bubble, { backgroundColor: mine ? theme.primary : theme.surface, borderColor: message.send_state === 'failed' ? theme.danger : mine ? theme.primary : theme.border }]}>
       {!mine ? <Text style={[styles.sender, { color: theme.primary }]}>{message.user_name || 'Teammate'}</Text> : null}
       {message.reply_to ? <View style={{ borderLeftWidth: 2, borderLeftColor: mine ? '#ffffff' : theme.primary, paddingLeft: 8, marginBottom: 6 }}><Text style={{ color: mine ? '#ffffff' : theme.primary, fontSize: 12, fontWeight: '600' }}>{message.reply_to.user_name}</Text><Text numberOfLines={2} style={{ color: mine ? '#ffffff' : theme.textMuted, fontSize: 12 }}>{message.reply_to.body || 'Attachment'}</Text></View> : null}
       {message.pinned_at ? <Text style={{ color: mine ? '#dbeafe' : theme.primary, fontSize: 11, fontWeight: '700', marginBottom: 4 }}>Pinned</Text> : null}
-      {message.body ? <Text style={[styles.body, { color: mine ? '#ffffff' : theme.text }]}><RichMessageText text={message.deleted_at ? "Message deleted" : message.body} lookups={mentionLookups} color={mine ? "#bae6fd" : "#2563eb"} />{'  '}{!message.attachments?.length ? <Text style={[styles.inlineMeta, { color: mine ? '#dbeafe' : theme.textMuted }]}>{message.edited_at && !message.deleted_at ? 'Edited · ' : ''}{formatTime(message.created_at)}{message.send_state === 'sending' ? ' …' : receiptSymbol ? <Text style={{ color: receiptRead ? '#86efac' : '#dbeafe' }}> {receiptSymbol}</Text> : null}</Text> : null}</Text> : null}
+      {message.body ? <Text style={[styles.body, { color: mine ? '#ffffff' : theme.text }]}><RichMessageText text={message.deleted_at ? "Message deleted" : message.body} lookups={mentionLookups} color={mine ? "#bae6fd" : "#2563eb"} outgoing={mine} /></Text> : null}
       {!message.deleted_at ? <MessageLinkPreview message={message} conversationId={conversationId} /> : null}
       {message.attachments?.map((file, index) => <Attachment key={`${message.id}:${String(file.id || file.url || index)}`} file={file} mine={mine} />)}
-      {!message.body || message.attachments?.length ? <Text style={[styles.inlineMeta, { color: mine ? '#dbeafe' : theme.textMuted, textAlign: 'right' }]}>{message.edited_at && !message.deleted_at ? 'Edited · ' : ''}{formatTime(message.created_at)}{receiptSymbol ? <Text style={{ color: receiptRead ? '#86efac' : '#dbeafe' }}> {receiptSymbol}</Text> : ''}</Text> : null}
+      <Text style={[styles.messageMeta, { color: mine ? '#dbeafe' : theme.textMuted }]}>{message.edited_at && !message.deleted_at ? 'Edited · ' : ''}{formatTime(message.created_at)}{message.send_state === 'sending' ? ' …' : receiptSymbol ? <Text style={{ color: receiptRead ? '#86efac' : '#dbeafe' }}> {receiptSymbol}</Text> : null}</Text>
       {message.send_state === 'failed' ? <Pressable accessibilityRole="button" onPress={() => onRetry(message.id)} style={styles.retryMessage}><Text style={styles.retryMessageText}>Not sent · Tap to retry</Text></Pressable> : null}
     </Pressable>
     {reactions.length ? <View style={[styles.reactionChips, mine && styles.mineReactionChips]}>{reactions.map(([emoji, count]) => <Pressable key={emoji} accessibilityLabel={`${message.reacted_emojis?.includes(emoji) ? 'Remove' : 'Add'} ${emoji} reaction, ${count} reactions`} accessibilityState={{ selected: !!message.reacted_emojis?.includes(emoji) }} disabled={!onReaction || !!message.deleted_at} onPress={() => onReaction?.(emoji)} style={[styles.reactionChip, { backgroundColor: theme.surface, borderColor: theme.border }]}><Text>{emoji} {count}</Text></Pressable>)}</View> : null}
@@ -750,7 +753,7 @@ const styles = StyleSheet.create({
   bubble: { borderRadius: 10, borderWidth: StyleSheet.hairlineWidth, maxWidth: '86%', paddingHorizontal: 12, paddingVertical: 8 },
   sender: { fontSize: 11, fontWeight: '800', marginBottom: 3 },
   body: { fontSize: 15, lineHeight: 20 },
-  inlineMeta: { fontSize: 10, lineHeight: 14 },
+  messageMeta: { fontSize: 10, lineHeight: 14, marginTop: 4, alignSelf: 'flex-end', textAlign: 'right' },
   fileRow: { alignItems: 'center', borderRadius: 7, flexDirection: 'row', gap: 7, marginTop: 7, maxWidth: 250, minHeight: 38, paddingHorizontal: 9 },
   fileCopy: { flex: 1, paddingVertical: 6 },
   file: { flexShrink: 1, fontSize: 12 },

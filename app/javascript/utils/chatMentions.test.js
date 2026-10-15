@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyComposerEntity,
   getComposerEntityQuery,
+  getMentionedUserIds,
   getPreferredUserMentionHandle,
   getTaskReferenceKey,
   getUserMentionAliases,
@@ -114,5 +115,23 @@ describe("chatMentions", () => {
     ).toBe("Talk to @Jane Doe and #TASK-42");
 
     expect(resolveChatMessageText("Unknown @person", {})).toBe("Unknown @person");
+  });
+});
+
+describe('already tagged users', () => {
+  const jane = { id: 7, name: 'Jane Doe', email: 'jane.doe@example.com' };
+  const lookups = { usersByHandle: { 'jane.doe': jane, jane } };
+  it('recognizes aliases, case and punctuation without matching email addresses or partial handles', () => {
+    expect([...getMentionedUserIds('Hi (@JANE), @', lookups)]).toEqual(['7']);
+    expect([...getMentionedUserIds('jane@example.com @jane.d @', lookups)]).toEqual([]);
+  });
+  it('ignores the current token but includes mentions before and after the caret', () => {
+    const text = '@jane.doe';
+    expect([...getMentionedUserIds(text, lookups, getComposerEntityQuery(text, text.length))]).toEqual([]);
+    expect([...getMentionedUserIds('@j @jane.doe', lookups, getComposerEntityQuery('@j @jane.doe', 2))]).toEqual(['7']);
+    expect([...getMentionedUserIds('@jane @j', lookups, getComposerEntityQuery('@jane @j', 8))]).toEqual(['7']);
+  });
+  it('allows the user again after the mention is removed', () => {
+    expect([...getMentionedUserIds('Hi @', lookups)]).toEqual([]);
   });
 });

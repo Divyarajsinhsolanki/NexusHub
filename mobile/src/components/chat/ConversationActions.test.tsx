@@ -26,3 +26,14 @@ test('long press shows actions before mute durations, and requires delete confir
   await waitFor(() => expect(endpoints.hideConversation).toHaveBeenCalledWith(7));
   await screen.unmount(); client.clear(); alert.mockRestore();
 });
+
+test('selects multiple rows without navigating into a chat', async () => {
+  const client = new QueryClient();
+  const toggle = jest.fn();
+  const screen = await render(<QueryClientProvider client={client}><ConversationRow conversation={{ id: 7, title: 'Design', participants: [] }} selecting selected onToggleSelection={toggle} /></QueryClientProvider>);
+  const checkbox = screen.getByRole('checkbox', { name: 'Select Design' });
+  expect(checkbox.props.accessibilityState.checked).toBe(true);
+  await fireEvent.press(checkbox);
+  expect(toggle).toHaveBeenCalledWith(7);
+  await screen.unmount(); client.clear();
+});

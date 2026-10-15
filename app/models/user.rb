@@ -25,7 +25,7 @@ class User < ApplicationRecord
   enum :status, { invited: "invited", active: "active", locked: "locked" }, default: "invited"
 
   def active_for_authentication?
-    super && !locked?
+    super && !locked? && !system_bot?
   end
 
   # Password changes made by a signed-in client preserve only that session.
@@ -135,6 +135,7 @@ class User < ApplicationRecord
     fully_booked: 'fully_booked'
   }, default: 'available_now'
 
+  validates :status, inclusion: { in: ["locked"] }, if: :system_bot?
   validates :first_name, presence: true
   validates :last_name, presence: true
   validates :landing_page, inclusion: { in: LANDING_PAGES }
@@ -173,7 +174,7 @@ class User < ApplicationRecord
   end
 
   def workspace_access?(workspace = self.workspace)
-    !locked? && !deleted_at? && membership_for(workspace)&.active? == true
+    !system_bot? && !locked? && !deleted_at? && membership_for(workspace)&.active? == true
   end
 
   def role_names
@@ -440,10 +441,11 @@ class User < ApplicationRecord
   end
 
   def create_initial_workspace_membership
-    create_workspace_membership!(workspace: workspace)
+    create_workspace_membership!(workspace: workspace) unless system_bot?
   end
 
   def assign_default_role
+    return if system_bot?
     return unless roles.empty?
 
     member_role = Role.find_by(name: 'member')

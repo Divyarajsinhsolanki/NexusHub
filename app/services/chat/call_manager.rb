@@ -195,12 +195,13 @@ module Chat
     def decline(call_session)
       participant = participant_for!(call_session)
       return call_session unless call_session.live?
-      return call_session if participant.call_declined?
 
       call_session.with_lock do
         call_session.reload
         participant.reload
-        return call_session unless call_session.live?
+        # A second device's delayed timeout/decline must not undo an answer.
+        # Reload under the same call lock used by join to serialize both actions.
+        return call_session unless call_session.live? && participant.call_ringing?
 
         participant.update!(status: "declined", left_at: Time.current)
         end_if_no_recipient_can_join!(call_session, "declined")

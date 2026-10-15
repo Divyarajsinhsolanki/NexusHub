@@ -109,11 +109,11 @@ module Accounts
 
     def personal_cleanup!
       WebSession.where(user: user).delete_all
-      MobileSession.where(user: user).or(MobileSession.where(impersonated_user_id: user.id)).delete_all
       McpAuditLog.unscoped.where(user: user).delete_all
       McpAccessToken.where(user: user).destroy_all
       PushDelivery.where(recipient_id: user.id).destroy_all
       MobileDevice.where(user: user).destroy_all
+      MobileSession.where(user: user).or(MobileSession.where(impersonated_user_id: user.id)).delete_all
       notifications = Notification.unscoped.where(recipient_id: user.id).or(Notification.unscoped.where(actor_id: user.id))
       PushDelivery.where(notification_id: notifications.select(:id)).destroy_all
       OperationReminderDelivery.unscoped.where(notification_id: notifications.select(:id)).update_all(notification_id: nil)

@@ -1,3 +1,4 @@
+import PresenceHeartbeat from './PresenceHeartbeat';
 import React, { Suspense, lazy, useContext } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
@@ -379,6 +380,7 @@ const App = () => {
             },
           }}
           />
+          <PresenceHeartbeat />
           <PageTitle />
           <AppShell />
         </WorkspaceDataProvider>

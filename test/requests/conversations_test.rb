@@ -17,6 +17,23 @@ class ConversationsTest < ActionDispatch::IntegrationTest
     @message = @conversation.messages.create!(workspace: @workspace, user: @participant, body: "Hello from chat")
   end
 
+  test "presence heartbeat makes an account online to another member and expires when inactive" do
+    login(@creator)
+    post '/api/users/presence'
+    assert_response :success
+    assert_equal true, response.parsed_body['online']
+    login(@participant)
+    get "/api/conversations/#{@conversation.id}/summary"
+    assert_response :success
+    creator = response.parsed_body.fetch('participants').find { |person| person['id'] == @creator.id }
+    assert_equal true, creator['online']
+    travel 3.minutes do
+      get "/api/conversations/#{@conversation.id}/summary"
+      creator = response.parsed_body.fetch('participants').find { |person| person['id'] == @creator.id }
+      assert_equal false, creator['online']
+    end
+  end
+
   test "summary requires authentication" do
     get "/api/conversations/#{@conversation.id}/summary"
 

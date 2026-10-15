@@ -1,3 +1,5 @@
+import ConversationBulkActions from '../components/chat/ConversationBulkActions';
+import GroupProfile from "../components/chat/GroupProfile";
 import ChatMenu from "../components/chat/ChatMenu";
 import MessageActionsPopover from "../components/chat/MessageActionsPopover";
 import ChatTools from "../components/chat/ChatTools";
@@ -78,7 +80,6 @@ import {
   unmuteConversation,
   updateConversation,
   updateConversationReceipt,
-  updatePresence
 } from "../components/api";
 import { AuthContext } from "../context/AuthContext";
 import CallRoom, { preloadCallRoom } from "../components/chat/LazyCallRoom";
@@ -86,6 +87,7 @@ import { ensureCableConnection, sendToConversation, subscribeToCableStatus, subs
 import {
   applyComposerEntity,
   getComposerEntityQuery,
+  getMentionedUserIds,
   getPreferredUserMentionHandle,
   getTaskReferenceKey,
   getUserMentionAliases,
@@ -242,7 +244,7 @@ const formatParticipantStatus = (participant, currentUserId) => {
 };
 
 const isParticipantOnline = (participant, now = Date.now()) => {
-  if (!participant?.last_seen_at) return false;
+  if (!participant?.last_seen_at || participant.online === false) return false;
 
   const lastSeenTime = new Date(participant.last_seen_at).getTime();
   return Number.isFinite(lastSeenTime) && now - lastSeenTime <= ONLINE_WINDOW_MS;
@@ -427,7 +429,7 @@ const MentionText = ({ text, query }) => (
   </span>
 );
 
-const RichMessageText = ({ text = "", isMe, searchQuery, mentionLookups, children }) => {
+const RichMessageText = ({ text = "", isMe, searchQuery, mentionLookups }) => {
   const segments = tokenizeChatMessage(text, mentionLookups);
   const baseTagClass = isMe
     ? "border-blue-200 bg-blue-100/80 text-blue-800 hover:bg-blue-100"
@@ -447,7 +449,7 @@ const RichMessageText = ({ text = "", isMe, searchQuery, mentionLookups, childre
             <Link
               key={`${segment.kind}-${segment.raw}-${index}`}
               to={`/profile/${segment.user.id}`}
-              className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[0.92em] font-semibold transition ${baseTagClass}`}
+              className={`chat-user-mention inline-flex items-center rounded-full border px-2 py-0.5 text-[0.92em] font-semibold transition ${baseTagClass}`}
               title={segment.user.email || segment.text}
             >
               <MentionText text={segment.text} query={searchQuery} />
@@ -484,7 +486,6 @@ const RichMessageText = ({ text = "", isMe, searchQuery, mentionLookups, childre
           </Link>
         );
       })}
-      {children}
     </span>
   );
 };
@@ -551,7 +552,7 @@ const StatCard = ({ icon, label, value }) => (
   </div>
 );
 
-const ConversationItem = React.memo(({ conversation, currentUserId, isActive, searchQuery, previewText, presenceNow, onSelect, onHide, onDeleteForEveryone, onMute, onUnmute }) => {
+const ConversationItem = React.memo(({ conversation, currentUserId, isActive, searchQuery, previewText, presenceNow, onSelect, onHide, onDeleteForEveryone, onMute, onUnmute, selecting = false, selected = false, onToggleSelection, selectionBusy = false }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef(null);
   const isUnread = conversation.unread_count > 0;
@@ -561,8 +562,8 @@ const ConversationItem = React.memo(({ conversation, currentUserId, isActive, se
   const displayName = getConversationDisplayName(conversation, currentUserId);
   const displayImage = getConversationDisplayImage(conversation, currentUserId);
   const conversationPreview = previewText || (isDirect ? "Start a conversation" : `${conversation.participants?.length || 0} members · Say hello to the group`);
-  const Item = onSelect ? "button" : Link;
-  const itemProps = onSelect
+  const Item = selecting || onSelect ? "button" : Link;
+  const itemProps = selecting ? { type: "button", disabled: selectionBusy, onClick: () => onToggleSelection(conversation.id) } : onSelect
     ? { type: "button", onClick: () => onSelect(conversation.id) }
     : { to: `/chat/${conversation.id}` };
 
@@ -597,6 +598,7 @@ const ConversationItem = React.memo(({ conversation, currentUserId, isActive, se
           : "border-transparent bg-transparent text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-zinc-900"
       }`}
     >
+      {selecting && <button type="button" role="checkbox" disabled={selectionBusy} aria-checked={selected} aria-label={`Select ${displayName}`} className="chat-selection-checkbox" onClick={() => onToggleSelection(conversation.id)}>{selected ? <FiCheck /> : null}</button>}
       {isActive && <span aria-hidden="true" className="absolute inset-y-5 left-0 w-[3px] rounded-full bg-indigo-600 dark:bg-indigo-400" />}
       <Item
         {...itemProps}
@@ -608,8 +610,8 @@ const ConversationItem = React.memo(({ conversation, currentUserId, isActive, se
         }}
       >
         <div className="relative shrink-0">
-          {isDirect ? (
-            <Avatar name={displayName} src={displayImage} size="md" />
+          {isDirect || conversation.group_photo_url ? (
+            <Avatar name={displayName} src={isDirect ? displayImage : conversation.group_photo_url} size="md" />
           ) : (
             <div className="nx-chat-avatar flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-100 text-violet-600 dark:bg-violet-950 dark:text-violet-300">
               <FiUsers className="h-5 w-5" />
@@ -648,7 +650,7 @@ const ConversationItem = React.memo(({ conversation, currentUserId, isActive, se
         </span>
       )}
 
-      <button
+      {!selecting && <button
         type="button"
         onClick={(event) => {
           event.preventDefault();
@@ -663,7 +665,7 @@ const ConversationItem = React.memo(({ conversation, currentUserId, isActive, se
         aria-expanded={isMenuOpen}
       >
         <FiMoreVertical className="h-3.5 w-3.5" />
-      </button>
+      </button>}
 
       {isMenuOpen && (
         <div className="nx-chat-conversation-menu absolute right-2 top-[calc(100%-0.5rem)] z-30 w-48 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 text-slate-700 shadow-lg dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-100">
@@ -859,7 +861,7 @@ const MessageBubble = React.memo(({ message, conversationId, isMe, showAvatar, o
     setIsReactionPickerOpen(false);
   };
 
-  if (message.message_type === "system") return <div className="py-2 text-center text-xs text-slate-500" role="note">{message.body} · {timeString}</div>;
+  if (message.message_type === "system") return <div className="py-2 text-center text-xs text-slate-500" role="note">{message.body}<time className="chat-system-time" dateTime={message.created_at}>{timeString}</time></div>;
   const metadata = <span className="nx-chat-inline-meta">{message.edited_at && !message.deleted_at && <span title={`Edited ${new Date(message.edited_at).toLocaleString()}`}>Edited · </span>}<time dateTime={message.created_at}>{timeString}</time>{isMe && <span title={receiptTitle} aria-label={receiptTitle} className={`inline-flex ${allRead ? "text-indigo-600" : "text-slate-400"}`}><FiCheck className="h-3 w-3" />{(allDelivered || allRead) && <FiCheck className="-ml-1 h-3 w-3" />}</span>}</span>;
 
   return (
@@ -888,7 +890,7 @@ const MessageBubble = React.memo(({ message, conversationId, isMe, showAvatar, o
           >
             {message.reply_to && <blockquote className="mb-2 border-l-2 border-sky-500 pl-2 text-xs"><strong>{message.reply_to.user_name}</strong><p className="line-clamp-2">{message.reply_to.body || "Attachment"}</p></blockquote>}
             {message.pinned_at && <p className="text-xs font-semibold opacity-75">Pinned</p>}
-            {message.body && <RichMessageText text={message.deleted_at ? "Message deleted" : message.body} isMe={isMe} searchQuery={searchQuery} mentionLookups={mentionLookups}>{!message.attachments?.length && metadata}</RichMessageText>}
+            {message.body && <RichMessageText text={message.deleted_at ? "Message deleted" : message.body} isMe={isMe} searchQuery={searchQuery} mentionLookups={mentionLookups} />}
 
             {!message.deleted_at && <MessageLinkPreview message={message} conversationId={conversationId} />}
 
@@ -905,7 +907,7 @@ const MessageBubble = React.memo(({ message, conversationId, isMe, showAvatar, o
               </div>
             )}
 
-            {(!message.body || message.attachments?.length > 0) && <div className="text-right">{metadata}</div>}
+            <div className="nx-chat-message-meta">{metadata}</div>
           </div>
 
           {!message.deleted_at && <button ref={messageToolsTriggerRef} type="button" className="chat-mobile-message-menu" title="Message actions" aria-label="Message actions" aria-expanded={toolsOpen} onClick={() => setToolsOpen((open) => !open)}><FiMoreVertical /></button>}
@@ -1148,6 +1150,8 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   const changedMessageVersionsRef = useRef(new Map());
 
   const [conversations, setConversations] = useState({ direct: [], group: [] });
+  const conversationsRef = useRef(conversations);
+  conversationsRef.current = conversations;
   const [conversationListMeta, setConversationListMeta] = useState(null);
   const [isConversationListLoading, setIsConversationListLoading] = useState(false);
   const [isConversationListLoadingMore, setIsConversationListLoadingMore] = useState(false);
@@ -1222,6 +1226,9 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   const [callCredentials, setCallCredentials] = useState(null);
   const [isCallConnecting, setIsCallConnecting] = useState(false);
   const [callError, setCallError] = useState("");
+  const [selectingChats, setSelectingChats] = useState(false);
+  const [selectionBusy, setSelectionBusy] = useState(false);
+  const [selectedChatIds, setSelectedChatIds] = useState(new Set());
   const [presenceNow, setPresenceNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -1686,6 +1693,9 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
       summarizedMessageIdsRef.current.delete(summarizedMessageIdsRef.current.values().next().value);
     }
 
+    const knownConversation = [...(conversationsRef.current.direct || []), ...(conversationsRef.current.group || [])].some(row => Number(row.id) === Number(targetConversationId));
+    if (!knownConversation) void refreshConversationSummary(targetConversationId);
+
     const isCurrentConversation = Number(targetConversationId) === Number(conversationId);
     const isIncoming = Number(message.user_id) !== Number(user?.id);
     const lastMessage = message.body?.trim() || (message.attachments?.length ? "Sent an attachment" : "New message");
@@ -1715,7 +1725,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     if (isIncoming && !isCurrentConversation) {
       setConversationListMeta((previous) => previous ? { ...previous, unread_count: (previous.unread_count || 0) + 1 } : previous);
     }
-  }, [conversationId, user?.id]);
+  }, [conversationId, user?.id, refreshConversationSummary]);
 
   const scheduleActiveConversationReconciliation = useCallback((targetConversationId = conversationId) => {
     if (!targetConversationId) return;
@@ -2003,33 +2013,11 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   }, [acknowledgeReceipt, conversationId, scheduleActiveConversationReconciliation]);
 
   useEffect(() => {
-    if (user?.demo_account) return undefined;
-
-    const publishPresence = () => {
-      if (document.visibilityState === "hidden" || navigator.onLine === false) return;
-      updatePresence()
-        .then(({ data }) => {
-          if (!user?.id) return;
-
-          const payload = {
-            user_id: user.id,
-            last_seen_at: data?.last_seen_at,
-            online: data?.online
-          };
-          setPresenceNow(Date.now());
-          setActiveConversation((previous) => applyPresenceToConversation(previous, payload));
-          setConversations((previous) => ({
-            direct: (previous.direct || []).map((conversation) => applyPresenceToConversation(conversation, payload)),
-            group: (previous.group || []).map((conversation) => applyPresenceToConversation(conversation, payload))
-          }));
-        })
-        .catch(() => {});
-    };
-
-    publishPresence();
-    const timer = window.setInterval(publishPresence, 30000);
-    return () => window.clearInterval(timer);
-  }, [user?.demo_account, user?.id]);
+    const refreshClock = () => setPresenceNow(Date.now());
+    const timer = window.setInterval(refreshClock, 30_000);
+    window.addEventListener('focus', refreshClock);
+    return () => { window.clearInterval(timer); window.removeEventListener('focus', refreshClock); };
+  }, []);
 
   useEffect(() => {
     const subscription = subscribeToPresence((payload) => {
@@ -2318,6 +2306,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   }, [activeCall, handleJoinCall, isCallConnecting]);
 
   const [showCallHistory, setShowCallHistory] = useState(false);
+  const [callHistoryConversationId, setCallHistoryConversationId] = useState(null);
   const handleHistoryCallback = async (history) => {
     if (isCallConnecting || callCredentials) throw new Error("Leave your current call before calling back.");
     const { data } = await createCall(history.conversation_id, history.call_type);
@@ -2868,14 +2857,14 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   );
 
   const usersByHandle = useMemo(
-    () => users.reduce((lookup, candidate) => {
+    () => [...users, ...(activeConversation?.participants || [])].reduce((lookup, candidate) => {
       getUserMentionAliases(candidate).forEach((alias) => {
         if (alias && !lookup[alias]) lookup[alias] = candidate;
       });
 
       return lookup;
     }, {}),
-    [users]
+    [users, activeConversation?.participants]
   );
 
   const mentionableTasks = useMemo(
@@ -2935,9 +2924,15 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     if (activeComposerEntity?.trigger !== "@") return [];
 
     const normalizedQuery = activeComposerEntity.query.trim().toLowerCase();
+    const usersByHandle = {};
+    for (const person of mentionableUsers) {
+      for (const alias of getUserMentionAliases(person)) usersByHandle[alias] ||= person;
+    }
+    const mentionedIds = getMentionedUserIds(messageBody, { usersByHandle }, activeComposerEntity);
 
     return mentionableUsers
       .filter((candidate) => {
+        if (mentionedIds.has(String(candidate.id))) return false;
         const searchableText = [
           getFullUserName(candidate),
           candidate.email,
@@ -2969,7 +2964,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
         insertText: `@${getPreferredUserMentionHandle(candidate)}`,
         profilePicture: candidate.profile_picture
       }));
-  }, [activeComposerEntity, mentionableUsers]);
+  }, [activeComposerEntity, mentionableUsers, messageBody]);
 
   const taskMentionSuggestions = useMemo(() => {
     if (activeComposerEntity?.trigger !== "#") return [];
@@ -3044,6 +3039,14 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
     if (threadSearchQuery.trim()) return searchResults.data;
     return contextMessages || activeConversationMessages;
   }, [activeConversationMessages, threadSearchQuery, searchResults.data, contextMessages]);
+
+  const messageMentionLookupRequest = useRef(null);
+  useEffect(() => {
+    if (messageMentionLookupRequest.current === conversationId) return;
+    if (!filteredMessages.some(message => /(^|[\s([{])@[a-z0-9]/i.test(message.body || ''))) return;
+    messageMentionLookupRequest.current = conversationId;
+    void loadUsers();
+  }, [conversationId, filteredMessages, loadUsers]);
 
   const groupedMessages = useMemo(
     () => groupMessagesByDay(filteredMessages),
@@ -3412,6 +3415,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
   return (
     <div data-has-conversation={Boolean(conversationId)} className={`nexus-chat-page flex h-full min-h-0 w-full overflow-hidden ${embedded ? "chat-embedded" : ""}`}>
       {muteTarget && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setMuteTarget(null)}><section role="dialog" aria-modal="true" aria-labelledby="mute-dialog-title" className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl dark:bg-zinc-900" onClick={event => event.stopPropagation()} onKeyDown={event => { if (event.key === 'Escape') setMuteTarget(null); }}><h2 id="mute-dialog-title" className="mb-3 font-semibold">Mute notifications for…</h2>{MUTE_OPTIONS.map((option, index) => <button autoFocus={index === 0} key={option.id} type="button" className="block w-full rounded-lg px-3 py-3 text-left hover:bg-slate-100 dark:hover:bg-zinc-800" onClick={() => handleMuteConversation(muteTarget, option.id)}>{option.label.replace('Mute ', '')}</button>)}<button type="button" className="mt-2 w-full rounded-lg border px-3 py-2" onClick={() => setMuteTarget(null)}>Cancel</button></section></div>}
+      {showCallHistory && <CallHistory key={callHistoryConversationId || "all"} conversationId={callHistoryConversationId} onClose={() => setShowCallHistory(false)} onCallback={handleHistoryCallback} />}
       <div className="nexus-chat-surface relative flex min-h-0 h-full w-full overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
         <aside aria-label="Conversations" className={`nexus-chat-sidebar relative z-10 flex min-h-0 w-full shrink-0 flex-col border-r border-slate-200 bg-white dark:border-zinc-800 dark:bg-zinc-950 md:w-[20rem] xl:w-[22rem] ${conversationId ? "hidden md:flex" : "flex"}`}>
           <div className="chat-inbox-header">
@@ -3434,13 +3438,14 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
               </button>
             </div>
             <div className="chat-inbox-utilities"><ChatMenu label="More inbox actions" icon={<FiMoreVertical />}>{close => <>
+              {!user?.demo_account && <button type="button" onClick={() => { close(); setSelectingChats(true); }}><FiCheck />Select chats</button>}
               <QuickMeetingButton />
               <button type="button" onClick={() => { close(); setShowScheduledMeetings(true); }}><FiVideo />Scheduled meetings</button>
-              <button type="button" onClick={() => { close(); setShowCallHistory(true); }}><FiPhone />Call history</button>
+              <button type="button" onClick={() => { close(); setCallHistoryConversationId(null); setShowCallHistory(true); }}><FiPhone />Call history</button>
             </>}</ChatMenu></div>
             {showScheduledMeetings && <ScheduledMeetings user={user} meetingId={scheduledMeetingId} onClose={()=>setShowScheduledMeetings(false)} />}
-            {showCallHistory && <CallHistory onClose={() => setShowCallHistory(false)} onCallback={handleHistoryCallback} />}
 
+            {selectingChats && <ConversationBulkActions onBusy={setSelectionBusy} selected={selectedChatIds} onSelection={setSelectedChatIds} visibleIds={[...filteredConversations.direct, ...filteredConversations.group].map(row => row.id)} onUpdated={commitConversationChange} onRemoved={removeConversationLocally} onClose={() => { setSelectingChats(false); setSelectedChatIds(new Set()); }} />}
             <div className="chat-inbox-search">
               <FiSearch aria-hidden="true" />
               <input
@@ -3518,6 +3523,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                           currentUserId={user?.id}
                           isActive={Number(conversationId) === Number(conversation.id)}
                           searchQuery={deferredSideSearchQuery}
+                          selectionBusy={selectionBusy} selecting={selectingChats} selected={selectedChatIds.has(conversation.id)} onToggleSelection={id => setSelectedChatIds(previous => { const next = new Set(previous); if (next.has(id)) next.delete(id); else next.add(id); return next; })}
                           presenceNow={presenceNow}
                           previewText={resolveChatMessageText(conversation.last_message || "", mentionLookups)}
                           onSelect={embedded ? openConversation : undefined}
@@ -3553,6 +3559,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                           currentUserId={user?.id}
                           isActive={Number(conversationId) === Number(conversation.id)}
                           searchQuery={deferredSideSearchQuery}
+                          selectionBusy={selectionBusy} selecting={selectingChats} selected={selectedChatIds.has(conversation.id)} onToggleSelection={id => setSelectedChatIds(previous => { const next = new Set(previous); if (next.has(id)) next.delete(id); else next.add(id); return next; })}
                           presenceNow={presenceNow}
                           previewText={resolveChatMessageText(conversation.last_message || "", mentionLookups)}
                           onSelect={embedded ? openConversation : undefined}
@@ -3657,7 +3664,9 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                       </Link>
                     )}
 
-                    {activeConversation.conversation_type === "direct" ? (
+                    {activeConversation.conversation_type === "group" && activeConversation.group_photo_url ? (
+                      <Avatar name={activeConversationName} src={activeConversation.group_photo_url} size="lg" />
+                    ) : activeConversation.conversation_type === "direct" ? (
                       <div className="chat-thread-avatar relative shrink-0">
                         <Avatar name={activeConversationName} src={activeConversationImage} size="lg" />
                         <span
@@ -3699,6 +3708,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                         <button type="button" onClick={() => { close(); setIsThreadSearchOpen(true); }}><FiSearch />Search in conversation</button>
                         {[["media", "Shared media", FiImage], ["files", "Shared files", FiFileText], ["pins", "Pinned messages", FiBookmark], ["scheduled", "Scheduled messages", FiClock]].map(([mode, label, Icon]) => <button type="button" key={mode} onClick={() => { close(); setChatToolMode(mode); }}><Icon />{label}</button>)}
                         <button type="button" onClick={() => { close(); setShowInfo(true); }}><FiInfo />Conversation details</button>
+                        <button type="button" onClick={() => { close(); setCallHistoryConversationId(activeConversation.id); setShowCallHistory(true); }}><FiPhoneCall />Call history</button>
                         <hr />
                         <button type="button" onClick={() => { close(); activeConversation.muted ? handleUnmuteConversation(activeConversation) : handleMuteConversation(activeConversation); }}><FiBellOff />{activeConversation.muted ? "Unmute conversation" : "Mute conversation"}</button>
                         <button type="button" onClick={() => { close(); handleHideConversation(activeConversation); }}><FiTrash2 />Hide for me</button>
@@ -4142,8 +4152,8 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
 
                         <div className="chat-details-scroll min-h-0 flex-1 overflow-y-auto px-5 py-5">
                           <div className="chat-details-profile">
-                            {activeConversation.conversation_type === "direct" ? (
-                              <Avatar name={activeConversationName} src={activeConversationImage} size="xl" className="mx-auto" />
+                            {activeConversation.conversation_type === "direct" || activeConversation.group_photo_url ? (
+                              <Avatar name={activeConversationName} src={activeConversation.conversation_type === "group" ? activeConversation.group_photo_url : activeConversationImage} size="xl" className="mx-auto" />
                             ) : (
                               <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-sky-100 to-cyan-50 text-sky-700 dark:from-sky-950/60 dark:to-cyan-950/40 dark:text-sky-200">
                                 <FiUsers className="h-8 w-8" />
@@ -4201,6 +4211,7 @@ const Chat = ({ embedded = false, initialConversationId = null }) => {
                                 : `Private chat${activeConversationOtherParticipant?.job_title ? ` • ${activeConversationOtherParticipant.job_title}` : ""}`}
                             </p>
 
+                            <GroupProfile key={activeConversation.id} conversation={activeConversation} onUpdated={commitConversationChange} readOnly={user?.demo_account} />
                             <div className="mt-5 grid grid-cols-3 gap-3 text-left">
                               <StatCard icon={<FiMessageSquare className="h-4 w-4" />} label="Messages" value={activeConversationMessages.length} accentClass="bg-slate-100 text-slate-700 dark:bg-zinc-800 dark:text-slate-200" />
                               <StatCard icon={<FiPaperclip className="h-4 w-4" />} label="Files" value={sharedAttachments.length} accentClass="bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-200" />

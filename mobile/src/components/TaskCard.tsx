@@ -60,7 +60,7 @@ const styles = StyleSheet.create({
   card: { borderRadius: 8, borderWidth: 1, elevation: 1, padding: 15, shadowOffset: { height: 3, width: 0 }, shadowOpacity: 0.08, shadowRadius: 8 },
   topline: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   topActions: { alignItems: 'center', flexDirection: 'row', gap: 7 },
-  edit: { alignItems: 'center', height: 32, justifyContent: 'center', width: 32 },
+  edit: { alignItems: 'center', height: 44, justifyContent: 'center', width: 44 },
   key: { fontSize: 12, fontWeight: '800' },
   priority: { borderRadius: 6, fontSize: 12, fontWeight: '700', overflow: 'hidden', paddingHorizontal: 7, paddingVertical: 3, textTransform: 'capitalize' },
   title: { fontSize: 16, fontWeight: '700', lineHeight: 22, marginTop: 6 },
@@ -68,7 +68,7 @@ const styles = StyleSheet.create({
   meta: { alignItems: 'center', flexDirection: 'row', gap: 16, marginTop: 12 },
   metaItem: { alignItems: 'center', flexDirection: 'row', gap: 5 },
   metaText: { fontSize: 12 },
-  statuses: { borderRadius: 6, flexDirection: 'row', height: 38, marginTop: 14, padding: 3 },
+  statuses: { borderRadius: 6, flexDirection: 'row', minHeight: 50, marginTop: 14, padding: 3 },
   status: { alignItems: 'center', borderRadius: 4, flex: 1, justifyContent: 'center' },
   statusText: { fontSize: 12, fontWeight: '700' },
 });

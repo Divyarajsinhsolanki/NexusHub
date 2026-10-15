@@ -246,10 +246,14 @@ export type Task = {
   assignee?: Person | null;
 };
 
+export type HomeTaskFilter = 'all_open' | 'due_today' | 'overdue';
+
 export type HomeData = {
+  as_of_date: string;
   summary: {
     open_tasks: number;
     due_today: number;
+    overdue_tasks: number;
     active_projects: number;
     work_minutes_today: number;
     unread_notifications: number;
@@ -451,6 +455,10 @@ export type Conversation = EntityRecord & {
   can_delete_for_everyone?: boolean;
   can_manage_members?: boolean;
   can_edit_group?: boolean;
+  can_edit_group_info?: boolean;
+  description?: string | null;
+  group_photo_url?: string | null;
+  members_can_edit_group_info?: boolean;
   can_leave_group?: boolean;
   hidden_at?: string | null;
   muted_at?: string | null;

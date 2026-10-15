@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2027_09_09_000000) do
+ActiveRecord::Schema[8.1].define(version: 2027_09_12_000000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -232,6 +232,8 @@ ActiveRecord::Schema[8.1].define(version: 2027_09_09_000000) do
     t.string "title"
     t.datetime "updated_at", null: false
     t.bigint "workspace_id", null: false
+    t.text "description"
+    t.boolean "members_can_edit_group_info", default: false, null: false
     t.index ["conversation_type"], name: "index_conversations_on_conversation_type"
     t.index ["creator_id"], name: "index_conversations_on_creator_id"
     t.index ["last_message_id"], name: "index_conversations_on_last_message_id"
@@ -606,7 +608,9 @@ ActiveRecord::Schema[8.1].define(version: 2027_09_09_000000) do
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.bigint "workspace_id", null: false
+    t.bigint "mobile_session_id"
     t.index ["expo_push_token"], name: "index_mobile_devices_on_expo_push_token", unique: true
+    t.index ["mobile_session_id"], name: "index_mobile_devices_on_mobile_session_id"
     t.index ["user_id", "active"], name: "index_mobile_devices_on_user_id_and_active"
     t.index ["user_id"], name: "index_mobile_devices_on_user_id"
     t.index ["workspace_id", "active"], name: "index_mobile_devices_on_workspace_id_and_active"
@@ -1397,6 +1401,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_09_09_000000) do
     t.string "unconfirmed_email"
     t.datetime "updated_at", null: false
     t.bigint "workspace_id", null: false
+    t.boolean "system_bot", default: false, null: false
     t.index ["availability_status"], name: "index_users_on_availability_status"
     t.index ["confirmation_token"], name: "index_users_on_confirmation_token", unique: true
     t.index ["department_id"], name: "index_users_on_department_id"
@@ -1405,6 +1410,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_09_09_000000) do
     t.index ["last_seen_at"], name: "index_users_on_last_seen_at"
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
     t.index ["workspace_id", "created_at"], name: "index_users_on_workspace_id_and_created_at"
+    t.index ["workspace_id"], name: "index_one_system_bot_per_workspace", unique: true, where: "(system_bot = true)"
     t.index ["workspace_id"], name: "index_users_on_workspace_id"
     t.check_constraint "department_role::text = ANY (ARRAY['member'::character varying::text, 'manager'::character varying::text])", name: "users_department_role_valid"
   end
@@ -1673,6 +1679,7 @@ ActiveRecord::Schema[8.1].define(version: 2027_09_09_000000) do
   add_foreign_key "messages", "users"
   add_foreign_key "messages", "users", column: "pinned_by_id", on_delete: :nullify
   add_foreign_key "messages", "workspaces"
+  add_foreign_key "mobile_devices", "mobile_sessions"
   add_foreign_key "mobile_devices", "users"
   add_foreign_key "mobile_devices", "workspaces"
   add_foreign_key "mobile_sessions", "users"

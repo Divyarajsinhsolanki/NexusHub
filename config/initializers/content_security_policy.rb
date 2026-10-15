@@ -28,7 +28,8 @@ Rails.application.config.content_security_policy do |policy|
   policy.object_src :none
   policy.frame_ancestors :self
   policy.form_action :self
-  policy.script_src :self, "https://www.google.com/recaptcha/", "https://www.gstatic.com/recaptcha/", *dev_sources.select { |source| source.start_with?('http') }
+  # Firebase popup auth loads the Google API bootstrap and its follow-up scripts.
+  policy.script_src :self, "https://apis.google.com", "https://www.google.com/recaptcha/", "https://www.gstatic.com/recaptcha/", *dev_sources.select { |source| source.start_with?('http') }
   # React, Headless UI, motion, charts and PDF presentation use inline styles.
   policy.style_src :self, :unsafe_inline, "https://fonts.googleapis.com", *dev_sources.select { |source| source.start_with?('http') }
   policy.font_src :self, :data, "https://fonts.gstatic.com"

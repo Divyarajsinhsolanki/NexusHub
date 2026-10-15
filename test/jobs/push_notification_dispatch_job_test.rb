@@ -89,6 +89,15 @@ class PushNotificationDispatchJobTest < ActiveSupport::TestCase
     assert_nil Current.workspace
   end
 
+  test "removing a group member before the delayed job prevents delivery" do
+    notification = make_notification("Private update")
+    @membership.update!(removed_at: Time.current)
+    Current.reset_all
+    assert_no_difference "PushDelivery.count" do
+      PushNotificationDispatchJob.perform_now(notification.id)
+    end
+  end
+
   private
 
   def make_notification(body)

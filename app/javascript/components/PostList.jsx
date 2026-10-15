@@ -58,18 +58,9 @@ const PostList = ({ posts, refreshPosts, onPostUpdate = () => {}, onPostDelete =
       return { url: '', text: '', title: 'Check out this post' };
     }
 
-    const baseMessage = (post.message || '').trim();
-    const truncatedMessage = baseMessage.length > 120
-      ? `${baseMessage.slice(0, 117)}...`
-      : baseMessage;
-
-    const shareText = truncatedMessage || 'Check out this post from our community!';
-    const nameParts = [post.user?.first_name, post.user?.last_name].filter(Boolean);
-    const displayName = nameParts.length > 0
-      ? nameParts.join(' ')
-      : (post.user?.email || 'a community member');
-    const shareTitle = `Check out ${displayName}'s post`;
-    const url = `${window.location.origin}${window.location.pathname}#post-${post.id}`;
+    const shareText = 'View this workspace post (sign in required).';
+    const shareTitle = 'Workspace post';
+    const url = `${window.location.origin}/posts?post_id=${post.id}`;
 
     return { url, text: shareText, title: shareTitle };
   };

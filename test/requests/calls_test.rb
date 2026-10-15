@@ -33,6 +33,36 @@ class CallsTest < ActionDispatch::IntegrationTest
     clear_performed_jobs
   end
 
+  test "late web and mobile declines cannot cancel a call answered on another device" do
+    call = Chat::CallManager.new(user: @caller).create_call(conversation: @conversation, call_type: "audio")
+    Chat::CallManager.new(user: @recipient).join(call)
+    joined_at = call.participant_for(@recipient).reload.joined_at
+    login(@recipient)
+    post "/api/calls/#{call.id}/decline"
+    assert_response :success
+    session, = MobileSession.issue_for!(user: @recipient)
+    token = MobileAccessToken.issue(session)[:token]
+    post "/api/v1/calls/#{call.id}/decline", headers: { "Authorization" => "Bearer #{token}" }
+    assert_response :success
+    assert_equal "active", call.reload.status
+    assert_nil call.ended_at
+    participant = call.participant_for(@recipient).reload
+    assert_equal "joined", participant.status
+    assert_equal joined_at, participant.joined_at
+    assert_nil participant.left_at
+  end
+
+  test "a ringing call can still be declined and repeated declines are harmless" do
+    call = Chat::CallManager.new(user: @caller).create_call(conversation: @conversation, call_type: "audio")
+    login(@recipient)
+    2.times do
+      post "/api/calls/#{call.id}/decline"
+      assert_response :success
+    end
+    assert_equal "canceled", call.reload.status
+    assert_equal "declined", call.participant_for(@recipient).reload.status
+  end
+
   test "media credentials do not mark attendance until connection confirmation" do
     login(@caller)
     post "/api/conversations/#{@conversation.id}/calls", params: { call_type: "audio", media_confirmation_required: true }

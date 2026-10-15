@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
-import { ReactNode, useRef } from 'react';
-import { Animated, GestureResponderEvent, Pressable, PressableProps, StyleProp, StyleSheet, ViewStyle } from 'react-native';
+import { ReactNode, useEffect, useRef, useState } from 'react';
+import { AccessibilityInfo, Animated, GestureResponderEvent, Pressable, PressableProps, StyleProp, StyleSheet, ViewStyle } from 'react-native';
 
 type TouchableScaleProps = Omit<PressableProps, 'children' | 'style'> & {
   children: ReactNode;
@@ -22,8 +22,19 @@ export function TouchableScale({
   style,
   ...props
 }: TouchableScaleProps) {
+  const [reduceMotion, setReduceMotion] = useState(true);
+  useEffect(() => {
+    let active = true;
+    void AccessibilityInfo.isReduceMotionEnabled().then(value => { if (active) setReduceMotion(value); }).catch(() => {});
+    const listener = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => { active = false; listener.remove(); };
+  }, []);
   const scale = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (reduceMotion) { scale.stopAnimation(); scale.setValue(1); }
+  }, [reduceMotion, scale]);
   const animate = (toValue: number) => {
+    if (reduceMotion) { scale.stopAnimation(); scale.setValue(1); return; }
     Animated.spring(scale, {
       bounciness: 4,
       speed: 28,

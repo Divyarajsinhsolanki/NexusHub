@@ -36,9 +36,35 @@ class DailyKnowledgePublisherTest < ActiveSupport::TestCase
     assert_equal 4000, @client.api_requests.first[:params][:inference_config][:max_tokens]
     feed_posts = Post.in_workspace(@workspace)
     assert_equal 1, feed_posts.count
+    bot = feed_posts.first.user
+    assert bot.system_bot?
+    assert_equal "Knowledge Bot", bot.full_name
+    assert_not_equal @user.id, bot.id
+    assert_not bot.active_for_authentication?
+    assert_not bot.workspace_access?
+    assert_nil bot.workspace_membership
+    assert_equal 2, WorkspaceSeats.used(@workspace)
+    assert_equal bot.id, first.user_id
+    assert items.all? { |item| item.user_id == bot.id }
+    assert alerts.all? { |alert| alert.actor_id == bot.id }
+    assert_equal 1, @workspace.users.where(system_bot: true).count
+    bot.status = "active"
+    assert_not bot.valid?
+
     assert_equal first.reload.metadata["post_id"], feed_posts.first.id
     assert_includes feed_posts.first.message, "AI-generated · Amazon Bedrock"
     assert alerts.all? { |alert| alert.metadata["post_id"] == feed_posts.first.id }
+  end
+
+  test "bot does not require a configured owner and is isolated to its workspace" do
+    ENV.delete("DAILY_KNOWLEDGE_OWNER_EMAIL")
+    @workspace.update!(seat_limit_override: 1)
+    assert_no_difference "WorkspaceSeats.used(@workspace)" do
+      run = Knowledge::DailyPublisher.new(workspace: @workspace, client: @client).publish(date: Date.new(2026, 10, 10))
+      assert run.user.system_bot?
+    end
+    other = Workspace.create!(name: "Other bot workspace", slug: "other-bot-workspace", kind: "private")
+    assert_not_equal Knowledge::BotAuthor.for_workspace!(@workspace).id, Knowledge::BotAuthor.for_workspace!(other).id
   end
 
   test "repairs an older daily run without regenerating or notifying twice" do

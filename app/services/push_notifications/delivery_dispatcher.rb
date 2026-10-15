@@ -15,7 +15,15 @@ module PushNotifications
     attr_reader :client
 
     def deliver_slice(entries)
-      pending = entries.reject { |delivery, _payload| %w[ticketed accepted].include?(delivery.status) }
+      pending = entries.select do |delivery, payload|
+        delivery.reload
+        device = delivery.mobile_device.reload
+        !%w[ticketed accepted].include?(delivery.status) && device.active? && device.disabled_at.nil? &&
+          device.user_id == delivery.recipient_id && device.workspace_id == delivery.workspace_id &&
+          device.expo_push_token == (payload[:to] || payload["to"]) &&
+          (device.mobile_session.nil? || (device.mobile_session.revoked_at.nil? && device.mobile_session.expires_at > Time.current)) &&
+          delivery.recipient.workspace_access?(delivery.workspace)
+      end
       return if pending.empty?
 
       results = client.send_messages(pending.map(&:last))

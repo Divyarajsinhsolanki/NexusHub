@@ -3,7 +3,13 @@ class ChatChannel < ApplicationCable::Channel
     if params[:conversation_id].present?
       subscribe_to_conversation(params[:conversation_id])
     else
-      stream_from Chat::Broadcaster.user_stream(current_workspace.id, current_user.id)
+      stream_from Chat::Broadcaster.user_stream(current_workspace.id, current_user.id), coder: ActiveSupport::JSON do |event|
+        # Queued message events may outlive group membership even on the inbox stream.
+        conversation_event = event["type"].to_s.start_with?("message_") || event["type"] == "typing_indicator"
+        next if conversation_event && !active_conversation_member?(event["conversation_id"])
+
+        transmit event
+      end
     end
   end
 
@@ -61,7 +67,24 @@ class ChatChannel < ApplicationCable::Channel
       return
     end
 
-    stream_from Chat::Broadcaster.conversation_stream(current_workspace.id, conversation.id)
+    stream_from Chat::Broadcaster.conversation_stream(current_workspace.id, conversation.id), coder: ActiveSupport::JSON do |event|
+      # Stream callbacks run outside channel actions. Recheck membership at delivery
+      # time rather than trusting the authorization performed when subscribing.
+      unless active_conversation_member?(conversation.id)
+        stop_all_streams
+        reject
+        next
+      end
+
+      transmit event
+    end
+  end
+
+  def active_conversation_member?(conversation_id)
+    current_user.reload.workspace_access?(current_workspace) &&
+      ConversationParticipant.unscoped.active.exists?(workspace_id: current_workspace.id, conversation_id: conversation_id, user_id: current_user.id)
+  rescue ActiveRecord::RecordNotFound
+    false
   end
 
   def participant_in_conversation?(conversation_id)

@@ -1,6 +1,6 @@
 import { FlashList } from '@shopify/flash-list';
 import { useInfiniteQuery, useMutation } from '@tanstack/react-query';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, Phone, Video } from 'lucide-react-native';
 import { useCallback, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -22,12 +22,14 @@ export function formatCallDuration(seconds: number) {
 export function CallHistoryScreen() {
   const theme = useAppTheme();
   const router = useRouter();
+  const params = useLocalSearchParams<{ conversationId?: string }>();
+  const conversationId = Number(params.conversationId) > 0 ? Number(params.conversationId) : undefined;
   const { user } = useAuth();
   const [focused, setFocused] = useState(true);
   useFocusEffect(useCallback(() => { setFocused(true); return () => setFocused(false); }, []));
   const pending = useRef(false);
-  const query = useInfiniteQuery({ queryKey: ['call-history', user?.workspace.id], initialPageParam: 1,
-    queryFn: ({pageParam}) => endpoints.callHistory(pageParam), getNextPageParam: page => page.meta?.next_page || undefined,
+  const query = useInfiniteQuery({ queryKey: ['call-history', user?.workspace?.id, conversationId ?? 'all'], initialPageParam: 1,
+    queryFn: ({pageParam}) => endpoints.callHistory(pageParam, conversationId), getNextPageParam: page => page.meta?.next_page || undefined,
     enabled: Boolean(user) && focused, refetchInterval: false });
   const callback = useMutation({ mutationFn: async (entry: CallHistoryEntry) => {
     const response = await endpoints.startCall(entry.conversation_id, entry.call_type);
@@ -39,11 +41,11 @@ export function CallHistoryScreen() {
     try { await callback.mutateAsync(entry); } catch { /* Mutation displays the error. */ } finally { pending.current = false; }
   };
   const rows = [...new Map((query.data?.pages.flatMap(page => page.data) || []).map(row => [row.id, row])).values()];
-  return <Screen header={<PageHeader title="Call history" subtitle="Recent voice and video calls" leading={<Pressable accessibilityLabel="Back" onPress={() => router.back()} style={styles.button}><ArrowLeft color={theme.text} size={22}/></Pressable>}/>}>
+  return <Screen header={<PageHeader title="Call history" subtitle={conversationId ? "Calls in this conversation" : "Recent voice and video calls"} leading={<Pressable accessibilityLabel="Back" onPress={() => router.back()} style={styles.button}><ArrowLeft color={theme.text} size={22}/></Pressable>}/>}>
     {query.isPending && !query.data ? <LoadingState label="Loading calls"/> : null}
     {query.isError ? <ErrorState message={apiErrorMessage(query.error)} onRetry={() => query.isFetchNextPageError ? query.fetchNextPage() : query.refetch()}/> : null}
     {query.data ? <FlashList data={rows} keyExtractor={row => String(row.id)} contentContainerStyle={styles.list} onRefresh={() => { if (!query.isFetching) void query.refetch(); }} refreshing={query.isRefetching && !query.isFetchingNextPage} onEndReached={() => { if (query.hasNextPage && !query.isFetching) void query.fetchNextPage(); }}
-      ListEmptyComponent={<EmptyState title="No calls yet" message="Your call history will appear here."/>}
+      ListEmptyComponent={<EmptyState title="No calls yet" message={conversationId ? "No calls in this conversation yet." : "Your call history will appear here."}/>}
       ListFooterComponent={query.isFetchingNextPage ? <LoadingState label="Loading older calls"/> : query.hasNextPage ? <PrimaryButton label="Load older calls" disabled={query.isFetching} onPress={() => { if (!query.isFetching) void query.fetchNextPage(); }}/> : null}
       renderItem={({item}) => <View style={[styles.row, {backgroundColor:theme.surface,borderColor:theme.border}]}><View style={[styles.icon,{backgroundColor:theme.surfaceMuted}]}>{item.call_type === 'video' ? <Video color={theme.primary} size={22}/> : <Phone color={theme.primary} size={22}/>}</View><View style={styles.copy}><Pressable disabled={!item.can_open_conversation} accessibilityRole={item.can_open_conversation ? 'button' : undefined} accessibilityLabel={`Open conversation with ${item.title}`} onPress={() => router.push(`/chat/${item.conversation_id}` as never)}><Text numberOfLines={2} style={[styles.title,{color:theme.text}]}>{item.title}</Text></Pressable><Text style={[styles.meta,{color:item.participant_status === 'missed' || item.status === 'missed' ? theme.danger : theme.textMuted}]}>{item.direction} · {item.participant_status === 'missed' ? 'missed' : item.status} · {formatCallDuration(item.duration_seconds)}</Text><Text style={[styles.date,{color:theme.textMuted}]}>{new Date(item.created_at).toLocaleString()}</Text></View><Pressable accessibilityRole="button" accessibilityLabel={`Call back ${item.title}`} disabled={!item.can_callback || user?.demo_account || callback.isPending} onPress={() => { void callBack(item); }} style={[styles.callback,{backgroundColor:theme.primary,opacity:!item.can_callback || user?.demo_account || callback.isPending ? 0.4 : 1}]}><Phone size={18} color="#fff"/></Pressable></View>}/>: null}
   </Screen>;

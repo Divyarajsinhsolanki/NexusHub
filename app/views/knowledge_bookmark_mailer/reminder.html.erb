@@ -1,18 +1,8 @@
-<!DOCTYPE html>
-<html>
-  <body>
-    <h1>Hi <%= @user.first_name.presence || @user.email %>,</h1>
-    <p>It's time to revisit one of your saved Knowledge Hub items.</p>
-    <p><strong>Category:</strong> <%= @bookmark.card_type.humanize %></p>
-    <% if @bookmark.collection_name.present? %>
-      <p><strong>Collection:</strong> <%= @bookmark.collection_name %></p>
-    <% end %>
-    <p><strong>Saved on:</strong> <%= @bookmark.created_at.strftime('%B %d, %Y') %></p>
-    <hr />
-    <p><strong>Details:</strong></p>
-    <pre style="background:#f4f4f4;padding:12px;border-radius:8px;white-space:pre-wrap;word-break:break-word;">
-<%= JSON.pretty_generate(@bookmark.payload) %>
-    </pre>
-    <p>Open the Knowledge Hub to review and mark it as done.</p>
-  </body>
-</html>
+<%= email_heading 'A good time to revisit this', eyebrow: 'Knowledge Hub reminder', intro: "Hi #{@user.first_name.presence || @user.email}, take a moment to review one of your saved items." %>
+<% details = { 'Category' => @bookmark.card_type.humanize, 'Saved on' => @bookmark.created_at.strftime('%B %d, %Y') } %>
+<% details['Collection'] = @bookmark.collection_name if @bookmark.collection_name.present? %>
+<%= email_details details %>
+<h2 style="font-size:16px;color:#172033;">Saved details</h2>
+<%= email_code_block JSON.pretty_generate(@bookmark.payload) %>
+<%= email_button 'Open Knowledge Hub', root_url + 'knowledge' %>
+<p style="font-size:12px;color:#64748b;">Review this item and mark it as done when you are ready.</p>

@@ -524,9 +524,25 @@ paths:
   /home:
     get:
       operationId: getHome
+      parameters:
+        - name: task_filter
+          in: query
+          schema:
+            type: string
+            enum: [all_open, due_today, overdue]
+            default: all_open
       responses:
         "200":
-          $ref: "#/components/responses/GenericSuccess"
+          description: Assigned task preview and unfiltered daily counts
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/HomeData" }
+        "422":
+          $ref: "#/components/responses/Error"
   /activity:
     get:
       operationId: listActivity
@@ -2014,6 +2030,24 @@ paths:
         "200": { $ref: "#/components/responses/GenericSuccess" }
     patch:
       operationId: updateConversation
+      description: Group managers can rename the group and control member editing. When enabled, active members can update only the photo and description. Photo uploads must be JPEG, PNG, GIF or WebP, at most 5 MB.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [conversation]
+              properties:
+                conversation: { $ref: "#/components/schemas/GroupInfoUpdate" }
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                conversation[description]: { type: string, maxLength: 2000 }
+                conversation[members_can_edit_group_info]: { type: boolean }
+                conversation[remove_group_photo]: { type: boolean }
+                conversation[group_photo]: { type: string, format: binary }
       responses:
         "200": { $ref: "#/components/responses/GenericSuccess" }
     delete:
@@ -2520,6 +2554,10 @@ paths:
       operationId: listCallHistory
       description: Paginated current-workspace calls in which the authenticated user participated, newest first. Callback availability respects current conversation membership and live calls. Duration is the user's connected time, zero for unanswered calls.
       parameters:
+        - name: conversation_id
+          in: query
+          description: Limit history to an accessible individual or group conversation. Only the authenticated user's calls are returned.
+          schema: { type: integer, minimum: 1 }
         - name: page
           in: query
           schema: { type: integer, minimum: 1, default: 1 }
@@ -2540,6 +2578,7 @@ paths:
                     items: { $ref: "#/components/schemas/CallHistoryEntry" }
                   meta: { $ref: "#/components/schemas/PaginationMeta" }
         "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
   /calls/{id}/join:
     parameters:
       - $ref: "#/components/parameters/Id"
@@ -3039,6 +3078,32 @@ components:
           schema:
             $ref: "#/components/schemas/ErrorEnvelope"
   schemas:
+    HomeData:
+      type: object
+      required: [as_of_date, summary, tasks]
+      properties:
+        as_of_date: { type: string, format: date }
+        summary:
+          type: object
+          required: [open_tasks, due_today, overdue_tasks, active_projects, work_minutes_today, unread_notifications]
+          properties:
+            open_tasks: { type: integer }
+            due_today: { type: integer }
+            overdue_tasks: { type: integer }
+            active_projects: { type: integer }
+            work_minutes_today: { type: integer }
+            unread_notifications: { type: integer }
+        tasks:
+          type: array
+          maxItems: 5
+          items: { $ref: "#/components/schemas/Task" }
+    GroupInfoUpdate:
+      type: object
+      properties:
+        title: { type: string }
+        description: { type: string, maxLength: 2000 }
+        members_can_edit_group_info: { type: boolean, default: false }
+        remove_group_photo: { type: boolean }
     ChatMessage:
       type: object
       required: [id, body, created_at]

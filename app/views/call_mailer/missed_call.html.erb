@@ -1,10 +1,3 @@
-<h1>Missed <%= @call_session.call_type %> call</h1>
-
-<p>
-  <%= @caller.full_name %> called you in
-  <strong><%= @conversation_name %></strong>.
-</p>
-
-<p>
-  <a href="<%= @chat_url %>">Open the conversation</a>
-</p>
+<%= email_heading "You missed a #{@call_session.call_type} call", eyebrow: 'Missed call', intro: "#{@caller.full_name} tried to reach you. Open the conversation when you are ready to reconnect." %>
+<%= email_details 'Caller' => @caller.full_name, 'Conversation' => @conversation_name, 'Call type' => @call_session.call_type.humanize %>
+<%= email_button 'Open the conversation', @chat_url %>

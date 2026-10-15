@@ -1,0 +1,5 @@
+<%= email_heading "Join #{@invitation.workspace.name}", eyebrow: 'Workspace invitation', intro: 'You have been invited to collaborate with your team on Nexus Hub.' %>
+<%= email_details 'Workspace' => @invitation.workspace.name, 'Your roles' => @invitation.role_names.join(', '), 'Link expires' => 'In seven days · Can be used once' %>
+<%= email_button 'Accept invitation', @link %>
+<p>You choose your password; your company never needs it. If you already have an account here, enter your existing password.</p>
+<%= email_note 'If you did not expect this invitation, you can ignore this email.' %>

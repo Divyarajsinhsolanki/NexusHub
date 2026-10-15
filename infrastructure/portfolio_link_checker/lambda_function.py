@@ -13,6 +13,8 @@ import urllib.request
 BASE_URL = os.environ.get('PORTFOLIO_BASE_URL', 'https://divyarajsinh.com').rstrip('/')
 
 
+from email_templates import render_email
+
 def validate_url(url):
     parsed = urllib.parse.urlsplit(url)
     if parsed.scheme not in ('http', 'https') or not parsed.hostname or parsed.username or parsed.password:
@@ -76,7 +78,7 @@ def send_email(subject, body):
     import boto3
     return boto3.client('ses', region_name=os.environ.get('AWS_REGION', 'ap-south-1')).send_email(
         Source=os.environ['SENDER_EMAIL'], Destination={'ToAddresses': [os.environ['ALERT_EMAIL']]},
-        Message={'Subject': {'Data': subject, 'Charset': 'UTF-8'}, 'Body': {'Text': {'Data': body, 'Charset': 'UTF-8'}}})['MessageId']
+        Message={'Subject': {'Data': subject, 'Charset': 'UTF-8'}, 'Body': {'Text': {'Data': body, 'Charset': 'UTF-8'}, 'Html': {'Data': render_email(subject, body, 'Portfolio link checker'), 'Charset': 'UTF-8'}}})['MessageId']
 
 
 def lambda_handler(event, context):

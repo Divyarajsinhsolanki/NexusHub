@@ -1,0 +1,4 @@
+Deployment: October release
+Oct 16, 2026 20:10 IST
+
+Open project operations: http://example.test/projects/3/dashboard?tab=environments&section=deployments&record=4

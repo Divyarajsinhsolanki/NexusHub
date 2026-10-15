@@ -1,0 +1,7 @@
+Your privacy request has an update.
+Reference: f0a45aeb-498d-4ac8-ae24-4dda6b64ff01
+
+View the response using this private link (valid for 30 days):
+http://localhost:5000/privacy-requests#track=eyJfcmFpbHMiOnsiZGF0YSI6MTIsImV4cCI6IjIwMjYtMTEtMTRUMTQ6NDA6NTAuOTY5WiIsInB1ciI6InByaXZhY3lfcmVxdWVzdC9wcml2YWN5LXRyYWNraW5nIn19--9c83cc2033660878599e0370e73e70e4fcb65bb3a581a7459e724a1e5385842f
+
+Do not forward this link. The response and any limitations are available on the tracking page.

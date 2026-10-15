@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-quer
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { beforeEach, expect, jest, test } from '@jest/globals';
 import { PostFeed } from '../../app/(tabs)/inbox';
-import { Alert } from 'react-native';
+import { Alert, Share } from 'react-native';
 import { endpoints } from '../api/endpoints';
 import type { CollectionResult, Post } from '../api/types';
 
@@ -59,4 +59,14 @@ test('opens author profile and deletes only the owned post after confirmation', 
   await waitFor(()=>expect(endpoints.deletePost).toHaveBeenCalledWith(12));
   await waitFor(()=>expect((client.getQueryData(['posts']) as CollectionResult<Post>).data).toEqual([]));
   confirm.mockRestore(); await close();
+});
+
+test('visible share action sends an exact post link without copying confidential text', async () => {
+  const share = jest.spyOn(Share, 'share').mockResolvedValue({ action: Share.sharedAction });
+  const { screen, close } = await setup();
+  await fireEvent.press(screen.getByLabelText('Share post'));
+  expect(share).toHaveBeenCalledWith({ message: expect.stringContaining('/posts?post_id=12') });
+  expect(share.mock.calls[0][0].message).not.toContain(post.message);
+  share.mockRestore();
+  await close();
 });

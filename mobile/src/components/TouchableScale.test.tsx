@@ -1,0 +1,23 @@
+import { act, fireEvent, render } from '@testing-library/react-native';
+import { expect, jest, test } from '@jest/globals';
+import { AccessibilityInfo, Animated, Text } from 'react-native';
+import { TouchableScale } from './TouchableScale';
+test('keeps actions usable while honoring initial and changed reduced-motion preferences', async () => {
+  const preference = jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(false);
+  let change: (value: boolean) => void = () => {};
+  const listener = jest.spyOn(AccessibilityInfo, 'addEventListener').mockImplementation((_name, callback) => { change = callback as unknown as (value: boolean) => void; return { remove: jest.fn() } as unknown as ReturnType<typeof AccessibilityInfo.addEventListener>; });
+  const spring = jest.spyOn(Animated, 'spring');
+  const press = jest.fn();
+  const screen = await render(<TouchableScale accessibilityRole="button" accessibilityLabel="Action" onPress={press} haptic="none"><Text>Action</Text></TouchableScale>);
+  await act(async () => {});
+  await fireEvent(screen.getByLabelText('Action'), 'pressIn', {});
+  expect(spring).toHaveBeenCalled();
+  spring.mockClear();
+  await act(async () => { change(true); });
+  await fireEvent(screen.getByLabelText('Action'), 'pressIn', {});
+  expect(spring).not.toHaveBeenCalled();
+  await fireEvent.press(screen.getByLabelText('Action'));
+  expect(press).toHaveBeenCalledTimes(1);
+  await screen.unmount();
+  preference.mockRestore(); listener.mockRestore(); spring.mockRestore();
+});

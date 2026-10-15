@@ -1,0 +1,6 @@
+Welcome <%= @resource.first_name %>!
+
+Confirm your Nexus Hub account:
+<%= user_confirmation_url(confirmation_token: @token) %>
+
+If you did not create this account, ignore this email.

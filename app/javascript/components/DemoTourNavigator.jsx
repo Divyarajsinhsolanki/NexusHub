@@ -5,11 +5,14 @@ import { fetchDemoManifest } from "./api";
 
 const routeMatches = (location, route) => {
   const { pathname, search } = location;
-  const routePath = route?.split(/[?#]/)[0];
+  // Posts now live at /home; existing tour manifests still link to /posts.
+  const canonicalPath = (path) => path === "/posts" ? "/home" : path;
+  const routePath = canonicalPath(route?.split(/[?#]/)[0]);
+  const currentPath = canonicalPath(pathname);
   if (!routePath || routePath === "/demo") return pathname === "/demo";
   const expectedSearch = new URLSearchParams(route?.split("?")[1]?.split("#")[0]);
   const currentSearch = new URLSearchParams(search);
-  return (pathname === routePath || pathname.startsWith(`${routePath}/`)) &&
+  return (currentPath === routePath || currentPath.startsWith(`${routePath}/`)) &&
     [...expectedSearch].every(([key, value]) => currentSearch.get(key) === value);
 };
 

@@ -42,7 +42,7 @@ module PushNotifications
         priority: "high",
         channelId: "calls",
         title: call_session.call_type == "video" ? "Incoming video call" : "Incoming voice call",
-        body: "#{call_session.initiator.full_name} is calling",
+        body: recipient.push_notification_previews? ? "#{call_session.initiator.full_name} is calling" : "You have an incoming call",
         data: data.merge(schema_version: 1)
       }
     end
@@ -54,7 +54,7 @@ module PushNotifications
         conversation_id: call_session.conversation_id,
         call_type: call_session.call_type,
         initiator_id: call_session.initiator_id,
-        initiator_name: call_session.initiator.full_name,
+        initiator_name: recipient.push_notification_previews? ? call_session.initiator.full_name : nil,
         deep_link: "/call/#{call_session.id}?type=#{call_session.call_type}"
       }
     end

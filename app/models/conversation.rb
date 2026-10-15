@@ -9,11 +9,14 @@ class Conversation < ApplicationRecord
   has_many :active_conversation_participants, -> { active }, class_name: "ConversationParticipant"
   has_many :participants, through: :active_conversation_participants, source: :user
   has_many :scheduled_chat_messages, dependent: :destroy
+  has_one_attached :group_photo
   has_many :messages, dependent: :destroy
   has_many :call_sessions, dependent: :destroy
 
   validates :conversation_type, presence: true
   validates :title, presence: true, if: :group?
+  validates :description, length: { maximum: 2000 }
+  validate :validate_group_photo
 
   before_destroy :clear_last_message_reference
 
@@ -46,6 +49,13 @@ class Conversation < ApplicationRecord
   end
 
   private
+
+  def validate_group_photo
+    return unless group_photo.attached?
+
+    errors.add(:group_photo, "must be a JPEG, PNG, GIF or WebP image") unless %w[image/jpeg image/png image/gif image/webp].include?(group_photo.blob.content_type)
+    errors.add(:group_photo, "must be 5 MB or smaller") if group_photo.blob.byte_size > 5.megabytes
+  end
 
   def clear_last_message_reference
     update_columns(last_message_id: nil, last_message_at: nil) if last_message_id.present?

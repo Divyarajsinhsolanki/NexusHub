@@ -1,0 +1,12 @@
+Issue APP-8: Improve the onboarding flow
+
+Project: Workspace app
+Status: New -> In Progress
+Assignee: Sam -> Alex
+Due date: 2026-10-15
+
+Description:
+Review the first-run experience.
+
+---
+You are receiving this email because you are listed as the owner or assignee.

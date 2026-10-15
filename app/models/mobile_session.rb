@@ -1,7 +1,10 @@
 class MobileSession < ApplicationRecord
   REFRESH_TOKEN_TTL = 30.days
 
+  after_update :disable_push_devices, if: -> { saved_change_to_revoked_at? && revoked_at? }
   after_update_commit :disconnect_realtime, if: -> { saved_change_to_revoked_at? && revoked_at? }
+
+  has_many :mobile_devices, dependent: :destroy
 
   belongs_to :user
   belongs_to :workspace
@@ -82,6 +85,12 @@ class MobileSession < ApplicationRecord
   end
 
   private
+
+  def disable_push_devices
+    # Unbound registrations predate session ownership; fail closed on revocation.
+    MobileDevice.where(user_id: user_id, workspace_id: workspace_id, mobile_session_id: [nil, id])
+      .update_all(active: false, disabled_at: Time.current, updated_at: Time.current)
+  end
 
   def workspace_matches_user
     return if user.blank?

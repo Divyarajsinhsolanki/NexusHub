@@ -10,6 +10,7 @@ class Api::ConversationsController < Api::BaseController
   def index
     base_scope = Conversation.for_user(current_user)
     scope = base_scope
+      .with_attached_group_photo
       .includes(:last_message, :conversation_participants, participants: { profile_picture_attachment: :blob })
       .order(updated_at: :desc)
 
@@ -76,12 +77,26 @@ class Api::ConversationsController < Api::BaseController
   end
 
   def update
-    unless can_manage_group?(@conversation)
+    attributes = params.require(:conversation).permit(:title, :description, :group_photo, :remove_group_photo, :members_can_edit_group_info)
+    manager = can_manage_group?(@conversation)
+    can_edit_info = @conversation.group? && (manager || @conversation.members_can_edit_group_info?)
+    if !can_edit_info || (!manager && (attributes.key?(:title) || attributes.key?(:members_can_edit_group_info)))
       head :forbidden
       return
     end
-
-    if @conversation.update(conversation_params.slice(:title))
+    if attributes[:group_photo].present? && !attributes[:group_photo].is_a?(ActionDispatch::Http::UploadedFile)
+      render json: { errors: ['Choose an image file to upload'] }, status: :unprocessable_entity
+      return
+    end
+    remove_photo = ActiveModel::Type::Boolean.new.cast(attributes.delete(:remove_group_photo))
+    if remove_photo && attributes[:group_photo].present?
+      render json: { errors: ['Choose either replacing or removing the group photo'] }, status: :unprocessable_entity
+      return
+    end
+    @conversation.assign_attributes(attributes)
+    # Assign nil with the other changes so failed validation preserves the old photo.
+    @conversation.group_photo = nil if remove_photo
+    if @conversation.save
       Chat::Broadcaster.broadcast_conversation_refresh(@conversation)
       render json: serialize_conversation(reload_conversation)
     else
@@ -229,6 +244,7 @@ class Api::ConversationsController < Api::BaseController
 
   def set_conversation
     @conversation = Conversation.for_user(current_user)
+      .with_attached_group_photo
       .includes(:last_message, :conversation_participants, participants: { profile_picture_attachment: :blob })
       .find(params[:id])
   end
@@ -354,6 +370,7 @@ class Api::ConversationsController < Api::BaseController
 
   def reload_conversation
     @conversation = Conversation.for_user(current_user)
+      .with_attached_group_photo
       .includes(:last_message, :conversation_participants, participants: { profile_picture_attachment: :blob })
       .find(@conversation.id)
   end
@@ -471,6 +488,10 @@ class Api::ConversationsController < Api::BaseController
       title: conversation_display_name(conversation),
       conversation_type: conversation.conversation_type,
       creator_id: conversation.creator_id,
+      description: conversation.description,
+      group_photo_url: (rails_blob_url(conversation.group_photo, only_path: true) if conversation.group_photo.attached?),
+      members_can_edit_group_info: conversation.members_can_edit_group_info,
+      can_edit_group_info: conversation.group? && (can_manage_group?(conversation) || conversation.members_can_edit_group_info?),
       can_delete_for_everyone: can_delete_for_everyone?(conversation),
       can_manage_members: can_manage_group?(conversation),
       can_edit_group: can_manage_group?(conversation),

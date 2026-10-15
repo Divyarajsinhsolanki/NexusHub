@@ -1,17 +1,6 @@
-<h1>Nexus Hub production error</h1>
-
-<p><strong>Exception:</strong> <%= @exception_class %></p>
-<p><strong>Message:</strong> <%= @message %></p>
-
-<h2>Request</h2>
-<table cellpadding="6" cellspacing="0" border="1">
-  <% @request_context.each do |key, value| %>
-    <tr>
-      <th align="left"><%= key %></th>
-      <td><%= value.inspect %></td>
-    </tr>
-  <% end %>
-</table>
-
-<h2>Backtrace</h2>
-<pre><%= @backtrace.join("\n") %></pre>
+<%= email_heading 'Production error detected', eyebrow: 'Application alert', intro: 'Review the exception and request details below to investigate.' %>
+<%= email_details 'Exception' => @exception_class, 'Message' => @message %>
+<h2 style="font-size:16px;color:#172033;">Request context</h2>
+<%= email_details @request_context.transform_values(&:inspect) %>
+<h2 style="font-size:16px;color:#172033;">Backtrace</h2>
+<%= email_code_block @backtrace.join("\n") %>

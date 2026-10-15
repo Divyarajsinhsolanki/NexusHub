@@ -71,3 +71,15 @@ describe('PostList comments', () => {
     expect(onPostUpdate).toHaveBeenCalledTimes(1);
   });
 });
+
+it('copies a canonical link to the exact post', async () => {
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+  render(<AuthContext.Provider value={{ user: { id: 4 } }}><PostList posts={[{
+    id: 901, message: 'Confidential update', created_at: '2026-10-10T07:00:00Z',
+    comments: [], likes_count: 0, user: { id: 7, first_name: 'Knowledge', last_name: 'Bot' },
+  }]} /></AuthContext.Provider>);
+  fireEvent.click(screen.getByRole('button', { name: 'Share' }));
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Copy link' }));
+  await waitFor(() => expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/posts?post_id=901`));
+});

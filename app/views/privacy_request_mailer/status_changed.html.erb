@@ -1,0 +1,4 @@
+<%= email_heading 'Your privacy request has an update', eyebrow: 'Privacy request', intro: 'Open your private tracking page to view the response and any limitations.' %>
+<%= email_details 'Reference' => @request.reference, 'Private link expires' => 'In 30 days' %>
+<%= email_button 'View your request', @url %>
+<%= email_note 'Do not forward this private link. The response and any limitations are available on the tracking page.' %>

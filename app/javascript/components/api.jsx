@@ -209,6 +209,7 @@ export const importIssuesFromSheet = (projectId, sheet = null) =>
   api.post('/issues/import_from_sheet.json', { project_id: projectId, ...(sheet ? { sheet } : {}) });
 
 // POST ENDPOINTS (existing)
+export const fetchPost = (id) => api.get(`/posts/${id}`);
 export const fetchPosts = (id) => withNormalizedCollection(api.get('/posts', { params: id ? { user_id: id } : {} }));
 export const fetchPostFeed = (params = {}) =>
   api.get('/posts', { params }).then((response) => ({
@@ -366,7 +367,7 @@ export const fetchConversations = (params = {}) => readChat('/conversations.json
 export const fetchConversation = (id) => readChat(`/conversations/${id}.json`);
 export const fetchConversationSummary = (id) => readChat(`/conversations/${id}/summary.json`);
 export const createConversation = (data) => api.post('/conversations.json', { conversation: data, participant_ids: data.participant_ids || [] });
-export const updateConversation = (id, data) => api.patch(`/conversations/${id}`, { conversation: data });
+export const updateConversation = (id, data) => api.patch(`/conversations/${id}`, data instanceof FormData ? data : { conversation: data }, data instanceof FormData ? { headers: { "Content-Type": "multipart/form-data" } } : {});
 export const addConversationParticipants = (id, participantIds) =>
   api.post(`/conversations/${id}/participants`, { participant_ids: participantIds });
 export const removeConversationParticipant = (id, userId) => api.delete(`/conversations/${id}/participants/${userId}`);
@@ -392,7 +393,7 @@ export const addMessageReaction = (conversationId, messageId, emoji) =>
   api.post(`/conversations/${conversationId}/messages/${messageId}/reactions`, { message_reaction: { emoji } });
 export const removeMessageReaction = (conversationId, messageId, emoji) =>
   api.delete(`/conversations/${conversationId}/messages/${messageId}/reactions`, { params: { emoji } });
-export const fetchCallHistory = (page = 1) => api.get("/calls", { params: { page, per_page: 25 } });
+export const fetchCallHistory = (page = 1, conversationId) => api.get("/calls", { params: { page, per_page: 25, ...(conversationId ? { conversation_id: conversationId } : {}) } });
 export const createCall = (conversationId, callType) =>
   api.post(`/conversations/${conversationId}/calls`, { call_type: callType, media_confirmation_required: true });
 export const acknowledgeCallRing = (callId) => api.post(`/calls/${callId}/ack_ring`);

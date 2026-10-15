@@ -20,6 +20,8 @@ module PrivateFiles
         case record
         when User, Post
           record.workspace_id == user.workspace_id
+        when Conversation
+          record.conversation_participants.active.exists?(user_id: user.id)
         when Message
           !record.deleted_at? && record.conversation.conversation_participants.active.exists?(user_id: user.id)
         when ScheduledChatMessage

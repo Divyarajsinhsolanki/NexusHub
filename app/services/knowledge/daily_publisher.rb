@@ -23,7 +23,7 @@ module Knowledge
 
     def publish(date: Time.current.in_time_zone("Asia/Kolkata").to_date)
       raise ArgumentError, "Demo workspaces cannot publish" if @workspace.demo?
-      owner = @workspace.users.find_by!(email: ENV.fetch("DAILY_KNOWLEDGE_OWNER_EMAIL"))
+      owner = BotAuthor.for_workspace!(@workspace)
       Current.set(workspace: @workspace, user: owner) do
         @workspace.with_lock do
           # Match the partial-index predicate even with generic prepared plans.

@@ -9,7 +9,10 @@ class WorkspaceInvitationMailer < ApplicationMailer
     uri = URI.parse(base)
     raise "Invalid invitation base URL" unless uri.host.present? && %w[https http].include?(uri.scheme) && (!Rails.env.production? || uri.scheme == "https")
     link = "#{base.delete_suffix('/')}/invitations/accept#token=#{raw}"
+    @invitation = invitation
+    @link = link
     mail(to: invitation.email, subject: "Invitation to #{invitation.workspace.name}") do |format|
+      format.html { render :invitation }
       format.text { render plain: "You have been invited to #{invitation.workspace.name} with these roles: #{invitation.role_names.join(', ')}.\n\nAccept your invitation: #{link}\n\nThis link expires in seven days and can be used once. You choose your password; your company never needs it. If you already have an account here, enter your existing password. If you did not expect this invitation, ignore it." }
     end
   end

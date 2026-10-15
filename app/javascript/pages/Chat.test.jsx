@@ -12,6 +12,7 @@ const apiMocks = vi.hoisted(() => ({
   deleteChatMessage: vi.fn(),
   fetchConversations: vi.fn(),
   fetchConversation: vi.fn(),
+  fetchCallHistory: vi.fn(),
   fetchConversationMessages: vi.fn(),
   fetchConversationSummary: vi.fn(),
   addConversationParticipants: vi.fn(),
@@ -61,6 +62,7 @@ vi.mock("../components/api", () => ({
   deleteConversationForEveryone: vi.fn(),
   endCall: vi.fn(),
   fetchConversation: apiMocks.fetchConversation,
+  fetchCallHistory: apiMocks.fetchCallHistory,
   fetchConversationMessages: apiMocks.fetchConversationMessages,
   fetchConversationSummary: apiMocks.fetchConversationSummary,
   fetchConversations: apiMocks.fetchConversations,
@@ -598,4 +600,80 @@ it("unmutes a conversation from More without opening mute-duration choices", asy
   fireEvent.click(screen.getByRole("button", { name: "Unmute conversation" }));
   await waitFor(() => expect(apiMocks.unmuteConversation).toHaveBeenCalledWith(1));
   expect(screen.queryByText("Mute notifications for…")).toBeNull();
+});
+
+it.each(['direct', 'group'])('opens conversation-specific call history for a %s chat', async (type) => {
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
+  apiMocks.fetchCallHistory.mockResolvedValue({ data: { data: [], meta: {} } });
+  apiMocks.fetchConversation.mockResolvedValue({ data: { ...conversation, conversation_type: type } });
+  renderChat();
+  await screen.findByRole('textbox', { name: 'Message' });
+  fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Call history' }));
+  expect(await screen.findByRole('dialog', { name: 'Call history' })).toBeTruthy();
+  await waitFor(() => expect(apiMocks.fetchCallHistory).toHaveBeenCalledWith(1, 1));
+  expect(await screen.findByText('No calls in this conversation yet.')).toBeTruthy();
+});
+
+it('hides an already tagged user and restores suggestions when their mention is removed', async () => {
+  renderChat();
+  const composer = await screen.findByRole('textbox', { name: 'Message' });
+  fireEvent.change(composer, { target: { value: '@' } });
+  const suggestion = await screen.findByRole('button', { name: /Anita Rao.*Conversation participant/ });
+  fireEvent.click(suggestion);
+  expect(composer.value).toBe('@anita.rao ');
+  fireEvent.change(composer, { target: { value: composer.value + '@' } });
+  expect(screen.queryByRole('button', { name: /Anita Rao.*Conversation participant/ })).toBeNull();
+  fireEvent.change(composer, { target: { value: '@' } });
+  expect(await screen.findByRole('button', { name: /Anita Rao.*Conversation participant/ })).toBeTruthy();
+});
+
+it('renders separate timestamp rows and resolves sent and received mentions without composing', async () => {
+  const messages = [
+    { ...conversation.messages[0], body: 'Hi @anita.rao' },
+    { ...conversation.messages[0], id: 11, user_id: user.id, body: 'Thanks @anita.rao' },
+  ];
+  apiMocks.fetchConversation.mockResolvedValue({ data: { ...conversation, messages } });
+  renderChat();
+  const mentions = await screen.findAllByRole('link', { name: '@Anita Rao' });
+  expect(mentions).toHaveLength(2);
+  for (const mention of mentions) {
+    expect(mention.classList.contains('chat-user-mention')).toBe(true);
+    const bubble = mention.closest('.nx-chat-message-bubble');
+    const metadata = bubble.querySelector('.nx-chat-message-meta');
+    expect(metadata.querySelector('time')).toBeTruthy();
+    expect(metadata.parentElement).toBe(bubble);
+    expect(mention.parentElement.contains(metadata)).toBe(false);
+  }
+  await waitFor(() => expect(apiMocks.getUsers).toHaveBeenCalledTimes(1));
+});
+
+it('selects multiple chats and mutes them without opening a different conversation', async () => {
+  window.matchMedia.mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  const second = { ...conversation, id: 2, title: 'Second group', conversation_type: 'group', participants: [] };
+  apiMocks.fetchConversations.mockResolvedValue({ data: { data: [conversation, second], meta: {} } });
+  apiMocks.muteConversation.mockImplementation(id => Promise.resolve({ data: { ...(id === 1 ? conversation : second), muted: true } }));
+  renderChat();
+  await screen.findByRole('textbox', { name: 'Message' });
+  fireEvent.click(screen.getByRole('button', { name: 'More inbox actions' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Select chats' }));
+  await screen.findByRole('checkbox', { name: 'Select Second group' });
+  fireEvent.click(screen.getByRole('button', { name: 'Select visible' }));
+  expect(screen.getByText('2 selected')).toBeTruthy();
+  expect(screen.getByRole('checkbox', { name: 'Select Second group' }).getAttribute('aria-checked')).toBe('true');
+  fireEvent.click(screen.getByRole('button', { name: 'Mute selected' }));
+  fireEvent.click(screen.getByRole('button', { name: '1 week' }));
+  await waitFor(() => expect(apiMocks.muteConversation).toHaveBeenCalledWith(2, '1w'));
+  expect(apiMocks.muteConversation).toHaveBeenCalledWith(1, '1w');
+  expect(apiMocks.fetchConversation).not.toHaveBeenCalledWith('2');
+});
+
+it("loads a previously unknown conversation when its first mobile message arrives", async () => {
+  renderChat();
+  await screen.findByText("Initial message");
+  const newConversation = { ...conversation, id: 92, title: "New mobile conversation", conversation_type: "group", last_message: "Hello from mobile", messages: [] };
+  apiMocks.fetchConversationSummary.mockResolvedValue({ data: newConversation });
+  await act(async () => cableMocks.userCallback({ type: "message_created", conversation_id: 92, message: { id: 901, user_id: 2, body: "Hello from mobile", created_at: "2026-10-15T18:00:00Z" } }));
+  await waitFor(() => expect(apiMocks.fetchConversationSummary).toHaveBeenCalledWith(92));
+  expect((await screen.findAllByText("New mobile conversation")).length).toBeGreaterThan(0);
 });

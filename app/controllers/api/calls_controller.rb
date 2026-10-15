@@ -7,6 +7,10 @@ class Api::CallsController < Api::BaseController
     page = [params[:page].to_i, 1].max
     per_page = params[:per_page].present? ? params[:per_page].to_i.clamp(1, 50) : 25
     scope = CallSession.joins(:call_participants).where(call_participants: { user_id: current_user.id })
+    if params[:conversation_id].present?
+      conversation = Conversation.for_user(current_user).find(params[:conversation_id])
+      scope = scope.where(conversation_id: conversation.id)
+    end
     total = scope.count
     calls = scope.includes(:initiator, conversation: :participants).order(created_at: :desc, id: :desc).limit(per_page).offset((page - 1) * per_page).to_a
     participants = CallParticipant.where(call_session_id: calls.map(&:id), user_id: current_user.id).index_by(&:call_session_id)

@@ -159,13 +159,14 @@ export function IncomingCallCoordinator() {
   );
 }
 
-function IncomingRingtone({ callType }: { callType: 'audio' | 'video' }) {
+export function IncomingRingtone({ callType }: { callType: 'audio' | 'video' }) {
   const player = useAudioPlayer(callType === 'video' ? require('../../assets/sounds/nexus_video_call.wav') : require('../../assets/sounds/nexus_audio_call.wav'));
   useEffect(() => {
     player.loop = true;
     player.volume = 0.65;
     player.play();
-    return () => player.pause();
+    // useAudioPlayer releases and stops its native player on unmount.
+    // A second cleanup can run after that release and crash when answering.
   }, [player]);
   return null;
 }

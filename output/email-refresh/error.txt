@@ -1,0 +1,11 @@
+Nexus Hub production error
+
+Exception: RuntimeError
+Message: <script>alert(1)</script>
+
+Request:
+path: "/projects"
+method: "GET"
+
+Backtrace:
+app/services/example.rb:42

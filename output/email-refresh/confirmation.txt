@@ -1,0 +1,6 @@
+Welcome PDF!
+
+Confirm your Nexus Hub account:
+http://example.test/users/confirmation?confirmation_token=sample-confirm-token
+
+If you did not create this account, ignore this email.

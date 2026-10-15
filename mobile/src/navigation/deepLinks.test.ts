@@ -49,3 +49,9 @@ test('opens scheduled meetings from calendar and notification links', () => {
   expect(normalizeMobileDeepLink('https://divyarajsinh.com/chat?meeting=12')).toBe('/inbox/meetings?meeting=12');
   expect(normalizeMobileDeepLink('/inbox/meetings?meeting=12')).toBe('/inbox/meetings?meeting=12');
 });
+
+test('opens shared web post query links on the exact native post', () => {
+  expect(normalizeMobileDeepLink('/posts?post_id=901')).toBe('/inbox/post/901');
+  expect(normalizeMobileDeepLink('https://example.test/home?post_id=901')).toBe('/inbox/post/901');
+  expect(normalizeMobileDeepLink('/posts?post_id=bad')).not.toBe('/inbox/post/bad');
+});

@@ -158,3 +158,13 @@ export const resolveChatMessageText = (text = "", lookups = {}) =>
   tokenizeChatMessage(text, lookups)
     .map((segment) => segment.text)
     .join("");
+
+// Ignore the token being edited so its existing user can still be corrected.
+export const getMentionedUserIds = (text = "", lookups = {}, activeEntity = null) => {
+  const completedText = activeEntity?.trigger === "@"
+    ? `${text.slice(0, activeEntity.start)} ${text.slice(activeEntity.end)}`
+    : text;
+  return new Set(tokenizeChatMessage(completedText, lookups)
+    .filter(segment => segment.kind === "user" && segment.user?.id != null)
+    .map(segment => String(segment.user.id)));
+};

@@ -103,6 +103,24 @@ class MobileApiV1Test < ActionDispatch::IntegrationTest
     assert_response :unauthorized
   end
 
+  test "logout disables its push device and legacy devices but preserves another session" do
+    first = mobile_login
+    first_session = MobileSession.find_by_token(first.fetch("refresh_token"))
+    second = mobile_login
+    second_session = MobileSession.find_by_token(second.fetch("refresh_token"))
+    own = MobileDevice.create!(workspace: @workspace, user: @user, mobile_session: first_session, platform: "android", expo_push_token: "ExponentPushToken[logout-own]")
+    other = MobileDevice.create!(workspace: @workspace, user: @user, mobile_session: second_session, platform: "android", expo_push_token: "ExponentPushToken[logout-other]")
+    legacy = MobileDevice.create!(workspace: @workspace, user: @user, platform: "android", expo_push_token: "ExponentPushToken[logout-legacy]")
+    delete "/api/v1/auth/logout", params: { refresh_token: first.fetch("refresh_token") }
+    assert_response :success
+    assert_not own.reload.active?
+    assert_not legacy.reload.active?
+    assert other.reload.active?
+    delete "/api/v1/mobile_sessions/#{second_session.id}", headers: bearer_headers(second.fetch("access_token"))
+    assert_response :success
+    assert_not other.reload.active?
+  end
+
   test "authentication and resource errors use the normalized shape" do
     get "/api/v1/me"
     assert_response :unauthorized
@@ -466,6 +484,7 @@ class MobileApiV1Test < ActionDispatch::IntegrationTest
     device = MobileDevice.find_by!(expo_push_token: expo_token)
     assert_equal @user, device.user
     assert_equal @workspace, device.workspace
+    assert_equal @user.mobile_sessions.order(:id).last.id, device.mobile_session_id
 
     delete "/api/v1/mobile_device", params: { expo_push_token: expo_token }, headers: bearer_headers(token)
     assert_response :success

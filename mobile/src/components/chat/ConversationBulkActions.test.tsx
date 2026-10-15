@@ -1,0 +1,32 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { expect, jest, test } from '@jest/globals';
+import { ConversationBulkActions } from './ConversationBulkActions';
+import { endpoints } from '../../api/endpoints';
+jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ bottom: 0 }) }));
+jest.mock('../../api/endpoints', () => ({ endpoints: { hideConversation: jest.fn(), setConversationMuted: jest.fn() } }));
+test('requires confirmation and keeps only failed deletes selected', async () => {
+  const client = new QueryClient();
+  (endpoints.hideConversation as jest.Mock).mockResolvedValueOnce(undefined as never).mockRejectedValueOnce(new Error('offline') as never);
+  const onSelection = jest.fn(); const close = jest.fn();
+  const screen = await render(<QueryClientProvider client={client}><ConversationBulkActions selected={new Set([1, 2])} visibleIds={[1, 2]} onSelection={onSelection} onClose={close} onBusy={jest.fn()} /></QueryClientProvider>);
+  await fireEvent.press(screen.getByRole('button', { name: 'Delete selected for me' }));
+  expect(endpoints.hideConversation).not.toHaveBeenCalled();
+  await fireEvent.press(screen.getByRole('button', { name: 'Confirm delete for me' }));
+  await waitFor(() => expect(onSelection).toHaveBeenCalledWith(new Set([2])));
+  expect(close).not.toHaveBeenCalled();
+  expect(screen.getByRole('alert')).toBeTruthy();
+  await screen.unmount(); client.clear();
+});
+test('uses the chosen mute duration for all selected chats', async () => {
+  const client = new QueryClient();
+  (endpoints.setConversationMuted as jest.Mock).mockResolvedValue({ muted: true } as never);
+  const close = jest.fn();
+  const screen = await render(<QueryClientProvider client={client}><ConversationBulkActions selected={new Set([1, 2])} visibleIds={[1, 2]} onSelection={jest.fn()} onClose={close} onBusy={jest.fn()} /></QueryClientProvider>);
+  await fireEvent.press(screen.getByRole('button', { name: 'Mute selected' }));
+  await fireEvent.press(screen.getByRole('button', { name: '1 week' }));
+  await waitFor(() => expect(close).toHaveBeenCalled());
+  expect(endpoints.setConversationMuted).toHaveBeenCalledWith(1, true, '1w');
+  expect(endpoints.setConversationMuted).toHaveBeenCalledWith(2, true, '1w');
+  await screen.unmount(); client.clear();
+});

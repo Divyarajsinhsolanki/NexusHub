@@ -1,0 +1,5 @@
+You have been invited to Example workspace with these roles: member.
+
+Accept your invitation: https://example.test/invitations/accept#token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+This link expires in seven days and can be used once. You choose your password; your company never needs it. If you already have an account here, enter your existing password. If you did not expect this invitation, ignore it.

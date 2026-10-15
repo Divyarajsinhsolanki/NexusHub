@@ -21,6 +21,7 @@ import type {
   EntityRecord,
   EventReminder,
   HomeData,
+  HomeTaskFilter,
   LearningCheckpoint,
   LearningGoal,
   Message,
@@ -180,6 +181,10 @@ export const endpoints = {
   },
   async updateMe(input: Record<string, unknown> | FormData) {
     const response = await api.patch<ApiEnvelope<User>>('/me', input instanceof FormData ? input : { auth: input });
+    return unwrapData(response.data);
+  },
+  async homeByTaskFilter(taskFilter: HomeTaskFilter) {
+    const response = await api.get<ApiEnvelope<HomeData>>('/home', { params: { task_filter: taskFilter } });
     return unwrapData(response.data);
   },
   async home() {
@@ -481,8 +486,10 @@ export const endpoints = {
     const response = await api.get<ApiEnvelope<Conversation>>(`/conversations/${id}/summary`);
     return unwrapData(response.data);
   },
-  updateConversation(id: number, title: string) {
-    return update<Conversation>(`/conversations/${id}`, { conversation: { title } });
+  async updateConversation(id: number, data: string | FormData | { description?: string; members_can_edit_group_info?: boolean; remove_group_photo?: boolean }) {
+    const body = data instanceof FormData ? data : { conversation: typeof data === 'string' ? { title: data } : data };
+    const response = await api.patch(`/conversations/${id}`, body);
+    return unwrapData<Conversation>(response.data);
   },
   addConversationParticipants(id: number, participantIds: number[]) {
     return create<Conversation>(`/conversations/${id}/participants`, { participant_ids: participantIds });
@@ -565,7 +572,7 @@ export const endpoints = {
   scheduledMeeting(id:number) {return endpoints.rawResource<import('./types').ScheduledMeeting>(`/scheduled_meetings/${id}`);},
   async saveScheduledMeeting(id:number|null,payload:Record<string,unknown>) {const response=id ? await api.patch(`/scheduled_meetings/${id}`,payload) : await api.post('/scheduled_meetings',payload);return unwrapData(response.data) as import('./types').ScheduledMeeting;},
   async scheduledMeetingAction(id:number,action:'cancel'|'respond'|'join',payload:Record<string,unknown>={}) {const response=await api.post(`/scheduled_meetings/${id}/${action}`,payload);return unwrapData(response.data) as import('./types').ScheduledMeeting & {public_id:string};},
-  callHistory(page = 1) { return collection<import('./types').CallHistoryEntry>('/calls', { page, per_page: 25 }); },
+  callHistory(page = 1, conversationId?: number) { return collection<import('./types').CallHistoryEntry>('/calls', { page, per_page: 25, ...(conversationId ? { conversation_id: conversationId } : {}) }); },
   startCall(conversationId: number, callType: 'audio' | 'video') {
     return create<{ call_session: CallSession }>(`/conversations/${conversationId}/calls`, { call_type: callType, media_confirmation_required: true });
   },

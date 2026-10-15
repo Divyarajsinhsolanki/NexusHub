@@ -25,6 +25,7 @@ import {
   FiSettings,
   FiSliders,
   FiUsers,
+  FiUser,
   FiX,
   FiZap,
 } from "react-icons/fi";
@@ -55,7 +56,7 @@ const navigationGroups = [
     label: "Collaboration",
     items: [
       { to: "/teams", label: "Teams", icon: FiUsers },
-      { to: "/users", label: "People", icon: FiUsers },
+      { to: "/users", label: "People", icon: FiUser },
       { to: "/chat", label: "Chat", icon: FiMessageSquare },
       { to: "/departments", label: "Departments", icon: FiGrid },
     ],
@@ -77,7 +78,7 @@ const contextLinks = {
   collaboration: [
     ["/home", "Home and posts", FiHome],
     ["/teams", "Teams", FiUsers],
-    ["/users", "People", FiUsers],
+    ["/users", "People", FiUser],
     ["/departments", "Departments", FiGrid],
     ["/chat", "Chat", FiMessageSquare],
     ["/notifications", "Notifications", FiBell],

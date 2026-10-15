@@ -1,0 +1,14 @@
+Hi PDF,
+
+It's time to revisit one of your saved Knowledge Hub items.
+Category: Article
+Collection: Engineering
+Saved on: October 15, 2026
+
+Details:
+{
+  "title": "Designing better workflows",
+  "summary": "A practical guide for the team."
+}
+
+Open the Knowledge Hub to review and mark it as done.

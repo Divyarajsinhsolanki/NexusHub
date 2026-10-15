@@ -1,17 +1,6 @@
-<!DOCTYPE html>
-<html>
-  <body>
-    <h1>Hi <%= @user.first_name.presence || @user.email %>,</h1>
-    <p>This is a reminder for your calendar event.</p>
-    <p><strong>Title:</strong> <%= @event.title %></p>
-    <p><strong>Starts at:</strong> <%= @event.start_at.in_time_zone.strftime('%B %d, %Y at %I:%M %p') %></p>
-    <p><strong>Reminder lead time:</strong> <%= @event_reminder.minutes_before %> minutes before</p>
-    <% if @event.description.present? %>
-      <p><strong>Description:</strong> <%= @event.description %></p>
-    <% end %>
-    <% if @event.location_or_meet_link.present? %>
-      <p><strong>Location / Link:</strong> <%= @event.location_or_meet_link %></p>
-    <% end %>
-    <p>Please open your calendar to review details.</p>
-  </body>
-</html>
+<%= email_heading @event.title, eyebrow: 'Calendar reminder', intro: "Hi #{@user.first_name.presence || @user.email}, your event is coming up." %>
+<% details = { 'Starts at' => @event.start_at.in_time_zone.strftime('%B %d, %Y at %I:%M %p %Z'), 'Reminder' => "#{@event_reminder.minutes_before} minutes before" } %>
+<% details['Description'] = @event.description if @event.description.present? %>
+<% details['Location / Link'] = @event.location_or_meet_link if @event.location_or_meet_link.present? %>
+<%= email_details details %>
+<%= email_button 'Open calendar', root_url + 'calendar' %>

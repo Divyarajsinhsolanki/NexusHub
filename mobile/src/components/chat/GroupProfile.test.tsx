@@ -1,0 +1,31 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { expect, jest, test } from '@jest/globals';
+import { GroupProfile } from './GroupProfile';
+import { endpoints } from '../../api/endpoints';
+jest.mock('expo-document-picker', () => ({ getDocumentAsync: jest.fn() }));
+jest.mock('../../api/endpoints', () => ({ endpoints: { updateConversation: jest.fn(async () => ({})) } }));
+const group = { id: 7, conversation_type: 'group' as const, description: 'Design notes', can_edit_group: true, can_edit_group_info: true };
+test('admin can edit description and enable member editing', async () => {
+  const client = new QueryClient();
+  const updated = jest.fn(async () => undefined);
+  const screen = await render(<QueryClientProvider client={client}><GroupProfile conversation={group} onUpdated={updated} /></QueryClientProvider>);
+  await fireEvent.press(screen.getByRole('button', { name: 'Edit group info' }));
+  await fireEvent.changeText(screen.getByLabelText('Group description'), 'New notes');
+  await fireEvent(screen.getByLabelText('Allow members to edit group info'), 'valueChange', true);
+  await fireEvent.press(screen.getByRole('button', { name: 'Save group info' }));
+  await waitFor(() => expect(updated).toHaveBeenCalled());
+  const form = (endpoints.updateConversation as jest.Mock).mock.calls[0][1] as FormData;
+  expect(form.get('conversation[description]')).toBe('New notes');
+  expect(form.get('conversation[members_can_edit_group_info]')).toBe('true');
+  await screen.unmount(); client.clear();
+});
+test('member editing does not expose the admin switch and read-only users cannot edit', async () => {
+  const screen = await render(<GroupProfile conversation={{ ...group, can_edit_group: false }} onUpdated={jest.fn(async () => undefined)} />);
+  await fireEvent.press(screen.getByRole('button', { name: 'Edit group info' }));
+  expect(screen.queryByLabelText('Allow members to edit group info')).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'Cancel' }));
+  await screen.rerender(<GroupProfile conversation={group} onUpdated={jest.fn(async () => undefined)} readOnly />);
+  expect(screen.queryByRole('button', { name: 'Edit group info' })).toBeNull();
+  await screen.unmount();
+});

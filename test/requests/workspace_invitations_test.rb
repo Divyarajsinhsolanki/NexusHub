@@ -22,7 +22,7 @@ class WorkspaceInvitationsTest < ActionDispatch::IntegrationTest
     assert_not encrypted.include?(token)
     assert_not_equal token, invitation.token_digest
     WorkspaceInvitationMailJob.perform_now(invitation.id, encrypted)
-    message = ActionMailer::Base.deliveries.last.body.decoded
+    message = ActionMailer::Base.deliveries.last.text_part.body.decoded
     assert_includes message, "/invitations/accept#token=#{token}"
     assert_not_includes message, "?token="
     assert_equal "sent", invitation.reload.delivery_status

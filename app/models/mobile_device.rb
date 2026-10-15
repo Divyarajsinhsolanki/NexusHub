@@ -2,6 +2,7 @@ class MobileDevice < ApplicationRecord
   PLATFORMS = %w[android ios].freeze
 
   belongs_to :user
+  belongs_to :mobile_session, optional: true
   belongs_to :workspace
   has_many :push_deliveries, dependent: :destroy
 
@@ -19,8 +20,9 @@ class MobileDevice < ApplicationRecord
   private
 
   def workspace_matches_user
-    return if user.blank? || workspace_id == user.workspace_id
-
-    errors.add(:workspace, "must match the user's workspace")
+    errors.add(:workspace, "must match the user's workspace") if user && workspace_id != user.workspace_id
+    if mobile_session && (mobile_session.user_id != user_id || mobile_session.workspace_id != workspace_id || mobile_session.impersonating?)
+      errors.add(:mobile_session, "must match the device owner and workspace")
+    end
   end
 end
