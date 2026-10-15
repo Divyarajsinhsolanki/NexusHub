@@ -28,6 +28,16 @@ class ReleaseGateTest < Minitest::Test
     assert @gate.verify!(target: 'staging')
     rejected
   end
+  def test_explicit_direct_production_keeps_ci_and_branch_checks_without_staging
+    @statuses.clear
+    proof = @gate.verify!(target: 'production', require_staging: false)
+    assert_equal false, proof[:staging_required]
+    @run['conclusion'] = 'failure'
+    assert_raises(ReleaseSecurity::Rejected) { @gate.verify!(target: 'production', require_staging: false) }
+    @run['conclusion'] = 'success'
+    @run['head_branch'] = 'feature'
+    assert_raises(ReleaseSecurity::Rejected) { @gate.verify!(target: 'production', require_staging: false) }
+  end
   def test_wrong_sha_fork_and_pr_evidence_cannot_authorize_release
     @run['head_sha'] = 'b' * 40; rejected
     @run['head_sha'] = @sha

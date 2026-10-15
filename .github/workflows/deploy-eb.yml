@@ -1,92 +1,77 @@
 name: Deploy Elastic Beanstalk
 
+# CI runs on pushes and PRs. Deploy only the successful main push, never PR code.
 on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
-    inputs:
-      target:
-        description: Reviewed deployment environment
-        required: true
-        type: choice
-        default: staging
-        options: [staging, production]
 
 concurrency:
-  group: eb-${{ inputs.target }}
+  group: eb-production
   cancel-in-progress: false
 
 permissions:
   contents: read
   actions: read
-  deployments: read
+  deployments: write
 
 jobs:
-  checks:
-    uses: ./.github/workflows/ci.yml
-
-  promotion-gate:
-    timeout-minutes: 5
-    needs: checks
+  deploy:
+    if: >-
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository) ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    timeout-minutes: 45
     runs-on: ubuntu-latest
+    environment: production
+    env:
+      RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      EB_ENVIRONMENT: ${{ vars.EB_ENVIRONMENT || 'nexus-hub-prod' }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_SHA }}
       - uses: ruby/setup-ruby@v1
-      - name: Verify commit evidence and staging promotion
+      - name: Verify current main commit and successful CI (temporary direct production)
         env:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-          RELEASE_TARGET: ${{ inputs.target }}
-        run: bin/release-gate "$RELEASE_TARGET"
-
-  deploy:
-    needs: [checks, promotion-gate]
-    timeout-minutes: 45
-    name: Deploy reviewed environment
-    runs-on: ubuntu-latest
-    environment: ${{ inputs.target }}
-    permissions:
-      contents: read
-      actions: read
-      deployments: write
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - uses: ruby/setup-ruby@v1
-      - name: Recheck evidence after environment approval
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          RELEASE_TARGET: ${{ inputs.target }}
-        run: bin/release-gate "$RELEASE_TARGET"
-
+        run: |
+          main_sha="$(git ls-remote origin refs/heads/main | cut -f1)"
+          test "$RELEASE_SHA" = "$main_sha" || { echo 'A newer main commit exists; skipping this stale release'; exit 1; }
+          bin/release-gate production --direct-production
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-south-1
-
       - name: Install EB CLI
         run: |
           python -m pip install --upgrade pip
           pip install awsebcli
-
-      - name: Deploy to Elastic Beanstalk
+      - name: Resolve existing public application URL
+        id: live
         env:
-          EB_ENVIRONMENT: ${{ vars.EB_ENVIRONMENT }}
-          TARGET: ${{ inputs.target }}
+          CONFIGURED_URL: ${{ vars.RELEASE_BASE_URL }}
         run: |
-          test -n "$EB_ENVIRONMENT" || { echo 'Configure EB_ENVIRONMENT in the selected GitHub environment'; exit 1; }
-          if [ "$TARGET" = staging ] && [[ "$EB_ENVIRONMENT" != *staging* ]]; then
-            echo 'Staging deployments require a staging-named EB environment'; exit 1
+          live_url="$CONFIGURED_URL"
+          if [ -z "$live_url" ]; then
+            live_url="$(aws elasticbeanstalk describe-configuration-settings --application-name nexus-hub --environment-name "$EB_ENVIRONMENT" --query "ConfigurationSettings[0].OptionSettings[?Namespace=='aws:elasticbeanstalk:application:environment' && OptionName=='BASE_URL'].Value | [0]" --output text)"
           fi
-          printf '%s\n' "$GITHUB_SHA" > .release-revision
-          eb deploy "$EB_ENVIRONMENT" --region ap-south-1 --timeout 30 --label "github-${GITHUB_SHA::12}"
-
+          test -n "$live_url" && test "$live_url" != None || { echo 'Set BASE_URL on the existing EB environment or RELEASE_BASE_URL in GitHub'; exit 1; }
+          printf 'url=%s\n' "$live_url" >> "$GITHUB_OUTPUT"
+      - name: Deploy to existing production environment
+        run: |
+          printf '%s\n' "$RELEASE_SHA" > .release-revision
+          eb deploy "$EB_ENVIRONMENT" --region ap-south-1 --timeout 30 --label "github-${RELEASE_SHA::12}"
       - name: Verify live revision and unauthenticated security boundaries
         env:
-          RELEASE_BASE_URL: ${{ vars.RELEASE_BASE_URL }}
-          RELEASE_SHA: ${{ github.sha }}
-          RELEASE_TARGET: ${{ inputs.target }}
+          RELEASE_BASE_URL: ${{ steps.live.outputs.url }}
+          RELEASE_TARGET: production
         run: bin/release-smoke

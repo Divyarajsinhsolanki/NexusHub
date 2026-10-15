@@ -1,5 +1,8 @@
 # Security regressions and release gates
 
+> Current zero-customer rollout exception: see [temporary direct production deployment](prelaunch_direct_production.md). EB auto-deploys successful main pushes without staging, and explicitly opts out of offsite migration-receipt enforcement for now. The stricter staged/backup procedures below describe the configuration to restore before customer onboarding.
+
+
 The P0 security packages now have a mandatory test catalog at `config/security/regressions.json`. It covers tenancy, memberships/authorization, invitations/offboarding, session revocation, privileged MFA/support access, browser/native protections, private files/PDF isolation, abuse limits, protected integrations, privacy intake and recovery. `bin/security-regressions --list` lists its files; `RECOVERY_TEST_DATABASE_URL=<isolated-local-PG-admin-url> bin/security-regressions` runs them with the existing test database. The recovery tests create/delete only randomly named fixture databases. Run on Linux with PostgreSQL clients, GPG, Bubblewrap, PDF tools and the project Ruby dependencies. Never point test/recovery URLs at production.
 
 The security reporter fails empty or skipped security runs, not just failed assertions. Missing catalog files fail the runner. The CI security job also runs adversarial release-policy and smoke-probe tests. Normal full Rails/JS/mobile tests remain separate gates; a selected security subset is not a substitute for full regression testing. Production PDF sandbox tests are exercised with Bubblewrap instead of bypassing the boundary in CI. Ubuntu 22.04 is selected for those runners to support the required unprivileged namespaces; hosted runner/kernel changes must be reviewed if this fails.

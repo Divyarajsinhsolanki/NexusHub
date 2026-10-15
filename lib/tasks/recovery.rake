@@ -1,4 +1,5 @@
 require_relative '../recovery/toolkit'
+require_relative '../recovery/deployment_safety'
 
 namespace :recovery do
   desc 'Take the release backup, or recognize explicit first-time empty database setup'
@@ -35,6 +36,10 @@ namespace :recovery do
     next if tier == 'staging' # Synthetic staging has its own isolated resources.
     if tier == 'restore'
       abort 'Restore migrations require MIGRATION_REHEARSAL=true.' unless ENV['MIGRATION_REHEARSAL'] == 'true'
+      next
+    end
+    if Recovery::DeploymentSafety.allow_unbacked_migrations?(ENV)
+      warn 'PRELAUNCH: migrating without offsite backup evidence. Disable PRELAUNCH_ALLOW_UNBACKED_MIGRATIONS before onboarding customers.'
       next
     end
     tool = Recovery::Toolkit.new

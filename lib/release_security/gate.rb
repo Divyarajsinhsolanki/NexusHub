@@ -12,7 +12,7 @@ module ReleaseSecurity
       @repository, @sha, @client, @now = repository, sha, client, now
     end
 
-    def verify!(target:)
+    def verify!(target:, require_staging: true)
       raise Rejected, 'Target must be staging or production.' unless %w[staging production].include?(target)
       runs = @client.get("repos/#{@repository}/actions/workflows/ci.yml/runs", head_sha: @sha, per_page: 100).fetch('workflow_runs')
       trusted = runs.select { |run| run['head_sha'] == @sha && run.dig('head_repository', 'full_name') == @repository &&
@@ -20,8 +20,8 @@ module ReleaseSecurity
       run = trusted.max_by { |item| [Time.iso8601(item.fetch('updated_at')), item.fetch('id')] }
       raise Rejected, 'The latest trusted CI run for this commit must have succeeded within 24 hours.' unless run && successful?(run) && fresh?(run['updated_at'], 86400)
       raise Rejected, 'Production requires a main-branch CI run.' if target == 'production' && run['head_branch'] != 'main'
-      verify_staging! if target == 'production'
-      { repository: @repository, sha: @sha, target:, ci_run_id: run.fetch('id'), verified_at: @now.iso8601 }
+      verify_staging! if target == 'production' && require_staging
+      { repository: @repository, sha: @sha, target:, staging_required: require_staging, ci_run_id: run.fetch('id'), verified_at: @now.iso8601 }
     rescue KeyError, TypeError, ArgumentError, NoMethodError
       raise Rejected, 'Release evidence is incomplete or invalid.'
     end

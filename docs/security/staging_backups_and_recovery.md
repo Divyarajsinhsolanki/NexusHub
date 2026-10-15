@@ -1,5 +1,8 @@
 # Staging, offsite backups, restore drills, and migration recovery
 
+> Current zero-customer rollout exception: see [temporary direct production deployment](prelaunch_direct_production.md). EB auto-deploys successful main pushes without staging, and explicitly opts out of offsite migration-receipt enforcement for now. The stricter staged/backup procedures below describe the configuration to restore before customer onboarding.
+
+
 ## Operating targets and ownership
 
 Initial operating targets are a database/files RPO of 24 hours and a service RTO of 4 hours. These are targets to measure, not guarantees established by the tiny synthetic drill. Take a fresh recovery point within one hour before a migration. Run a synthetic drill monthly and after recovery-tool changes; run a controlled restore from the actual offsite account at least quarterly and after changing storage, keys, or database major version. Record the incident/release owner, backup operator, recovery-key custodians, last successful real offsite restore, elapsed time, measured data loss, exceptions, and approval to reopen traffic in the deployment's restricted operations log.

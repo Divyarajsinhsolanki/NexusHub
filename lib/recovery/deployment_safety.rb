@@ -2,6 +2,11 @@ require 'json'
 require 'uri'
 module Recovery
   module DeploymentSafety
+    def self.allow_unbacked_migrations?(env)
+      env.fetch('DEPLOYMENT_TIER', 'production') == 'production' &&
+        env['PRELAUNCH_ALLOW_UNBACKED_MIGRATIONS'] == 'true'
+    end
+
     def self.validate!(env)
       tier = env.fetch('DEPLOYMENT_TIER', 'production')
       raise 'DEPLOYMENT_TIER must be production, staging or restore.' unless %w[production staging restore].include?(tier)
